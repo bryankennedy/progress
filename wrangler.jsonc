@@ -1,0 +1,28 @@
+// Wrangler config — used by the Cloudflare Vite plugin in dev and by `wrangler`
+// CLI commands (d1 migrations/execute, deploy).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "progress",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2025-12-01",
+  "assets": {
+    // Client routes are handled by the SPA; anything that isn't a real asset
+    // falls back to index.html.
+    "not_found_handling": "single-page-application",
+    // API routes must reach the Worker, never the asset handler.
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "progress-db",
+      // Placeholder until the production database is created (deploy milestone).
+      // Local dev uses Miniflare's local SQLite and ignores this id.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
