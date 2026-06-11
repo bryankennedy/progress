@@ -167,3 +167,27 @@ caching (comments/activity pages) for free, and eliminates the
 subscription-bookkeeping code the bespoke store needed. Whole workspace lives
 in one `['workspace']` query with `staleTime: Infinity`; mutations are
 `setQueryData` snapshot/rollback writes.
+
+---
+
+## 2026-06-11 — Milestone 3: issue page
+
+### D22: Issue page infrastructure
+- **Routing: wouter.** First multi-view need; ~2kB hook-based router beats
+  hand-rolling history plumbing and react-router's weight for three route
+  shapes. URLs are key-based (`/issue/PROG-2`) — stable, human-meaningful,
+  and alias-redirectable.
+- **Key resolution is client-side.** The store already holds every issue and
+  alias, so `/issue/:key` resolves from memory: current keys first, then
+  `issue_key_aliases` with a `replaceState` redirect to the canonical key —
+  no server round trip, honors SPEC §3 permanent redirects.
+- **Markdown: react-markdown** for descriptions and comments (safe by
+  default, no raw HTML). Typography is a small hand-rolled `.prose-lite`
+  stylesheet rather than the Tailwind typography plugin.
+- **`PATCH /api/issues/:id` generalizes the status endpoint** to validated
+  field patches (title, description, status, priority, estimate). A status
+  change atomically appends a `status_changed` activity row (D1 batch), so
+  the timeline is server-truth; the client invalidates the issue's timeline
+  query after a successful status sync.
+- **Timeline = comments + activity interleaved client-side** from one
+  `GET /api/issues/:id/timeline` (two batched selects), per D20.
