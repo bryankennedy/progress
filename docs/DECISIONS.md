@@ -95,3 +95,49 @@ SQL migrations (schema and SQL would drift).
 
 (Open question #4 — client store library — remains open; it gets decided when
 the store is actually built in milestone 2, with the latency spike from SPEC §9.)
+
+---
+
+## 2026-06-11 — Milestone 2: domain schema
+
+### D17: Issue container is `product_id` (always set) + nullable `repo_id`
+An issue's container is a product or one of that product's repos, never both,
+never neither (SPEC §3). Modeled as a non-null `product_id` plus a nullable
+`repo_id` that narrows the container: `repo_id IS NULL` means product-level.
+Filtering/grouping by product — the dominant query — never needs a join, and
+"move between product-level and repo-level" is a one-column update. The
+invariants SQLite can't express cheaply (`repo_id` belongs to the same product;
+arc same-product) are API-enforced. Rejected: polymorphic
+`container_type`/`container_id` (loses FK integrity, every product rollup needs
+a join); separate junction table (overkill for a 0..1 relationship).
+
+### D18: Issue keys are derived, never stored
+The display key is `product.key_prefix + '-' + number`; only `number` is stored
+(unique per product). A prefix rename therefore re-keys everything consistently
+with zero data migration. Retired keys from cross-product moves are stored
+verbatim in `issue_key_aliases` (text PK, e.g. `PROG-123`) since aliases must
+survive any later prefix changes. Per-product sequence is a
+`next_issue_number` counter on `products`, incremented transactionally on
+create and cross-product move — fine at single-user write rates.
+
+### D19: Schema-wide conventions
+- IDs: app-generated text with a type prefix (`usr_`, `ini_`, `prd_`, `rep_`,
+  `arc_`, `iss_`, `tag_`, `cmt_`, `act_`) — identifiable on sight in URLs/logs.
+- Timestamps: unix-epoch integers set by the API (not DB defaults), Drizzle
+  `mode: "timestamp"`.
+- Fixed vocabularies (status, priority, estimate points) live as `as const`
+  arrays in `schema.ts`; status/priority are Drizzle text enums, estimate is
+  API-validated.
+- Archive everywhere: nullable `archived_at` on all four container types; no
+  hard deletes.
+- No manual board ordering column in v1: SPEC §4 specifies sorting/filtering by
+  fields, not hand-ordering. Add later via migration if it earns its way in.
+- Git PR/commit link tables are deferred to the webhook milestone; `activity`
+  rows carry a JSON `data` payload, so linked-PR events already have a home.
+
+### D20: Workspace payload excludes comments and activity
+`GET /api/workspace` returns users, all containers, issues, tags, issue-tag
+links, and key aliases in one D1 `batch()`. Comments and activity — the only
+unbounded-growth tables and not needed for boards/lists — load per issue when
+an issue page opens. Keeps the load-everything payload small for years of use
+(SPEC §8.2).

@@ -32,8 +32,10 @@ When a decision of consequence is made in conversation, record it in
 
 ## Status
 
-**Phase: building.** Milestone 1 — scaffold + walking skeleton — complete
-(2026-06-11): Vite + React + Tailwind + Hono + D1/Drizzle in one app, end-to-end
-round trip verified. `bun run dev` serves everything on :5173 (see
-`docs/SETUP.md`). Next: milestone 2 — full domain schema + whole-workspace load
-endpoint + client store. Update this section as phases change.
+**Phase: building.** Milestone 1 (scaffold + walking skeleton) complete
+2026-06-11. Milestone 2 in progress: full domain schema (D17–D19) and
+whole-workspace load endpoint (D20) done — 11 tables, dogfood seed of the v1
+backlog, all entities load in one batched query. `bun run dev` serves
+everything on :8000 (see `docs/SETUP.md`). Remaining for milestone 2: client
+store + optimistic mutations (open question #4 — store library — decided there
+with a latency spike). Update this section as phases change.
