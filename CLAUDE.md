@@ -32,5 +32,8 @@ When a decision of consequence is made in conversation, record it in
 
 ## Status
 
-**Phase: pre-code.** Spec complete (2026-06-11); next step is project
-scaffolding. Update this section as phases change.
+**Phase: building.** Milestone 1 — scaffold + walking skeleton — complete
+(2026-06-11): Vite + React + Tailwind + Hono + D1/Drizzle in one app, end-to-end
+round trip verified. `bun run dev` serves everything on :5173 (see
+`docs/SETUP.md`). Next: milestone 2 — full domain schema + whole-workspace load
+endpoint + client store. Update this section as phases change.

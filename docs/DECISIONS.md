@@ -71,3 +71,27 @@ rewrite when collaborators arrive, costs almost nothing now.
 
 ### D14: The name is Progress
 Confirmed, matching the repo directory.
+
+---
+
+## 2026-06-11 — Milestone 1 scaffold
+
+### D15: Single-app structure on the Cloudflare Vite plugin
+One package, one Vite dev server: `@cloudflare/vite-plugin` runs the Hono
+Worker (with a real local D1 via Miniflare) inside `vite dev`, so client and
+API share a port and deploy as one Worker (SPEC §8.1). Layout:
+`src/worker` (Hono) / `src/client` (React) / `src/db` (Drizzle schema), with
+split tsconfig project references because Workers and DOM type globals clash.
+Rejected: monorepo with separate api/web packages (overhead with no payoff for
+one Worker); `create-cloudflare` template scaffold (hand-rolled instead so
+every file is understood and documented in `docs/SETUP.md`).
+
+### D16: Migrations are Drizzle-generated, Wrangler-applied
+`src/db/schema.ts` is the single schema source of truth. `drizzle-kit generate`
+emits SQL into `drizzle/` (committed); `wrangler d1 migrations apply` runs them
+locally and, later, in production. Seeds live in `scripts/seed.sql` and are
+idempotent. Rejected: `drizzle-kit push` (no migration history) and hand-written
+SQL migrations (schema and SQL would drift).
+
+(Open question #4 — client store library — remains open; it gets decided when
+the store is actually built in milestone 2, with the latency spike from SPEC §9.)
