@@ -1,8 +1,10 @@
 import { Hono } from "hono";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import {
   arcs,
   initiatives,
+  ISSUE_STATUSES,
   issueKeyAliases,
   issues,
   issueTags,
@@ -10,6 +12,7 @@ import {
   repos,
   tags,
   users,
+  type IssueStatus,
 } from "../db/schema";
 
 type Bindings = {
@@ -59,6 +62,28 @@ app.get("/api/workspace", async (c) => {
     issueTags: allIssueTags,
     issueKeyAliases: allKeyAliases,
   });
+});
+
+// First mutation endpoint — the optimistic-update template case (SPEC §8.2).
+app.patch("/api/issues/:id/status", async (c) => {
+  const body = (await c.req.json()) as { status?: string };
+  if (!ISSUE_STATUSES.includes(body.status as IssueStatus)) {
+    return c.json({ error: `invalid status: ${String(body.status)}` }, 400);
+  }
+  const status = body.status as IssueStatus;
+  const now = new Date();
+  const db = drizzle(c.env.DB);
+  const [updated] = await db
+    .update(issues)
+    .set({
+      status,
+      updatedAt: now,
+      completedAt: status === "done" ? now : null,
+    })
+    .where(eq(issues.id, c.req.param("id")))
+    .returning();
+  if (!updated) return c.json({ error: "issue not found" }, 404);
+  return c.json({ issue: updated });
 });
 
 export default app;
