@@ -55,6 +55,7 @@ the dev server is served directly at the VM's main URL — no nginx in between.
 | `bun run db:generate` | Generate a SQL migration from `src/db/schema.ts` changes |
 | `bun run db:migrate` | Apply pending migrations to local D1 |
 | `bun run db:seed` | Seed baseline data (idempotent) |
+| `bun run db:seed:scale` | Add a deterministic 5k-issue synthetic workspace (perf testing) |
 
 ### Schema-change workflow
 
