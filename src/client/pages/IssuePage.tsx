@@ -76,13 +76,27 @@ export default function IssuePage({
     .filter((t) => t !== undefined);
 
   return (
-    <>
+    <div className="mx-auto max-w-3xl">
       <nav className="text-sm text-stone-400">
         <Link href="/" className="hover:text-stone-600">
           Workspace
         </Link>{" "}
-        / {product?.name ?? "?"}
-        {repo ? ` / ${repo.name}` : ""}
+        /{" "}
+        {product ? (
+          <Link href={`/product/${product.id}`} className="hover:text-stone-600">
+            {product.name}
+          </Link>
+        ) : (
+          "?"
+        )}
+        {repo && (
+          <>
+            {" / "}
+            <Link href={`/repo/${repo.id}`} className="hover:text-stone-600">
+              {repo.name}
+            </Link>
+          </>
+        )}
       </nav>
 
       <header className="mt-4">
@@ -119,7 +133,13 @@ export default function IssuePage({
             />
           </Field>
           <Field label="Arc">
-            <span className="text-sm">{arc?.name ?? "—"}</span>
+            {arc ? (
+              <Link href={`/arc/${arc.id}`} className="text-sm text-sky-700 hover:underline">
+                {arc.name}
+              </Link>
+            ) : (
+              <span className="text-sm text-stone-400">—</span>
+            )}
           </Field>
           <Field label="Tags">
             {issueTags.length === 0 ? (
@@ -145,7 +165,7 @@ export default function IssuePage({
           </div>
         </aside>
       </div>
-    </>
+    </div>
   );
 }
 
