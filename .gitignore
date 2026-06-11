@@ -1,0 +1,23 @@
+# Local environment secrets — never commit credentials
+.env
+.env.local
+.env.*.local
+
+# Dependency installs — reproducible from lockfile
+node_modules/
+
+# Build output — generated artifacts
+dist/
+
+# Wrangler local state and cached builds
+.wrangler/
+
+# macOS filesystem noise
+.DS_Store
+
+# Editor-local settings not shared by the team
+.vscode/
+.idea/
+
+# Claude Code per-machine settings — local permissions, not shared
+.claude/settings.local.json
