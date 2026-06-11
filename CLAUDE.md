@@ -35,10 +35,11 @@ When a decision of consequence is made in conversation, record it in
 **Phase: building.** Milestones 1 (scaffold + walking skeleton) and 2 (domain
 schema D17–D19, workspace load endpoint D20, TanStack Query client store D21
 with the optimistic-mutation template in `src/client/store.ts`) complete
-2026-06-11. Milestone 3 (real views) in progress: issue page done (D22 —
-wouter routing, field edits, Markdown, comments + activity timeline);
-remaining: global "My Work" board (replaces the interim list in
-`pages/Home.tsx`), container pages. `bun run dev` serves everything on :8000
+2026-06-11. Milestone 3 (real views) complete: issue page (D22), global
+"My Work" board with dnd-kit drag-and-drop and URL-param filters (D23), and
+container pages for all four types. Next: milestone 4 — command palette +
+keyboard actions, issue creation, and issue movement with key aliases (SPEC
+§4, §3). `bun run dev` serves everything on :8000
 (see `docs/SETUP.md`). Shared wire types live in `src/shared/`. Synthetic
 5k-issue data: `bun run db:seed:scale`; reset via `docs/SETUP.md` §2. Update
 this section as phases change.

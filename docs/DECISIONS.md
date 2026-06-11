@@ -191,3 +191,21 @@ in one `['workspace']` query with `staleTime: Infinity`; mutations are
   query after a successful status sync.
 - **Timeline = comments + activity interleaved client-side** from one
   `GET /api/issues/:id/timeline` (two batched selects), per D20.
+
+### D23: Board infrastructure
+- **Drag-and-drop: @dnd-kit/core.** Headless, touch-capable, ~10kB; native
+  HTML5 DnD can't do smooth previews or touch. Cards are draggables, columns
+  are droppables, drops call the same `setIssueStatus` as everything else. A
+  4px pointer activation threshold keeps plain clicks navigating to the
+  issue page. No sortable within columns (D19: no manual ordering).
+- **Filters live in URL query params** (`/?product=…&arc=…&backlog=1`), so
+  any filtered board is bookmarkable — this is what makes deferring
+  per-product/per-arc boards viable (SPEC §4); container pages link to their
+  own filtered board view. Repo/arc filter options narrow to the selected
+  product.
+- **Backlog hidden by default** behind a toggle (open question #2 default
+  adopted). Done and Canceled columns always render.
+- **Container pages are one component** parameterized by type; scope and
+  child links derive from the workspace in memory. Inline list edits reuse
+  the optimistic template. Container description editing is deferred (needs
+  container PATCH endpoints; not part of this pass).
