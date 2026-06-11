@@ -33,9 +33,10 @@ When a decision of consequence is made in conversation, record it in
 ## Status
 
 **Phase: building.** Milestone 1 (scaffold + walking skeleton) complete
-2026-06-11. Milestone 2 in progress: full domain schema (D17–D19) and
-whole-workspace load endpoint (D20) done — 11 tables, dogfood seed of the v1
-backlog, all entities load in one batched query. `bun run dev` serves
-everything on :8000 (see `docs/SETUP.md`). Remaining for milestone 2: client
-store + optimistic mutations (open question #4 — store library — decided there
-with a latency spike). Update this section as phases change.
+2026-06-11. Milestone 2 in progress: full domain schema (D17–D19),
+whole-workspace load endpoint (D20), and the client-store latency spike (D21 —
+TanStack Query wins) are done. `bun run dev` serves everything on :8000 (see
+`docs/SETUP.md`). Remaining for milestone 2: build the real store on TanStack
+Query (delete `src/client/spike/` when it lands). Synthetic 5k-issue data:
+`bun run db:seed:scale`; reset via `docs/SETUP.md` §2. Update this section as
+phases change.

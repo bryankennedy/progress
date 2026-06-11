@@ -141,3 +141,29 @@ links, and key aliases in one D1 `batch()`. Comments and activity — the only
 unbounded-growth tables and not needed for boards/lists — load per issue when
 an issue page opens. Keeps the load-everything payload small for years of use
 (SPEC §8.2).
+
+## 2026-06-11 — Milestone 2: client store spike
+
+### D21: Client store is TanStack Query (open question #4 closed)
+Decided by the latency spike, not taste. Method: 5,000-issue synthetic
+workspace (`bun run db:seed:scale`, deterministic), two prototypes rendering
+an identical 6-column board of all 5k issues with one optimistic mutation
+(status cycle, real PATCH + rollback), driven by 100 real DOM clicks in
+headless Chromium with double-rAF click-to-paint timing and React Profiler
+commit timing.
+
+Results (p50/p95 click-to-paint): **TanStack Query 23ms/98ms** vs bespoke
+normalized store with per-issue/per-column `useSyncExternalStore`
+subscriptions **73ms/128ms**. The bespoke store's theoretical advantage
+(1 card + 2 column renders per mutation vs ~490 card renders) did not
+materialize as latency: TanStack's structural sharing kept commits at ~17ms
+vs 27ms, and total work fit in fewer frames. Both correct under a
+column-movement check; both well under the perceptibility bar at realistic
+board sizes (the 5k-card all-columns view is the worst case; the default
+board hides Backlog per open question #2).
+
+TanStack also brings rollback/retry plumbing, devtools, and per-issue query
+caching (comments/activity pages) for free, and eliminates the
+subscription-bookkeeping code the bespoke store needed. Whole workspace lives
+in one `['workspace']` query with `staleTime: Infinity`; mutations are
+`setQueryData` snapshot/rollback writes.
