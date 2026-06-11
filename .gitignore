@@ -21,3 +21,6 @@ dist/
 
 # Claude Code per-machine settings — local permissions, not shared
 .claude/settings.local.json
+
+# Generated synthetic-scale seed SQL — regenerate with `bun run db:seed:scale`
+scripts/seed-scale.generated.sql
