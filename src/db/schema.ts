@@ -13,22 +13,12 @@ import {
 // and URLs. Timestamps are unix-epoch integers set by the API (seeds use
 // unixepoch()).
 
-// Fixed vocabularies (SPEC §3 — rigid simplicity, not configurable).
-export const ISSUE_STATUSES = [
-  "backlog",
-  "todo",
-  "in_progress",
-  "in_review",
-  "done",
-  "canceled",
-] as const;
-export type IssueStatus = (typeof ISSUE_STATUSES)[number];
+// Fixed vocabularies live in src/shared/constants.ts (shared with the
+// client); re-exported here so DB-adjacent code keeps one import site.
+import { ISSUE_PRIORITIES, ISSUE_STATUSES } from "../shared/constants";
 
-export const ISSUE_PRIORITIES = ["urgent", "high", "medium", "low", "none"] as const;
-export type IssuePriority = (typeof ISSUE_PRIORITIES)[number];
-
-// Estimate is Linear-style points (SPEC §9 open question #1, default taken).
-export const ISSUE_ESTIMATES = [0, 1, 2, 3, 5, 8] as const;
+export { ISSUE_ESTIMATES, ISSUE_PRIORITIES, ISSUE_STATUSES } from "../shared/constants";
+export type { IssuePriority, IssueStatus } from "../shared/constants";
 
 // Multi-user-ready from day one (SPEC §8.4, D13): one row in v1, but
 // creator/assignee/author foreign keys point here.
