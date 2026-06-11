@@ -18,7 +18,7 @@ constant translation is friction. Progress makes the hierarchy itself the produc
 
 ### Who it's for
 
-One user (Bryan) in v1. The data model anticipates collaborators later
+One user (the owner) in v1. The data model anticipates collaborators later
 (creator/assignee/author fields exist from day one), but no auth, permissions, or
 sharing UI ships in v1.
 
