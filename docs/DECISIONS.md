@@ -254,3 +254,51 @@ in one `['workspace']` query with `staleTime: Infinity`; mutations are
   attributes the views already render — no per-component wiring.
 - Cross-cutting cleanup: status/priority display names moved to one shared
   `src/client/labels.ts` (palette, board, and pages had three copies).
+
+---
+
+## 2026-06-12 — Milestone 5: the CRUD gaps
+
+### D26: Container CRUD + archive semantics
+- **POST + PATCH for all four container types.** PATCH covers name,
+  description, `archived` (boolean, mapped to `archivedAt`), plus
+  `keyPrefix` on products (letters-only 2–8, globally unique — rename is
+  safe because keys are derived, D18) and `gitUrl` on repos.
+- **Container ids may be client-generated.** Container pages are
+  id-addressed, so optimistic create + instant navigation requires the id
+  to survive reconciliation. The store generates `prd_<uuid>`-style ids and
+  the server accepts well-formed ones verbatim (single-user; the server
+  still validates shape and falls back to its own id). Issues didn't need
+  this — they're key-addressed and the key is computable client-side.
+- **Archive = out of navigation, not out of existence.** Archived
+  containers disappear from board filter dropdowns, create-dialog targets,
+  move targets, and palette search; their issues remain visible everywhere
+  (nothing silently vanishes from the board), and parent container pages
+  list archived children dimmed so unarchive stays reachable.
+- Editing UI: shared `InlineEdit` (single-line; Enter commits, blur/Escape
+  cancels) and `EditableMarkdown` (extracted from the issue page) cover
+  container names, prefixes, git URLs, descriptions, and issue titles.
+
+### D27: Tags — minimal UX (open question #3 closed)
+- **Auto-color**: fixed 7-color palette in `shared/constants.ts`, picked by
+  a stable name hash — shared by server and client so optimistic rows match.
+- **One endpoint assigns and creates**: `POST /api/issues/:id/tags` takes
+  `tagId` (existing) or `name` (create-or-get, then assign) so the palette's
+  "Create tag 'x'" is one atomic call. `DELETE …/tags/:tagId` unlinks; tag
+  rows are never deleted in v1.
+- **Picker = palette mode T**: toggles stay open for multi-tag editing; the
+  arc picker (mode A) follows the same pattern with the same-product
+  constraint enforced in `PATCH /api/issues/:id` (`arcId`). Keyboard map
+  from D25 extends to `T` (tags) and `A` (arc).
+
+### D28: Claude Code agent integration is the headline v1.x direction
+Recorded as SPEC §11 (per owner, 2026-06-12): issues should be executable
+work orders. Three pieces — a deterministic per-issue **context bundle**
+endpoint, an **MCP server** on the Worker for inbound "work on PROG-123"
+interrogation/updates from Claude Code, and an **outbound kickoff** (CLI
+handoff first, cloud sessions later) that works in a branch named from the
+issue key so §5 webhook linking closes the loop automatically. Roadmap
+re-prioritized: webhook milestone next (it's a prerequisite for the loop),
+then deploy/dogfood, then bundle + MCP, then outbound kickoff. "API for
+third-party clients" is hereby promoted from deferred to planned-v1.x (as
+the MCP surface). Implementation decisions deferred to the build.

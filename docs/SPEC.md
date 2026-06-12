@@ -161,7 +161,7 @@ issue pages reflow). Native apps are out of scope.
 | Comments + activity feed | Status automation from PRs | |
 | Issue movement with key-alias redirects | Due dates, sub-issues, blocking relations | |
 | GitHub webhook magic-word PR/commit linking | Saved custom views | |
-| Command palette + keyboard actions | API for third-party clients | |
+| Command palette + keyboard actions | API for third-party clients (planned v1.x as the MCP surface, §11) | |
 | Mobile-friendly responsive UI | | |
 
 ## 7. The dogfood milestone
@@ -227,4 +227,66 @@ instant. Progress copies the pattern at a scale where it's easy:
 ## 10. Beyond v1 (direction, not commitment)
 
 Sprint planning on top of the existing model · per-container boards · saved
-views · PR-driven status automation · notifications/digests · multi-user.
+views · PR-driven status automation · notifications/digests · multi-user ·
+**Claude Code agent integration (§11 — the headline v1.x feature)**.
+
+## 11. Claude Code integration (v1.x direction — design now, build after v1)
+
+The owner's development workflow runs through Claude Code. Progress should
+close the gap between *tracking* work and *executing* it: an issue carries
+enough context (description, comments, arc, product, repo + git URL, linked
+PRs) to be an **executable work order**, not just a record.
+
+### 11.1 The context bundle (shared foundation)
+
+A deterministic Markdown rendering of an issue and its surroundings, served
+as `GET /api/issues/:key/bundle`:
+
+- Issue: key, title, description, status, priority, estimate, tags.
+- Lineage with descriptions: product → repo (incl. `gitUrl`) → arc — the arc
+  description is where epic-level intent lives, so the agent sees the *why*.
+- Comments (the owner's running notes are usually the freshest context) and
+  linked PRs/commits once §5 ships.
+- A stable preamble telling an agent how to report back (post a comment,
+  update status, mention the key in branch/commit for auto-linking).
+
+One format feeds both directions below; it is also just a useful "copy as
+prompt" button for manual use.
+
+### 11.2 Outbound — execute an issue from Progress
+
+A "Work on this" action on an issue (palette command + button) that starts a
+Claude Code session primed with the bundle:
+
+- v1.x minimal: copy/handoff — a generated one-liner (e.g.
+  `progress work PROG-123`, a small CLI/script that fetches the bundle and
+  launches `claude` with it in the right checkout) keeps Progress free of
+  machine-specific knowledge about where repos live.
+- Later: launch a cloud/headless Claude Code session directly from the web
+  UI against the repo's `gitUrl`, working in a branch named from the issue
+  key (e.g. `iss/PROG-123`).
+- Branch-from-key is the linchpin: it makes §5 magic-word linking automatic,
+  so agent work flows back into the issue's activity with zero ceremony.
+
+### 11.3 Inbound — interrogate Progress from Claude Code
+
+Progress exposes an **MCP server** (the Worker already hosts the API; MCP is
+the natural "API for third-party clients" from §6, promoted from deferred):
+
+- Tools: get issue/bundle by key, list/filter issues ("my todo in this
+  repo"), update status, comment, create issues, move issues.
+- The owner says "work on PROG-123" in any Claude Code session; the agent
+  pulls the bundle, does the work, posts progress comments, and flips status
+  — the same fixed status set keeps agent updates unambiguous.
+
+### 11.4 Prerequisites & sequencing
+
+1. **Production deploy** (§7/§8.3) — agents need a stable URL.
+2. **Non-interactive auth**: a Cloudflare Access service token (same pattern
+   as the webhook's HMAC bypass) for the bundle/MCP surface; secrets via
+   env per §8.3.
+3. **§5 webhook linking** — without it the loop doesn't close; with it,
+   agent branches/PRs appear on the issue automatically. Build it first.
+
+Roadmap impact: webhook (next) → mobile + deploy + dogfood (v1 done) →
+context bundle + MCP server → outbound work-session kickoff.

@@ -38,9 +38,13 @@ with the optimistic-mutation template in `src/client/store.ts`) complete
 2026-06-11. Milestone 3 (real views: issue page D22, global "My Work" board
 D23, container pages) and milestone 4 (issue creation + movement with key
 aliases D24, command palette + keyboard map D25 — `src/client/commands/`)
-complete 2026-06-12. Next: milestone 5 — GitHub webhook magic-word PR/commit
-linking (SPEC §5), then mobile polish and the production-deploy dogfood
-milestone (SPEC §7). `bun run dev` serves everything on :8000
+complete 2026-06-12. Milestone 5 (CRUD gaps, D26–D27: container
+create/edit/archive, tags with auto-color, arc/title editing, T/A keyboard
+pickers) complete 2026-06-12. Next: milestone 6 — GitHub webhook magic-word
+PR/commit linking (SPEC §5; also a prerequisite for the Claude Code agent
+integration, SPEC §11/D28); then mobile polish + production deploy + dogfood
+(SPEC §7); then v1.x agent integration (context bundle, MCP server, work
+kickoff). `bun run dev` serves everything on :8000
 (see `docs/SETUP.md`). Shared wire types live in `src/shared/`. Synthetic
 5k-issue data: `bun run db:seed:scale`; reset via `docs/SETUP.md` §2. Update
 this section as phases change.
