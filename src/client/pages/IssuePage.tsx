@@ -9,6 +9,9 @@ import {
   type IssueStatus,
 } from "../../shared/constants";
 import type { WireActivity, WireComment, WireIssue, WorkspacePayload } from "../../shared/types";
+import { openPalette } from "../commands/controller";
+import { useRegisterPageIssue } from "../commands/currentIssue";
+import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import {
   addComment,
   findIssueByKey,
@@ -16,22 +19,6 @@ import {
   updateIssue,
   useTimeline,
 } from "../store";
-
-const STATUS_LABELS: Record<IssueStatus, string> = {
-  backlog: "Backlog",
-  todo: "Todo",
-  in_progress: "In Progress",
-  in_review: "In Review",
-  done: "Done",
-  canceled: "Canceled",
-};
-const PRIORITY_LABELS: Record<IssuePriority, string> = {
-  urgent: "Urgent",
-  high: "High",
-  medium: "Medium",
-  low: "Low",
-  none: "No priority",
-};
 
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -45,6 +32,9 @@ export default function IssuePage({
 }) {
   const resolved = findIssueByKey(workspace, keyParam);
   const [, navigate] = useLocation();
+
+  // Makes this issue the target of the single-key actions (S/P/E/M).
+  useRegisterPageIssue(resolved?.issue.id);
 
   // Alias hit (old key from a cross-product move): permanent redirect to the
   // canonical key (SPEC §3).
@@ -131,6 +121,18 @@ export default function IssuePage({
               options={[["", "—"], ...ISSUE_ESTIMATES.map((e): [string, string] => [String(e), String(e)])]}
               onChange={(v) => updateIssue(issue.id, { estimate: v === "" ? null : Number(v) })}
             />
+          </Field>
+          <Field label="Container">
+            <p className="text-sm">
+              {product?.name ?? "?"}
+              {repo ? ` / ${repo.name}` : ""}
+            </p>
+            <button
+              onClick={() => openPalette({ kind: "move", issueId: issue.id })}
+              className="mt-0.5 text-xs text-sky-600 hover:underline"
+            >
+              Move… <span className="text-stone-400">(M)</span>
+            </button>
           </Field>
           <Field label="Arc">
             {arc ? (
@@ -307,7 +309,7 @@ function TimelineSection({
             </li>
           ) : (
             <li key={entry.event.id} className="px-3 text-xs text-stone-400">
-              {describeActivity(entry.event)} · {fmtTime(entry.event.createdAt)}
+              {describeActivity(entry.event, workspace)} · {fmtTime(entry.event.createdAt)}
             </li>
           ),
         )}
@@ -338,11 +340,28 @@ function TimelineSection({
   );
 }
 
-function describeActivity(event: WireActivity): string {
+function describeActivity(event: WireActivity, workspace: WorkspacePayload): string {
   if (event.type === "status_changed") {
     const data = event.data as { from?: IssueStatus; to?: IssueStatus };
     const label = (s: IssueStatus | undefined) => (s ? (STATUS_LABELS[s] ?? s) : "?");
     return `Status changed: ${label(data.from)} → ${label(data.to)}`;
+  }
+  if (event.type === "moved") {
+    const data = event.data as {
+      fromProductId?: string;
+      fromRepoId?: string | null;
+      toProductId?: string;
+      toRepoId?: string | null;
+      fromKey?: string;
+      toKey?: string;
+    };
+    const containerName = (productId?: string, repoId?: string | null) => {
+      const product = workspace.products.find((p) => p.id === productId);
+      const repo = repoId ? workspace.repos.find((r) => r.id === repoId) : undefined;
+      return `${product?.name ?? "?"}${repo ? ` / ${repo.name}` : ""}`;
+    };
+    const rekeyed = data.fromKey ? ` (was ${data.fromKey})` : "";
+    return `Moved: ${containerName(data.fromProductId, data.fromRepoId)} → ${containerName(data.toProductId, data.toRepoId)}${rekeyed}`;
   }
   return event.type.replaceAll("_", " ");
 }

@@ -24,23 +24,9 @@ import {
   type IssueStatus,
 } from "../../shared/constants";
 import type { WireIssue, WireTag, WorkspacePayload } from "../../shared/types";
+import { openCreateIssue } from "../commands/controller";
+import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import { issueKeyOf, loadStats, setIssueStatus } from "../store";
-
-const STATUS_LABELS: Record<IssueStatus, string> = {
-  backlog: "Backlog",
-  todo: "Todo",
-  in_progress: "In Progress",
-  in_review: "In Review",
-  done: "Done",
-  canceled: "Canceled",
-};
-const PRIORITY_LABELS: Record<IssuePriority, string> = {
-  urgent: "Urgent",
-  high: "High",
-  medium: "Medium",
-  low: "Low",
-  none: "No priority",
-};
 
 const FILTER_KEYS = ["initiative", "product", "repo", "arc", "tag", "priority"] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
@@ -141,8 +127,14 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
         <h1 className="text-2xl font-semibold tracking-tight">Progress</h1>
         <p className="text-xs text-stone-400">
           {shownCount} issues on board · {workspace.issues.length} total · loaded in{" "}
-          {Math.round(loadStats.fetchMs)} ms
+          {Math.round(loadStats.fetchMs)} ms · ⌘K for commands
         </p>
+        <button
+          onClick={() => openCreateIssue()}
+          className="ml-auto rounded bg-stone-900 px-3 py-1 text-sm text-white hover:bg-stone-700"
+        >
+          New issue <span className="text-stone-400">(C)</span>
+        </button>
       </header>
 
       <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">

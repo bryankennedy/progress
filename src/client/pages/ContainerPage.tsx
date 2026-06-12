@@ -13,6 +13,7 @@ import {
   type IssueStatus,
 } from "../../shared/constants";
 import type { WireIssue, WorkspacePayload } from "../../shared/types";
+import { PRIORITY_LABELS as SHARED_PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import { issueKeyOf, updateIssue } from "../store";
 
 export type ContainerType = "initiative" | "product" | "repo" | "arc";
@@ -23,19 +24,9 @@ const TYPE_LABELS: Record<ContainerType, string> = {
   repo: "Repo",
   arc: "Arc",
 };
-const STATUS_LABELS: Record<IssueStatus, string> = {
-  backlog: "Backlog",
-  todo: "Todo",
-  in_progress: "In Progress",
-  in_review: "In Review",
-  done: "Done",
-  canceled: "Canceled",
-};
+// Compact "none" for the narrow inline row selects.
 const PRIORITY_LABELS: Record<IssuePriority, string> = {
-  urgent: "Urgent",
-  high: "High",
-  medium: "Medium",
-  low: "Low",
+  ...SHARED_PRIORITY_LABELS,
   none: "—",
 };
 

@@ -1,4 +1,5 @@
 import { Link, Route, Switch } from "wouter";
+import CommandLayer from "./commands/CommandLayer";
 import { useWorkspace } from "./store";
 import { Toasts } from "./toast";
 import ContainerPage, { type ContainerType } from "./pages/ContainerPage";
@@ -22,6 +23,7 @@ export default function App() {
         {/* Initial app load: the only permitted loading state (SPEC §8.2). */}
         {isPending && <p className="text-stone-400">Loading workspace…</p>}
         {error && <p className="text-red-600">{String(error)}</p>}
+        {workspace && <CommandLayer workspace={workspace} />}
         {workspace && (
           <Switch>
             <Route path="/">
