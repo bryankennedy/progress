@@ -35,11 +35,12 @@ When a decision of consequence is made in conversation, record it in
 **Phase: building.** Milestones 1 (scaffold + walking skeleton) and 2 (domain
 schema D17–D19, workspace load endpoint D20, TanStack Query client store D21
 with the optimistic-mutation template in `src/client/store.ts`) complete
-2026-06-11. Milestone 3 (real views) complete: issue page (D22), global
-"My Work" board with dnd-kit drag-and-drop and URL-param filters (D23), and
-container pages for all four types. Next: milestone 4 — command palette +
-keyboard actions, issue creation, and issue movement with key aliases (SPEC
-§4, §3). `bun run dev` serves everything on :8000
+2026-06-11. Milestone 3 (real views: issue page D22, global "My Work" board
+D23, container pages) and milestone 4 (issue creation + movement with key
+aliases D24, command palette + keyboard map D25 — `src/client/commands/`)
+complete 2026-06-12. Next: milestone 5 — GitHub webhook magic-word PR/commit
+linking (SPEC §5), then mobile polish and the production-deploy dogfood
+milestone (SPEC §7). `bun run dev` serves everything on :8000
 (see `docs/SETUP.md`). Shared wire types live in `src/shared/`. Synthetic
 5k-issue data: `bun run db:seed:scale`; reset via `docs/SETUP.md` §2. Update
 this section as phases change.

@@ -209,3 +209,48 @@ in one `['workspace']` query with `staleTime: Infinity`; mutations are
   child links derive from the workspace in memory. Inline list edits reuse
   the optimistic template. Container description editing is deferred (needs
   container PATCH endpoints; not part of this pass).
+
+---
+
+## 2026-06-12 — Milestone 4: creation, movement, command palette
+
+### D24: Issue creation and movement semantics
+- **`POST /api/issues`** allocates the issue number with an atomic
+  `next_issue_number` increment on the product (D18). A crash between
+  allocation and insert leaves a number gap — harmless, numbers only need to
+  be unique and monotonic, not dense.
+- **Creation is optimistic including the key**: the client allocates the
+  number from the store's `nextIssueNumber` mirror, valid because this client
+  is the only writer in v1. The temp row is swapped for the server row (same
+  key, real id), so creating can navigate to the new issue page instantly
+  with zero spinner. The create dialog defaults its container from wherever
+  the user is (container page, viewed issue's container, or the board's
+  active filters) and defaults status to **Todo**, not Backlog — a freshly
+  created issue should be visible on the default board, which hides Backlog.
+- **`POST /api/issues/:id/move`** (SPEC §3): within a product the key and
+  arc survive and only `repo_id` changes. Cross-product moves re-key from
+  the target's sequence, clear the arc, write the retired key to
+  `issue_key_aliases`, and append a `moved` activity event (with from/to
+  container ids, and old/new keys when re-keyed). The client mirrors all of
+  it optimistically — including the local re-key and alias append — so an
+  open issue page redirects to the canonical key with no round trip.
+  Rollback restores exactly what the move touched.
+
+### D25: One keyboard surface — the command palette
+- **Hand-rolled palette**, no dependency (`cmdk` rejected: the dependency
+  budget is tight per SPEC §8.2 and case-insensitive substring matching is
+  plenty at single-user scale). Root mode searches issues by key — retired
+  alias keys included, via the same `findIssueByKey` the router uses — or
+  title, containers by name, plus commands.
+- **Single-key actions open the palette in a picker mode** (status /
+  priority / estimate / move) scoped to one issue, rather than bespoke
+  menus: one component, one interaction grammar, every picker filterable.
+- **Key map (SPEC §4 "decided during build"):** `⌘K`/`Ctrl+K` palette ·
+  `C` create issue · `S` status · `P` priority · `E` estimate · `M` move.
+  Plain keys are suppressed while typing in any input/textarea/select.
+- **"Current issue"** for single-key actions = the issue page's issue, or
+  on boards/lists the card/row under the pointer or holding keyboard focus,
+  tracked by document-level event delegation on the `data-issue-id`
+  attributes the views already render — no per-component wiring.
+- Cross-cutting cleanup: status/priority display names moved to one shared
+  `src/client/labels.ts` (palette, board, and pages had three copies).
