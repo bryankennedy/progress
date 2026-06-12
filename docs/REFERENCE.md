@@ -9,7 +9,7 @@ vision and unbuilt work see [`SPEC.md`](./SPEC.md); for rationale see
 
 | Layer | Choice |
 |---|---|
-| Hosting | Cloudflare Workers (single Worker: API + static assets; local-only today, deploy is a remaining milestone) |
+| Hosting | Cloudflare Workers (single Worker: API + static assets) — production at <https://progress.bryan-22c.workers.dev>, D1 `progress-db` (ENAM) |
 | API | Hono (TypeScript, ESM) |
 | Database | Cloudflare D1 (SQLite) via Drizzle ORM; local D1 under `.wrangler/state/` |
 | Frontend | React 19 + Vite + Tailwind 4 |

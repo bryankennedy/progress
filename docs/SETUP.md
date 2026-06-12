@@ -95,11 +95,24 @@ the dev server is served directly at the VM's main URL — no nginx in between.
 
 ## 6. Production deploy
 
-Not set up yet (comes with the deploy milestone). It will be:
-`wrangler login` → create the real D1 database and put its id in
-`wrangler.jsonc` → `wrangler secret put GITHUB_WEBHOOK_SECRET` →
-`bun run deploy` → put Cloudflare Access in front, excluding
-`/api/webhooks/github` (SPEC §8.3) → register the webhook on each GitHub
-repository (push + pull_request events, JSON content type, the same
-secret). The `database_id` currently in `wrangler.jsonc` is a placeholder;
-local dev ignores it.
+Deployed 2026-06-12: <https://progress.bryan-22c.workers.dev> (single
+Worker; D1 `progress-db` in ENAM, id in `wrangler.jsonc` — local dev
+ignores it). Migrations + the idempotent dogfood seed are applied;
+`GITHUB_WEBHOOK_SECRET` is set via `wrangler secret put` (the value also
+lives in the local gitignored `.env` as `PROD_GITHUB_WEBHOOK_SECRET`, for
+GitHub-side registration).
+
+Redeploy after changes: `bun run deploy` (builds, then `wrangler deploy`).
+Schema changes additionally need
+`bunx wrangler d1 migrations apply progress-db --remote` first.
+
+Remaining one-time setup (dashboard, owner-only):
+
+1. **Cloudflare Access** (SPEC §8.3): Zero Trust → Access → Applications —
+   a self-hosted app for `progress.bryan-22c.workers.dev` allowing only the
+   owner's email, plus a path application for `/api/webhooks/github` with a
+   **Bypass · Everyone** policy (the route authenticates via HMAC instead).
+2. **GitHub webhook** per connected repository: Settings → Webhooks → Add —
+   payload URL `https://progress.bryan-22c.workers.dev/api/webhooks/github`,
+   content type `application/json`, secret = `PROD_GITHUB_WEBHOOK_SECRET`
+   from `.env`, events: Pushes + Pull requests.

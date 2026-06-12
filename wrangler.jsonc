@@ -16,9 +16,9 @@
     {
       "binding": "DB",
       "database_name": "progress-db",
-      // Placeholder until the production database is created (deploy milestone).
-      // Local dev uses Miniflare's local SQLite and ignores this id.
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      // Production database (created 2026-06-12, region ENAM). Local dev uses
+      // Miniflare's local SQLite and ignores this id.
+      "database_id": "431fe3c3-4bae-41fb-8757-cdcb69b085f5",
       "migrations_dir": "drizzle"
     }
   ],
