@@ -106,13 +106,19 @@ Redeploy after changes: `bun run deploy` (builds, then `wrangler deploy`).
 Schema changes additionally need
 `bunx wrangler d1 migrations apply progress-db --remote` first.
 
-Remaining one-time setup (dashboard, owner-only):
+**Cloudflare Access is live** (configured 2026-06-12, SPEC §8.3): two
+self-hosted Zero Trust applications — "Progress" on the bare hostname with
+an Allow policy for the owner's email (One-time PIN login, team domain
+`purple-flower-89f4.cloudflareaccess.com`), and "Progress webhook bypass"
+on path `api/webhooks/github` with a Bypass · Everyone policy (the route
+authenticates via HMAC instead). Verified: `/` and `/api/*` 302 to the
+Access login; the webhook path reaches the Worker (401 unsigned, 200
+signed). Note: a Zero Trust app on a workers.dev hostname only enforces
+once its policy is actually attached — an app saved without one blocks
+nothing.
 
-1. **Cloudflare Access** (SPEC §8.3): Zero Trust → Access → Applications —
-   a self-hosted app for `progress.bryan-22c.workers.dev` allowing only the
-   owner's email, plus a path application for `/api/webhooks/github` with a
-   **Bypass · Everyone** policy (the route authenticates via HMAC instead).
-2. **GitHub webhook** per connected repository: Settings → Webhooks → Add —
-   payload URL `https://progress.bryan-22c.workers.dev/api/webhooks/github`,
-   content type `application/json`, secret = `PROD_GITHUB_WEBHOOK_SECRET`
-   from `.env`, events: Pushes + Pull requests.
+Remaining one-time setup (owner-only): **GitHub webhook** per connected
+repository: Settings → Webhooks → Add — payload URL
+`https://progress.bryan-22c.workers.dev/api/webhooks/github`, content type
+`application/json`, secret = `PROD_GITHUB_WEBHOOK_SECRET` from `.env`,
+events: Pushes + Pull requests.

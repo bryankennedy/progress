@@ -55,9 +55,9 @@ resolution, PR/commit display; local secret in `.dev.vars`) complete
 hold-delay sensor, phone-viewport verified). **Deployed to production
 2026-06-12**: <https://progress.bryan-22c.workers.dev> (D1 migrated +
 dogfood-seeded, webhook secret set, live endpoints verified — see
-`docs/SETUP.md` §6). Remaining for v1, owner-dashboard-only: Cloudflare
-Access (exclude `/api/webhooks/github`), GitHub webhook registration,
-dogfood cutover (SPEC §7, §8.3). Then v1.x agent integration (context
+`docs/SETUP.md` §6). Cloudflare Access live 2026-06-12 (owner-only
+Allow + webhook-path Bypass, verified — `docs/SETUP.md` §6). Remaining for
+v1: GitHub webhook registration (owner), dogfood cutover (SPEC §7). Then v1.x agent integration (context
 bundle, MCP server, work kickoff — SPEC §11/D28). `bun run dev` serves
 everything on :8000
 (see `docs/SETUP.md`). Shared wire types live in `src/shared/`. Synthetic
