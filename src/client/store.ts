@@ -145,6 +145,182 @@ export function setIssueStatus(id: string, status: IssueStatus) {
   updateIssue(id, { status });
 }
 
+// ---------- issue creation ----------
+
+export type IssueCreateInput = {
+  title: string;
+  productId: string;
+  repoId: string | null;
+  arcId: string | null;
+  status: IssueStatus;
+  priority: IssuePriority;
+  estimate: number | null;
+};
+
+// Optimistic create: the issue number is allocated locally from the
+// product's nextIssueNumber mirror — safe because this client is the only
+// writer (single-user v1) — so the new key is correct immediately and
+// callers can navigate to it without waiting. The temp row is replaced by
+// the server row on success (same key, real id) or removed with a toast on
+// failure. Returns the new issue's key, or undefined if the product is gone.
+export function createIssue(input: IssueCreateInput): string | undefined {
+  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
+  const product = ws?.products.find((p) => p.id === input.productId);
+  if (!ws || !product) return undefined;
+
+  const tempId = `iss_optimistic_${Date.now()}`;
+  const now = new Date().toISOString();
+  const temp: WireIssue = {
+    id: tempId,
+    productId: input.productId,
+    repoId: input.repoId,
+    arcId: input.arcId,
+    number: product.nextIssueNumber,
+    title: input.title,
+    description: "",
+    status: input.status,
+    priority: input.priority,
+    estimate: input.estimate,
+    creatorId: "usr_owner",
+    assigneeId: "usr_owner",
+    createdAt: now,
+    updatedAt: now,
+    completedAt: input.status === "done" ? now : null,
+  };
+  queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) =>
+    w
+      ? {
+          ...w,
+          issues: [...w.issues, temp],
+          products: w.products.map((p) =>
+            p.id === product.id ? { ...p, nextIssueNumber: p.nextIssueNumber + 1 } : p,
+          ),
+        }
+      : w,
+  );
+
+  void (async () => {
+    let serverIssue: WireIssue | undefined;
+    try {
+      const res = await fetch("/api/issues", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      if (res.ok) serverIssue = ((await res.json()) as { issue: WireIssue }).issue;
+    } catch {
+      // handled below
+    }
+    queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) => {
+      if (!w) return w;
+      if (serverIssue) {
+        const real = serverIssue;
+        return { ...w, issues: w.issues.map((i) => (i.id === tempId ? real : i)) };
+      }
+      // Failure: remove the temp issue and put the allocated number back.
+      return {
+        ...w,
+        issues: w.issues.filter((i) => i.id !== tempId),
+        products: w.products.map((p) =>
+          p.id === product.id ? { ...p, nextIssueNumber: p.nextIssueNumber - 1 } : p,
+        ),
+      };
+    });
+    if (!serverIssue) toast("Couldn't create that issue — removed.");
+  })();
+
+  return `${product.keyPrefix}-${temp.number}`;
+}
+
+// ---------- issue movement ----------
+
+export type MoveTarget = { productId: string; repoId: string | null };
+
+// Optimistic move (SPEC §3): within a product it's a one-field container
+// change; across products the issue is re-keyed from the target's sequence,
+// its arc is cleared, and the old key is appended to the alias list — all
+// locally first, so the board and any open issue page (which redirects via
+// the alias) update instantly. Rollback restores exactly what this move
+// touched.
+export function moveIssue(id: string, target: MoveTarget) {
+  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
+  const before = ws?.issues.find((i) => i.id === id);
+  const targetProduct = ws?.products.find((p) => p.id === target.productId);
+  if (!ws || !before || !targetProduct) return;
+  if (before.productId === target.productId && before.repoId === target.repoId) return;
+
+  const crossProduct = before.productId !== target.productId;
+  const now = new Date().toISOString();
+  const oldKey = issueKeyOf(ws, before);
+
+  queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) => {
+    if (!w) return w;
+    if (!crossProduct) {
+      return {
+        ...w,
+        issues: w.issues.map((i) =>
+          i.id === id ? { ...i, repoId: target.repoId, updatedAt: now } : i,
+        ),
+      };
+    }
+    return {
+      ...w,
+      issues: w.issues.map((i) =>
+        i.id === id
+          ? {
+              ...i,
+              productId: target.productId,
+              repoId: target.repoId,
+              arcId: null,
+              number: targetProduct.nextIssueNumber,
+              updatedAt: now,
+            }
+          : i,
+      ),
+      products: w.products.map((p) =>
+        p.id === target.productId ? { ...p, nextIssueNumber: p.nextIssueNumber + 1 } : p,
+      ),
+      issueKeyAliases: [...w.issueKeyAliases, { key: oldKey, issueId: id, createdAt: now }],
+    };
+  });
+
+  void (async () => {
+    let serverIssue: WireIssue | undefined;
+    try {
+      const res = await fetch(`/api/issues/${id}/move`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(target),
+      });
+      if (res.ok) serverIssue = ((await res.json()) as { issue: WireIssue }).issue;
+    } catch {
+      // handled below
+    }
+    if (serverIssue) {
+      const real = serverIssue;
+      writeIssue(id, () => real);
+      // The server appended a "moved" activity event.
+      void queryClient.invalidateQueries({ queryKey: timelineKey(id) });
+      return;
+    }
+    queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) => {
+      if (!w) return w;
+      const restored = { ...w, issues: w.issues.map((i) => (i.id === id ? before : i)) };
+      if (!crossProduct) return restored;
+      return {
+        ...restored,
+        products: restored.products.map((p) =>
+          p.id === target.productId ? { ...p, nextIssueNumber: p.nextIssueNumber - 1 } : p,
+        ),
+        issueKeyAliases: restored.issueKeyAliases.filter(
+          (a) => !(a.key === oldKey && a.issueId === id),
+        ),
+      };
+    });
+    toast("Couldn't move that issue — reverted.");
+  })();
+}
+
 // ---------- per-issue timeline ----------
 
 export type Timeline = { comments: WireComment[]; activity: WireActivity[] };
@@ -152,6 +328,9 @@ export type Timeline = { comments: WireComment[]; activity: WireActivity[] };
 export function useTimeline(issueId: string) {
   return useQuery({
     queryKey: timelineKey(issueId),
+    // A just-created issue carries its optimistic temp id for a beat; hold
+    // the fetch until the server row (real id) replaces it.
+    enabled: !issueId.startsWith("iss_optimistic_"),
     queryFn: async (): Promise<Timeline> => {
       const res = await fetch(`/api/issues/${issueId}/timeline`);
       if (!res.ok) throw new Error(`timeline load failed: HTTP ${res.status}`);
