@@ -65,37 +65,38 @@ Still open from this section's original scope:
   touch-target sizes) hasn't been deliberately done or verified — it rides
   with the deploy milestone.
 
-## 5. Git integration — *next milestone*
+## 5. Git integration
 
-- **Mechanism:** a GitHub webhook (push + pull_request events) per connected
-  repo (repos already store `gitUrl`).
-- **Magic words:** mentioning an issue key (`PROG-123`) in a **branch name,
-  commit message, or PR title/body** auto-links that commit/PR to the issue.
-  Retired alias keys must resolve too.
-- **Display:** linked PRs (with open/merged/closed state) and commits appear
-  on the issue page and in its activity feed (the `activity.data` payload
-  was designed for this, D19).
+✅ **Shipped** (milestone 6) — the HMAC-verified webhook endpoint,
+magic-word linking (branch names, commit messages, PR title/body; alias
+keys resolve), and PR/commit display on the issue page and activity feed:
+[REFERENCE §3](./REFERENCE.md#github-webhook-d29). Decision: D29. It was
+built before the deploy milestone deliberately — branch-from-key linking is
+the loop-closer for the Claude Code integration (§11, D28).
+
+Still open from this section's scope:
+
+- **GitHub-side registration**: the webhook needs a public URL, so pointing
+  real repositories at it (push + pull_request events, JSON content type,
+  shared secret) happens at the deploy milestone. Verified locally with
+  signed payloads until then.
 - **Explicitly not in v1:** status automation (PR opened → In Review,
   merged → Done) — deferred to v1.x. GitHub Issues sync — non-goal, likely
   forever.
-- The webhook endpoint authenticates via GitHub's HMAC signature and
-  bypasses Cloudflare Access (§8.3).
-- **Re-prioritized up** (D28): branch-from-key linking is the loop-closer
-  for the Claude Code integration (§11), so this ships before the agent
-  work, right after v1 core.
 
 ## 6. v1 scope — status
 
 | ✅ Built | 🔜 Remaining for v1 | Out (non-goals) |
 |---|---|---|
-| Full hierarchy: Initiative / Product / Repo / Arc / Issue | GitHub webhook magic-word PR/commit linking (§5) | GitHub Issues sync |
-| Fixed statuses, priority, estimate, global tags | Mobile-friendly verification pass (§4) | Configurable workflows |
-| Global "My Work" kanban with filters | Production deploy + Cloudflare Access (§8.3) | Time tracking |
+| Full hierarchy: Initiative / Product / Repo / Arc / Issue | Mobile-friendly verification pass (§4) | GitHub Issues sync |
+| Fixed statuses, priority, estimate, global tags | Production deploy + Cloudflare Access (§8.3) | Configurable workflows |
+| Global "My Work" kanban with filters | GitHub-side webhook registration (§5, rides with deploy) | Time tracking |
 | Container pages + issue page, Markdown everywhere | The dogfood cutover (§7) | Native mobile apps |
 | Comments + activity feed | | |
 | Issue creation, movement with key-alias redirects | | |
 | Container CRUD + archive, tag management | | |
 | Command palette + keyboard actions | | |
+| GitHub webhook magic-word PR/commit linking (§5) | | |
 
 Deferred to v1.x: sprints & cycles · multi-user & sharing · notifications ·
 status automation from PRs · due dates, sub-issues, blocking relations ·
@@ -133,16 +134,18 @@ every future feature must preserve it:
    interaction latency as part of review (baseline in
    [REFERENCE §6](./REFERENCE.md#6-performance-baseline)).
 
-### 8.3 Auth & security — *not yet set up*
+### 8.3 Auth & security — *partially in place*
 
 - **Cloudflare Access** in front of the entire app — login with the owner's
-  identity; the app itself contains no auth code in v1.
-- The GitHub webhook route (§5) will be excluded from Access and instead
-  verify GitHub's `X-Hub-Signature-256` HMAC.
+  identity; the app itself contains no auth code in v1. *Not yet set up;
+  rides with the deploy milestone.*
+- ✅ The GitHub webhook route (§5) verifies GitHub's `X-Hub-Signature-256`
+  HMAC; in production it must be excluded from Access.
 - A Cloudflare Access **service token** will cover non-interactive clients
   (the §11 MCP/bundle surface) — same bypass pattern as the webhook.
-- All secrets via environment (`wrangler secret` in production, `.env`
-  locally, never committed). `.env.example` documents required keys.
+- ✅ All secrets via environment (`wrangler secret` in production,
+  `.dev.vars` locally, never committed). `.env.example` documents required
+  keys (currently `GITHUB_WEBHOOK_SECRET`).
 
 ### 8.4 Data notes
 
@@ -217,8 +220,8 @@ the natural "API for third-party clients" from §6, promoted from deferred):
 2. **Non-interactive auth**: a Cloudflare Access service token (same pattern
    as the webhook's HMAC bypass) for the bundle/MCP surface; secrets via
    env per §8.3.
-3. **§5 webhook linking** — without it the loop doesn't close; with it,
-   agent branches/PRs appear on the issue automatically. Build it first.
+3. ✅ **§5 webhook linking** — without it the loop doesn't close; with it,
+   agent branches/PRs appear on the issue automatically. Built (D29).
 
-Roadmap impact: webhook (next) → mobile + deploy + dogfood (v1 done) →
-context bundle + MCP server → outbound work-session kickoff.
+Roadmap: webhook ✅ → mobile + deploy + dogfood (next; v1 done) → context
+bundle + MCP server → outbound work-session kickoff.

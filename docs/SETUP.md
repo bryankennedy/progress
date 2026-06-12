@@ -30,6 +30,20 @@ bun run db:seed    # idempotent: inserts the single owner user
 The local database is Miniflare's SQLite under `.wrangler/state/` — gitignored,
 safe to delete; re-run migrate + seed to rebuild.
 
+### Worker secrets (webhook)
+
+The GitHub webhook route needs `GITHUB_WEBHOOK_SECRET`. Worker bindings read
+local secrets from `.dev.vars` (gitignored):
+
+```sh
+cp .env.example .dev.vars   # then fill in a value
+```
+
+Restart the dev server after changing `.dev.vars`. Without it the webhook
+route answers 503 and everything else works normally. To exercise the route
+locally, send a payload signed with the same secret
+(`sha256=` + HMAC-SHA-256 of the raw body in `X-Hub-Signature-256`).
+
 ## 3. Run the dev server
 
 ```sh
@@ -83,6 +97,9 @@ the dev server is served directly at the VM's main URL — no nginx in between.
 
 Not set up yet (comes with the deploy milestone). It will be:
 `wrangler login` → create the real D1 database and put its id in
-`wrangler.jsonc` → `bun run deploy` → put Cloudflare Access in front
-(SPEC §8.3). The `database_id` currently in `wrangler.jsonc` is a placeholder;
+`wrangler.jsonc` → `wrangler secret put GITHUB_WEBHOOK_SECRET` →
+`bun run deploy` → put Cloudflare Access in front, excluding
+`/api/webhooks/github` (SPEC §8.3) → register the webhook on each GitHub
+repository (push + pull_request events, JSON content type, the same
+secret). The `database_id` currently in `wrangler.jsonc` is a placeholder;
 local dev ignores it.

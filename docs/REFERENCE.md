@@ -108,7 +108,19 @@ by schema, API validation, and client.
 - Activity rows are append-only; `data` carries the event payload. Current
   event types: `status_changed` `{from, to}`, `moved` `{fromProductId,
   fromRepoId, toProductId, toRepoId, fromKey?, toKey?}` (keys present only
-  on cross-product moves).
+  on cross-product moves), `pr_linked` `{githubRepo, prNumber, title, url,
+  state}`, `commit_linked` `{githubRepo, sha, message, url, branch}`.
+
+### Git links (D29)
+
+Two tables, written only by the GitHub webhook: `pr_links` (PK `issueId +
+githubRepo + prNumber`; mutable `state` open/merged/closed and `title`) and
+`commit_links` (PK `issueId + sha`; immutable, message stored as subject
+line only). `githubRepo` is `"owner/name"` text, deliberately **not** an FK
+to `repos` — links survive container renames/archives and can arrive from
+repos that aren't containers here. Composite PKs double as the idempotency
+guard for webhook redeliveries. Links are permanent: editing the mention
+away later does not unlink.
 
 ## 3. API
 
@@ -125,7 +137,7 @@ write identity is `usr_owner`.
 | `POST /api/issues` | `{ title, productId, repoId?, arcId?, description?, status?, priority?, estimate? }` → 201 `{ issue }`. Number allocated by atomic increment of the product sequence; gaps from failed creates are harmless (D24). |
 | `PATCH /api/issues/:id` | Any of `title, description, status, priority, estimate, arcId` — validated per field; arc must be same-product. A status change atomically appends a `status_changed` activity row and maintains `completedAt`. |
 | `POST /api/issues/:id/move` | `{ productId, repoId }` (`repoId: null` = product-level). Within-product keeps key + arc; cross-product re-keys, clears arc, writes the alias, logs `moved`. 400 on no-op. |
-| `GET /api/issues/:id/timeline` | `{ comments, activity }`, each ordered by `createdAt`. |
+| `GET /api/issues/:id/timeline` | `{ comments, activity, pullRequests, commits }`, each ordered by `createdAt`. |
 | `POST /api/issues/:id/comments` | `{ body }` → 201 `{ comment }`. |
 
 ### Tags
@@ -146,6 +158,26 @@ write identity is `usr_owner`.
 | `PATCH /api/<type>/:id` | `{ name?, description?, archived? }` for all four; plus `keyPrefix?` (products), `gitUrl?` (repos). `archived: boolean` maps to `archivedAt`. |
 
 All return `{ container }`; creates return 201.
+
+### GitHub webhook (D29)
+
+`POST /api/webhooks/github` — authenticated by GitHub's
+`X-Hub-Signature-256` HMAC (SHA-256 over the raw body, constant-time
+compare) against the `GITHUB_WEBHOOK_SECRET` binding (local: `.dev.vars`;
+production: `wrangler secret put`). 503 when unconfigured, 401 on a bad
+signature; unhandled events are acknowledged with `{ ok, ignored }`.
+
+Magic words: candidates matching `\b[A-Za-z]{2,8}-\d+\b` are resolved
+against current issue keys first, then retired alias keys; unknown prefixes
+simply don't resolve (so prose like "UTF-8" can't false-positive).
+
+- **`push`**: keys in the branch name link every commit in the push; keys
+  in a commit message link that commit. New links append `commit_linked`
+  activity; redeliveries are no-ops.
+- **`pull_request`**: keys in the title, body, or source-branch name link
+  the PR. First sight inserts the link + `pr_linked` activity; later events
+  (edit/close/merge/reopen) update title and state in place, silently.
+  GitHub's closed+merged flag is normalized to the `merged` state.
 
 ## 4. Client architecture
 
@@ -191,7 +223,9 @@ canonical key — entirely client-side from the loaded workspace (D22).
   sortable/filterable issue list with inline status/priority edits.
 - **Issue page** — inline-editable title and description, sidebar fields
   (status/priority/estimate selects; container, arc, and tags with picker
-  buttons), comments + activity interleaved into one timeline.
+  buttons), a Git section (linked PRs with state badges, commits with short
+  shas, linking out to GitHub), and comments + activity interleaved into
+  one timeline.
 - **Command palette** — one keyboard surface (D25): root mode searches
   issues by key (retired alias keys included) or title and containers by
   name, and lists commands (create issue/initiative/product/repo/arc,

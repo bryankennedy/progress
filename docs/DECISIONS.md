@@ -302,3 +302,36 @@ re-prioritized: webhook milestone next (it's a prerequisite for the loop),
 then deploy/dogfood, then bundle + MCP, then outbound kickoff. "API for
 third-party clients" is hereby promoted from deferred to planned-v1.x (as
 the MCP surface). Implementation decisions deferred to the build.
+
+---
+
+## 2026-06-12 — Milestone 6: GitHub webhook linking
+
+### D29: Webhook + git-link design
+- **Two link tables** (the ones D19 deferred): `pr_links` with mutable
+  state/title, `commit_links` immutable. Composite PKs (`issueId + repo +
+  number`, `issueId + sha`) double as the idempotency guard — GitHub
+  redeliveries are no-ops by construction. Rejected: one polymorphic links
+  table (PR state updates would be awkward), storing full commit messages
+  (subject line is all display needs).
+- **`githubRepo` is `"owner/name"` text, not an FK to `repos`** — links
+  must survive container renames/archives, and deliveries can come from
+  repositories that aren't (or aren't yet) containers in Progress.
+- **Magic-word semantics**: candidates `\b[A-Za-z]{2,8}-\d+\b` resolved
+  against current keys then aliases (server-side mirror of
+  `findIssueByKey`); unresolved prefixes drop out, so prose like "UTF-8"
+  can't false-positive. Branch-name keys link every commit in the push;
+  message keys link their commit; PR keys come from title + body + head
+  branch. **Links are permanent** — editing a mention away later doesn't
+  unlink (matches the alias philosophy: references never break).
+- **Activity**: `pr_linked` / `commit_linked` rows only on first sight of a
+  link; PR state changes update the link row silently (the state badge is
+  the display, not the feed). New event types render on the issue page's
+  timeline; links themselves load with the per-issue timeline endpoint
+  (same unbounded-growth reasoning as D20), not the workspace payload.
+- **Auth**: HMAC SHA-256 over the raw body, constant-time compare; 503
+  when `GITHUB_WEBHOOK_SECRET` is unset, 401 on bad signature. Local secret
+  via `.dev.vars` (the Wrangler convention; gitignored), production via
+  `wrangler secret put`. GitHub-side webhook registration needs a public
+  URL and therefore rides with the deploy milestone; verified locally with
+  signed payloads (20 API checks + UI render checks).
