@@ -17,3 +17,19 @@ export type IssuePriority = (typeof ISSUE_PRIORITIES)[number];
 
 // Linear-style points (SPEC §9 open question #1, default taken).
 export const ISSUE_ESTIMATES = [0, 1, 2, 3, 5, 8] as const;
+
+// Tag auto-color (SPEC §9 open question #3, minimal default): fixed palette,
+// color chosen by a stable hash of the name. Shared so the client's
+// optimistic tag rows get the same color the server will assign.
+export const TAG_COLORS = [
+  "#06A7E0",
+  "#F08B23",
+  "#F2C42E",
+  "#ED6245",
+  "#546EB4",
+  "#BA94C4",
+  "#D4569F",
+] as const;
+
+export const tagColor = (name: string) =>
+  TAG_COLORS[[...name].reduce((n, ch) => n + ch.codePointAt(0)!, 0) % TAG_COLORS.length]!;

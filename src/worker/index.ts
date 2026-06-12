@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import {
   activity,
@@ -19,6 +19,7 @@ import {
   type IssuePriority,
   type IssueStatus,
 } from "../db/schema";
+import { tagColor } from "../shared/constants";
 
 type Bindings = {
   DB: D1Database;
@@ -73,6 +74,275 @@ app.get("/api/workspace", async (c) => {
     issueTags: allIssueTags,
     issueKeyAliases: allKeyAliases,
   });
+});
+
+// ---------- container CRUD (D26) ----------
+
+type ContainerBody = {
+  id?: unknown;
+  name?: unknown;
+  description?: unknown;
+  initiativeId?: unknown;
+  productId?: unknown;
+  keyPrefix?: unknown;
+  gitUrl?: unknown;
+  archived?: unknown;
+};
+
+// Letters only: a digit in the prefix would break PREFIX-n key parsing.
+const KEY_PREFIX_RE = /^[A-Z]{2,8}$/;
+
+const badName = (name: unknown) => typeof name !== "string" || name.trim() === "";
+
+// Container ids may be client-generated (D26: the store creates the row
+// optimistically and navigates to /type/:id immediately, so the id must not
+// change on reconcile). Anything malformed falls back to a server id.
+const idOr = (id: unknown, prefix: string) =>
+  typeof id === "string" && new RegExp(`^${prefix}_[A-Za-z0-9]+$`).test(id) ? id : newId(prefix);
+
+// Shared PATCH fields for all four container types; archive/unarchive is the
+// `archived` boolean mapped onto archivedAt (SPEC §3: no hard deletes).
+function containerPatchSet(body: ContainerBody): { set: Record<string, unknown>; error?: string } {
+  const set: Record<string, unknown> = {};
+  if (body.name !== undefined) {
+    if (badName(body.name)) return { set, error: "name must be a non-empty string" };
+    set.name = (body.name as string).trim();
+  }
+  if (body.description !== undefined) {
+    if (typeof body.description !== "string") return { set, error: "description must be a string" };
+    set.description = body.description;
+  }
+  if (body.archived !== undefined) {
+    if (typeof body.archived !== "boolean") return { set, error: "archived must be a boolean" };
+    set.archivedAt = body.archived ? new Date() : null;
+  }
+  return { set };
+}
+
+app.post("/api/initiatives", async (c) => {
+  const body = (await c.req.json()) as ContainerBody;
+  if (badName(body.name)) return c.json({ error: "name must be a non-empty string" }, 400);
+  const now = new Date();
+  const db = drizzle(c.env.DB);
+  const [container] = await db
+    .insert(initiatives)
+    .values({
+      id: idOr(body.id, "ini"),
+      name: (body.name as string).trim(),
+      description: typeof body.description === "string" ? body.description : "",
+      creatorId: OWNER_ID,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning();
+  return c.json({ container }, 201);
+});
+
+app.post("/api/products", async (c) => {
+  const body = (await c.req.json()) as ContainerBody;
+  if (badName(body.name)) return c.json({ error: "name must be a non-empty string" }, 400);
+  if (typeof body.keyPrefix !== "string" || !KEY_PREFIX_RE.test(body.keyPrefix.toUpperCase()))
+    return c.json({ error: "keyPrefix must be 2–8 letters" }, 400);
+  const keyPrefix = body.keyPrefix.toUpperCase();
+  if (typeof body.initiativeId !== "string")
+    return c.json({ error: "initiativeId is required" }, 400);
+
+  const db = drizzle(c.env.DB);
+  const [initiative] = await db
+    .select()
+    .from(initiatives)
+    .where(eq(initiatives.id, body.initiativeId))
+    .limit(1);
+  if (!initiative) return c.json({ error: "initiative not found" }, 400);
+  const [clash] = await db.select().from(products).where(eq(products.keyPrefix, keyPrefix)).limit(1);
+  if (clash) return c.json({ error: `key prefix ${keyPrefix} is already in use` }, 409);
+
+  const now = new Date();
+  const [container] = await db
+    .insert(products)
+    .values({
+      id: idOr(body.id, "prd"),
+      initiativeId: body.initiativeId,
+      name: (body.name as string).trim(),
+      description: typeof body.description === "string" ? body.description : "",
+      keyPrefix,
+      creatorId: OWNER_ID,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning();
+  return c.json({ container }, 201);
+});
+
+app.post("/api/repos", async (c) => {
+  const body = (await c.req.json()) as ContainerBody;
+  if (badName(body.name)) return c.json({ error: "name must be a non-empty string" }, 400);
+  if (typeof body.productId !== "string") return c.json({ error: "productId is required" }, 400);
+  const gitUrl = body.gitUrl ?? null;
+  if (gitUrl !== null && typeof gitUrl !== "string")
+    return c.json({ error: "gitUrl must be a string or null" }, 400);
+
+  const db = drizzle(c.env.DB);
+  const [product] = await db.select().from(products).where(eq(products.id, body.productId)).limit(1);
+  if (!product) return c.json({ error: "product not found" }, 400);
+
+  const now = new Date();
+  const [container] = await db
+    .insert(repos)
+    .values({
+      id: idOr(body.id, "rep"),
+      productId: body.productId,
+      name: (body.name as string).trim(),
+      description: typeof body.description === "string" ? body.description : "",
+      gitUrl,
+      creatorId: OWNER_ID,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning();
+  return c.json({ container }, 201);
+});
+
+app.post("/api/arcs", async (c) => {
+  const body = (await c.req.json()) as ContainerBody;
+  if (badName(body.name)) return c.json({ error: "name must be a non-empty string" }, 400);
+  if (typeof body.productId !== "string") return c.json({ error: "productId is required" }, 400);
+
+  const db = drizzle(c.env.DB);
+  const [product] = await db.select().from(products).where(eq(products.id, body.productId)).limit(1);
+  if (!product) return c.json({ error: "product not found" }, 400);
+
+  const now = new Date();
+  const [container] = await db
+    .insert(arcs)
+    .values({
+      id: idOr(body.id, "arc"),
+      productId: body.productId,
+      name: (body.name as string).trim(),
+      description: typeof body.description === "string" ? body.description : "",
+      creatorId: OWNER_ID,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning();
+  return c.json({ container }, 201);
+});
+
+app.patch("/api/initiatives/:id", async (c) => {
+  const body = (await c.req.json()) as ContainerBody;
+  const { set, error } = containerPatchSet(body);
+  if (error) return c.json({ error }, 400);
+  if (Object.keys(set).length === 0) return c.json({ error: "no valid fields in patch" }, 400);
+  set.updatedAt = new Date();
+  const db = drizzle(c.env.DB);
+  const [container] = await db
+    .update(initiatives)
+    .set(set)
+    .where(eq(initiatives.id, c.req.param("id")))
+    .returning();
+  if (!container) return c.json({ error: "initiative not found" }, 404);
+  return c.json({ container });
+});
+
+app.patch("/api/products/:id", async (c) => {
+  const id = c.req.param("id");
+  const body = (await c.req.json()) as ContainerBody;
+  const { set, error } = containerPatchSet(body);
+  if (error) return c.json({ error }, 400);
+  const db = drizzle(c.env.DB);
+  if (body.keyPrefix !== undefined) {
+    if (typeof body.keyPrefix !== "string" || !KEY_PREFIX_RE.test(body.keyPrefix.toUpperCase()))
+      return c.json({ error: "keyPrefix must be 2–8 letters" }, 400);
+    const keyPrefix = body.keyPrefix.toUpperCase();
+    const [clash] = await db.select().from(products).where(eq(products.keyPrefix, keyPrefix)).limit(1);
+    if (clash && clash.id !== id) return c.json({ error: `key prefix ${keyPrefix} is already in use` }, 409);
+    // Safe rename: issue keys are derived from the prefix, never stored (D18).
+    set.keyPrefix = keyPrefix;
+  }
+  if (Object.keys(set).length === 0) return c.json({ error: "no valid fields in patch" }, 400);
+  set.updatedAt = new Date();
+  const [container] = await db.update(products).set(set).where(eq(products.id, id)).returning();
+  if (!container) return c.json({ error: "product not found" }, 404);
+  return c.json({ container });
+});
+
+app.patch("/api/repos/:id", async (c) => {
+  const body = (await c.req.json()) as ContainerBody;
+  const { set, error } = containerPatchSet(body);
+  if (error) return c.json({ error }, 400);
+  if (body.gitUrl !== undefined) {
+    if (body.gitUrl !== null && typeof body.gitUrl !== "string")
+      return c.json({ error: "gitUrl must be a string or null" }, 400);
+    set.gitUrl = body.gitUrl;
+  }
+  if (Object.keys(set).length === 0) return c.json({ error: "no valid fields in patch" }, 400);
+  set.updatedAt = new Date();
+  const db = drizzle(c.env.DB);
+  const [container] = await db
+    .update(repos)
+    .set(set)
+    .where(eq(repos.id, c.req.param("id")))
+    .returning();
+  if (!container) return c.json({ error: "repo not found" }, 404);
+  return c.json({ container });
+});
+
+app.patch("/api/arcs/:id", async (c) => {
+  const body = (await c.req.json()) as ContainerBody;
+  const { set, error } = containerPatchSet(body);
+  if (error) return c.json({ error }, 400);
+  if (Object.keys(set).length === 0) return c.json({ error: "no valid fields in patch" }, 400);
+  set.updatedAt = new Date();
+  const db = drizzle(c.env.DB);
+  const [container] = await db
+    .update(arcs)
+    .set(set)
+    .where(eq(arcs.id, c.req.param("id")))
+    .returning();
+  if (!container) return c.json({ error: "arc not found" }, 404);
+  return c.json({ container });
+});
+
+// ---------- tags (D27) ----------
+
+// Assign a tag: by tagId for an existing tag, or by name (create-or-get,
+// then assign) so the client's "create tag and add it" is one atomic call.
+app.post("/api/issues/:id/tags", async (c) => {
+  const id = c.req.param("id");
+  const body = (await c.req.json()) as { tagId?: unknown; name?: unknown; id?: unknown };
+  const db = drizzle(c.env.DB);
+  const [issue] = await db.select({ id: issues.id }).from(issues).where(eq(issues.id, id)).limit(1);
+  if (!issue) return c.json({ error: "issue not found" }, 404);
+
+  let tag;
+  if (typeof body.tagId === "string") {
+    [tag] = await db.select().from(tags).where(eq(tags.id, body.tagId)).limit(1);
+    if (!tag) return c.json({ error: "tag not found" }, 400);
+  } else if (typeof body.name === "string" && body.name.trim() !== "") {
+    const name = body.name.trim();
+    [tag] = await db.select().from(tags).where(eq(tags.name, name)).limit(1);
+    if (!tag) {
+      [tag] = await db
+        .insert(tags)
+        .values({ id: idOr(body.id, "tag"), name, color: tagColor(name), createdAt: new Date() })
+        .returning();
+    }
+  } else {
+    return c.json({ error: "tagId or name is required" }, 400);
+  }
+
+  await db.insert(issueTags).values({ issueId: id, tagId: tag!.id }).onConflictDoNothing();
+  return c.json({ tag, link: { issueId: id, tagId: tag!.id } }, 201);
+});
+
+app.delete("/api/issues/:id/tags/:tagId", async (c) => {
+  const db = drizzle(c.env.DB);
+  await db
+    .delete(issueTags)
+    .where(
+      and(eq(issueTags.issueId, c.req.param("id")), eq(issueTags.tagId, c.req.param("tagId"))),
+    );
+  return c.json({ ok: true });
 });
 
 type IssueCreateBody = {
@@ -255,6 +525,7 @@ type IssuePatchBody = Partial<{
   status: IssueStatus;
   priority: IssuePriority;
   estimate: number | null;
+  arcId: string | null;
 }>;
 
 // Generalized issue field update — the server side of the optimistic-mutation
@@ -291,6 +562,18 @@ app.patch("/api/issues/:id", async (c) => {
   const db = drizzle(c.env.DB);
   const [existing] = await db.select().from(issues).where(eq(issues.id, id)).limit(1);
   if (!existing) return c.json({ error: "issue not found" }, 404);
+
+  // Arc must belong to the issue's product (SPEC §3) — validated against the
+  // loaded row, hence after the existence check.
+  if (body.arcId !== undefined) {
+    if (body.arcId !== null) {
+      if (typeof body.arcId !== "string") return c.json({ error: "arcId must be a string or null" }, 400);
+      const [arc] = await db.select().from(arcs).where(eq(arcs.id, body.arcId)).limit(1);
+      if (!arc || arc.productId !== existing.productId)
+        return c.json({ error: "arc not found in this issue's product" }, 400);
+    }
+    set.arcId = body.arcId;
+  }
 
   const now = new Date();
   const statusChanged = body.status !== undefined && body.status !== existing.status;
