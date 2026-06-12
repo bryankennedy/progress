@@ -1,15 +1,23 @@
 // The keyboard map (SPEC §4, exact map decided during build — see D25):
 //   ⌘K / Ctrl+K  command palette
 //   C            create issue (container defaults from the current view)
-//   S / P / E / M  status / priority / estimate / move picker for the
-//                  current issue (issue page, or the hovered/focused card)
+//   S / P / E / M / T / A  status / priority / estimate / move / tag / arc
+//                  picker for the current issue (issue page, or the
+//                  hovered/focused card)
 // Plain keys are ignored while typing in inputs/textareas/selects.
 
 import { useEffect } from "react";
 import { openCreateIssue, openPalette } from "./controller";
 import { currentIssueId } from "./currentIssue";
 
-const PICKER_KEYS = { s: "status", p: "priority", e: "estimate", m: "move" } as const;
+const PICKER_KEYS = {
+  s: "status",
+  p: "priority",
+  e: "estimate",
+  m: "move",
+  t: "tag",
+  a: "arc",
+} as const;
 
 export function useGlobalKeys() {
   useEffect(() => {

@@ -9,11 +9,23 @@ import { useLocation } from "wouter";
 import { ISSUE_ESTIMATES, ISSUE_PRIORITIES, ISSUE_STATUSES } from "../../shared/constants";
 import type { WireIssue, WorkspacePayload } from "../../shared/types";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
-import { findIssueByKey, issueKeyOf, moveIssue, updateIssue } from "../store";
-import { onOpenPalette, openCreateIssue, type PaletteMode } from "./controller";
+import {
+  findIssueByKey,
+  issueKeyOf,
+  moveIssue,
+  tagIssue,
+  untagIssue,
+  updateIssue,
+} from "../store";
+import {
+  onOpenPalette,
+  openCreateContainer,
+  openCreateIssue,
+  type PaletteMode,
+} from "./controller";
 
 // run() returning "keep" leaves the palette open (used by commands that
-// switch it into a picker mode).
+// switch it into a picker mode, and by the tag toggles).
 type Item = { id: string; label: string; hint?: string; run: () => void | "keep" };
 
 const MODE_TITLES: Record<Exclude<PaletteMode["kind"], "root">, string> = {
@@ -21,6 +33,8 @@ const MODE_TITLES: Record<Exclude<PaletteMode["kind"], "root">, string> = {
   priority: "Set priority",
   estimate: "Set estimate",
   move: "Move to",
+  tag: "Tags",
+  arc: "Set arc",
 };
 
 export default function CommandPalette({ workspace }: { workspace: WorkspacePayload }) {
@@ -168,12 +182,64 @@ function buildItems(
           hint: e.value === issue.estimate ? "current" : undefined,
           run: () => updateIssue(issue.id, { estimate: e.value }),
         }));
+    case "tag": {
+      const assigned = new Set(
+        ws.issueTags.filter((l) => l.issueId === issue.id).map((l) => l.tagId),
+      );
+      const items: Item[] = ws.tags
+        .filter((t) => matches(t.name))
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((t) => ({
+          id: t.id,
+          label: t.name,
+          hint: assigned.has(t.id) ? "✓ added" : undefined,
+          run: () => {
+            if (assigned.has(t.id)) untagIssue(issue.id, t.id);
+            else tagIssue(issue.id, { tagId: t.id });
+            return "keep";
+          },
+        }));
+      const name = query.trim();
+      if (name !== "" && !ws.tags.some((t) => t.name.toLowerCase() === q)) {
+        items.push({
+          id: "tag:create",
+          label: `Create tag "${name}"`,
+          hint: "new",
+          run: () => {
+            tagIssue(issue.id, { name });
+            return "keep";
+          },
+        });
+      }
+      return items;
+    }
+    case "arc": {
+      const productArcs = ws.arcs.filter((a) => a.productId === issue.productId && !a.archivedAt);
+      // "No arc" filters like any option, so a typed query can't leave it
+      // sitting first and steal the Enter.
+      return [
+        {
+          id: "arc:none",
+          label: "No arc",
+          hint: issue.arcId === null ? "current" : undefined,
+          run: () => updateIssue(issue.id, { arcId: null }),
+        },
+        ...productArcs.map((a) => ({
+          id: a.id,
+          label: a.name,
+          hint: a.id === issue.arcId ? "current" : undefined,
+          run: () => updateIssue(issue.id, { arcId: a.id }),
+        })),
+      ].filter((item) => matches(item.label));
+    }
     case "move": {
       const targets: { productId: string; repoId: string | null; label: string; hint: string }[] =
         [];
-      for (const product of ws.products) {
+      // Archived containers aren't valid destinations (D26).
+      for (const product of ws.products.filter((p) => !p.archivedAt)) {
         targets.push({ productId: product.id, repoId: null, label: product.name, hint: "Product" });
-        for (const repo of ws.repos.filter((r) => r.productId === product.id)) {
+        for (const repo of ws.repos.filter((r) => r.productId === product.id && !r.archivedAt)) {
           targets.push({
             productId: product.id,
             repoId: repo.id,
@@ -211,7 +277,7 @@ function rootItems(
   ];
   if (issue) {
     const key = issueKeyOf(ws, issue);
-    const picker = (kind: "status" | "priority" | "estimate" | "move", hint: string): Item => ({
+    const picker = (kind: Exclude<PaletteMode["kind"], "root">, hint: string): Item => ({
       id: `cmd:${kind}`,
       label: `${MODE_TITLES[kind]}… · ${key}`,
       hint,
@@ -220,7 +286,21 @@ function rootItems(
         return "keep";
       },
     });
-    commands.push(picker("status", "S"), picker("priority", "P"), picker("estimate", "E"), picker("move", "M"));
+    commands.push(
+      picker("status", "S"),
+      picker("priority", "P"),
+      picker("estimate", "E"),
+      picker("move", "M"),
+      picker("tag", "T"),
+      picker("arc", "A"),
+    );
+  }
+  for (const kind of ["initiative", "product", "repo", "arc"] as const) {
+    commands.push({
+      id: `cmd:new-${kind}`,
+      label: `Create ${kind}…`,
+      run: () => openCreateContainer({ kind }),
+    });
   }
   items.push(...commands.filter((c) => q === "" || matches(c.label)));
 
@@ -251,13 +331,15 @@ function rootItems(
     .slice(0, byKey ? 7 : 8);
   items.push(...ranked.map((r) => issueItem(r.issue)));
 
+  // Archived containers stay out of search (reachable from their parent's
+  // page, which lists them dimmed — D26).
   const containers = [
-    ...ws.initiatives.map((x) => ({ id: x.id, name: x.name, hint: "Initiative", href: `/initiative/${x.id}` })),
-    ...ws.products.map((x) => ({ id: x.id, name: x.name, hint: "Product", href: `/product/${x.id}` })),
-    ...ws.repos.map((x) => ({ id: x.id, name: x.name, hint: "Repo", href: `/repo/${x.id}` })),
-    ...ws.arcs.map((x) => ({ id: x.id, name: x.name, hint: "Arc", href: `/arc/${x.id}` })),
+    ...ws.initiatives.map((x) => ({ ...x, hint: "Initiative", href: `/initiative/${x.id}` })),
+    ...ws.products.map((x) => ({ ...x, hint: "Product", href: `/product/${x.id}` })),
+    ...ws.repos.map((x) => ({ ...x, hint: "Repo", href: `/repo/${x.id}` })),
+    ...ws.arcs.map((x) => ({ ...x, hint: "Arc", href: `/arc/${x.id}` })),
   ]
-    .filter((c) => matches(c.name))
+    .filter((c) => !c.archivedAt && matches(c.name))
     .slice(0, 6);
   items.push(
     ...containers.map((c) => ({ id: c.id, label: c.name, hint: c.hint, run: () => navigate(c.href) })),

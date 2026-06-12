@@ -4,7 +4,6 @@
 // only in how their issue scope and child links derive from the workspace.
 
 import { useMemo, useState } from "react";
-import Markdown from "react-markdown";
 import { Link } from "wouter";
 import {
   ISSUE_PRIORITIES,
@@ -13,8 +12,11 @@ import {
   type IssueStatus,
 } from "../../shared/constants";
 import type { WireIssue, WorkspacePayload } from "../../shared/types";
+import { openCreateContainer } from "../commands/controller";
+import EditableMarkdown from "../EditableMarkdown";
+import InlineEdit from "../InlineEdit";
 import { PRIORITY_LABELS as SHARED_PRIORITY_LABELS, STATUS_LABELS } from "../labels";
-import { issueKeyOf, updateIssue } from "../store";
+import { issueKeyOf, updateContainer, updateIssue } from "../store";
 
 export type ContainerType = "initiative" | "product" | "repo" | "arc";
 
@@ -30,12 +32,20 @@ const PRIORITY_LABELS: Record<IssuePriority, string> = {
   none: "—",
 };
 
+type ChildGroup = {
+  label: string;
+  items: { href: string; name: string; archived: boolean }[];
+  onNew?: () => void;
+};
+
 type Resolved = {
   name: string;
   description: string;
   archivedAt: string | null;
+  keyPrefix?: string;
+  gitUrl?: string | null;
   issues: WireIssue[];
-  children: { label: string; items: { href: string; name: string }[] }[];
+  children: ChildGroup[];
   boardParam: string;
 };
 
@@ -52,7 +62,12 @@ function resolve(ws: WorkspacePayload, type: ContainerType, id: string): Resolve
         children: [
           {
             label: "Products",
-            items: products.map((p) => ({ href: `/product/${p.id}`, name: p.name })),
+            items: products.map((p) => ({
+              href: `/product/${p.id}`,
+              name: p.name,
+              archived: p.archivedAt !== null,
+            })),
+            onNew: () => openCreateContainer({ kind: "product", initiativeId: id }),
           },
         ],
         boardParam: `initiative=${id}`,
@@ -69,13 +84,23 @@ function resolve(ws: WorkspacePayload, type: ContainerType, id: string): Resolve
             label: "Repos",
             items: ws.repos
               .filter((r) => r.productId === id)
-              .map((r) => ({ href: `/repo/${r.id}`, name: r.name })),
+              .map((r) => ({
+                href: `/repo/${r.id}`,
+                name: r.name,
+                archived: r.archivedAt !== null,
+              })),
+            onNew: () => openCreateContainer({ kind: "repo", productId: id }),
           },
           {
             label: "Arcs",
             items: ws.arcs
               .filter((a) => a.productId === id)
-              .map((a) => ({ href: `/arc/${a.id}`, name: a.name })),
+              .map((a) => ({
+                href: `/arc/${a.id}`,
+                name: a.name,
+                archived: a.archivedAt !== null,
+              })),
+            onNew: () => openCreateContainer({ kind: "arc", productId: id }),
           },
         ],
         boardParam: `product=${id}`,
@@ -155,35 +180,84 @@ export default function ContainerPage({
       </nav>
 
       <header className="mt-4">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {resolved.name}
+        <div className="flex items-start gap-3">
+          <h1 className="min-w-0 flex-1 text-2xl font-semibold tracking-tight">
+            <InlineEdit
+              value={resolved.name}
+              onSave={(name) => updateContainer(type, id, { name })}
+              validate={(v) => v !== ""}
+              className="w-full"
+              inputClassName="text-2xl font-semibold tracking-tight"
+            />
+          </h1>
           {resolved.archivedAt && (
-            <span className="ml-3 align-middle text-xs uppercase tracking-wide text-stone-400">
-              archived
-            </span>
+            <span className="mt-2 text-xs uppercase tracking-wide text-stone-400">archived</span>
           )}
-        </h1>
-        {resolved.description !== "" && (
-          <div className="prose-lite mt-3 max-w-2xl text-stone-600">
-            <Markdown>{resolved.description}</Markdown>
-          </div>
+          <button
+            onClick={() => updateContainer(type, id, { archived: !resolved.archivedAt })}
+            className="mt-1.5 shrink-0 rounded border border-stone-200 bg-white px-2 py-0.5 text-xs text-stone-500 hover:border-stone-400"
+          >
+            {resolved.archivedAt ? "Unarchive" : "Archive"}
+          </button>
+        </div>
+        {type === "product" && (
+          <p className="mt-1 flex items-center gap-2 text-xs text-stone-400">
+            Key prefix
+            <InlineEdit
+              value={resolved.keyPrefix ?? ""}
+              onSave={(keyPrefix) => updateContainer(type, id, { keyPrefix })}
+              validate={(v) => /^[A-Za-z]{2,8}$/.test(v)}
+              className="font-mono text-stone-600"
+              inputClassName="w-24 font-mono text-xs uppercase"
+            />
+          </p>
         )}
+        {type === "repo" && (
+          <p className="mt-1 flex items-center gap-2 text-xs text-stone-400">
+            Git URL
+            <InlineEdit
+              value={resolved.gitUrl ?? ""}
+              onSave={(gitUrl) => updateContainer(type, id, { gitUrl: gitUrl || null })}
+              placeholder="none — set it to enable PR/commit linking"
+              className="font-mono text-stone-600"
+              inputClassName="w-80 max-w-full font-mono text-xs"
+            />
+          </p>
+        )}
+        <div className="mt-3 max-w-2xl text-stone-600">
+          <EditableMarkdown
+            value={resolved.description}
+            placeholder="Add a description…"
+            onSave={(description) => updateContainer(type, id, { description })}
+          />
+        </div>
       </header>
 
       {resolved.children.map(
         (group) =>
-          group.items.length > 0 && (
+          (group.items.length > 0 || group.onNew) && (
             <p key={group.label} className="mt-4 flex flex-wrap items-baseline gap-2 text-sm">
               <span className="text-xs uppercase tracking-wide text-stone-400">{group.label}</span>
               {group.items.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="rounded border border-stone-200 bg-white px-2 py-0.5 hover:border-stone-400"
+                  className={`rounded border border-stone-200 bg-white px-2 py-0.5 hover:border-stone-400 ${
+                    item.archived ? "text-stone-400 opacity-60" : ""
+                  }`}
                 >
                   {item.name}
+                  {item.archived && <span className="ml-1 text-[10px] uppercase">archived</span>}
                 </Link>
               ))}
+              {group.onNew && (
+                <button
+                  onClick={group.onNew}
+                  className="rounded border border-dashed border-stone-300 px-2 py-0.5 text-xs text-stone-400 hover:border-stone-400 hover:text-stone-600"
+                >
+                  + New {group.label.toLowerCase().replace(/s$/, "")}
+                </button>
+              )}
             </p>
           ),
       )}

@@ -4,7 +4,7 @@
 
 export type PaletteMode =
   | { kind: "root"; issueId: string | null }
-  | { kind: "status" | "priority" | "estimate" | "move"; issueId: string };
+  | { kind: "status" | "priority" | "estimate" | "move" | "tag" | "arc"; issueId: string };
 
 export type CreateDefaults = {
   productId?: string;
@@ -37,3 +37,14 @@ const create = channel<CreateDefaults | undefined>();
 // Defaults omitted → the dialog derives its container from the current route.
 export const openCreateIssue = (defaults?: CreateDefaults) => create.emit(defaults);
 export const onOpenCreateIssue = create.on;
+
+export type ContainerDialogRequest =
+  | { kind: "initiative" }
+  | { kind: "product"; initiativeId?: string }
+  | { kind: "repo"; productId?: string }
+  | { kind: "arc"; productId?: string };
+
+const createContainer = channel<ContainerDialogRequest>();
+// Parent omitted → the dialog derives it from the current route.
+export const openCreateContainer = createContainer.emit;
+export const onOpenCreateContainer = createContainer.on;

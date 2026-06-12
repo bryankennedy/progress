@@ -11,6 +11,8 @@ import {
 import type { WireActivity, WireComment, WireIssue, WorkspacePayload } from "../../shared/types";
 import { openPalette } from "../commands/controller";
 import { useRegisterPageIssue } from "../commands/currentIssue";
+import EditableMarkdown from "../EditableMarkdown";
+import InlineEdit from "../InlineEdit";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import {
   addComment,
@@ -91,12 +93,24 @@ export default function IssuePage({
 
       <header className="mt-4">
         <p className="font-mono text-sm text-stone-400">{canonicalKey}</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">{issue.title}</h1>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight">
+          <InlineEdit
+            value={issue.title}
+            onSave={(title) => updateIssue(issue.id, { title })}
+            validate={(v) => v !== ""}
+            className="w-full"
+            inputClassName="text-2xl font-semibold tracking-tight"
+          />
+        </h1>
       </header>
 
       <div className="mt-6 flex flex-col gap-8 md:flex-row">
         <div className="min-w-0 flex-1">
-          <DescriptionSection issue={issue} />
+          <EditableMarkdown
+            value={issue.description}
+            placeholder="Add a description…"
+            onSave={(description) => updateIssue(issue.id, { description })}
+          />
           <TimelineSection issue={issue} workspace={workspace} />
         </div>
 
@@ -142,6 +156,12 @@ export default function IssuePage({
             ) : (
               <span className="text-sm text-stone-400">—</span>
             )}
+            <button
+              onClick={() => openPalette({ kind: "arc", issueId: issue.id })}
+              className="mt-0.5 block text-xs text-sky-600 hover:underline"
+            >
+              Change… <span className="text-stone-400">(A)</span>
+            </button>
           </Field>
           <Field label="Tags">
             {issueTags.length === 0 ? (
@@ -159,6 +179,12 @@ export default function IssuePage({
                 ))}
               </span>
             )}
+            <button
+              onClick={() => openPalette({ kind: "tag", issueId: issue.id })}
+              className="mt-0.5 block text-xs text-sky-600 hover:underline"
+            >
+              Edit… <span className="text-stone-400">(T)</span>
+            </button>
           </Field>
           <div className="space-y-1 border-t border-stone-200 pt-3 text-xs text-stone-400">
             <p>Created {fmtTime(issue.createdAt)}</p>
@@ -201,60 +227,6 @@ function FieldSelect({
         </option>
       ))}
     </select>
-  );
-}
-
-function DescriptionSection({ issue }: { issue: WireIssue }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-
-  if (editing) {
-    return (
-      <section>
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          rows={8}
-          autoFocus
-          className="w-full rounded border border-stone-300 bg-white p-3 font-mono text-sm"
-        />
-        <div className="mt-2 flex gap-2">
-          <button
-            onClick={() => {
-              updateIssue(issue.id, { description: draft });
-              setEditing(false);
-            }}
-            className="rounded bg-stone-900 px-3 py-1 text-sm text-white hover:bg-stone-700"
-          >
-            Save
-          </button>
-          <button
-            onClick={() => setEditing(false)}
-            className="rounded px-3 py-1 text-sm text-stone-500 hover:bg-stone-100"
-          >
-            Cancel
-          </button>
-        </div>
-      </section>
-    );
-  }
-
-  return (
-    <section
-      onClick={() => {
-        setDraft(issue.description);
-        setEditing(true);
-      }}
-      className="group cursor-text rounded p-1 -m-1 hover:bg-white"
-    >
-      {issue.description === "" ? (
-        <p className="text-stone-400">Add a description…</p>
-      ) : (
-        <div className="prose-lite">
-          <Markdown>{issue.description}</Markdown>
-        </div>
-      )}
-    </section>
   );
 }
 

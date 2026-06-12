@@ -138,16 +138,21 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
       </header>
 
       <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+        {/* Archived containers stay out of the dropdowns (D26); their issues
+            still render, so nothing silently disappears from the board. */}
         <FilterSelect
           label="Initiative"
           value={filters.initiative}
-          options={workspace.initiatives.map((i) => [i.id, i.name])}
+          options={workspace.initiatives
+            .filter((i) => !i.archivedAt)
+            .map((i) => [i.id, i.name])}
           onChange={(v) => setParam("initiative", v)}
         />
         <FilterSelect
           label="Product"
           value={filters.product}
           options={workspace.products
+            .filter((p) => !p.archivedAt)
             .filter((p) => !filters.initiative || p.initiativeId === filters.initiative)
             .map((p) => [p.id, p.name])}
           onChange={(v) => setParam("product", v)}
@@ -156,6 +161,7 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
           label="Repo"
           value={filters.repo}
           options={workspace.repos
+            .filter((r) => !r.archivedAt)
             .filter((r) => !filters.product || r.productId === filters.product)
             .map((r) => [r.id, r.name])}
           onChange={(v) => setParam("repo", v)}
@@ -164,6 +170,7 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
           label="Arc"
           value={filters.arc}
           options={workspace.arcs
+            .filter((a) => !a.archivedAt)
             .filter((a) => !filters.product || a.productId === filters.product)
             .map((a) => [a.id, a.name])}
           onChange={(v) => setParam("arc", v)}

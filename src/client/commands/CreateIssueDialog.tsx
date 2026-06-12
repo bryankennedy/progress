@@ -65,7 +65,8 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
     () =>
       onOpenCreateIssue((given) => {
         const defaults = { ...deriveDefaults(workspace, path, search), ...given };
-        if (!defaults.productId) defaults.productId = workspace.products[0]?.id;
+        if (!defaults.productId)
+          defaults.productId = workspace.products.find((p) => !p.archivedAt)?.id;
         setContainer(containerValue(defaults));
         setArcId(defaults.arcId ?? "");
         setTitle("");
@@ -84,7 +85,11 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
     return undefined;
   }, [container, workspace.repos]);
 
-  const productArcs = workspace.arcs.filter((a) => a.productId === selectedProductId);
+  // Archived containers aren't valid creation targets (D26).
+  const activeProducts = workspace.products.filter((p) => !p.archivedAt);
+  const productArcs = workspace.arcs.filter(
+    (a) => a.productId === selectedProductId && !a.archivedAt,
+  );
 
   if (!open) return null;
 
@@ -139,8 +144,10 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
         />
         <div className="mt-3 flex flex-wrap gap-2">
           <select value={container} onChange={(e) => onContainerChange(e.target.value)} className={selectClass}>
-            {workspace.products.map((p) => {
-              const productRepos = workspace.repos.filter((r) => r.productId === p.id);
+            {activeProducts.map((p) => {
+              const productRepos = workspace.repos.filter(
+                (r) => r.productId === p.id && !r.archivedAt,
+              );
               return (
                 <optgroup key={p.id} label={p.name}>
                   <option value={`p:${p.id}`}>{p.name}</option>
