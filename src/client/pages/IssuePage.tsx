@@ -8,7 +8,15 @@ import {
   type IssuePriority,
   type IssueStatus,
 } from "../../shared/constants";
-import type { WireActivity, WireComment, WireIssue, WorkspacePayload } from "../../shared/types";
+import type { PrState } from "../../shared/constants";
+import type {
+  WireActivity,
+  WireComment,
+  WireCommitLink,
+  WireIssue,
+  WirePrLink,
+  WorkspacePayload,
+} from "../../shared/types";
 import { openPalette } from "../commands/controller";
 import { useRegisterPageIssue } from "../commands/currentIssue";
 import EditableMarkdown from "../EditableMarkdown";
@@ -258,8 +266,25 @@ function TimelineSection({
     return merged.sort((a, b) => a.at.localeCompare(b.at));
   }, [timeline]);
 
+  const hasGitLinks =
+    timeline !== undefined && (timeline.pullRequests.length > 0 || timeline.commits.length > 0);
+
   return (
     <section className="mt-10 border-t border-stone-200 pt-6">
+      {hasGitLinks && (
+        <div className="mb-8">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-stone-400">Git</h2>
+          <div className="mt-3 space-y-1.5">
+            {timeline.pullRequests.map((pr) => (
+              <PrRow key={`${pr.githubRepo}#${pr.prNumber}`} pr={pr} />
+            ))}
+            {timeline.commits.map((commit) => (
+              <CommitRow key={commit.sha} commit={commit} />
+            ))}
+          </div>
+        </div>
+      )}
+
       <h2 className="text-sm font-medium uppercase tracking-wide text-stone-400">Activity</h2>
 
       {isPending && <p className="mt-3 text-sm text-stone-400">Loading…</p>}
@@ -312,6 +337,48 @@ function TimelineSection({
   );
 }
 
+const PR_STATE_STYLES: Record<PrState, string> = {
+  open: "bg-emerald-100 text-emerald-700",
+  merged: "bg-purple-100 text-purple-700",
+  closed: "bg-stone-200 text-stone-600",
+};
+
+function PrRow({ pr }: { pr: WirePrLink }) {
+  return (
+    <a
+      href={pr.url || undefined}
+      target="_blank"
+      rel="noreferrer"
+      className="flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm hover:border-stone-400"
+    >
+      <span
+        className={`shrink-0 rounded-full px-2 py-px text-[10px] font-medium uppercase ${PR_STATE_STYLES[pr.state]}`}
+      >
+        {pr.state}
+      </span>
+      <span className="truncate font-medium">{pr.title}</span>
+      <span className="ml-auto shrink-0 text-xs text-stone-400">
+        {pr.githubRepo}#{pr.prNumber}
+      </span>
+    </a>
+  );
+}
+
+function CommitRow({ commit }: { commit: WireCommitLink }) {
+  return (
+    <a
+      href={commit.url || undefined}
+      target="_blank"
+      rel="noreferrer"
+      className="flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs hover:border-stone-400"
+    >
+      <span className="shrink-0 font-mono text-stone-400">{commit.sha.slice(0, 7)}</span>
+      <span className="truncate text-stone-600">{commit.message}</span>
+      <span className="ml-auto shrink-0 text-stone-400">{commit.githubRepo}</span>
+    </a>
+  );
+}
+
 function describeActivity(event: WireActivity, workspace: WorkspacePayload): string {
   if (event.type === "status_changed") {
     const data = event.data as { from?: IssueStatus; to?: IssueStatus };
@@ -334,6 +401,14 @@ function describeActivity(event: WireActivity, workspace: WorkspacePayload): str
     };
     const rekeyed = data.fromKey ? ` (was ${data.fromKey})` : "";
     return `Moved: ${containerName(data.fromProductId, data.fromRepoId)} → ${containerName(data.toProductId, data.toRepoId)}${rekeyed}`;
+  }
+  if (event.type === "pr_linked") {
+    const data = event.data as { githubRepo?: string; prNumber?: number; title?: string };
+    return `Linked PR ${data.githubRepo ?? "?"}#${data.prNumber ?? "?"}: ${data.title ?? ""}`;
+  }
+  if (event.type === "commit_linked") {
+    const data = event.data as { sha?: string; message?: string };
+    return `Linked commit ${(data.sha ?? "").slice(0, 7)}: ${data.message ?? ""}`;
   }
   return event.type.replaceAll("_", " ");
 }

@@ -10,8 +10,10 @@ import type {
   WireActivity,
   WireArc,
   WireComment,
+  WireCommitLink,
   WireInitiative,
   WireIssue,
+  WirePrLink,
   WireProduct,
   WireRepo,
   WireTag,
@@ -570,7 +572,12 @@ export function untagIssue(issueId: string, tagId: string) {
 
 // ---------- per-issue timeline ----------
 
-export type Timeline = { comments: WireComment[]; activity: WireActivity[] };
+export type Timeline = {
+  comments: WireComment[];
+  activity: WireActivity[];
+  pullRequests: WirePrLink[];
+  commits: WireCommitLink[];
+};
 
 export function useTimeline(issueId: string) {
   return useQuery({
