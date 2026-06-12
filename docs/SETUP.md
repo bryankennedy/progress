@@ -1,7 +1,9 @@
 # Setup & Development
 
-Repeatable steps to get Progress running from a fresh checkout. Verified on
-Ubuntu 24.04 (the exe.dev VM), 2026-06-11.
+How-to guide: get Progress running from a fresh checkout and make everyday
+changes. Verified on Ubuntu 24.04 (the exe.dev VM), 2026-06-12. For what the
+system does, see [`REFERENCE.md`](./REFERENCE.md); for the doc map, see
+[`README.md`](./README.md).
 
 ## 1. Prerequisites
 
@@ -69,10 +71,11 @@ the dev server is served directly at the VM's main URL — no nginx in between.
 | Path | Purpose |
 |---|---|
 | `src/worker/` | Hono API (Cloudflare Worker entry: `index.ts`) |
-| `src/client/` | React app (entry: `main.tsx`) |
+| `src/client/` | React app (entry: `main.tsx`; `pages/`, `commands/` for palette/dialogs/keyboard, `store.ts` for all mutations) |
+| `src/shared/` | Wire types + fixed vocabularies, shared client/server (dependency-free) |
 | `src/db/schema.ts` | Drizzle schema — generates migrations |
 | `drizzle/` | Generated SQL migrations (committed) |
-| `scripts/seed.sql` | Idempotent seed data |
+| `scripts/seed.sql` | Idempotent seed data (`seed-scale.ts`: 5k-issue synthetic workspace) |
 | `wrangler.jsonc` | Worker config: D1 binding, SPA assets, `/api/*` routing |
 | `vite.config.ts` | Vite + React + Tailwind + Cloudflare plugins |
 

@@ -5,10 +5,18 @@ the owner's own hierarchy: Initiative → Product → Repo/Arc → Issue).
 
 ## Documents — read before non-trivial work
 
-- `docs/SPEC.md` — what we're building and why. Source of truth for scope and
-  domain rules.
+Organized per Diátaxis (map: `docs/README.md`). Built vs. planned is split
+deliberately — keep it that way as milestones land:
+
+- `docs/REFERENCE.md` — the system **as built** (domain rules, API, client
+  architecture, keyboard map). Present tense; update it when shipping.
+- `docs/SPEC.md` — vision, principles, and the **not-yet-built** roadmap.
+  Source of truth for scope of remaining work. Section numbers are stable
+  (code comments cite them); when an area ships, shrink its section to a
+  pointer into REFERENCE rather than renumbering.
 - `docs/DECISIONS.md` — append-only decision log. Settled questions live here;
   don't re-litigate them — supersede with a new entry if something changes.
+- `docs/SETUP.md` — how-to: install, run, schema changes, deploy.
 
 When a decision of consequence is made in conversation, record it in
 `docs/DECISIONS.md` in the same session.
