@@ -5,11 +5,16 @@
 // timelines (comments + activity) are separate queries (D20).
 
 import { QueryClient, useQuery } from "@tanstack/react-query";
-import type { IssuePriority, IssueStatus } from "../shared/constants";
+import { tagColor, type IssuePriority, type IssueStatus } from "../shared/constants";
 import type {
   WireActivity,
+  WireArc,
   WireComment,
+  WireInitiative,
   WireIssue,
+  WireProduct,
+  WireRepo,
+  WireTag,
   WorkspacePayload,
 } from "../shared/types";
 import { toast } from "./toast";
@@ -122,6 +127,7 @@ export type IssuePatch = Partial<{
   status: IssueStatus;
   priority: IssuePriority;
   estimate: number | null;
+  arcId: string | null;
 }>;
 
 export function updateIssue(id: string, patch: IssuePatch) {
@@ -318,6 +324,247 @@ export function moveIssue(id: string, target: MoveTarget) {
       };
     });
     toast("Couldn't move that issue — reverted.");
+  })();
+}
+
+// ---------- containers (D26) ----------
+
+export type ContainerKind = "initiative" | "product" | "repo" | "arc";
+
+export const CONTAINER_COLLECTIONS = {
+  initiative: "initiatives",
+  product: "products",
+  repo: "repos",
+  arc: "arcs",
+} as const;
+type ContainerCollection = (typeof CONTAINER_COLLECTIONS)[ContainerKind];
+
+const CONTAINER_ID_PREFIXES: Record<ContainerKind, string> = {
+  initiative: "ini",
+  product: "prd",
+  repo: "rep",
+  arc: "arc",
+};
+
+type WireContainer = WireInitiative | WireProduct | WireRepo | WireArc;
+
+// The four container collections have distinct element types; TS can't relate
+// a union-typed key to its value type on write, so this helper centralizes
+// the (runtime-safe) casts.
+function writeContainers(key: ContainerCollection, fn: (list: WireContainer[]) => WireContainer[]) {
+  queryClient.setQueryData<WorkspacePayload>(WS_KEY, (ws) =>
+    ws ? ({ ...ws, [key]: fn(ws[key] as WireContainer[]) } as WorkspacePayload) : ws,
+  );
+}
+
+export type ContainerCreateInput =
+  | { kind: "initiative"; name: string }
+  | { kind: "product"; name: string; initiativeId: string; keyPrefix: string }
+  | { kind: "repo"; name: string; productId: string; gitUrl?: string | null }
+  | { kind: "arc"; name: string; productId: string };
+
+// Optimistic container create. The id is client-generated (container pages
+// are id-addressed, so navigation must not depend on a server round trip);
+// the server accepts it verbatim (D26). Returns the new container's id.
+export function createContainer(input: ContainerCreateInput): string {
+  const id = `${CONTAINER_ID_PREFIXES[input.kind]}_${crypto.randomUUID().replaceAll("-", "")}`;
+  const now = new Date().toISOString();
+  const base = {
+    id,
+    name: input.name.trim(),
+    description: "",
+    archivedAt: null,
+    creatorId: "usr_owner",
+    createdAt: now,
+    updatedAt: now,
+  };
+  const temp: WireContainer =
+    input.kind === "initiative"
+      ? base
+      : input.kind === "product"
+        ? { ...base, initiativeId: input.initiativeId, keyPrefix: input.keyPrefix.toUpperCase(), nextIssueNumber: 1 }
+        : input.kind === "repo"
+          ? { ...base, productId: input.productId, gitUrl: input.gitUrl ?? null }
+          : { ...base, productId: input.productId };
+  const collection = CONTAINER_COLLECTIONS[input.kind];
+  writeContainers(collection, (list) => [...list, temp]);
+
+  void (async () => {
+    let server: WireContainer | undefined;
+    let message = "";
+    try {
+      const res = await fetch(`/api/${collection}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...input, id }),
+      });
+      if (res.ok) {
+        server = ((await res.json()) as { container: WireContainer }).container;
+      } else {
+        message = ((await res.json()) as { error?: string }).error ?? "";
+      }
+    } catch {
+      // handled below
+    }
+    if (server) {
+      const real = server;
+      writeContainers(collection, (list) => list.map((x) => (x.id === id ? real : x)));
+    } else {
+      writeContainers(collection, (list) => list.filter((x) => x.id !== id));
+      toast(`Couldn't create that ${input.kind} — removed.${message ? ` (${message})` : ""}`);
+    }
+  })();
+
+  return id;
+}
+
+export type ContainerPatch = Partial<{
+  name: string;
+  description: string;
+  archived: boolean;
+  keyPrefix: string;
+  gitUrl: string | null;
+}>;
+
+export function updateContainer(kind: ContainerKind, id: string, patch: ContainerPatch) {
+  const collection = CONTAINER_COLLECTIONS[kind];
+  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
+  const before = (ws?.[collection] as WireContainer[] | undefined)?.find((x) => x.id === id);
+  if (!before) return;
+
+  const now = new Date().toISOString();
+  // Mirror the server's PATCH semantics (archived boolean → archivedAt).
+  const optimistic: Record<string, unknown> = { updatedAt: now };
+  if (patch.name !== undefined) optimistic.name = patch.name.trim();
+  if (patch.description !== undefined) optimistic.description = patch.description;
+  if (patch.archived !== undefined) optimistic.archivedAt = patch.archived ? now : null;
+  if (patch.keyPrefix !== undefined) optimistic.keyPrefix = patch.keyPrefix.toUpperCase();
+  if (patch.gitUrl !== undefined) optimistic.gitUrl = patch.gitUrl;
+  writeContainers(collection, (list) =>
+    list.map((x) => (x.id === id ? ({ ...x, ...optimistic } as WireContainer) : x)),
+  );
+
+  void (async () => {
+    let ok = false;
+    let message = "";
+    try {
+      const res = await fetch(`/api/${collection}/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      ok = res.ok;
+      if (!ok) message = ((await res.json()) as { error?: string }).error ?? "";
+    } catch {
+      // handled below
+    }
+    if (!ok) {
+      writeContainers(collection, (list) => list.map((x) => (x.id === id ? before : x)));
+      toast(`Couldn't save that change — reverted.${message ? ` (${message})` : ""}`);
+    }
+  })();
+}
+
+// ---------- tags (D27) ----------
+
+// Assign a tag — an existing one by id, or by name (creating it on the fly
+// with the shared auto-color, so the optimistic row matches the server's).
+export function tagIssue(issueId: string, tag: { tagId: string } | { name: string }) {
+  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
+  if (!ws) return;
+
+  let tagId: string;
+  let createdTemp: WireTag | undefined;
+  if ("tagId" in tag) {
+    tagId = tag.tagId;
+  } else {
+    const name = tag.name.trim();
+    if (name === "") return;
+    const existing = ws.tags.find((t) => t.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      tagId = existing.id;
+    } else {
+      tagId = `tag_${crypto.randomUUID().replaceAll("-", "")}`;
+      createdTemp = { id: tagId, name, color: tagColor(name), createdAt: new Date().toISOString() };
+    }
+  }
+  if (ws.issueTags.some((l) => l.issueId === issueId && l.tagId === tagId)) return;
+
+  queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) =>
+    w
+      ? {
+          ...w,
+          tags: createdTemp ? [...w.tags, createdTemp] : w.tags,
+          issueTags: [...w.issueTags, { issueId, tagId }],
+        }
+      : w,
+  );
+
+  void (async () => {
+    let serverTag: WireTag | undefined;
+    try {
+      const res = await fetch(`/api/issues/${issueId}/tags`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify("tagId" in tag ? { tagId } : { name: tag.name.trim(), id: tagId }),
+      });
+      if (res.ok) serverTag = ((await res.json()) as { tag: WireTag }).tag;
+    } catch {
+      // handled below
+    }
+    if (serverTag) {
+      const real = serverTag;
+      // The server may resolve a created-by-name tag to a pre-existing row
+      // (exact-name match); point the link at the authoritative id.
+      queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) =>
+        w
+          ? {
+              ...w,
+              tags: [...w.tags.filter((t) => t.id !== tagId && t.id !== real.id), real],
+              issueTags: w.issueTags.map((l) =>
+                l.issueId === issueId && l.tagId === tagId ? { ...l, tagId: real.id } : l,
+              ),
+            }
+          : w,
+      );
+    } else {
+      queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) =>
+        w
+          ? {
+              ...w,
+              tags: createdTemp ? w.tags.filter((t) => t.id !== tagId) : w.tags,
+              issueTags: w.issueTags.filter((l) => !(l.issueId === issueId && l.tagId === tagId)),
+            }
+          : w,
+      );
+      toast("Couldn't add that tag — removed.");
+    }
+  })();
+}
+
+export function untagIssue(issueId: string, tagId: string) {
+  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
+  if (!ws?.issueTags.some((l) => l.issueId === issueId && l.tagId === tagId)) return;
+
+  queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) =>
+    w
+      ? { ...w, issueTags: w.issueTags.filter((l) => !(l.issueId === issueId && l.tagId === tagId)) }
+      : w,
+  );
+
+  void (async () => {
+    let ok = false;
+    try {
+      ok = (await fetch(`/api/issues/${issueId}/tags/${tagId}`, { method: "DELETE" })).ok;
+    } catch {
+      // handled below
+    }
+    if (!ok) {
+      queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) =>
+        w ? { ...w, issueTags: [...w.issueTags, { issueId, tagId }] } : w,
+      );
+      toast("Couldn't remove that tag — restored.");
+    }
   })();
 }
 
