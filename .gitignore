@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# Workers local secrets (Miniflare/Wrangler convention) — same zero-leak rule as .env
+.dev.vars
+
 # Dependency installs — reproducible from lockfile
 node_modules/
 
