@@ -52,18 +52,11 @@ D26–D27.
 
 ## 4. Views & UX
 
-✅ **Shipped** (milestones 3–5). The global "My Work" kanban with URL-param
-filters and drag-and-drop, container pages with inline editing, the full
-issue page, the ⌘K command palette, and the single-key action map are
-documented in [REFERENCE §5](./REFERENCE.md#5-ui-surfaces). Decisions:
-D22–D23, D25.
-
-Still open from this section's original scope:
-
-- **Mobile**: the layouts use responsive primitives, but the "genuinely
-  works on a phone" pass (board scroll behavior, issue page reflow,
-  touch-target sizes) hasn't been deliberately done or verified — it rides
-  with the deploy milestone.
+✅ **Shipped** (milestones 3–5, mobile pass in 7). The global "My Work"
+kanban with URL-param filters and drag-and-drop (mouse and touch), container
+pages with inline editing, the full issue page, the ⌘K command palette, and
+the single-key action map are documented in
+[REFERENCE §5](./REFERENCE.md#5-ui-surfaces). Decisions: D22–D23, D25, D30.
 
 ## 5. Git integration
 
@@ -88,15 +81,16 @@ Still open from this section's scope:
 
 | ✅ Built | 🔜 Remaining for v1 | Out (non-goals) |
 |---|---|---|
-| Full hierarchy: Initiative / Product / Repo / Arc / Issue | Mobile-friendly verification pass (§4) | GitHub Issues sync |
-| Fixed statuses, priority, estimate, global tags | Production deploy + Cloudflare Access (§8.3) | Configurable workflows |
-| Global "My Work" kanban with filters | GitHub-side webhook registration (§5, rides with deploy) | Time tracking |
-| Container pages + issue page, Markdown everywhere | The dogfood cutover (§7) | Native mobile apps |
+| Full hierarchy: Initiative / Product / Repo / Arc / Issue | Production deploy + Cloudflare Access (§8.3 — needs owner credentials) | GitHub Issues sync |
+| Fixed statuses, priority, estimate, global tags | GitHub-side webhook registration (§5, rides with deploy) | Configurable workflows |
+| Global "My Work" kanban with filters | The dogfood cutover (§7) | Time tracking |
+| Container pages + issue page, Markdown everywhere | | Native mobile apps |
 | Comments + activity feed | | |
 | Issue creation, movement with key-alias redirects | | |
 | Container CRUD + archive, tag management | | |
 | Command palette + keyboard actions | | |
 | GitHub webhook magic-word PR/commit linking (§5) | | |
+| Mobile-friendly responsive UI incl. touch drag (§4) | | |
 
 Deferred to v1.x: sprints & cycles · multi-user & sharing · notifications ·
 status automation from PRs · due dates, sub-issues, blocking relations ·

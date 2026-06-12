@@ -216,7 +216,9 @@ canonical key — entirely client-side from the loaded workspace (D22).
   statuses; Backlog hides behind a toggle by default. Filters (initiative,
   product, repo, arc, tag, priority) live in URL query params, so any
   filtered board is bookmarkable — this is how per-container boards are
-  covered without existing (D23). Drag-and-drop between columns sets status.
+  covered without existing (D23). Drag-and-drop between columns sets status:
+  mouse drags activate after 4px of movement (plain clicks navigate), touch
+  drags after a 250ms press-and-hold (plain swipes scroll the board) — D30.
 - **Container pages** — description-on-top open page (inline-editable name,
   Markdown description, key prefix / git URL where applicable, archive
   toggle), child-container chips with "+ New" buttons, and a

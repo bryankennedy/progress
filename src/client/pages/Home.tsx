@@ -7,7 +7,8 @@
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useDraggable,
   useDroppable,
   useSensor,
@@ -101,9 +102,13 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
     return groups;
   }, [workspace.issues, workspace.products, filters, tagsByIssue, productById]);
 
-  // Distance constraint keeps plain clicks (card → issue page) from starting
-  // a drag.
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  // Mouse: a distance constraint keeps plain clicks (card → issue page) from
+  // starting a drag. Touch: a hold-delay keeps swipes scrolling the board
+  // horizontally — press-and-hold a card to drag it (SPEC §4 mobile).
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  );
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const draggingIssue = draggingId
     ? workspace.issues.find((i) => i.id === draggingId)
@@ -320,6 +325,10 @@ function BoardCard({
       {...attributes}
       data-issue-id={issue.id}
       className={hidden ? "opacity-30" : ""}
+      // Keeps taps/holds responsive on touch without blocking board scroll
+      // (safe with the hold-delay sensor; touch-action:none would kill
+      // scrolling over cards).
+      style={{ touchAction: "manipulation" }}
     >
       <Link href={`/issue/${issueKeyOf(workspace, issue)}`}>
         <CardView issue={issue} workspace={workspace} tags={tags} />

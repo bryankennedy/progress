@@ -335,3 +335,22 @@ the MCP surface). Implementation decisions deferred to the build.
   `wrangler secret put`. GitHub-side webhook registration needs a public
   URL and therefore rides with the deploy milestone; verified locally with
   signed payloads (20 API checks + UI render checks).
+
+---
+
+## 2026-06-12 — Milestone 7 (part): mobile pass
+
+### D30: Touch interaction model for the board
+The drag sensor split is **MouseSensor (4px distance) + TouchSensor (250ms
+hold, 8px tolerance)**, replacing the single PointerSensor: on a phone, a
+swipe must scroll the board horizontally and a tap must open the card, so
+press-and-hold is the only gesture left for dragging — the standard
+mobile-kanban convention. Cards get `touch-action: manipulation` (not
+`none`, which would kill scrolling over cards). Shell padding tightens on
+small screens; everything else already reflowed (issue page sidebar stacks
+under the content via the existing `md:` breakpoint). Verified at 390×844
+with touch in headless Chromium: no horizontal page overflow on board /
+issue / container pages, lane scrolls, taps navigate, dialogs fit; desktop
+mouse drag regression-tested after the sensor swap. Production build +
+`wrangler deploy --dry-run` pass; the deploy itself and Cloudflare Access
+are owner-credential-gated (dashboard/Zero Trust work, not repo code).

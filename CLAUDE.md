@@ -51,9 +51,12 @@ create/edit/archive, tags with auto-color, arc/title editing, T/A keyboard
 pickers) complete 2026-06-12. Milestone 6 (GitHub webhook magic-word
 PR/commit linking, D29 — HMAC-verified endpoint, alias-aware key
 resolution, PR/commit display; local secret in `.dev.vars`) complete
-2026-06-12; GitHub-side registration rides with deploy. Next: milestone 7 —
-mobile polish + production deploy + Cloudflare Access + dogfood cutover
-(SPEC §7, §8.3); then v1.x agent integration (context bundle, MCP server,
+2026-06-12; GitHub-side registration rides with deploy. Milestone 7 mobile
+pass complete (D30: touch drag via hold-delay sensor, phone-viewport
+verified; production build + deploy dry-run pass). Remaining for v1, all
+owner-credential-gated: production deploy, Cloudflare Access (exclude
+`/api/webhooks/github`), GitHub webhook registration, dogfood cutover
+(SPEC §7, §8.3). Then v1.x agent integration (context bundle, MCP server,
 work kickoff — SPEC §11/D28). `bun run dev` serves everything on :8000
 (see `docs/SETUP.md`). Shared wire types live in `src/shared/`. Synthetic
 5k-issue data: `bun run db:seed:scale`; reset via `docs/SETUP.md` §2. Update
