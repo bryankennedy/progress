@@ -18,6 +18,11 @@ export type IssuePriority = (typeof ISSUE_PRIORITIES)[number];
 // Linear-style points (SPEC §9 open question #1, default taken).
 export const ISSUE_ESTIMATES = [0, 1, 2, 3, 5, 8] as const;
 
+// Linked pull-request lifecycle (SPEC §5). "merged" is terminal; GitHub
+// reports it as closed + merged flag, normalized at the webhook.
+export const PR_STATES = ["open", "merged", "closed"] as const;
+export type PrState = (typeof PR_STATES)[number];
+
 // Tag auto-color (SPEC §9 open question #3, minimal default): fixed palette,
 // color chosen by a stable hash of the name. Shared so the client's
 // optimistic tag rows get the same color the server will assign.

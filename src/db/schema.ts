@@ -15,10 +15,10 @@ import {
 
 // Fixed vocabularies live in src/shared/constants.ts (shared with the
 // client); re-exported here so DB-adjacent code keeps one import site.
-import { ISSUE_PRIORITIES, ISSUE_STATUSES } from "../shared/constants";
+import { ISSUE_PRIORITIES, ISSUE_STATUSES, PR_STATES } from "../shared/constants";
 
-export { ISSUE_ESTIMATES, ISSUE_PRIORITIES, ISSUE_STATUSES } from "../shared/constants";
-export type { IssuePriority, IssueStatus } from "../shared/constants";
+export { ISSUE_ESTIMATES, ISSUE_PRIORITIES, ISSUE_STATUSES, PR_STATES } from "../shared/constants";
+export type { IssuePriority, IssueStatus, PrState } from "../shared/constants";
 
 // Multi-user-ready from day one (SPEC §8.4, D13): one row in v1, but
 // creator/assignee/author foreign keys point here.
@@ -217,6 +217,50 @@ export const activity = sqliteTable(
   (t) => [index("activity_issue_idx").on(t.issueId)],
 );
 
+// Git links (SPEC §5, D29) — the link tables D19 deferred to this milestone.
+// Rows are written only by the GitHub webhook when a commit/PR mentions an
+// issue key ("magic words"). Linking is permanent: a later edit that removes
+// the mention does not unlink. Composite PKs double as the dedupe guard for
+// webhook redeliveries.
+
+export const prLinks = sqliteTable(
+  "pr_links",
+  {
+    issueId: text("issue_id")
+      .notNull()
+      .references(() => issues.id),
+    // "owner/name" — identifies the PR together with the number. Not an FK
+    // to repos: links survive container renames/archives, and webhooks may
+    // arrive from repos that aren't (yet) containers here.
+    githubRepo: text("github_repo").notNull(),
+    prNumber: integer("pr_number").notNull(),
+    title: text("title").notNull(),
+    // Mutable: the webhook updates state (and title) on PR events.
+    state: text("state", { enum: PR_STATES }).notNull(),
+    url: text("url").notNull(),
+    sourceBranch: text("source_branch"),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.issueId, t.githubRepo, t.prNumber] })],
+);
+
+export const commitLinks = sqliteTable(
+  "commit_links",
+  {
+    issueId: text("issue_id")
+      .notNull()
+      .references(() => issues.id),
+    githubRepo: text("github_repo").notNull(),
+    sha: text("sha").notNull(),
+    // First line of the commit message only — display never needs more.
+    message: text("message").notNull(),
+    url: text("url").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.issueId, t.sha] })],
+);
+
 export type User = typeof users.$inferSelect;
 export type Initiative = typeof initiatives.$inferSelect;
 export type Product = typeof products.$inferSelect;
@@ -228,3 +272,5 @@ export type Tag = typeof tags.$inferSelect;
 export type IssueTag = typeof issueTags.$inferSelect;
 export type Comment = typeof comments.$inferSelect;
 export type Activity = typeof activity.$inferSelect;
+export type PrLink = typeof prLinks.$inferSelect;
+export type CommitLink = typeof commitLinks.$inferSelect;
