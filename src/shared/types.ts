@@ -6,10 +6,12 @@ import type {
   Activity,
   Arc,
   Comment,
+  CommitLink,
   Initiative,
   Issue,
   IssueKeyAlias,
   IssueTag,
+  PrLink,
   Product,
   Repo,
   Tag,
@@ -31,6 +33,8 @@ export type WireTag = Serialized<Tag>;
 export type WireIssueTag = Serialized<IssueTag>;
 export type WireComment = Serialized<Comment>;
 export type WireActivity = Serialized<Activity>;
+export type WirePrLink = Serialized<PrLink>;
+export type WireCommitLink = Serialized<CommitLink>;
 
 // GET /api/workspace — the load-everything payload (SPEC §8.2, D20: comments
 // and activity are excluded and load per issue page).

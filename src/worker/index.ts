@@ -1,10 +1,11 @@
 import { Hono } from "hono";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import {
   activity,
   arcs,
   comments,
+  commitLinks,
   initiatives,
   ISSUE_ESTIMATES,
   ISSUE_PRIORITIES,
@@ -12,17 +13,22 @@ import {
   issueKeyAliases,
   issues,
   issueTags,
+  prLinks,
   products,
   repos,
   tags,
   users,
   type IssuePriority,
   type IssueStatus,
+  type PrState,
 } from "../db/schema";
 import { tagColor } from "../shared/constants";
 
 type Bindings = {
   DB: D1Database;
+  // Shared secret for GitHub webhook HMAC verification (SPEC §5). Local dev:
+  // .dev.vars; production: `wrangler secret put GITHUB_WEBHOOK_SECRET`.
+  GITHUB_WEBHOOK_SECRET?: string;
 };
 
 // Single-user v1: every write is attributed to the owner row the seed
@@ -603,15 +609,27 @@ app.patch("/api/issues/:id", async (c) => {
   return c.json({ issue: updated });
 });
 
-// Per-issue timeline (D20: not part of the workspace payload).
+// Per-issue timeline (D20: not part of the workspace payload). Carries the
+// issue's git links too — same load moment, same growth profile.
 app.get("/api/issues/:id/timeline", async (c) => {
   const id = c.req.param("id");
   const db = drizzle(c.env.DB);
-  const [issueComments, issueActivity] = await db.batch([
+  const [issueComments, issueActivity, issuePrs, issueCommits] = await db.batch([
     db.select().from(comments).where(eq(comments.issueId, id)).orderBy(asc(comments.createdAt)),
     db.select().from(activity).where(eq(activity.issueId, id)).orderBy(asc(activity.createdAt)),
+    db.select().from(prLinks).where(eq(prLinks.issueId, id)).orderBy(asc(prLinks.createdAt)),
+    db
+      .select()
+      .from(commitLinks)
+      .where(eq(commitLinks.issueId, id))
+      .orderBy(asc(commitLinks.createdAt)),
   ]);
-  return c.json({ comments: issueComments, activity: issueActivity });
+  return c.json({
+    comments: issueComments,
+    activity: issueActivity,
+    pullRequests: issuePrs,
+    commits: issueCommits,
+  });
 });
 
 app.post("/api/issues/:id/comments", async (c) => {
@@ -641,6 +659,240 @@ app.post("/api/issues/:id/comments", async (c) => {
     })
     .returning();
   return c.json({ comment }, 201);
+});
+
+// ---------- GitHub webhook (SPEC §5, D29) ----------
+
+// HMAC SHA-256 of the raw body, hex, constant-time compared against the
+// `sha256=<hex>` header GitHub sends. The route bypasses Cloudflare Access
+// in production, so this signature is its only authentication.
+async function verifyGitHubSignature(
+  secret: string,
+  rawBody: string,
+  header: string | undefined,
+): Promise<boolean> {
+  if (!header?.startsWith("sha256=")) return false;
+  const expected = header.slice("sha256=".length).toLowerCase();
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(rawBody)));
+  const hex = Array.from(mac, (b) => b.toString(16).padStart(2, "0")).join("");
+  if (hex.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < hex.length; i++) diff |= hex.charCodeAt(i) ^ expected.charCodeAt(i);
+  return diff === 0;
+}
+
+// Magic words: anything shaped like an issue key. Resolution decides whether
+// a candidate is real, so prose like "UTF-8" can't false-positive.
+const ISSUE_KEY_RE = /\b([A-Za-z]{2,8}-\d{1,7})\b/g;
+
+function extractIssueKeys(...texts: (string | null | undefined)[]): string[] {
+  const keys = new Set<string>();
+  for (const text of texts) {
+    if (!text) continue;
+    for (const match of text.matchAll(ISSUE_KEY_RE)) keys.add(match[1]!.toUpperCase());
+  }
+  return [...keys];
+}
+
+// Key → issue id, checking current keys first and then the permanent
+// aliases, mirroring the client's findIssueByKey (SPEC §3: references in
+// commits and notes never break).
+async function resolveIssueKeys(
+  db: ReturnType<typeof drizzle>,
+  candidates: string[],
+): Promise<Map<string, string>> {
+  const resolved = new Map<string, string>();
+  if (candidates.length === 0) return resolved;
+  const allProducts = await db
+    .select({ id: products.id, keyPrefix: products.keyPrefix })
+    .from(products);
+  const productByPrefix = new Map(allProducts.map((p) => [p.keyPrefix.toUpperCase(), p.id]));
+
+  const aliasCandidates: string[] = [];
+  for (const key of candidates) {
+    const [prefix, num] = key.split("-");
+    const productId = productByPrefix.get(prefix!);
+    if (productId) {
+      const [issue] = await db
+        .select({ id: issues.id })
+        .from(issues)
+        .where(and(eq(issues.productId, productId), eq(issues.number, Number(num))))
+        .limit(1);
+      if (issue) {
+        resolved.set(key, issue.id);
+        continue;
+      }
+    }
+    aliasCandidates.push(key);
+  }
+  if (aliasCandidates.length > 0) {
+    const aliasRows = await db
+      .select()
+      .from(issueKeyAliases)
+      .where(inArray(issueKeyAliases.key, aliasCandidates));
+    for (const row of aliasRows) resolved.set(row.key, row.issueId);
+  }
+  return resolved;
+}
+
+type PushPayload = {
+  ref?: string;
+  repository?: { full_name?: string };
+  commits?: { id?: string; message?: string; url?: string }[];
+};
+
+type PullRequestPayload = {
+  action?: string;
+  repository?: { full_name?: string };
+  pull_request?: {
+    number?: number;
+    title?: string;
+    body?: string | null;
+    state?: string;
+    merged?: boolean;
+    html_url?: string;
+    head?: { ref?: string };
+  };
+};
+
+// Push: keys in the branch name apply to every commit in the push; keys in
+// a commit message apply to that commit. Inserts are idempotent (composite
+// PK + DO NOTHING), so GitHub redeliveries are safe; only genuinely new
+// links get a commit_linked activity row.
+async function handlePush(db: ReturnType<typeof drizzle>, payload: PushPayload) {
+  const githubRepo = payload.repository?.full_name ?? "unknown";
+  const branch = payload.ref?.replace(/^refs\/heads\//, "") ?? "";
+  const branchKeys = extractIssueKeys(branch);
+  const pushCommits = payload.commits ?? [];
+
+  const allKeys = new Set(branchKeys);
+  for (const commit of pushCommits)
+    for (const key of extractIssueKeys(commit.message)) allKeys.add(key);
+  const resolved = await resolveIssueKeys(db, [...allKeys]);
+  if (resolved.size === 0) return { ok: true, linked: 0 };
+
+  const now = new Date();
+  let linked = 0;
+  for (const commit of pushCommits) {
+    if (!commit.id) continue;
+    const keys = [...branchKeys, ...extractIssueKeys(commit.message)];
+    const issueIds = new Set(
+      keys.map((key) => resolved.get(key)).filter((id): id is string => id !== undefined),
+    );
+    const message = (commit.message ?? "").split("\n")[0]!.slice(0, 200);
+    for (const issueId of issueIds) {
+      const [inserted] = await db
+        .insert(commitLinks)
+        .values({ issueId, githubRepo, sha: commit.id, message, url: commit.url ?? "", createdAt: now })
+        .onConflictDoNothing()
+        .returning();
+      if (!inserted) continue;
+      linked++;
+      await db.insert(activity).values({
+        id: newId("act"),
+        issueId,
+        actorId: OWNER_ID,
+        type: "commit_linked",
+        data: { githubRepo, sha: commit.id, message, url: commit.url ?? "", branch },
+        createdAt: now,
+      });
+    }
+  }
+  return { ok: true, linked };
+}
+
+// Pull request: keys in title, body, or source-branch name link the PR.
+// First sight inserts the link + a pr_linked activity row; later events
+// (edit, close, merge, reopen) update title/state in place. Links are
+// permanent — removing the mention later does not unlink.
+async function handlePullRequest(db: ReturnType<typeof drizzle>, payload: PullRequestPayload) {
+  const pr = payload.pull_request;
+  if (!pr?.number) return { ok: true, linked: 0 };
+  const githubRepo = payload.repository?.full_name ?? "unknown";
+  const resolved = await resolveIssueKeys(db, extractIssueKeys(pr.title, pr.body, pr.head?.ref));
+  if (resolved.size === 0) return { ok: true, linked: 0 };
+
+  const state: PrState = pr.merged ? "merged" : pr.state === "closed" ? "closed" : "open";
+  const title = pr.title ?? `#${pr.number}`;
+  const url = pr.html_url ?? "";
+  const sourceBranch = pr.head?.ref ?? null;
+  const now = new Date();
+  let linked = 0;
+
+  for (const issueId of new Set(resolved.values())) {
+    const [existing] = await db
+      .select({ issueId: prLinks.issueId })
+      .from(prLinks)
+      .where(
+        and(
+          eq(prLinks.issueId, issueId),
+          eq(prLinks.githubRepo, githubRepo),
+          eq(prLinks.prNumber, pr.number),
+        ),
+      )
+      .limit(1);
+    if (existing) {
+      await db
+        .update(prLinks)
+        .set({ title, state, url, sourceBranch, updatedAt: now })
+        .where(
+          and(
+            eq(prLinks.issueId, issueId),
+            eq(prLinks.githubRepo, githubRepo),
+            eq(prLinks.prNumber, pr.number),
+          ),
+        );
+      continue;
+    }
+    await db.batch([
+      db.insert(prLinks).values({
+        issueId,
+        githubRepo,
+        prNumber: pr.number,
+        title,
+        state,
+        url,
+        sourceBranch,
+        createdAt: now,
+        updatedAt: now,
+      }),
+      db.insert(activity).values({
+        id: newId("act"),
+        issueId,
+        actorId: OWNER_ID,
+        type: "pr_linked",
+        data: { githubRepo, prNumber: pr.number, title, url, state },
+        createdAt: now,
+      }),
+    ]);
+    linked++;
+  }
+  return { ok: true, linked };
+}
+
+app.post("/api/webhooks/github", async (c) => {
+  const secret = c.env.GITHUB_WEBHOOK_SECRET;
+  if (!secret) return c.json({ error: "webhook secret not configured" }, 503);
+  // Raw body first: the signature covers the exact bytes GitHub sent.
+  const rawBody = await c.req.text();
+  if (!(await verifyGitHubSignature(secret, rawBody, c.req.header("x-hub-signature-256"))))
+    return c.json({ error: "invalid signature" }, 401);
+
+  const event = c.req.header("x-github-event") ?? "";
+  const db = drizzle(c.env.DB);
+  if (event === "push") return c.json(await handlePush(db, JSON.parse(rawBody) as PushPayload));
+  if (event === "pull_request")
+    return c.json(await handlePullRequest(db, JSON.parse(rawBody) as PullRequestPayload));
+  // Everything else (ping, issues, etc.): acknowledged, ignored.
+  return c.json({ ok: true, ignored: event });
 });
 
 export default app;
