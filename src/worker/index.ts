@@ -647,6 +647,70 @@ app.get("/api/issues/:id/timeline", async (c) => {
   });
 });
 
+// Context bundle (SPEC §11.1, PROG-17): a deterministic Markdown "work order"
+// for an issue and its surroundings — lineage (with the arc description, where
+// epic-level intent lives), comments, and linked PRs/commits — ending in a
+// stable report-back preamble. The shared foundation for the agent-integration
+// surfaces (MCP server, "Work on this" kickoff) and a "copy as prompt" button
+// for manual use. Looked up by KEY (alias-aware via resolveIssueKeys), not the
+// internal id, so a retired key still resolves and renders the current key.
+app.get("/api/issues/:key/bundle", async (c) => {
+  const key = c.req.param("key").toUpperCase();
+  if (!/^[A-Z]{2,8}-\d+$/.test(key)) return c.json({ error: "malformed issue key" }, 400);
+  const db = drizzle(c.env.DB);
+
+  const resolved = await resolveIssueKeys(db, [key]);
+  const issueId = resolved.get(key);
+  if (!issueId) return c.json({ error: `no issue for key ${key}` }, 404);
+
+  const [issue] = await db.select().from(issues).where(eq(issues.id, issueId)).limit(1);
+  if (!issue) return c.json({ error: `no issue for key ${key}` }, 404);
+
+  // Independent reads (no transaction needed) — Promise.all per D31.
+  const [product, repo, arc, tagRows, commentRows, prRows, commitRows] = await Promise.all([
+    db.select().from(products).where(eq(products.id, issue.productId)).limit(1),
+    issue.repoId
+      ? db.select().from(repos).where(eq(repos.id, issue.repoId)).limit(1)
+      : Promise.resolve([]),
+    issue.arcId
+      ? db.select().from(arcs).where(eq(arcs.id, issue.arcId)).limit(1)
+      : Promise.resolve([]),
+    db
+      .select({ name: tags.name })
+      .from(issueTags)
+      .innerJoin(tags, eq(issueTags.tagId, tags.id))
+      .where(eq(issueTags.issueId, issueId))
+      .orderBy(asc(tags.name)),
+    db
+      .select({ body: comments.body, createdAt: comments.createdAt, author: users.name })
+      .from(comments)
+      .innerJoin(users, eq(comments.authorId, users.id))
+      .where(eq(comments.issueId, issueId))
+      .orderBy(asc(comments.createdAt)),
+    db.select().from(prLinks).where(eq(prLinks.issueId, issueId)).orderBy(asc(prLinks.createdAt)),
+    db
+      .select()
+      .from(commitLinks)
+      .where(eq(commitLinks.issueId, issueId))
+      .orderBy(asc(commitLinks.createdAt)),
+  ]);
+
+  const md = renderBundle({
+    // Canonical current key (normalizes an alias request), from the product
+    // prefix + issue number — keys are derived, never stored (D18).
+    key: `${product[0]!.keyPrefix}-${issue.number}`,
+    issue,
+    product: product[0]!,
+    repo: repo[0] ?? null,
+    arc: arc[0] ?? null,
+    tags: tagRows.map((t) => t.name),
+    comments: commentRows,
+    pullRequests: prRows,
+    commits: commitRows,
+  });
+  return c.body(md, 200, { "Content-Type": "text/markdown; charset=utf-8" });
+});
+
 app.post("/api/issues/:id/comments", async (c) => {
   const id = c.req.param("id");
   const body = (await c.req.json()) as { body?: string };
@@ -756,6 +820,92 @@ async function resolveIssueKeys(
     for (const row of aliasRows) resolved.set(row.key, row.issueId);
   }
   return resolved;
+}
+
+// ---------- context bundle rendering (SPEC §11.1, PROG-17) ----------
+
+type BundleData = {
+  key: string;
+  issue: typeof issues.$inferSelect;
+  product: typeof products.$inferSelect;
+  repo: typeof repos.$inferSelect | null;
+  arc: typeof arcs.$inferSelect | null;
+  tags: string[];
+  comments: { body: string; createdAt: Date; author: string }[];
+  pullRequests: (typeof prLinks.$inferSelect)[];
+  commits: (typeof commitLinks.$inferSelect)[];
+};
+
+// Deterministic: every value comes from the row data (no Date.now / locale),
+// and collections arrive pre-sorted, so the same issue always renders byte
+// for byte the same — important for a "copy as prompt" artifact and for
+// diffing what an agent was handed.
+function renderBundle(b: BundleData): string {
+  const { issue } = b;
+  const day = (d: Date) => d.toISOString().slice(0, 10);
+  const para = (text: string, fallback = "_None._") =>
+    text.trim() ? text.trim() : fallback;
+  const out: string[] = [];
+
+  out.push(`# ${b.key} — ${issue.title}`, "");
+  out.push(`- **Status:** ${issue.status}`);
+  out.push(`- **Priority:** ${issue.priority}`);
+  out.push(
+    `- **Estimate:** ${
+      issue.estimate === null ? "unestimated" : `${issue.estimate} point${issue.estimate === 1 ? "" : "s"}`
+    }`,
+  );
+  if (b.tags.length) out.push(`- **Tags:** ${b.tags.join(", ")}`);
+  out.push("");
+
+  out.push("## Description", "", para(issue.description, "_No description._"), "");
+
+  // Lineage product → repo → arc, descriptions included — the arc description
+  // is where epic-level intent ("why") lives, so the agent sees it.
+  out.push("## Context", "");
+  out.push(`**Product — ${b.product.name}**`, "");
+  if (b.product.description.trim()) out.push(b.product.description.trim(), "");
+  if (b.repo) {
+    out.push(`**Repo — ${b.repo.name}**${b.repo.gitUrl ? ` (git: ${b.repo.gitUrl})` : ""}`, "");
+    if (b.repo.description.trim()) out.push(b.repo.description.trim(), "");
+  }
+  if (b.arc) {
+    out.push(`**Arc — ${b.arc.name}**`, "");
+    if (b.arc.description.trim()) out.push(b.arc.description.trim(), "");
+  }
+
+  out.push(`## Comments (${b.comments.length})`, "");
+  if (b.comments.length === 0) out.push("_None._", "");
+  else
+    for (const cm of b.comments) out.push(`**${cm.author}** · ${day(cm.createdAt)}`, "", para(cm.body), "");
+
+  out.push(`## Linked pull requests (${b.pullRequests.length})`, "");
+  if (b.pullRequests.length === 0) out.push("_None._");
+  else
+    for (const pr of b.pullRequests)
+      out.push(`- [${pr.state}] **#${pr.prNumber}** ${pr.title} — ${pr.url} (${pr.githubRepo})`);
+  out.push("");
+
+  out.push(`## Linked commits (${b.commits.length})`, "");
+  if (b.commits.length === 0) out.push("_None._");
+  else
+    for (const cm of b.commits)
+      out.push(`- \`${cm.sha.slice(0, 10)}\` ${cm.message} — ${cm.url} (${cm.githubRepo})`);
+  out.push("");
+
+  // Stable report-back preamble (SPEC §11.1): how an agent feeds work back so
+  // it lands on this issue. The git convention works today via the §5 webhook;
+  // comment/status report-back rides the API/MCP surface (PROG-18).
+  out.push("---", "", "## How to report back", "");
+  out.push(
+    `You are working on **${b.key}** (${issue.title}).`,
+    "",
+    `1. Name your branch with the key — e.g. \`iss/${b.key}\` — and mention **${b.key}** in commit messages and the PR title/body. Progress auto-links branches, commits, and PRs that name the key, so the work appears on this issue with no extra step.`,
+    `2. Post progress notes as a comment on **${b.key}** and move its status as you go (\`todo\` → \`in_progress\` → \`in_review\` → \`done\`) via the Progress API / MCP tools.`,
+    `3. Keep this issue the source of truth — if scope changes, leave a comment rather than silently diverging.`,
+    "",
+  );
+  return out.join("\n");
 }
 
 type PushPayload = {

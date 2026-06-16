@@ -397,3 +397,24 @@ cutover, PR-driven automation). Production now holds 22 issues across 3
 arcs. PROG-15 (an issue the owner had already filed in-app) was left
 untouched — real dogfood usage, not seed data. Remaining v1 hookup is
 owner-side only: registering the GitHub webhook on connected repos.
+
+### D33: Context bundle is key-addressed Markdown, not JSON (PROG-17, first v1.x brick)
+`GET /api/issues/:key/bundle` (SPEC §11.1) returns **`text/markdown`**, not
+JSON — the bundle *is* the artifact handed to an agent (or pasted as a
+prompt), so the endpoint emits the finished work order rather than fields a
+caller must re-render. Errors stay JSON (`{error}`, 400/404) per the API
+contract; only the success body is Markdown. The route is addressed by
+**issue key, not internal id**, and resolves through `resolveIssueKeys`
+(the same alias-aware path the webhook uses): a retired key still resolves
+and the bundle always renders the *current* canonical key. Rendering is
+deterministic — values come straight from row data (no `Date.now`/locale)
+and collections are pre-sorted — so the same issue renders byte-for-byte
+identically (matters for a copy-as-prompt artifact and for diffing what an
+agent was given). Content: issue fields + tags, lineage **with descriptions**
+(product → repo incl. `gitUrl` → arc — the arc description is the
+epic-level "why"), comments, linked PRs/commits, then a **stable report-back
+preamble** (branch/commit/PR mention the key → §5 auto-linking, which works
+today; comment/status updates ride the API/MCP surface in PROG-18). The
+reads are independent, so they run via `Promise.all` per [D31]. The "copy as
+prompt" button (§11.1) is a thin client follow-on, naturally bundled with
+the outbound kickoff work (PROG-19).

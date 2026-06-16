@@ -172,6 +172,9 @@ PRs) to be an **executable work order**, not just a record.
 
 ### 11.1 The context bundle (shared foundation)
 
+✅ **Endpoint built** (PROG-17, D33) — see [REFERENCE §3](./REFERENCE.md#3-api).
+The "copy as prompt" button rides with the outbound kickoff (§11.2, PROG-19).
+
 A deterministic Markdown rendering of an issue and its surroundings, served
 as `GET /api/issues/:key/bundle`:
 
