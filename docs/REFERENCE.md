@@ -126,14 +126,17 @@ away later does not unlink.
 
 All routes are JSON under `/api`. Errors are `{ error: string }` with 400
 (validation), 404 (missing), or 409 (key-prefix conflict). The single-user
-write identity is `usr_owner`.
+write identity is `usr_owner`. Any uncaught handler error is caught by a
+top-level `app.onError`: it logs the real exception (`console.error`, visible
+in `wrangler tail`) and returns a generic `{ error: "internal_error" }` 500 —
+generic on purpose, since the webhook path bypasses Access (D31).
 
 ### Workspace & issues
 
 | Route | Behavior |
 |---|---|
 | `GET /api/health` | `{ ok: true }` |
-| `GET /api/workspace` | The load-everything payload: users, initiatives, products, repos, arcs, issues, tags, issueTags, issueKeyAliases — one D1 batch. Comments/activity are deliberately excluded (D20). |
+| `GET /api/workspace` | The load-everything payload: users, initiatives, products, repos, arcs, issues, tags, issueTags, issueKeyAliases — nine independent reads run with `Promise.all` (not a `db.batch`/transaction, which 500'd on production D1; D31). Comments/activity are deliberately excluded (D20). |
 | `POST /api/issues` | `{ title, productId, repoId?, arcId?, description?, status?, priority?, estimate? }` → 201 `{ issue }`. Number allocated by atomic increment of the product sequence; gaps from failed creates are harmless (D24). |
 | `PATCH /api/issues/:id` | Any of `title, description, status, priority, estimate, arcId` — validated per field; arc must be same-product. A status change atomically appends a `status_changed` activity row and maintains `completedAt`. |
 | `POST /api/issues/:id/move` | `{ productId, repoId }` (`repoId: null` = product-level). Within-product keeps key + arc; cross-product re-keys, clears arc, writes the alias, logs `moved`. 400 on no-op. |

@@ -56,10 +56,17 @@ hold-delay sensor, phone-viewport verified). **Deployed to production
 2026-06-12**: <https://progress.bryan-22c.workers.dev> (D1 migrated +
 dogfood-seeded, webhook secret set, live endpoints verified — see
 `docs/SETUP.md` §6). Cloudflare Access live 2026-06-12 (owner-only
-Allow + webhook-path Bypass, verified — `docs/SETUP.md` §6). Remaining for
-v1: GitHub webhook registration (owner), dogfood cutover (SPEC §7). Then v1.x agent integration (context
-bundle, MCP server, work kickoff — SPEC §11/D28). `bun run dev` serves
-everything on :8000
+Allow + webhook-path Bypass, verified — `docs/SETUP.md` §6). **Dogfood
+cutover complete 2026-06-16 (D32): v1 is done** — Progress's backlog now
+lives in Progress (22 issues across 3 arcs, run through the Access service
+token via `scripts/dogfood-cutover.ts`). Same day, fixed a production
+`/api/workspace` 500 (D31: 9-statement read `db.batch` → `Promise.all`, plus
+an `app.onError` that logs real exceptions to `wrangler tail`). Remaining v1
+hookup is owner-side only: GitHub webhook registration on connected repos.
+Now building **v1.x agent integration** — next brick is the context bundle
+endpoint `GET /api/issues/:key/bundle` (SPEC §11.1), the shared foundation
+for the MCP server + "Work on this" kickoff (SPEC §11/D28). `bun run dev`
+serves everything on :8000
 (see `docs/SETUP.md`). Shared wire types live in `src/shared/`. Synthetic
 5k-issue data: `bun run db:seed:scale`; reset via `docs/SETUP.md` §2. Update
 this section as phases change.

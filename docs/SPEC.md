@@ -103,6 +103,10 @@ v1 is "done" when Progress's own backlog moves out of `docs/` and into
 Progress itself, running in production, and managing the development of
 v1.x.
 
+**✅ Done 2026-06-16 (D32).** Cutover run through the live API + Access
+service token (`scripts/dogfood-cutover.ts`); production holds 22 issues
+across 3 arcs, including the v1.x backlog below. See REFERENCE/SETUP §6.
+
 ## 8. Architecture
 
 ### 8.1 Stack

@@ -354,3 +354,46 @@ issue / container pages, lane scrolls, taps navigate, dialogs fit; desktop
 mouse drag regression-tested after the sensor swap. Production build +
 `wrangler deploy --dry-run` pass; the deploy itself and Cloudflare Access
 are owner-credential-gated (dashboard/Zero Trust work, not repo code).
+
+---
+
+## 2026-06-16 — Production hardening + dogfood cutover (v1 done)
+
+### D31: `/api/workspace` loads via `Promise.all`, not `db.batch`; worker logs its errors
+The production `/api/workspace` returned **HTTP 500** while local Miniflare
+served it fine. Bisecting by what differs from working paths: write-batches
+(the 2-statement issue PATCH) and the 4-statement read-batch behind the
+issue timeline both work in production — only the **9-statement read
+`db.batch` in the workspace load** failed. The nine reads are independent
+and need no transaction, so the fix replaces the `db.batch([...])` with
+**`Promise.all([...])`** of the same queries — the Cloudflare-recommended
+shape for independent reads, which also removes the local-vs-production
+runtime difference. The other batches (all writes, plus the small timeline
+read-batch — proven working, including 13 PATCHes during the cutover) are
+left as-is; speculatively rewriting working production code is the wrong
+trade.
+
+Root-cause-of-the-batch was never captured as a stack trace, because the
+worker had **no error logging at all** — an uncaught throw became a bare
+`Internal Server Error`, which is precisely why "look at the logs" turned up
+nothing. So the durable half of this fix is an **`app.onError`** handler
+that `console.error`s the real exception (visible in `wrangler tail`) and
+returns a generic `{error:"internal_error"}` body — generic on purpose, so
+the Access-bypassed webhook path can't be used to read internals. Any future
+500 is now diagnosable from the logs, and the swap-to-`Promise.all` recipe
+is the first thing to try if another read-batch surfaces the same failure.
+
+### D32: Dogfood cutover — Progress's backlog now lives in Progress (v1 = done)
+Per SPEC §7, v1 is "done" when Progress's own backlog moves out of `docs/`
+and into Progress, in production. Executed via `scripts/dogfood-cutover.ts`
+against the live API — **not raw SQL** — authenticated with the Cloudflare
+Access **service token** (the §8.3 / §11.4 non-interactive-auth pattern,
+its first real exercise; same bypass idea as the webhook's HMAC, but for
+reads/writes). The script is idempotent (skips existing titles, PATCH-to-
+done is a no-op once done). It marked the 14 milestone issues (PROG-1..14)
+done, created the **Agent Integration** arc, and seeded the v1.x backlog
+(context bundle, MCP server, work kickoff, the service token itself, this
+cutover, PR-driven automation). Production now holds 22 issues across 3
+arcs. PROG-15 (an issue the owner had already filed in-app) was left
+untouched — real dogfood usage, not seed data. Remaining v1 hookup is
+owner-side only: registering the GitHub webhook on connected repos.

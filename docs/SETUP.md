@@ -117,6 +117,30 @@ signed). Note: a Zero Trust app on a workers.dev hostname only enforces
 once its policy is actually attached — an app saved without one blocks
 nothing.
 
+**Access service token** (for non-interactive clients — the dogfood cutover,
+future MCP/agent tooling; SPEC §8.3, §11.4). A third Zero Trust object: a
+**Service Token** named `progress-agent` plus a **Service Auth** policy on
+the "Progress" application that includes it. Set it up once:
+
+1. Zero Trust → **Access → Service auth → Service Tokens**. Reuse
+   `progress-agent` if it exists; otherwise **Create Service Token** (name
+   `progress-agent`, non-expiring). The **Client Secret is shown only at
+   creation** — if it wasn't saved, **Rotate** the token to get a new one.
+   The **Client ID** (ends in `.access`) is always visible.
+2. Zero Trust → **Access → Applications → Progress → Policies**: ensure a
+   policy with **Action = Service Auth**, **Include → Service Token =
+   `progress-agent`**. Without it the token is bounced to login (302).
+3. Put the pair in the gitignored `.env` as `PROD_CF_ACCESS_CLIENT_ID` /
+   `PROD_CF_ACCESS_CLIENT_SECRET` (see `.env.example`). Scripts send them as
+   the `CF-Access-Client-Id` / `CF-Access-Client-Secret` request headers.
+
+Clients self-check: a `GET /api/workspace` with those headers returns 200
+when the token is accepted, and a 302-to-login when it isn't. The dogfood
+cutover (SPEC §7) ran through this token on 2026-06-16
+(`bun run scripts/dogfood-cutover.ts`, idempotent) — PROG-1..14 marked done,
+Agent Integration arc + v1.x backlog created; production holds 22 issues
+across 3 arcs.
+
 Remaining one-time setup (owner-only): **GitHub webhook** per connected
 repository: Settings → Webhooks → Add — payload URL
 `https://progress.bryan-22c.workers.dev/api/webhooks/github`, content type
