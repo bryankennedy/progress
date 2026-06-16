@@ -39,6 +39,16 @@ const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll("-
 
 const app = new Hono<{ Bindings: Bindings }>();
 
+// Without this, an uncaught throw became a bare "Internal Server Error" with
+// nothing in the logs — which is exactly why a production /api/workspace 500
+// was undiagnosable. Log the full error server-side (visible in `wrangler
+// tail`); keep the response body generic so the Access-bypassed webhook path
+// can't be used to read internals.
+app.onError((err, c) => {
+  console.error("worker error:", c.req.method, c.req.path, err);
+  return c.json({ error: "internal_error" }, 500);
+});
+
 app.get("/api/health", (c) => c.json({ ok: true }));
 
 // The single "load everything" endpoint that feeds the client store
@@ -58,7 +68,12 @@ app.get("/api/workspace", async (c) => {
     allTags,
     allIssueTags,
     allKeyAliases,
-  ] = await db.batch([
+  ] = await Promise.all([
+    // These nine reads are independent and need no transaction, so they run as
+    // parallel queries rather than a single D1 `db.batch` (an implicit
+    // transaction). The batch form 500'd on production D1 while working under
+    // local Miniflare; Promise.all is the Cloudflare-recommended shape for
+    // independent reads and removes that runtime difference. See DECISIONS D31.
     db.select().from(users),
     db.select().from(initiatives),
     db.select().from(products),
