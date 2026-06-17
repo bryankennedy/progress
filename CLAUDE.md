@@ -1,7 +1,10 @@
 # Progress
 
-A single-user, web-based product-development tracker (a "personal Linear" with
-the owner's own hierarchy: Initiative → Product → Repo/Arc → Issue).
+A single-user, web-based tracker (a "personal Linear" with the owner's own
+hierarchy: Initiative → Product → Repo/Arc → Issue). Built for product
+development; **v2 broadens it to any area of responsibility** — including
+personal/household work — without changing the nouns (a household area is a
+repo-less Product with Arcs). See `docs/SPEC.md`.
 
 ## Documents — read before non-trivial work
 
@@ -10,10 +13,12 @@ deliberately — keep it that way as milestones land:
 
 - `docs/REFERENCE.md` — the system **as built** (domain rules, API, client
   architecture, keyboard map). Present tense; update it when shipping.
-- `docs/SPEC.md` — vision, principles, and the **not-yet-built** roadmap.
-  Source of truth for scope of remaining work. Section numbers are stable
-  (code comments cite them); when an area ships, shrink its section to a
-  pointer into REFERENCE rather than renumbering.
+- `docs/SPEC.md` — vision, principles, and the **not-yet-built** roadmap;
+  currently **v2** (non-dev/household use, due dates, the Agenda view). Source
+  of truth for scope of remaining work. Section numbers are stable (code
+  comments cite them); when an area ships, shrink its section to a pointer into
+  REFERENCE rather than renumbering. The frozen **v1** roadmap is
+  `docs/archive/SPEC-v1.md` — pre-v2 `SPEC §X` citations resolve there.
 - `docs/DECISIONS.md` — append-only decision log. Settled questions live here;
   don't re-litigate them — supersede with a new entry if something changes.
 - `docs/SETUP.md` — how-to: install, run, schema changes, deploy.
@@ -24,7 +29,7 @@ When a decision of consequence is made in conversation, record it in
 ## Hard requirements (never trade away)
 
 1. **Instant UI.** Whole workspace loads into a client store; all mutations are
-   optimistic; a spinner on user interaction is a bug. See SPEC §8.2.
+   optimistic; a spinner on user interaction is a bug. See SPEC §2.1.
 2. **The owner's nouns.** Initiative, Product, Repo, Arc, Issue. Never "epic",
    never "project" (as an entity name).
 3. **Rigid simplicity.** Fixed status set, no configurable workflows.
@@ -40,44 +45,26 @@ When a decision of consequence is made in conversation, record it in
 
 ## Status
 
-**Phase: building.** Milestones 1 (scaffold + walking skeleton) and 2 (domain
-schema D17–D19, workspace load endpoint D20, TanStack Query client store D21
-with the optimistic-mutation template in `src/client/store.ts`) complete
-2026-06-11. Milestone 3 (real views: issue page D22, global "My Work" board
-D23, container pages) and milestone 4 (issue creation + movement with key
-aliases D24, command palette + keyboard map D25 — `src/client/commands/`)
-complete 2026-06-12. Milestone 5 (CRUD gaps, D26–D27: container
-create/edit/archive, tags with auto-color, arc/title editing, T/A keyboard
-pickers) complete 2026-06-12. Milestone 6 (GitHub webhook magic-word
-PR/commit linking, D29 — HMAC-verified endpoint, alias-aware key
-resolution, PR/commit display; local secret in `.dev.vars`) complete
-2026-06-12. Milestone 7 mobile pass complete (D30: touch drag via
-hold-delay sensor, phone-viewport verified). **Deployed to production
-2026-06-12**: <https://progress.bryan-22c.workers.dev> (D1 migrated +
-dogfood-seeded, webhook secret set, live endpoints verified — see
-`docs/SETUP.md` §6). Cloudflare Access live 2026-06-12 (owner-only
-Allow + webhook-path Bypass, verified — `docs/SETUP.md` §6). **Dogfood
-cutover complete 2026-06-16 (D32): v1 is done** — Progress's backlog now
-lives in Progress (22 issues across 3 arcs, run through the Access service
-token via `scripts/dogfood-cutover.ts`). Same day, fixed a production
-`/api/workspace` 500 (D31: 9-statement read `db.batch` → `Promise.all`, plus
-an `app.onError` that logs real exceptions to `wrangler tail`). Remaining v1
-hookup is owner-side only: GitHub webhook registration on connected repos.
-Now building **v1.x agent integration**. Context bundle endpoint
-`GET /api/issues/:key/bundle` shipped (PROG-17, D33). **Progress MCP server
-shipped (PROG-18, D34)**: `src/mcp/server.ts` (`bun run mcp`), a local stdio
-MCP server wrapping the API with the Access service token — seven
-key-addressed tools (get_bundle / get_issue / list_issues / create_issue /
-update_status / comment / move_issue); registration in `docs/SETUP.md` §7.
-**Work-on-this kickoff shipped (PROG-19, D35)**: the issue-page "Work on this"
-field + `W` palette command copy the bundle as a prompt or the
-`progress work <KEY>` CLI line (`src/client/workOn.ts`); `bin/progress.ts`
-fetches the bundle, branches `iss/<KEY>`, and launches `claude` primed with it.
-**The Agent Integration arc is complete** (D33→D34→D35). Remaining v1.x ideas
-are post-arc: PR-driven status automation (PROG-22), cloud/headless launch from
-the web UI (SPEC §11.2 "Later"), PROG-16 webhook registration (owner-side).
-`bun run dev`
-serves everything on :8000
-(see `docs/SETUP.md`). Shared wire types live in `src/shared/`. Synthetic
-5k-issue data: `bun run db:seed:scale`; reset via `docs/SETUP.md` §2. Update
-this section as phases change.
+**v1 — complete & in production** (2026-06-12 deploy; dogfood cutover 2026-06-16,
+D32). The product-development tracker shipped end-to-end: domain schema +
+load-everything client (D17–D21), real views + command palette (D22–D25),
+container/tag CRUD (D26–D27), GitHub webhook linking (D29), mobile pass (D30),
+production deploy + Cloudflare Access + service token (D31–D32), and the **Agent
+Integration arc** — context bundle (PROG-17/D33), MCP server (PROG-18/D34),
+work-on-this kickoff (PROG-19/D35). Live at
+<https://progress.bryan-22c.workers.dev>. Full v1 history: `docs/archive/SPEC-v1.md`
++ DECISIONS D1–D35. Owner-side leftover: GitHub webhook registration on connected
+repos (PROG-16) lights up the linked-PR/commit sections.
+
+**Phase: v2 — spec'd, starting.** Broadening Progress to **any area of
+responsibility** (incl. personal/household), plus the time dimension v1 omitted.
+Roadmap in `docs/SPEC.md`: (1) frictionless structure creation — inline in the
+new-issue flow + dashboard routes; repo-less products first-class (§3–§4); (2)
+**due dates** — optional calendar-date field, timezone-safe `YYYY-MM-DD`,
+one-off only (§5); (3) the **Agenda view** — dated issues grouped Overdue/Today/
+This week/Later with a visual priority indicator (§6–§7). Nouns unchanged. Next
+step: turn §11's suggested sequence into issues (a v2 dogfood pass).
+
+`bun run dev` serves everything on :8000 (see `docs/SETUP.md`). Shared wire types
+live in `src/shared/`. Synthetic 5k-issue data: `bun run db:seed:scale`; reset
+via `docs/SETUP.md` §2. Update this section as phases change.

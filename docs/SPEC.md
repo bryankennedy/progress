@@ -1,242 +1,189 @@
-# Progress — Product Spec & Roadmap
+# Progress — Product Spec & Roadmap (v2)
 
-> The **why** (vision, principles) and the **what remains** (plans, in
-> deliberate future tense). The system as built is documented in
-> [`REFERENCE.md`](./REFERENCE.md); rationale lives in
-> [`DECISIONS.md`](./DECISIONS.md). Section numbers here are stable — code
-> comments and decision entries cite them — so shipped sections shrink to
-> intent + a pointer rather than being renumbered away.
+> The **why** (vision, principles) and the **not-yet-built** (plans, in
+> deliberate future tense). The system **as built** lives in
+> [`REFERENCE.md`](./REFERENCE.md); rationale in [`DECISIONS.md`](./DECISIONS.md);
+> how-to in [`SETUP.md`](./SETUP.md).
+>
+> This is the **v2** roadmap. v1 — the personal product-development tracker —
+> shipped and was dogfooded; its completed roadmap is frozen at
+> [`archive/SPEC-v1.md`](./archive/SPEC-v1.md). Pre-v2 `SPEC §X` citations in
+> code and decisions refer to that archived document. Section numbers **here**
+> are stable for v2 and start fresh; when an area ships, shrink its section to
+> intent + a pointer into `REFERENCE.md` rather than renumbering.
 
-## 1. Vision
+## 1. Where v1 left off, and why v2
 
-**Progress** is a personal product-development tracker — a single-user
-Linear-class tool whose hierarchy and vocabulary match how its owner actually
-thinks about work.
+v1 made Progress a "personal Linear" for **building products**: the hierarchy
+Initiative → Product → Repo/Arc → Issue, an instant load-everything client, a
+command palette, GitHub linking, and a Claude Code agent surface (context
+bundle, MCP server, work kickoff). It runs in production and manages its own
+backlog.
 
-It is **not** a personal to-do app. The domain is building products:
-initiatives, products, repos, and the issues that move them forward.
+v2 broadens the *subject matter* without diluting the tool. The owner wants one
+place for **everything they're responsible for** — not just software, but
+personal and household work too — and the day-to-day question those tasks raise
+is **"what's due and when."** So v2 is two moves:
 
-The core insight: existing tools (Linear, Jira, GitHub Issues) fail not on
-features but on **nouns**. Their hierarchies don't match the owner's mental
-model, and the constant translation is friction. Progress makes the hierarchy
-itself the product.
+1. Make Progress comfortable for **non-dev work** — frictionless structure
+   creation, and a first-class life for products that have no repo.
+2. Add the **time dimension** v1 deliberately omitted — **due dates** and an
+   **Agenda** view that answers "what's due" at a glance.
 
-### Who it's for
+## 2. Product principles (carried forward, unchanged)
 
-One user (the owner) in v1. The data model anticipates collaborators later
-(creator/assignee/author fields exist from day one), but no auth,
-permissions, or sharing UI ships in v1.
+1. **Speed is a feature.** Whole workspace in the client store; every mutation
+   optimistic; no spinner on any interaction. Everything v2 adds renders from
+   memory (§7.1).
+2. **Rigid simplicity over configurability.** One fixed status set, one way to
+   do things. v2 adds fields and views, **not** knobs.
+3. **The owner's nouns, exactly.** Initiative → Product → Repo/Arc → Issue —
+   **unchanged in v2** (§3). "Epic" and "project" remain banned words.
+4. **Paper-y, calm UI.** Light, typography-led, mobile-friendly.
 
-## 2. Product principles
+## 3. The broadened domain (same nouns, wider meaning)
 
-1. **Speed is a feature, not an optimization.** Every interaction must feel
-   instant, achieved architecturally (§8.2), not by tuning later. No spinner
-   ever appears as a result of a user mutation.
-2. **Rigid simplicity over configurability.** Linear's philosophy, not
-   Jira's. One fixed status set, one way to do things. Configuration is a
-   cost, not a feature.
-3. **Your nouns, exactly.** Initiative → Product → Repo/Arc → Issue. No
-   translation layer between the tool's language and the owner's. ("Epic"
-   and "project" are banned words.)
-4. **Paper-y, open UI.** The look of Linear crossed with the open-page feel
-   of Notion. Light, calm, high-contrast, typography-led. Mobile-friendly
-   from v1.
+No schema-vocabulary change. The existing nouns simply stretch:
 
-## 3. Domain model
+- A **Product** is *any area of responsibility* — a software product, but
+  equally "Household", "Finances", "Health". Initiatives still group products.
+- **Repo** stays **dev-specific and optional**. v2 makes **repo-less products
+  first-class**: an issue needs only a Product (and optionally an Arc); no view
+  may treat a missing repo as incomplete, and repo-only affordances (the Git
+  section, gitUrl) simply don't appear for products without one.
+- An **Arc** is a sub-area or theme inside a Product — for "Household": "Kitchen
+  reno", "Yard", "Recurring chores". (Arcs already carry the epic-level "why".)
+- An **Issue** is a task. v2 gives it a **Due Date** (§5).
 
-✅ **Shipped** (milestones 2–5). The hierarchy, containment and movement
-rules, derived issue keys with permanent aliases, archive-not-delete, and
-the full issue anatomy are implemented as specced and documented in
-[REFERENCE §2](./REFERENCE.md#2-domain-model). Decisions: D17–D19, D24,
-D26–D27.
+Why keep the nouns: the whole point of Progress is *the owner's* vocabulary, and
+the owner already thinks in these. Reusing "Product" for a life-area costs one
+small mental stretch; inventing a parallel vocabulary would cost rigid
+simplicity and re-open settled schema. (Decision to record at build time.)
 
-## 4. Views & UX
+## 4. Frictionless structure creation
 
-✅ **Shipped** (milestones 3–5, mobile pass in 7). The global "My Work"
-kanban with URL-param filters and drag-and-drop (mouse and touch), container
-pages with inline editing, the full issue page, the ⌘K command palette, and
-the single-key action map are documented in
-[REFERENCE §5](./REFERENCE.md#5-ui-surfaces). Decisions: D22–D23, D25, D30.
+**User story:** *"I want to create products, arcs, and initiatives both while
+I'm creating an issue and on their own from the dashboard."*
 
-## 5. Git integration
+Container create/edit/archive already exists (v1, D26) but is reachable mainly
+through the command palette. v2 makes structure creation **discoverable and
+inline**, so spinning up a new "Household" product or a "Yard" arc is obvious:
 
-✅ **Shipped** (milestone 6) — the HMAC-verified webhook endpoint,
-magic-word linking (branch names, commit messages, PR title/body; alias
-keys resolve), and PR/commit display on the issue page and activity feed:
-[REFERENCE §3](./REFERENCE.md#github-webhook-d29). Decision: D29. It was
-built before the deploy milestone deliberately — branch-from-key linking is
-the loop-closer for the Claude Code integration (§11, D28).
+1. **Inline in the new-issue flow.** The Initiative / Product / Arc pickers in
+   the create-issue dialog each offer a **"+ New …"** affordance that creates
+   the container and selects it without leaving the dialog. (This generalizes
+   the previously-deferred "add arc from the New Issue modal".)
+2. **From the dashboard.** A persistent **"New"** entry point in the app header
+   (Issue · Initiative · Product · Repo · Arc), **plus** a **Structure overview**
+   route showing the Initiative → Product → Arc tree with an inline **"+ add"**
+   on each node — so curating structure is a first-class destination, not a
+   palette-only power move.
 
-Still open from this section's scope:
+These reuse the existing optimistic container write paths (D26); v2 adds
+*surfaces and inline creation*, not new endpoints. The command palette keeps
+working unchanged for those who prefer it.
 
-- **GitHub-side registration**: the webhook needs a public URL, so pointing
-  real repositories at it (push + pull_request events, JSON content type,
-  shared secret) happens at the deploy milestone. Verified locally with
-  signed payloads until then.
-- **Explicitly not in v1:** status automation (PR opened → In Review,
-  merged → Done) — deferred to v1.x. GitHub Issues sync — non-goal, likely
-  forever.
+## 5. Due dates
 
-## 6. v1 scope — status
+**User story:** *"For these tasks I need to track a due date."*
 
-| ✅ Built | 🔜 Remaining for v1 | Out (non-goals) |
-|---|---|---|
-| Full hierarchy: Initiative / Product / Repo / Arc / Issue | Production deploy + Cloudflare Access (§8.3 — needs owner credentials) | GitHub Issues sync |
-| Fixed statuses, priority, estimate, global tags | GitHub-side webhook registration (§5, rides with deploy) | Configurable workflows |
-| Global "My Work" kanban with filters | The dogfood cutover (§7) | Time tracking |
-| Container pages + issue page, Markdown everywhere | | Native mobile apps |
-| Comments + activity feed | | |
-| Issue creation, movement with key-alias redirects | | |
-| Container CRUD + archive, tag management | | |
-| Command palette + keyboard actions | | |
-| GitHub webhook magic-word PR/commit linking (§5) | | |
-| Mobile-friendly responsive UI incl. touch drag (§4) | | |
+- Issues gain an **optional Due Date** — a **calendar date, no time of day**.
+- **Timezone-safe by design:** a due date is a *wall-calendar day*, identical
+  everywhere — "due July 1" is July 1 regardless of where the app is opened. It
+  is therefore an ISO `YYYY-MM-DD` value, **not** an instant. (This differs from
+  the existing `createdAt`/`updatedAt` timestamps on purpose; record the
+  storage decision at build time.)
+- **Editable wherever issues are:** issue-page sidebar field, the new-issue
+  dialog, a command-palette picker bound to a single key (proposed `D`), and
+  inline in the Agenda/list rows.
+- It rides in the **workspace payload** like every other field, so all views
+  compute from memory — no new fetch, no spinner.
 
-Deferred to v1.x: sprints & cycles · multi-user & sharing · notifications ·
-status automation from PRs · due dates, sub-issues, blocking relations ·
-saved custom views · per-container boards (URL-param filters cover them) ·
-**API for third-party clients — planned as the MCP surface (§11)**.
+**Out of scope this phase** (and why): recurring due dates, reminders/digests,
+start dates, and date+time. Recurrence is the most likely *next* step — most
+household chores repeat — so the field and the Agenda are designed not to
+preclude it (§8).
 
-## 7. The dogfood milestone
+## 6. The Agenda view
 
-v1 is "done" when Progress's own backlog moves out of `docs/` and into
-Progress itself, running in production, and managing the development of
-v1.x.
+**User story:** *"Give me a list of issues ordered by due date, and show each
+one's priority with a visual indicator."*
 
-**✅ Done 2026-06-16 (D32).** Cutover run through the live API + Access
-service token (`scripts/dogfood-cutover.ts`); production holds 22 issues
-across 3 arcs, including the v1.x backlog below. See REFERENCE/SETUP §6.
+A new dashboard route (proposed `/agenda`):
 
-## 8. Architecture
+- Lists **every issue that has a due date**, sorted by due date ascending,
+  grouped into **Overdue · Today · This week · Later** (buckets computed from
+  the owner's *local* date, since due dates are calendar days). Undated issues
+  are **excluded** — they live on the board; the Agenda is purely the
+  time-driven cut.
+- Each row shows a compact **priority indicator** (§7.2), the issue key, title,
+  the due date as a **relative phrase** ("in 3 days", "2 days ago"), and its
+  product/arc + status. **Overdue rows are visually distinct.**
+- **Filterable** by product, arc, and tag via URL params — exactly the v1 board
+  pattern — so "household tasks due this week" is a single bookmark.
+- **Cheap inline actions** where they help: mark done, bump the due date.
+- **Completed issues never appear** (a done task isn't pending), even if their
+  due date is in the past.
 
-### 8.1 Stack
+## 7. Supporting pieces
 
-✅ **Shipped** as specced — see [REFERENCE §1](./REFERENCE.md#1-stack--layout)
-for the live table (Workers + D1 + Hono + React/Vite/Tailwind + TanStack
-Query, Bun tooling). Decisions: D10, D15–D16, D21.
+### 7.1 It all stays instant (standing constraint)
 
-### 8.2 The speed architecture (standing requirement)
+Due dates ship in the workspace payload; the Agenda and every priority indicator
+render from the client store; due-date edits and inline container creation use
+the optimistic-mutation template (D21). A spinner on any of these is a bug
+(§2.1).
 
-Jira's lag is architectural, not framework-imposed — Linear is React and
-feels instant. Progress copies the pattern at a scale where it's easy, and
-every future feature must preserve it:
+### 7.2 Priority, made visible
 
-1. **Load everything up front.** The whole workspace loads into the client
-   store on app start; everything renders from memory thereafter.
-2. **Optimistic mutations.** Every action updates the local store
-   synchronously and syncs in the background; failures roll back with a
-   toast.
-3. **No interaction spinners.** A spinner after a click is a build failure,
-   not a UX choice. Initial app load is the only permitted loading state.
-4. **Stay fast by staying small.** Keep the dependency budget tight; measure
-   interaction latency as part of review (baseline in
-   [REFERENCE §6](./REFERENCE.md#6-performance-baseline)).
+A single, reusable **priority indicator** for the fixed urgent/high/medium/low/
+none scale — a small color-coded marker (exact visual language chosen at build).
+Defined once and used in Agenda rows, with the board and issue lists free to
+adopt it. One mapping, no configuration.
 
-### 8.3 Auth & security — *partially in place*
+## 8. Beyond this phase (direction, not commitment)
 
-- **Cloudflare Access** in front of the entire app — login with the owner's
-  identity; the app itself contains no auth code in v1. *Not yet set up;
-  rides with the deploy milestone.*
-- ✅ The GitHub webhook route (§5) verifies GitHub's `X-Hub-Signature-256`
-  HMAC; in production it must be excluded from Access.
-- A Cloudflare Access **service token** will cover non-interactive clients
-  (the §11 MCP/bundle surface) — same bypass pattern as the webhook.
-- ✅ All secrets via environment (`wrangler secret` in production,
-  `.dev.vars` locally, never committed). `.env.example` documents required
-  keys (currently `GITHUB_WEBHOOK_SECRET`).
-
-### 8.4 Data notes
-
-✅ **Shipped** — id conventions, derived keys + alias table, append-only
-activity, multi-user-ready schema: [REFERENCE §2](./REFERENCE.md#2-domain-model).
+- **Recurring tasks** — the natural follow-on for household chores; the due-date
+  model and Agenda are built not to block it.
+- **Reminders / a daily "what's due" digest.**
+- **Start dates** (scheduled-but-not-yet-actionable) and date+time where a task
+  is genuinely appointment-like.
+- Carry-overs from v1.x: PR-driven status automation, cloud/headless work
+  kickoff (archived SPEC §11.2 "Later").
 
 ## 9. Open questions
 
-All v1 open questions are closed: estimate scale → points (D19) · Backlog
-behind a toggle → yes (D23) · tag UX → minimal name + auto-color (D27) ·
-client store library → TanStack Query, by latency spike (D21). New questions
-should be added here and closed into `DECISIONS.md`.
+To close into `DECISIONS.md` as they're settled:
 
-## 10. Beyond v1 (direction, not commitment)
+1. **Agenda's place in navigation** — a top-level destination alongside the
+   board, or a tab within it? *Leaning top-level.*
+2. **"This week" definition** — a rolling 7 days, or through the end of the
+   current calendar week? *Leaning rolling 7 days.*
+3. **Priority indicator visual language** — dot, bars, or flag; which colors?
+   *Decide with a quick visual pass at build.*
+4. **Structure overview vs. the home dashboard** — a dedicated `/structure`
+   route, or fold the tree + "+ add" into the existing home view? *Leaning a
+   dedicated route to keep the board uncluttered.*
+5. **Due-date storage** — ISO `YYYY-MM-DD` text vs. a normalized integer; the
+   §5 timezone-safety requirement is the constraint either way.
 
-Sprint planning on top of the existing model · per-container boards · saved
-views · PR-driven status automation · notifications/digests · multi-user ·
-**Claude Code agent integration (§11 — the headline v1.x feature)**.
+## 10. Architecture & data notes
 
-## 11. Claude Code integration (v1.x direction — design now, build after v1)
+- **One schema change:** add a nullable `due_date` (calendar date) to `issues`,
+  via the standard Drizzle migration flow (SETUP §2). It then flows into the
+  workspace payload automatically.
+- **No new write endpoints** for structure creation — v2 reuses the v1 container
+  routes (D26); the work is client surfaces + inline creation.
+- **Everything else is client-side:** Agenda bucketing/sorting, the priority
+  indicator, and relative-date formatting all run in the store-backed client,
+  preserving §2.1.
 
-The owner's development workflow runs through Claude Code. Progress should
-close the gap between *tracking* work and *executing* it: an issue carries
-enough context (description, comments, arc, product, repo + git URL, linked
-PRs) to be an **executable work order**, not just a record.
+## 11. Suggested sequence
 
-### 11.1 The context bundle (shared foundation)
+A rough build order (refine into issues at the next dogfood pass):
 
-✅ **Endpoint built** (PROG-17, D33) — see [REFERENCE §3](./REFERENCE.md#3-api).
-The "copy as prompt" button shipped with the kickoff (✅ PROG-19, D35).
-
-A deterministic Markdown rendering of an issue and its surroundings, served
-as `GET /api/issues/:key/bundle`:
-
-- Issue: key, title, description, status, priority, estimate, tags.
-- Lineage with descriptions: product → repo (incl. `gitUrl`) → arc — the arc
-  description is where epic-level intent lives, so the agent sees the *why*.
-- Comments (the owner's running notes are usually the freshest context) and
-  linked PRs/commits once §5 ships.
-- A stable preamble telling an agent how to report back (post a comment,
-  update status, mention the key in branch/commit for auto-linking).
-
-One format feeds both directions below; it is also just a useful "copy as
-prompt" button for manual use.
-
-### 11.2 Outbound — execute an issue from Progress
-
-✅ **v1.x minimal built** (PROG-19, D35) — the "Work on this" field + `W`
-palette command copy the bundle as a prompt or the `progress work <KEY>`
-one-liner; `bin/progress.ts` fetches the bundle, branches `iss/<KEY>`, and
-launches `claude`. See [REFERENCE §3](./REFERENCE.md#work-on-this-kickoff-d35)
-and [SETUP §7](./SETUP.md#7-agent-integration-mcp-server--work-cli).
-
-A "Work on this" action on an issue (palette command + button) that starts a
-Claude Code session primed with the bundle:
-
-- ✅ v1.x minimal: copy/handoff — a generated one-liner
-  (`progress work PROG-123`, a small CLI that fetches the bundle and launches
-  `claude` with it in the right checkout) keeps Progress free of
-  machine-specific knowledge about where repos live.
-- Later: launch a cloud/headless Claude Code session directly from the web
-  UI against the repo's `gitUrl`, working in a branch named from the issue
-  key (e.g. `iss/PROG-123`).
-- ✅ Branch-from-key is the linchpin: it makes §5 magic-word linking automatic,
-  so agent work flows back into the issue's activity with zero ceremony. The
-  CLI checks out `iss/<KEY>` by default.
-
-### 11.3 Inbound — interrogate Progress from Claude Code
-
-✅ **Built** (PROG-18, D34) — `src/mcp/server.ts` (`bun run mcp`), a local
-stdio MCP server that wraps the API and authenticates with the Access service
-token; registration in [SETUP §7](./SETUP.md#7-agent-integration-mcp-server--work-cli), tool table
-in [REFERENCE §3](./REFERENCE.md#3-api).
-
-Progress exposes an **MCP server** (it wraps the existing API; MCP is the
-natural "API for third-party clients" from §6, promoted from deferred):
-
-- Tools: get issue/bundle by key, list/filter issues ("my todo in this
-  repo"), update status, comment, create issues, move issues.
-- The owner says "work on PROG-123" in any Claude Code session; the agent
-  pulls the bundle, does the work, posts progress comments, and flips status
-  — the same fixed status set keeps agent updates unambiguous.
-
-### 11.4 Prerequisites & sequencing
-
-1. ✅ **Production deploy** (§7/§8.3) — agents need a stable URL. Live.
-2. ✅ **Non-interactive auth**: a Cloudflare Access service token (same
-   pattern as the webhook's HMAC bypass) for the bundle/MCP surface; secrets
-   via env per §8.3. Live (D32) — the MCP server (D34) presents it.
-3. ✅ **§5 webhook linking** — without it the loop doesn't close; with it,
-   agent branches/PRs appear on the issue automatically. Built (D29).
-
-Roadmap: webhook ✅ → mobile + deploy + dogfood ✅ → context bundle ✅
-(PROG-17) + MCP server ✅ (PROG-18) → outbound kickoff ✅ (PROG-19). The
-Agent Integration arc is complete; remaining §11.2 "Later" item (cloud/headless
-launch from the web UI) is post-v1.x direction.
+1. **Repo-less products first-class** + the **inline / dashboard creation**
+   surfaces (§3–§4) — the foundation that makes household use pleasant.
+2. **Due-date field** end-to-end (§5): schema → workspace payload → issue page →
+   new-issue → palette picker.
+3. **Agenda view** + **priority indicator** (§6–§7.2) — the headline of v2.

@@ -475,3 +475,42 @@ button (SPEC §11.2 "Later") — needs headless-Claude infra and a repo-location
 map, out of scope for v1.x minimal. The bundle being key-addressed Markdown
 (D33) is what lets both layers be this thin. This completes the Agent
 Integration arc (D33 bundle → D34 MCP → D35 kickoff).
+
+## 2026-06-17 — v2 scope (broaden to any responsibility + due dates)
+
+### D36: v1 spec archived; v2 keeps the nouns and adds the time dimension
+v1 shipped and was dogfooded, so its roadmap (`docs/SPEC.md`) is frozen as a
+development artifact at `docs/archive/SPEC-v1.md` and `docs/SPEC.md` restarts as
+the **v2** roadmap with fresh section numbers. v1's section numbers are cited by
+code comments and earlier decisions, so the archived file is kept **unchanged**
+(its body's relative doc links were repathed `./` → `../` for the new depth, the
+only edit) and those `SPEC §X` citations resolve there.
+
+v2 broadens Progress from a product-dev tracker to **any area of
+responsibility** (incl. personal/household). Four scoping calls, settled this
+session:
+
+- **Keep the nouns.** A household area is modeled as a **Product** with **Arcs**;
+  **Repo stays optional/dev-only** and repo-less products become first-class. No
+  vocabulary change. *Rejected:* a domain-neutral top-level noun or a parallel
+  personal hierarchy — both cost the "rigid simplicity"/"owner's nouns" hard
+  requirements to save one small mental stretch ("Product" = life-area).
+- **Due dates are one-off, date-only, timezone-safe.** An optional issue field
+  holding a **calendar day** (`YYYY-MM-DD`), the same date everywhere — *not* an
+  instant, unlike `createdAt`/`updatedAt`. *Rejected for this phase:* recurring
+  due dates (the likely next step — chores repeat — so the model/Agenda are
+  built not to preclude it), date+time, start dates, reminders.
+- **A dedicated Agenda view.** Dated issues grouped **Overdue / Today / This
+  week / Later**, sorted by due date, each row with a visual **priority
+  indicator**; undated and completed issues excluded; filterable by
+  product/arc/tag (URL params, like the board). *Rejected:* a sort-mode bolted
+  onto the existing kanban, or a flat ungrouped list — the grouped view is the
+  one that answers "what's due" at a glance.
+- **Structure creation is surfaces, not new endpoints.** Inline "+ New …" in the
+  create-issue pickers plus dashboard entry points (header "New" + a Structure
+  overview route) reuse the v1 container write paths (D26); nothing new
+  server-side. Folds in the previously-deferred "add arc from the New Issue
+  modal".
+
+Full plan: `docs/SPEC.md` (v2). Build sequence is SPEC §11; the one schema change
+is a nullable `due_date` on `issues`.
