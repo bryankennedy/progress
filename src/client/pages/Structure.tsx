@@ -1,0 +1,139 @@
+// Structure overview (SPEC v2 §4, DECISIONS D40): a dedicated destination for
+// curating the Initiative → Product → (Repo · Arc) tree, with an inline
+// "+ add" on each node. A first-class home for structure work that keeps the
+// board uncluttered. Reuses the existing optimistic container create flow
+// (openCreateContainer → CreateContainerDialog); no new write paths.
+
+import { Link } from "wouter";
+import type { WorkspacePayload } from "../../shared/types";
+import { openCreateContainer } from "../commands/controller";
+
+function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="rounded border border-dashed border-stone-300 px-2 py-0.5 text-xs text-stone-400 hover:border-stone-400 hover:text-stone-600"
+    >
+      + {label}
+    </button>
+  );
+}
+
+function NodeLink({ href, name, archived }: { href: string; name: string; archived: boolean }) {
+  return (
+    <Link
+      href={href}
+      className={`rounded px-1.5 py-0.5 font-medium hover:bg-stone-100 ${
+        archived ? "text-stone-400 line-through" : "text-stone-800"
+      }`}
+    >
+      {name}
+    </Link>
+  );
+}
+
+export default function Structure({ workspace }: { workspace: WorkspacePayload }) {
+  // Active first, archived last (dimmed), so curating stays focused on live
+  // structure while archived nodes remain reachable to unarchive.
+  const byActive = <T extends { archivedAt: string | null; name: string }>(list: T[]) =>
+    [...list].sort(
+      (a, b) =>
+        Number(!!a.archivedAt) - Number(!!b.archivedAt) || a.name.localeCompare(b.name),
+    );
+
+  const initiatives = byActive(workspace.initiatives);
+
+  return (
+    <div className="mx-auto max-w-3xl">
+      <div className="flex items-baseline justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Structure</h1>
+          <p className="mt-1 text-xs text-stone-400">
+            The Initiative → Product → Arc tree. Add anywhere; click a node to open it.
+          </p>
+        </div>
+        <AddButton label="New initiative" onClick={() => openCreateContainer({ kind: "initiative" })} />
+      </div>
+
+      <div className="mt-6 space-y-6">
+        {initiatives.map((initiative) => {
+          const products = byActive(
+            workspace.products.filter((p) => p.initiativeId === initiative.id),
+          );
+          return (
+            <section key={initiative.id} className="rounded-lg border border-stone-200 bg-white p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] uppercase tracking-wide text-stone-400">Initiative</span>
+                <NodeLink
+                  href={`/initiative/${initiative.id}`}
+                  name={initiative.name}
+                  archived={!!initiative.archivedAt}
+                />
+                <AddButton
+                  label="Product"
+                  onClick={() => openCreateContainer({ kind: "product", initiativeId: initiative.id })}
+                />
+              </div>
+
+              <div className="mt-3 space-y-3 border-l border-stone-100 pl-4">
+                {products.length === 0 && (
+                  <p className="text-xs text-stone-400">No products yet.</p>
+                )}
+                {products.map((product) => {
+                  const repos = byActive(workspace.repos.filter((r) => r.productId === product.id));
+                  const arcs = byActive(workspace.arcs.filter((a) => a.productId === product.id));
+                  return (
+                    <div key={product.id}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[10px] uppercase tracking-wide text-stone-400">
+                          Product
+                        </span>
+                        <NodeLink
+                          href={`/product/${product.id}`}
+                          name={product.name}
+                          archived={!!product.archivedAt}
+                        />
+                        <span className="font-mono text-[11px] text-stone-400">
+                          {product.keyPrefix}
+                        </span>
+                        <AddButton
+                          label="Repo"
+                          onClick={() => openCreateContainer({ kind: "repo", productId: product.id })}
+                        />
+                        <AddButton
+                          label="Arc"
+                          onClick={() => openCreateContainer({ kind: "arc", productId: product.id })}
+                        />
+                      </div>
+                      {(repos.length > 0 || arcs.length > 0) && (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 border-l border-stone-100 pl-4 text-sm">
+                          {repos.map((r) => (
+                            <span key={r.id} className="flex items-center gap-1">
+                              <span className="text-[10px] uppercase text-stone-300">repo</span>
+                              <NodeLink href={`/repo/${r.id}`} name={r.name} archived={!!r.archivedAt} />
+                            </span>
+                          ))}
+                          {arcs.map((a) => (
+                            <span key={a.id} className="flex items-center gap-1">
+                              <span className="text-[10px] uppercase text-stone-300">arc</span>
+                              <NodeLink href={`/arc/${a.id}`} name={a.name} archived={!!a.archivedAt} />
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
+        {initiatives.length === 0 && (
+          <p className="text-sm text-stone-400">
+            No initiatives yet. Create one to start building structure.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}

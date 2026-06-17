@@ -1,10 +1,13 @@
 import { Link, Route, Switch } from "wouter";
 import CommandLayer from "./commands/CommandLayer";
+import Header from "./Header";
 import { useWorkspace } from "./store";
 import { Toasts } from "./toast";
+import Agenda from "./pages/Agenda";
 import ContainerPage, { type ContainerType } from "./pages/ContainerPage";
 import Home from "./pages/Home";
 import IssuePage from "./pages/IssuePage";
+import Structure from "./pages/Structure";
 
 const CONTAINER_ROUTES: { path: string; type: ContainerType }[] = [
   { path: "/initiative/:id", type: "initiative" },
@@ -18,6 +21,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900">
+      {workspace && <Header />}
       {/* Wide shell for the board; narrow pages re-constrain themselves.
           Tighter padding on phones — the board needs the width. */}
       <main className="mx-auto max-w-screen-2xl px-3 py-5 sm:px-6 sm:py-10">
@@ -29,6 +33,12 @@ export default function App() {
           <Switch>
             <Route path="/">
               <Home workspace={workspace} />
+            </Route>
+            <Route path="/agenda">
+              <Agenda workspace={workspace} />
+            </Route>
+            <Route path="/structure">
+              <Structure workspace={workspace} />
             </Route>
             <Route path="/issue/:key">
               {(params) => <IssuePage workspace={workspace} keyParam={params.key!} />}
