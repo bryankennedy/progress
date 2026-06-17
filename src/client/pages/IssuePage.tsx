@@ -150,6 +150,14 @@ export default function IssuePage({
               onChange={(v) => updateIssue(issue.id, { estimate: v === "" ? null : Number(v) })}
             />
           </Field>
+          <Field label="Due date">
+            <input
+              type="date"
+              value={issue.dueDate ?? ""}
+              onChange={(e) => updateIssue(issue.id, { dueDate: e.target.value || null })}
+              className="w-full rounded border border-stone-200 bg-white px-2 py-1 text-sm hover:border-stone-400"
+            />
+          </Field>
           <Field label="Container">
             <p className="text-sm">
               {product?.name ?? "?"}

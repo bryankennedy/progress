@@ -22,6 +22,13 @@
       "when": 1781286178206,
       "tag": "0002_bent_molly_hayes",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1781712156314,
+      "tag": "0003_breezy_spot",
+      "breakpoints": true
     }
   ]
 }

@@ -2,6 +2,7 @@
 //   ⌘K / Ctrl+K  command palette
 //   C            create issue (container defaults from the current view)
 //   S / P / E / M / T / A  status / priority / estimate / move / tag / arc
+//   D            due date (quick relative options or a typed YYYY-MM-DD)
 //   W            work on this (copy bundle as prompt / CLI one-liner)
 //                  picker for the current issue (issue page, or the
 //                  hovered/focused card)
@@ -18,6 +19,7 @@ const PICKER_KEYS = {
   m: "move",
   t: "tag",
   a: "arc",
+  d: "due",
   w: "workon",
 } as const;
 

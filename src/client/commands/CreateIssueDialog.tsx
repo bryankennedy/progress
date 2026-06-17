@@ -14,8 +14,12 @@ import {
 } from "../../shared/constants";
 import type { WorkspacePayload } from "../../shared/types";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
-import { createIssue, findIssueByKey } from "../store";
+import { createContainer, createIssue, findIssueByKey } from "../store";
 import { onOpenCreateIssue, type CreateDefaults } from "./controller";
+
+// e.g. "My Side Project" → "MYSI"; the user can override.
+const suggestPrefix = (name: string) =>
+  name.toUpperCase().replaceAll(/[^A-Z]/g, "").slice(0, 4);
 
 // The container <select> encodes "product-level or repo" in one value.
 const containerValue = (d: CreateDefaults) =>
@@ -58,6 +62,12 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
   const [status, setStatus] = useState<IssueStatus>("todo");
   const [priority, setPriority] = useState<IssuePriority>("none");
   const [estimate, setEstimate] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  // Inline structure creation (SPEC v2 §4): spin up a product or arc without
+  // leaving the dialog; the new container is created optimistically and
+  // selected in place. `null` = panel closed.
+  const [newProduct, setNewProduct] = useState<{ name: string; prefix: string; initiativeId: string } | null>(null);
+  const [newArc, setNewArc] = useState<string | null>(null);
   const [path, navigate] = useLocation();
   const search = useSearch();
 
@@ -73,6 +83,9 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
         setStatus("todo");
         setPriority("none");
         setEstimate("");
+        setDueDate("");
+        setNewProduct(null);
+        setNewArc(null);
         setOpen(true);
       }),
     [workspace, path, search],
@@ -87,9 +100,32 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
 
   // Archived containers aren't valid creation targets (D26).
   const activeProducts = workspace.products.filter((p) => !p.archivedAt);
+  const activeInitiatives = workspace.initiatives.filter((i) => !i.archivedAt);
   const productArcs = workspace.arcs.filter(
     (a) => a.productId === selectedProductId && !a.archivedAt,
   );
+
+  const submitNewProduct = () => {
+    if (!newProduct) return;
+    const name = newProduct.name.trim();
+    if (name === "" || !/^[A-Z]{2,8}$/.test(newProduct.prefix) || !newProduct.initiativeId) return;
+    const id = createContainer({
+      kind: "product",
+      name,
+      initiativeId: newProduct.initiativeId,
+      keyPrefix: newProduct.prefix,
+    });
+    setContainer(`p:${id}`);
+    setArcId("");
+    setNewProduct(null);
+  };
+
+  const submitNewArc = () => {
+    if (newArc === null || newArc.trim() === "" || !selectedProductId) return;
+    const id = createContainer({ kind: "arc", name: newArc.trim(), productId: selectedProductId });
+    setArcId(id);
+    setNewArc(null);
+  };
 
   if (!open) return null;
 
@@ -113,6 +149,7 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
       status,
       priority,
       estimate: estimate === "" ? null : Number(estimate),
+      dueDate: dueDate || null,
     });
     setOpen(false);
     if (key) navigate(`/issue/${key}`);
@@ -160,6 +197,17 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
               );
             })}
           </select>
+          <button
+            type="button"
+            onClick={() =>
+              setNewProduct((p) =>
+                p ? null : { name: "", prefix: "", initiativeId: activeInitiatives[0]?.id ?? "" },
+              )
+            }
+            className={selectClass}
+          >
+            + New product
+          </button>
           {productArcs.length > 0 && (
             <select value={arcId} onChange={(e) => setArcId(e.target.value)} className={selectClass}>
               <option value="">No arc</option>
@@ -169,6 +217,15 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
                 </option>
               ))}
             </select>
+          )}
+          {selectedProductId && (
+            <button
+              type="button"
+              onClick={() => setNewArc((a) => (a === null ? "" : null))}
+              className={selectClass}
+            >
+              + New arc
+            </button>
           )}
           <select
             value={status}
@@ -200,7 +257,95 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
               </option>
             ))}
           </select>
+          <input
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            title="Due date (optional)"
+            className={selectClass}
+          />
         </div>
+
+        {/* Inline product create (SPEC v2 §4): name + key prefix + initiative,
+            created and selected without leaving the dialog. */}
+        {newProduct && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded border border-stone-200 bg-stone-50 p-2">
+            <input
+              autoFocus
+              value={newProduct.name}
+              onChange={(e) =>
+                setNewProduct((p) =>
+                  p ? { ...p, name: e.target.value, prefix: p.prefix || suggestPrefix(e.target.value) } : p,
+                )
+              }
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  submitNewProduct();
+                }
+              }}
+              placeholder="Product name"
+              className="min-w-40 flex-1 rounded border border-stone-200 px-2 py-1 text-xs focus:border-stone-400 focus:outline-none"
+            />
+            <input
+              value={newProduct.prefix}
+              onChange={(e) =>
+                setNewProduct((p) =>
+                  p ? { ...p, prefix: e.target.value.toUpperCase().replaceAll(/[^A-Z]/g, "").slice(0, 8) } : p,
+                )
+              }
+              placeholder="KEY"
+              title="Issue-key prefix: 2–8 letters"
+              className="w-20 rounded border border-stone-200 px-2 py-1 font-mono text-xs uppercase focus:border-stone-400 focus:outline-none"
+            />
+            <select
+              value={newProduct.initiativeId}
+              onChange={(e) => setNewProduct((p) => (p ? { ...p, initiativeId: e.target.value } : p))}
+              className={selectClass}
+            >
+              {activeInitiatives.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={submitNewProduct}
+              disabled={newProduct.name.trim() === "" || !/^[A-Z]{2,8}$/.test(newProduct.prefix) || !newProduct.initiativeId}
+              className="rounded bg-stone-900 px-2 py-1 text-xs text-white hover:bg-stone-700 disabled:opacity-40"
+            >
+              Add
+            </button>
+          </div>
+        )}
+
+        {/* Inline arc create (SPEC v2 §4): a name within the selected product. */}
+        {newArc !== null && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded border border-stone-200 bg-stone-50 p-2">
+            <input
+              autoFocus
+              value={newArc}
+              onChange={(e) => setNewArc(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  submitNewArc();
+                }
+              }}
+              placeholder="Arc name"
+              className="min-w-40 flex-1 rounded border border-stone-200 px-2 py-1 text-xs focus:border-stone-400 focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={submitNewArc}
+              disabled={newArc.trim() === "" || !selectedProductId}
+              className="rounded bg-stone-900 px-2 py-1 text-xs text-white hover:bg-stone-700 disabled:opacity-40"
+            >
+              Add
+            </button>
+          </div>
+        )}
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"

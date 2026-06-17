@@ -130,6 +130,7 @@ export type IssuePatch = Partial<{
   priority: IssuePriority;
   estimate: number | null;
   arcId: string | null;
+  dueDate: string | null;
 }>;
 
 export function updateIssue(id: string, patch: IssuePatch) {
@@ -163,6 +164,7 @@ export type IssueCreateInput = {
   status: IssueStatus;
   priority: IssuePriority;
   estimate: number | null;
+  dueDate: string | null;
 };
 
 // Optimistic create: the issue number is allocated locally from the
@@ -189,6 +191,7 @@ export function createIssue(input: IssueCreateInput): string | undefined {
     status: input.status,
     priority: input.priority,
     estimate: input.estimate,
+    dueDate: input.dueDate,
     creatorId: "usr_owner",
     assigneeId: "usr_owner",
     createdAt: now,

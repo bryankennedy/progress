@@ -37,6 +37,17 @@ const OWNER_ID = "usr_owner";
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll("-", "")}`;
 
+// Due dates (SPEC v2 §5) are wall-calendar days stored as ISO `YYYY-MM-DD`
+// text — timezone-safe by design. Accept the canonical form only, and reject
+// impossible dates (e.g. 2026-13-40) by round-tripping through UTC: parsing at
+// midnight UTC and re-serializing must reproduce the input exactly.
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const isValidDueDate = (s: string): boolean => {
+  if (!ISO_DATE_RE.test(s)) return false;
+  const d = new Date(`${s}T00:00:00.000Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+};
+
 const app = new Hono<{ Bindings: Bindings }>();
 
 // Without this, an uncaught throw became a bare "Internal Server Error" with
@@ -375,6 +386,7 @@ type IssueCreateBody = {
   status?: unknown;
   priority?: unknown;
   estimate?: unknown;
+  dueDate?: unknown;
 };
 
 // Issue creation (SPEC §3): the issue number comes from the product's
@@ -404,6 +416,9 @@ app.post("/api/issues", async (c) => {
   const estimate = (body.estimate ?? null) as number | null;
   if (estimate !== null && !(ISSUE_ESTIMATES as readonly number[]).includes(estimate))
     return c.json({ error: `invalid estimate: ${String(body.estimate)}` }, 400);
+  const dueDate = (body.dueDate ?? null) as string | null;
+  if (dueDate !== null && (typeof dueDate !== "string" || !isValidDueDate(dueDate)))
+    return c.json({ error: `invalid dueDate: ${String(body.dueDate)} (expected YYYY-MM-DD)` }, 400);
 
   const db = drizzle(c.env.DB);
   const [product] = await db
@@ -444,6 +459,7 @@ app.post("/api/issues", async (c) => {
       status,
       priority,
       estimate,
+      dueDate,
       creatorId: OWNER_ID,
       assigneeId: OWNER_ID,
       createdAt: now,
@@ -547,6 +563,7 @@ type IssuePatchBody = Partial<{
   priority: IssuePriority;
   estimate: number | null;
   arcId: string | null;
+  dueDate: string | null;
 }>;
 
 // Generalized issue field update — the server side of the optimistic-mutation
@@ -578,6 +595,11 @@ app.patch("/api/issues/:id", async (c) => {
     if (body.estimate !== null && !(ISSUE_ESTIMATES as readonly number[]).includes(body.estimate))
       return c.json({ error: `invalid estimate: ${String(body.estimate)}` }, 400);
     set.estimate = body.estimate;
+  }
+  if (body.dueDate !== undefined) {
+    if (body.dueDate !== null && (typeof body.dueDate !== "string" || !isValidDueDate(body.dueDate)))
+      return c.json({ error: `invalid dueDate: ${String(body.dueDate)} (expected YYYY-MM-DD)` }, 400);
+    set.dueDate = body.dueDate;
   }
 
   const db = drizzle(c.env.DB);
@@ -855,6 +877,7 @@ function renderBundle(b: BundleData): string {
       issue.estimate === null ? "unestimated" : `${issue.estimate} point${issue.estimate === 1 ? "" : "s"}`
     }`,
   );
+  if (issue.dueDate) out.push(`- **Due:** ${issue.dueDate}`);
   if (b.tags.length) out.push(`- **Tags:** ${b.tags.join(", ")}`);
   out.push("");
 

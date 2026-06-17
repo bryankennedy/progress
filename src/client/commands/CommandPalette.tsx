@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { ISSUE_ESTIMATES, ISSUE_PRIORITIES, ISSUE_STATUSES } from "../../shared/constants";
 import type { WireIssue, WorkspacePayload } from "../../shared/types";
+import { addDays, formatDueDate, relativeDue, todayISO } from "../dates";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import {
   findIssueByKey,
@@ -36,6 +37,7 @@ const MODE_TITLES: Record<Exclude<PaletteMode["kind"], "root">, string> = {
   move: "Move to",
   tag: "Tags",
   arc: "Set arc",
+  due: "Set due date",
   workon: "Work on this",
 };
 
@@ -260,6 +262,38 @@ function buildItems(
           run: () => moveIssue(issue.id, { productId: t.productId, repoId: t.repoId }),
         }));
     }
+    case "due": {
+      const today = todayISO();
+      // Relative quick-picks plus a "Clear" when one is set; a typed YYYY-MM-DD
+      // in the query becomes a "Set to …" item (the §5 picker accepts an exact
+      // calendar day too).
+      const options: { id: string; label: string; value: string | null }[] = [
+        { id: "due:today", label: `Today (${formatDueDate(today)})`, value: today },
+        { id: "due:tomorrow", label: `Tomorrow (${formatDueDate(addDays(today, 1))})`, value: addDays(today, 1) },
+        { id: "due:3d", label: `In 3 days (${formatDueDate(addDays(today, 3))})`, value: addDays(today, 3) },
+        { id: "due:1w", label: `In a week (${formatDueDate(addDays(today, 7))})`, value: addDays(today, 7) },
+        { id: "due:2w", label: `In 2 weeks (${formatDueDate(addDays(today, 14))})`, value: addDays(today, 14) },
+      ];
+      if (issue.dueDate) options.push({ id: "due:clear", label: "Clear due date", value: null });
+      const items: Item[] = options
+        .filter((o) => matches(o.label))
+        .map((o) => ({
+          id: o.id,
+          label: o.label,
+          hint: o.value === issue.dueDate ? "current" : o.value === null ? undefined : relativeDue(o.value, today),
+          run: () => updateIssue(issue.id, { dueDate: o.value }),
+        }));
+      const typed = query.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(typed) && typed !== issue.dueDate) {
+        items.unshift({
+          id: "due:typed",
+          label: `Set to ${typed}`,
+          hint: relativeDue(typed, today),
+          run: () => updateIssue(issue.id, { dueDate: typed }),
+        });
+      }
+      return items;
+    }
     case "workon": {
       const key = issueKeyOf(ws, issue);
       return (
@@ -314,6 +348,7 @@ function rootItems(
       picker("move", "M"),
       picker("tag", "T"),
       picker("arc", "A"),
+      picker("due", "D"),
       picker("workon", "W"),
     );
   }

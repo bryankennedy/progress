@@ -128,6 +128,10 @@ export const issues = sqliteTable(
     priority: text("priority", { enum: ISSUE_PRIORITIES }).notNull().default("none"),
     // Points from ISSUE_ESTIMATES; null = unestimated. API-validated.
     estimate: integer("estimate"),
+    // Optional due date (SPEC v2 §5): a wall-calendar day, identical
+    // everywhere — stored as ISO `YYYY-MM-DD` text, NOT an instant (unlike the
+    // createdAt/updatedAt timestamps). null = no due date. API-validated.
+    dueDate: text("due_date"),
     creatorId: text("creator_id")
       .notNull()
       .references(() => users.id),

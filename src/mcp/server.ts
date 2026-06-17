@@ -159,6 +159,7 @@ function summarize(ws: Workspace, issue: any) {
     status: issue.status,
     priority: issue.priority,
     estimate: issue.estimate,
+    dueDate: issue.dueDate ?? null,
     product: prefixOf(ws, issue.productId),
     repo: issue.repoId ? ws.repos.find((r) => r.id === issue.repoId)?.name ?? null : null,
     arc: issue.arcId ? ws.arcs.find((a) => a.id === issue.arcId)?.name ?? null : null,
@@ -289,9 +290,10 @@ server.registerTool(
         .describe(`Points, one of ${ISSUE_ESTIMATES.join(", ")}`),
       arc: z.string().optional().describe("Arc name within the product"),
       repo: z.string().optional().describe("Repo name within the product"),
+      dueDate: z.string().optional().describe("Optional due date as YYYY-MM-DD (calendar day)"),
     },
   },
-  async ({ productKey, title, description, status, priority, estimate, arc, repo }) => {
+  async ({ productKey, title, description, status, priority, estimate, arc, repo, dueDate }) => {
     const ws = await workspace();
     const product = ws.products.find((p) => p.keyPrefix.toUpperCase() === productKey.toUpperCase());
     if (!product) throw new Error(`No product with key prefix ${productKey}.`);
@@ -316,6 +318,7 @@ server.registerTool(
       estimate: estimate ?? null,
       arcId,
       repoId,
+      dueDate: dueDate ?? null,
     });
     return text(`Created ${product.keyPrefix}-${issue.number}: ${issue.title} (${issue.status}).`);
   },
@@ -335,6 +338,22 @@ server.registerTool(
     const r = await resolve(key);
     await apiJson("PATCH", `/api/issues/${r.issue.id}`, { status });
     return text(`${r.key}: ${r.issue.status} → ${status}.`);
+  },
+);
+
+server.registerTool(
+  "set_due_date",
+  {
+    title: "Set or clear an issue's due date",
+    description:
+      "Set an issue's due date to a calendar day (YYYY-MM-DD), or clear it with null. Due dates " +
+      "are wall-calendar days (timezone-safe) and drive the Agenda view.",
+    inputSchema: { key: KEY, dueDate: z.string().nullable().describe("YYYY-MM-DD, or null to clear") },
+  },
+  async ({ key, dueDate }) => {
+    const r = await resolve(key);
+    await apiJson("PATCH", `/api/issues/${r.issue.id}`, { dueDate });
+    return text(dueDate ? `${r.key} due ${dueDate}.` : `${r.key} due date cleared.`);
   },
 );
 
