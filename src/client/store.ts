@@ -20,6 +20,7 @@ import type {
   WorkspacePayload,
 } from "../shared/types";
 import { toast } from "./toast";
+import { prefetchBundle } from "./workOn";
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -93,6 +94,16 @@ function writeIssue(id: string, write: (issue: WireIssue) => WireIssue) {
   );
 }
 
+// Re-warm the cached "Work on this" bundle after a server-confirmed change, so
+// a later copy reflects the edit/comment/tag/move instead of a stale snapshot
+// from page load. Keyed by the issue's current canonical key (a cross-product
+// move re-keys, and the issue is already updated in the store by then).
+function refreshBundle(id: string) {
+  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
+  const issue = ws?.issues.find((i) => i.id === id);
+  if (ws && issue) prefetchBundle(issueKeyOf(ws, issue));
+}
+
 // The optimistic-mutation template (SPEC §8.2): write the store
 // synchronously, sync to the server in the background, and on failure restore
 // the issue's pre-mutation snapshot and raise a toast. Rollback is per-issue
@@ -116,10 +127,13 @@ async function optimisticIssueMutation(
   if (!ok) {
     writeIssue(id, () => before);
     toast("Couldn't save that change — reverted.");
-  } else if (patch.status !== undefined) {
-    // The server appended a status_changed activity event; refresh the
-    // timeline if this issue's page has loaded it.
-    void queryClient.invalidateQueries({ queryKey: timelineKey(id) });
+  } else {
+    refreshBundle(id);
+    if (patch.status !== undefined) {
+      // The server appended a status_changed activity event; refresh the
+      // timeline if this issue's page has loaded it.
+      void queryClient.invalidateQueries({ queryKey: timelineKey(id) });
+    }
   }
 }
 
@@ -312,6 +326,7 @@ export function moveIssue(id: string, target: MoveTarget) {
       writeIssue(id, () => real);
       // The server appended a "moved" activity event.
       void queryClient.invalidateQueries({ queryKey: timelineKey(id) });
+      refreshBundle(id);
       return;
     }
     queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) => {
@@ -532,6 +547,7 @@ export function tagIssue(issueId: string, tag: { tagId: string } | { name: strin
             }
           : w,
       );
+      refreshBundle(issueId);
     } else {
       queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) =>
         w
@@ -569,6 +585,8 @@ export function untagIssue(issueId: string, tagId: string) {
         w ? { ...w, issueTags: [...w.issueTags, { issueId, tagId }] } : w,
       );
       toast("Couldn't remove that tag — restored.");
+    } else {
+      refreshBundle(issueId);
     }
   })();
 }
@@ -625,6 +643,7 @@ export function addComment(issueId: string, body: string) {
     }
     if (ok) {
       void queryClient.invalidateQueries({ queryKey: timelineKey(issueId) });
+      refreshBundle(issueId);
     } else {
       queryClient.setQueryData<Timeline>(timelineKey(issueId), (t) =>
         t ? { ...t, comments: t.comments.filter((cm) => cm.id !== temp.id) } : t,
