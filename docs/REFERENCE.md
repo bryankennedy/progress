@@ -90,6 +90,7 @@ graph TD
 | Status | `backlog` · `todo` · `in_progress` · `in_review` · `done` · `canceled` — fixed global set |
 | Priority | `urgent` · `high` · `medium` · `low` · `none` (default `none`) |
 | Estimate | 0 / 1 / 2 / 3 / 5 / 8 points, or null |
+| Due date | Optional calendar day, ISO `YYYY-MM-DD` (timezone-safe, not an instant); drives the Agenda (D37) |
 | Tags | 0..n global tags |
 | Arc | 0..1, same product |
 | Comments + Activity | Markdown thread interleaved with append-only events into one timeline |
@@ -106,7 +107,9 @@ by schema, API validation, and client.
 - Container and tag ids may be **client-generated** (the store creates rows
   optimistically and navigates immediately; the server accepts well-formed
   ids verbatim, D26).
-- Timestamps: unix-epoch integers set by the API, never DB defaults.
+- Timestamps: unix-epoch integers set by the API, never DB defaults. The
+  exception is `issues.due_date` (D37): a **calendar day** stored as ISO
+  `YYYY-MM-DD` text, identical in every timezone — deliberately not an instant.
 - Activity rows are append-only; `data` carries the event payload. Current
   event types: `status_changed` `{from, to}`, `moved` `{fromProductId,
   fromRepoId, toProductId, toRepoId, fromKey?, toKey?}` (keys present only
@@ -139,8 +142,8 @@ generic on purpose, since the webhook path bypasses Access (D31).
 |---|---|
 | `GET /api/health` | `{ ok: true }` |
 | `GET /api/workspace` | The load-everything payload: users, initiatives, products, repos, arcs, issues, tags, issueTags, issueKeyAliases — nine independent reads run with `Promise.all` (not a `db.batch`/transaction, which 500'd on production D1; D31). Comments/activity are deliberately excluded (D20). |
-| `POST /api/issues` | `{ title, productId, repoId?, arcId?, description?, status?, priority?, estimate? }` → 201 `{ issue }`. Number allocated by atomic increment of the product sequence; gaps from failed creates are harmless (D24). |
-| `PATCH /api/issues/:id` | Any of `title, description, status, priority, estimate, arcId` — validated per field; arc must be same-product. A status change atomically appends a `status_changed` activity row and maintains `completedAt`. |
+| `POST /api/issues` | `{ title, productId, repoId?, arcId?, description?, status?, priority?, estimate?, dueDate? }` → 201 `{ issue }`. `dueDate` is `YYYY-MM-DD` or null, validated (impossible dates rejected). Number allocated by atomic increment of the product sequence; gaps from failed creates are harmless (D24). |
+| `PATCH /api/issues/:id` | Any of `title, description, status, priority, estimate, arcId, dueDate` — validated per field; arc must be same-product; `dueDate` is `YYYY-MM-DD` or null to clear. A status change atomically appends a `status_changed` activity row and maintains `completedAt`. |
 | `POST /api/issues/:id/move` | `{ productId, repoId }` (`repoId: null` = product-level). Within-product keeps key + arc; cross-product re-keys, clears arc, writes the alias, logs `moved`. 400 on no-op. |
 | `GET /api/issues/:id/timeline` | `{ comments, activity, pullRequests, commits }`, each ordered by `createdAt`. |
 | `GET /api/issues/:key/bundle` | Looked up by **key** (alias-aware), not id. Returns `text/markdown` — a deterministic context "work order": issue fields + tags, lineage with descriptions (product → repo incl. `gitUrl` → arc, where the arc description carries the "why"), comments, linked PRs/commits, then a stable report-back preamble. A retired key resolves and renders the current canonical key. 400 malformed key, 404 unknown. Shared foundation for the agent surfaces (SPEC §11.1, D33). |
@@ -202,8 +205,9 @@ vocabularies in `src/shared/constants.ts`:
 | `get_bundle` | `GET /api/issues/:key/bundle` — the Markdown work order |
 | `get_issue` | one issue as structured JSON (fields + lineage names + tags) |
 | `list_issues` | filters `GET /api/workspace` in-process: `status, productKey, repo, arc, tag, query, limit` (AND-combined; default limit 50) |
-| `create_issue` | `POST /api/issues` (arc/repo by name, resolved within the product) |
+| `create_issue` | `POST /api/issues` (arc/repo by name, resolved within the product; optional `dueDate`) |
 | `update_status` | `PATCH /api/issues/:id` `{ status }` |
+| `set_due_date` | `PATCH /api/issues/:id` `{ dueDate }` — set a `YYYY-MM-DD` day or clear with null |
 | `comment` | `POST /api/issues/:id/comments` |
 | `move_issue` | `POST /api/issues/:id/move` (destination product by key) |
 
@@ -253,13 +257,29 @@ Two ways to hand an issue's bundle to a Claude Code session (SPEC §11.2):
 
 ### Routing & key resolution
 
-Routes: `/` (board), `/issue/:key`, `/initiative/:id`, `/product/:id`,
+Routes: `/` (board), `/agenda` (the due-date view), `/structure` (the
+container tree), `/issue/:key`, `/initiative/:id`, `/product/:id`,
 `/repo/:id`, `/arc/:id`. Issue URLs are key-based; `findIssueByKey` resolves
 current keys first, then alias keys with a `replaceState` redirect to the
 canonical key — entirely client-side from the loaded workspace (D22).
 
 ## 5. UI surfaces
 
+- **App header** — persistent across pages: the "Progress" home link, nav
+  (Board · Agenda · Structure), and a **New** menu (Issue · Initiative ·
+  Product · Repo · Arc) that opens the existing optimistic create flows. The
+  always-available structure-creation entry point (SPEC v2 §4).
+- **Agenda (`/agenda`)** — the time-driven cut: every issue with a due date
+  that isn't done/canceled, sorted by due date ascending and grouped **Overdue ·
+  Today · This week · Later** (computed from the owner's local day; "this week"
+  is a rolling 7 days, D38). Each row carries the **priority indicator** (§7.2 /
+  D39), key, title, the due date as a relative phrase ("in 3 days"), product/arc
+  and status; overdue rows are visually distinct. Filterable by product/arc/tag
+  via URL params (the board pattern), with inline mark-done and bump-due. Renders
+  entirely from the store.
+- **Structure (`/structure`)** — the Initiative → Product → (Repo · Arc) tree
+  with an inline "+ add" on each node (D40); a dedicated home for curating
+  structure that keeps the board uncluttered.
 - **Board (`/`)** — the global "My Work" kanban. Columns are the fixed
   statuses; Backlog hides behind a toggle by default. Filters (initiative,
   product, repo, arc, tag, priority) live in URL query params, so any
@@ -284,7 +304,9 @@ canonical key — entirely client-side from the loaded workspace (D22).
 - **Create dialogs** — issue and container creation; parents/containers
   default from the current view (open container page, viewed issue's
   container, or active board filters). New issues default to **Todo** so
-  they're visible on the default board.
+  they're visible on the default board, and carry an optional **due date**. The
+  issue dialog offers inline **"+ New product / + New arc"** so structure can be
+  spun up without leaving the flow (SPEC v2 §4).
 
 ### Keyboard map (D25, D27)
 
@@ -294,6 +316,7 @@ canonical key — entirely client-side from the loaded workspace (D22).
 | `C` | Create issue |
 | `S` / `P` / `E` | Status / priority / estimate picker for the current issue |
 | `M` / `A` / `T` | Move / arc / tag picker for the current issue |
+| `D` | Due-date picker for the current issue (relative quick-picks or a typed `YYYY-MM-DD`; clear) |
 | `W` | Work on this — copy the bundle as a prompt or the `progress work` CLI line (D35) |
 | `↑↓`, `Enter`, `Esc`, `Backspace` | Navigate / run / close / back-to-root inside the palette |
 

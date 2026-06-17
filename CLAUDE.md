@@ -56,14 +56,22 @@ work-on-this kickoff (PROG-19/D35). Live at
 + DECISIONS D1–D35. Owner-side leftover: GitHub webhook registration on connected
 repos (PROG-16) lights up the linked-PR/commit sections.
 
-**Phase: v2 — spec'd, starting.** Broadening Progress to **any area of
-responsibility** (incl. personal/household), plus the time dimension v1 omitted.
-Roadmap in `docs/SPEC.md`: (1) frictionless structure creation — inline in the
-new-issue flow + dashboard routes; repo-less products first-class (§3–§4); (2)
-**due dates** — optional calendar-date field, timezone-safe `YYYY-MM-DD`,
-one-off only (§5); (3) the **Agenda view** — dated issues grouped Overdue/Today/
-This week/Later with a visual priority indicator (§6–§7). Nouns unchanged. Next
-step: turn §11's suggested sequence into issues (a v2 dogfood pass).
+**v2 — complete & in production** (2026-06-17 deploy; migration `0003`).
+Progress now spans **any area of responsibility** (incl. personal/household) and
+gained the time dimension v1 omitted: (1) repo-less products first-class +
+frictionless structure creation — header **New** menu, inline "+ New
+product/arc" in the new-issue dialog, and a `/structure` overview route (§3–§4,
+D40); (2) **due dates** — optional calendar-day field, timezone-safe
+`YYYY-MM-DD` text, editable on the issue page / new-issue dialog / palette `D`
+picker / Agenda rows (§5, D37); (3) the **Agenda view** at `/agenda` — dated
+pending issues grouped Overdue/Today/This week/Later with a reusable priority
+indicator (§6–§7, D38/D39). Nouns unchanged. Recorded in prod as the **v2 —
+Broaden & Due dates** arc (`scripts/dogfood-v2.ts`). Owner-side leftover from v1
+still open: GitHub webhook registration (PROG-16/PROG-30).
+
+**Phase: v2.1 — candidate.** Likely next step per SPEC §8: **recurring due
+dates** (chores repeat); the due-date model + Agenda were built not to preclude
+it. Also pending: reminders/digests, start dates, date+time.
 
 `bun run dev` serves everything on :8000 (see `docs/SETUP.md`). Shared wire types
 live in `src/shared/`. Synthetic 5k-issue data: `bun run db:seed:scale`; reset

@@ -514,3 +514,52 @@ session:
 
 Full plan: `docs/SPEC.md` (v2). Build sequence is SPEC §11; the one schema change
 is a nullable `due_date` on `issues`.
+
+## 2026-06-17 — v2 build (broaden + due dates, shipped)
+
+The v2 roadmap (`docs/SPEC.md`) shipped end-to-end and was deployed to
+production (version 18db5f52, migration `0003_breezy_spot.sql`). Four
+build-time calls settle the SPEC §9 open questions.
+
+### D37: due dates are stored as ISO `YYYY-MM-DD` text
+The new `issues.due_date` column is **nullable TEXT** holding a canonical
+`YYYY-MM-DD` calendar day, not a normalized integer and not an instant
+(contrast `createdAt`/`updatedAt`, which are unix-epoch timestamps). This is the
+timezone-safety requirement of SPEC §5 made concrete: a due date is the same
+wall-calendar day everywhere, so it must not carry a time or zone. Text keeps it
+human-readable in the DB and in the workspace payload, sorts correctly
+lexicographically (so the Agenda sorts by string compare), and round-trips
+through JSON unchanged. The API validates the canonical form and rejects
+impossible dates (e.g. `2026-13-40`) by re-serializing through UTC midnight.
+*Rejected:* an integer (days-since-epoch or packed YMD) — saves nothing and
+loses legibility. Closes SPEC §9 Q5.
+
+### D38: Agenda is a top-level destination; "This week" is a rolling 7 days
+The Agenda is its own route (`/agenda`) and its own header nav entry, alongside
+the board — **not** a tab or sort-mode bolted onto the kanban. The board answers
+"what's the state of the work"; the Agenda answers "what's due," and that
+question deserves a first-class home. **"This week" is a rolling 7 days** from
+the local today (buckets: Overdue = before today, Today, This week = next 6
+days, Later) — simpler to reason about than "through end of calendar week," and
+it matches how a due list is actually read. Buckets compute from the owner's
+*local* day since due dates are calendar days. Closes SPEC §9 Q1 and Q2.
+
+### D39: the priority indicator is a single color-coded dot
+One reusable component (`PriorityIndicator`) renders the fixed
+urgent/high/medium/low/none scale as a small filled dot on the global palette —
+urgent `#ED6245` (red), high `#F08B23` (orange), medium `#F2C42E` (yellow), low
+`#546EB4` (slate); **none is a hollow gray ring** so "no priority" reads as unset
+rather than a fifth color. One mapping in `labels.ts` (`PRIORITY_COLORS`), no
+configuration. Defined once for the Agenda; the board and lists may adopt it.
+*Rejected:* bars or flags — a dot is the most compact at list density. Closes
+SPEC §9 Q3.
+
+### D40: structure creation is a dedicated `/structure` route + inline surfaces
+Curating structure gets a dedicated route showing the Initiative → Product →
+(Repo · Arc) tree with an inline "+ add" on each node — kept off the home board
+so the board stays uncluttered. Plus a persistent **New** menu in the app header
+(Issue · Initiative · Product · Repo · Arc) and inline **"+ New product/arc"**
+in the create-issue dialog (which folds in the long-deferred "add arc from the
+New Issue modal"). All of it reuses the v1 optimistic container write paths
+(D26) — **no new write endpoints**; v2's structure work is surfaces only. Closes
+SPEC §9 Q4.

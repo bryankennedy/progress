@@ -11,6 +11,14 @@
 > code and decisions refer to that archived document. Section numbers **here**
 > are stable for v2 and start fresh; when an area ships, shrink its section to
 > intent + a pointer into `REFERENCE.md` rather than renumbering.
+>
+> **Status: v2 shipped 2026-06-17** (deploy + dogfood pass). The headline work —
+> broadened domain (§3), frictionless structure creation (§4), due dates (§5),
+> and the Agenda view + priority indicator (§6–§7) — is built and in production;
+> those sections are now shrunk to intent + a pointer into `REFERENCE.md`.
+> Build-time decisions: DECISIONS **D37–D40**. The remaining content here is the
+> genuinely forward-looking part (§8 direction). Next likely step: recurring due
+> dates (§8).
 
 ## 1. Where v1 left off, and why v2
 
@@ -41,105 +49,69 @@ is **"what's due and when."** So v2 is two moves:
    **unchanged in v2** (§3). "Epic" and "project" remain banned words.
 4. **Paper-y, calm UI.** Light, typography-led, mobile-friendly.
 
-## 3. The broadened domain (same nouns, wider meaning)
+## 3. The broadened domain (same nouns, wider meaning) — **shipped**
 
-No schema-vocabulary change. The existing nouns simply stretch:
+**Intent:** the existing nouns stretch to *any area of responsibility* without a
+vocabulary change — a **Product** is a software product *or* "Household" /
+"Finances" / "Health"; **Repo** stays dev-specific and **optional**, so
+repo-less products are first-class; an **Arc** is a sub-area/theme; an **Issue**
+is a task (now with a due date, §5). Reusing "Product" for a life-area costs one
+small mental stretch and keeps rigid simplicity / settled schema.
 
-- A **Product** is *any area of responsibility* — a software product, but
-  equally "Household", "Finances", "Health". Initiatives still group products.
-- **Repo** stays **dev-specific and optional**. v2 makes **repo-less products
-  first-class**: an issue needs only a Product (and optionally an Arc); no view
-  may treat a missing repo as incomplete, and repo-only affordances (the Git
-  section, gitUrl) simply don't appear for products without one.
-- An **Arc** is a sub-area or theme inside a Product — for "Household": "Kitchen
-  reno", "Yard", "Recurring chores". (Arcs already carry the epic-level "why".)
-- An **Issue** is a task. v2 gives it a **Due Date** (§5).
+Shipped: no schema-vocabulary change; repo-less products carry no repo-only
+affordances. See `REFERENCE.md` §2 (domain model) and DECISIONS **D36**.
 
-Why keep the nouns: the whole point of Progress is *the owner's* vocabulary, and
-the owner already thinks in these. Reusing "Product" for a life-area costs one
-small mental stretch; inventing a parallel vocabulary would cost rigid
-simplicity and re-open settled schema. (Decision to record at build time.)
+## 4. Frictionless structure creation — **shipped**
 
-## 4. Frictionless structure creation
+**Intent** (*"create products, arcs, and initiatives while making an issue and
+on their own from the dashboard"*): make structure creation discoverable and
+inline, not a palette-only power move.
 
-**User story:** *"I want to create products, arcs, and initiatives both while
-I'm creating an issue and on their own from the dashboard."*
+Shipped — a persistent **New** menu in the app header (Issue · Initiative ·
+Product · Repo · Arc), inline **"+ New product / + New arc"** in the
+create-issue dialog (folding in the deferred "add arc from the New Issue
+modal"), and a dedicated **`/structure`** route (the Initiative → Product →
+Repo · Arc tree with inline "+ add"). All reuse the v1 optimistic container
+write paths (D26) — surfaces only, no new endpoints. See `REFERENCE.md` §5 and
+DECISIONS **D40**.
 
-Container create/edit/archive already exists (v1, D26) but is reachable mainly
-through the command palette. v2 makes structure creation **discoverable and
-inline**, so spinning up a new "Household" product or a "Yard" arc is obvious:
+## 5. Due dates — **shipped**
 
-1. **Inline in the new-issue flow.** The Initiative / Product / Arc pickers in
-   the create-issue dialog each offer a **"+ New …"** affordance that creates
-   the container and selects it without leaving the dialog. (This generalizes
-   the previously-deferred "add arc from the New Issue modal".)
-2. **From the dashboard.** A persistent **"New"** entry point in the app header
-   (Issue · Initiative · Product · Repo · Arc), **plus** a **Structure overview**
-   route showing the Initiative → Product → Arc tree with an inline **"+ add"**
-   on each node — so curating structure is a first-class destination, not a
-   palette-only power move.
+**Intent** (*"for these tasks I need to track a due date"*): an optional,
+date-only, timezone-safe due date — a wall-calendar day identical everywhere,
+not an instant.
 
-These reuse the existing optimistic container write paths (D26); v2 adds
-*surfaces and inline creation*, not new endpoints. The command palette keeps
-working unchanged for those who prefer it.
+Shipped — nullable `issues.due_date`, stored as ISO `YYYY-MM-DD` text (D37);
+validated in POST/PATCH; editable from the issue-page sidebar, the new-issue
+dialog, the command-palette `D` picker (relative quick-picks or a typed date),
+and inline in Agenda rows. Rides the workspace payload, so every view computes
+from memory. See `REFERENCE.md` §2–§3, §5.
 
-## 5. Due dates
+**Still out of scope** (the genuinely forward-looking part): recurring due
+dates, reminders/digests, start dates, date+time — §8. Recurrence is the likely
+next step; the field and Agenda were built not to preclude it.
 
-**User story:** *"For these tasks I need to track a due date."*
+## 6. The Agenda view — **shipped**
 
-- Issues gain an **optional Due Date** — a **calendar date, no time of day**.
-- **Timezone-safe by design:** a due date is a *wall-calendar day*, identical
-  everywhere — "due July 1" is July 1 regardless of where the app is opened. It
-  is therefore an ISO `YYYY-MM-DD` value, **not** an instant. (This differs from
-  the existing `createdAt`/`updatedAt` timestamps on purpose; record the
-  storage decision at build time.)
-- **Editable wherever issues are:** issue-page sidebar field, the new-issue
-  dialog, a command-palette picker bound to a single key (proposed `D`), and
-  inline in the Agenda/list rows.
-- It rides in the **workspace payload** like every other field, so all views
-  compute from memory — no new fetch, no spinner.
+**Intent** (*"a list of issues ordered by due date, each with a visual priority
+indicator"*): the time-driven cut that answers "what's due."
 
-**Out of scope this phase** (and why): recurring due dates, reminders/digests,
-start dates, and date+time. Recurrence is the most likely *next* step — most
-household chores repeat — so the field and the Agenda are designed not to
-preclude it (§8).
+Shipped at **`/agenda`** — every dated, pending issue (done/canceled excluded),
+sorted by due date ascending and grouped **Overdue · Today · This week · Later**
+(local day; "this week" = rolling 7 days, D38). Each row: priority indicator,
+key, title, relative due phrase, product/arc, status; overdue rows distinct.
+Filterable by product/arc/tag via URL params; inline mark-done and bump-due.
+Renders entirely from the store. See `REFERENCE.md` §5.
 
-## 6. The Agenda view
+## 7. Supporting pieces — **shipped**
 
-**User story:** *"Give me a list of issues ordered by due date, and show each
-one's priority with a visual indicator."*
-
-A new dashboard route (proposed `/agenda`):
-
-- Lists **every issue that has a due date**, sorted by due date ascending,
-  grouped into **Overdue · Today · This week · Later** (buckets computed from
-  the owner's *local* date, since due dates are calendar days). Undated issues
-  are **excluded** — they live on the board; the Agenda is purely the
-  time-driven cut.
-- Each row shows a compact **priority indicator** (§7.2), the issue key, title,
-  the due date as a **relative phrase** ("in 3 days", "2 days ago"), and its
-  product/arc + status. **Overdue rows are visually distinct.**
-- **Filterable** by product, arc, and tag via URL params — exactly the v1 board
-  pattern — so "household tasks due this week" is a single bookmark.
-- **Cheap inline actions** where they help: mark done, bump the due date.
-- **Completed issues never appear** (a done task isn't pending), even if their
-  due date is in the past.
-
-## 7. Supporting pieces
-
-### 7.1 It all stays instant (standing constraint)
-
-Due dates ship in the workspace payload; the Agenda and every priority indicator
-render from the client store; due-date edits and inline container creation use
-the optimistic-mutation template (D21). A spinner on any of these is a bug
-(§2.1).
-
-### 7.2 Priority, made visible
-
-A single, reusable **priority indicator** for the fixed urgent/high/medium/low/
-none scale — a small color-coded marker (exact visual language chosen at build).
-Defined once and used in Agenda rows, with the board and issue lists free to
-adopt it. One mapping, no configuration.
+- **7.1 It stays instant.** Due dates ride the workspace payload; the Agenda,
+  the priority indicator, and inline structure creation all render/mutate from
+  the store via the optimistic template (D21). A spinner is a bug (§2.1).
+- **7.2 Priority, made visible.** A single reusable **priority indicator** — a
+  color-coded dot for the fixed urgent/high/medium/low/none scale, "none" a
+  hollow ring; one mapping, no configuration. Used by the Agenda, free for the
+  board/lists. See DECISIONS **D39**.
 
 ## 8. Beyond this phase (direction, not commitment)
 
@@ -151,21 +123,17 @@ adopt it. One mapping, no configuration.
 - Carry-overs from v1.x: PR-driven status automation, cloud/headless work
   kickoff (archived SPEC §11.2 "Later").
 
-## 9. Open questions
+## 9. Open questions — **all closed**
 
-To close into `DECISIONS.md` as they're settled:
+Settled at build time and recorded in `DECISIONS.md`:
 
-1. **Agenda's place in navigation** — a top-level destination alongside the
-   board, or a tab within it? *Leaning top-level.*
-2. **"This week" definition** — a rolling 7 days, or through the end of the
-   current calendar week? *Leaning rolling 7 days.*
-3. **Priority indicator visual language** — dot, bars, or flag; which colors?
-   *Decide with a quick visual pass at build.*
-4. **Structure overview vs. the home dashboard** — a dedicated `/structure`
-   route, or fold the tree + "+ add" into the existing home view? *Leaning a
-   dedicated route to keep the board uncluttered.*
-5. **Due-date storage** — ISO `YYYY-MM-DD` text vs. a normalized integer; the
-   §5 timezone-safety requirement is the constraint either way.
+1. **Agenda's place in navigation** → top-level `/agenda` (D38).
+2. **"This week" definition** → rolling 7 days (D38).
+3. **Priority indicator visual language** → a color-coded dot, "none" a hollow
+   ring (D39).
+4. **Structure overview vs. home dashboard** → a dedicated `/structure` route
+   (D40).
+5. **Due-date storage** → ISO `YYYY-MM-DD` text (D37).
 
 ## 10. Architecture & data notes
 
@@ -178,12 +146,13 @@ To close into `DECISIONS.md` as they're settled:
   indicator, and relative-date formatting all run in the store-backed client,
   preserving §2.1.
 
-## 11. Suggested sequence
+## 11. Suggested sequence — **built in this order**
 
-A rough build order (refine into issues at the next dogfood pass):
+1. ✅ **Repo-less products first-class** + inline / dashboard creation surfaces
+   (§3–§4).
+2. ✅ **Due-date field** end-to-end (§5): schema → workspace payload → issue
+   page → new-issue → palette picker.
+3. ✅ **Agenda view** + **priority indicator** (§6–§7.2) — the headline of v2.
 
-1. **Repo-less products first-class** + the **inline / dashboard creation**
-   surfaces (§3–§4) — the foundation that makes household use pleasant.
-2. **Due-date field** end-to-end (§5): schema → workspace payload → issue page →
-   new-issue → palette picker.
-3. **Agenda view** + **priority indicator** (§6–§7.2) — the headline of v2.
+Recorded in production as the **v2 — Broaden & Due dates** arc
+(`scripts/dogfood-v2.ts`). Next phase candidate: recurring due dates (§8).

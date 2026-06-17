@@ -108,6 +108,12 @@ Redeploy after changes: `bun run deploy` (builds, then `wrangler deploy`).
 Schema changes additionally need
 `bunx wrangler d1 migrations apply progress-db --remote` first.
 
+**v2 shipped 2026-06-17** (migration `0003_breezy_spot.sql` — the nullable
+`issues.due_date`): due dates, the Agenda view, the Structure route, and the
+header New menu. The remote migration + `bun run deploy` were applied; the build
+was recorded in production via `bun --env-file=.env scripts/dogfood-v2.ts`
+(idempotent, like the cutover script) under the **v2 — Broaden & Due dates** arc.
+
 **Cloudflare Access is live** (configured 2026-06-12, SPEC §8.3): two
 self-hosted Zero Trust applications — "Progress" on the bare hostname with
 an Allow policy for the owner's email (One-time PIN login, team domain
@@ -155,7 +161,8 @@ events: Pushes + Pull requests.
 
 `src/mcp/server.ts` (D34) exposes the production API to Claude Code as MCP
 tools (`get_bundle`, `get_issue`, `list_issues`, `create_issue`,
-`update_status`, `comment`, `move_issue`). It is a **local stdio** server — it
+`update_status`, `set_due_date`, `comment`, `move_issue`). It is a **local
+stdio** server — it
 runs on your machine and reaches the Access-protected API with the service
 token from §6, so nothing is hosted on the Worker.
 
@@ -175,7 +182,7 @@ claude mcp add progress -- bun --env-file=/ABS/PATH/TO/progress/.env \
 ```
 
 Verify with `claude mcp list` (should show `progress` connected) and `/mcp` in a
-session (lists the seven tools). Override the target with `PROGRESS_BASE_URL`
+session (lists the eight tools). Override the target with `PROGRESS_BASE_URL`
 (defaults to production) to point the server at a local `bun run dev` instance
 instead. Then in any session: *"pull the bundle for PROG-18 and start working"*
 — the agent calls `get_bundle`, does the work, and reports back via `comment` /
