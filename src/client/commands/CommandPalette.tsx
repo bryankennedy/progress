@@ -17,6 +17,7 @@ import {
   untagIssue,
   updateIssue,
 } from "../store";
+import { copyBundleAsPrompt, copyWorkCommand, workCommand } from "../workOn";
 import {
   onOpenPalette,
   openCreateContainer,
@@ -35,6 +36,7 @@ const MODE_TITLES: Record<Exclude<PaletteMode["kind"], "root">, string> = {
   move: "Move to",
   tag: "Tags",
   arc: "Set arc",
+  workon: "Work on this",
 };
 
 export default function CommandPalette({ workspace }: { workspace: WorkspacePayload }) {
@@ -258,6 +260,25 @@ function buildItems(
           run: () => moveIssue(issue.id, { productId: t.productId, repoId: t.repoId }),
         }));
     }
+    case "workon": {
+      const key = issueKeyOf(ws, issue);
+      return (
+        [
+          {
+            id: "workon:prompt",
+            label: "Copy as prompt",
+            hint: "bundle",
+            run: () => void copyBundleAsPrompt(key),
+          },
+          {
+            id: "workon:cli",
+            label: `Copy ${workCommand(key)}`,
+            hint: "CLI",
+            run: () => copyWorkCommand(key),
+          },
+        ] satisfies Item[]
+      ).filter((i) => matches(i.label));
+    }
   }
 }
 
@@ -293,6 +314,7 @@ function rootItems(
       picker("move", "M"),
       picker("tag", "T"),
       picker("arc", "A"),
+      picker("workon", "W"),
     );
   }
   for (const kind of ["initiative", "product", "repo", "arc"] as const) {

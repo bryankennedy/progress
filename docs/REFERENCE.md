@@ -27,6 +27,7 @@ vision and unbuilt work see [`SPEC.md`](./SPEC.md); for rationale see
 | `src/shared/` | Wire types (`types.ts`) and fixed vocabularies (`constants.ts`) shared client/server |
 | `src/db/schema.ts` | Drizzle schema — single schema source of truth, generates `drizzle/` migrations |
 | `src/mcp/server.ts` | Progress MCP server — local stdio client of the API (D34) |
+| `bin/progress.ts` | `progress work <KEY>` kickoff CLI — bundle → branch → `claude` (D35) |
 | `scripts/` | `seed.sql` (idempotent baseline), `seed-scale.ts` (5k-issue synthetic workspace) |
 
 ## 2. Domain model
@@ -210,6 +211,22 @@ Key→id resolution and name lookups run off one `/api/workspace` snapshot per
 call, mirroring the Worker's own alias-aware resolution (retired keys resolve;
 results report the current canonical key).
 
+### Work-on-this kickoff (D35)
+
+Two ways to hand an issue's bundle to a Claude Code session (SPEC §11.2):
+
+- **In-app** — the issue page's **Work on this** field and the `W` palette
+  command (`src/client/workOn.ts`) copy either the bundle Markdown ("Copy as
+  prompt") or the `progress work <KEY>` CLI line. The bundle is fetched from
+  `GET /api/issues/:key/bundle` and prefetched on issue load so the copy is
+  instant (no spinner; SPEC §8.2).
+- **CLI** — `bin/progress.ts` (`progress work <KEY>`): fetches the bundle with
+  the Access service token, creates/checks out `iss/<KEY>` (branch-from-key, so
+  later commits/PRs auto-link via §5), then launches `claude` primed with the
+  bundle as its opening prompt — all in the current directory, so Progress
+  never needs to know where repos live. Flags: `--no-branch`, `--print`.
+  Registration: SETUP §7.
+
 ## 4. Client architecture
 
 ### The store (`src/client/store.ts`)
@@ -256,9 +273,9 @@ canonical key — entirely client-side from the loaded workspace (D22).
   sortable/filterable issue list with inline status/priority edits.
 - **Issue page** — inline-editable title and description, sidebar fields
   (status/priority/estimate selects; container, arc, and tags with picker
-  buttons), a Git section (linked PRs with state badges, commits with short
-  shas, linking out to GitHub), and comments + activity interleaved into
-  one timeline.
+  buttons; a **Work on this** field — D35), a Git section (linked PRs with
+  state badges, commits with short shas, linking out to GitHub), and comments
+  + activity interleaved into one timeline.
 - **Command palette** — one keyboard surface (D25): root mode searches
   issues by key (retired alias keys included) or title and containers by
   name, and lists commands (create issue/initiative/product/repo/arc,
@@ -277,6 +294,7 @@ canonical key — entirely client-side from the loaded workspace (D22).
 | `C` | Create issue |
 | `S` / `P` / `E` | Status / priority / estimate picker for the current issue |
 | `M` / `A` / `T` | Move / arc / tag picker for the current issue |
+| `W` | Work on this — copy the bundle as a prompt or the `progress work` CLI line (D35) |
 | `↑↓`, `Enter`, `Esc`, `Backspace` | Navigate / run / close / back-to-root inside the palette |
 
 "Current issue" = the issue page's issue, or the card/row under the pointer

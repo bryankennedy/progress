@@ -29,6 +29,7 @@ import {
   updateIssue,
   useTimeline,
 } from "../store";
+import { copyBundleAsPrompt, copyWorkCommand, prefetchBundle } from "../workOn";
 
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -54,6 +55,11 @@ export default function IssuePage({
       navigate(`/issue/${canonicalKey}`, { replace: true });
     }
   }, [resolved?.viaAlias, canonicalKey, navigate]);
+
+  // Warm the context bundle so "Work on this" copies instantly (SPEC §11.2).
+  useEffect(() => {
+    if (canonicalKey) prefetchBundle(canonicalKey);
+  }, [canonicalKey]);
 
   if (!resolved) {
     return (
@@ -192,6 +198,20 @@ export default function IssuePage({
               className="mt-0.5 block text-xs text-sky-600 hover:underline"
             >
               Edit… <span className="text-stone-400">(T)</span>
+            </button>
+          </Field>
+          <Field label="Work on this">
+            <button
+              onClick={() => void copyBundleAsPrompt(issueKeyOf(workspace, issue))}
+              className="block text-xs text-sky-600 hover:underline"
+            >
+              Copy as prompt <span className="text-stone-400">(W)</span>
+            </button>
+            <button
+              onClick={() => copyWorkCommand(issueKeyOf(workspace, issue))}
+              className="mt-0.5 block text-xs text-sky-600 hover:underline"
+            >
+              Copy CLI command
             </button>
           </Field>
           <div className="space-y-1 border-t border-stone-200 pt-3 text-xs text-stone-400">

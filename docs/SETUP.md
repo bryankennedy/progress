@@ -89,6 +89,7 @@ the dev server is served directly at the VM's main URL — no nginx in between.
 | `src/shared/` | Wire types + fixed vocabularies, shared client/server (dependency-free) |
 | `src/db/schema.ts` | Drizzle schema — generates migrations |
 | `src/mcp/server.ts` | Progress MCP server (`bun run mcp`) — stdio client of the API (§7) |
+| `bin/progress.ts` | `progress work <KEY>` kickoff CLI (§7) |
 | `drizzle/` | Generated SQL migrations (committed) |
 | `scripts/seed.sql` | Idempotent seed data (`seed-scale.ts`: 5k-issue synthetic workspace) |
 | `wrangler.jsonc` | Worker config: D1 binding, SPA assets, `/api/*` routing |
@@ -148,7 +149,9 @@ repository: Settings → Webhooks → Add — payload URL
 `application/json`, secret = `PROD_GITHUB_WEBHOOK_SECRET` from `.env`,
 events: Pushes + Pull requests.
 
-## 7. Progress MCP server
+## 7. Agent integration (MCP server + work CLI)
+
+### MCP server
 
 `src/mcp/server.ts` (D34) exposes the production API to Claude Code as MCP
 tools (`get_bundle`, `get_issue`, `list_issues`, `create_issue`,
@@ -162,16 +165,37 @@ Smoke-test it standalone (lists tools, runs the read tools against production):
 bun run mcp   # connects, prints "[progress-mcp] connected to …" on stderr
 ```
 
-Register it with Claude Code (needs the service-token vars in scope — the
-`PROD_CF_ACCESS_*` from `.env` are picked up automatically, or pass
-`CF_ACCESS_CLIENT_ID`/`CF_ACCESS_CLIENT_SECRET` explicitly):
+Register it with Claude Code. Use `bun --env-file` so the service token loads
+from `.env` regardless of where Claude Code launches the process — the secret
+stays in `.env` and never lands in `~/.claude.json`:
 
 ```bash
-claude mcp add progress -- bun /ABS/PATH/TO/progress/src/mcp/server.ts
+claude mcp add progress -- bun --env-file=/ABS/PATH/TO/progress/.env \
+  /ABS/PATH/TO/progress/src/mcp/server.ts
 ```
 
-Override the target with `PROGRESS_BASE_URL` (defaults to production) to point
-the server at a local `bun run dev` instance instead. Then in any session:
-*"pull the bundle for PROG-18 and start working"* — the agent calls
-`get_bundle`, does the work, and reports back via `comment` / `update_status`
-(SPEC §11.3).
+Verify with `claude mcp list` (should show `progress` connected) and `/mcp` in a
+session (lists the seven tools). Override the target with `PROGRESS_BASE_URL`
+(defaults to production) to point the server at a local `bun run dev` instance
+instead. Then in any session: *"pull the bundle for PROG-18 and start working"*
+— the agent calls `get_bundle`, does the work, and reports back via `comment` /
+`update_status` (SPEC §11.3).
+
+### Work CLI (`progress work`)
+
+`bin/progress.ts` (D35) is the outbound counterpart: `progress work <KEY>`
+fetches the issue's bundle, creates/checks out `iss/<KEY>` (so commits/PRs
+auto-link via §5), and launches `claude` primed with the bundle — in the
+current directory, so it carries no machine-specific knowledge of where repos
+live. Run it from inside the checkout you want to work in.
+
+Expose it as `progress` with a shell alias that, like the MCP server, loads the
+token from `.env` via `--env-file`:
+
+```bash
+alias progress='bun --env-file=/ABS/PATH/TO/progress/.env /ABS/PATH/TO/progress/bin/progress.ts'
+```
+
+Then `progress work PROG-19` (or `--print` to just emit the bundle, `--no-branch`
+to skip the branch). The in-app **Work on this** field / `W` key (REFERENCE §5)
+copy this same one-liner, or the bundle Markdown directly as a prompt.

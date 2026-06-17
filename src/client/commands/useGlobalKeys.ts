@@ -2,6 +2,7 @@
 //   ⌘K / Ctrl+K  command palette
 //   C            create issue (container defaults from the current view)
 //   S / P / E / M / T / A  status / priority / estimate / move / tag / arc
+//   W            work on this (copy bundle as prompt / CLI one-liner)
 //                  picker for the current issue (issue page, or the
 //                  hovered/focused card)
 // Plain keys are ignored while typing in inputs/textareas/selects.
@@ -17,6 +18,7 @@ const PICKER_KEYS = {
   m: "move",
   t: "tag",
   a: "arc",
+  w: "workon",
 } as const;
 
 export function useGlobalKeys() {

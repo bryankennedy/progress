@@ -4,7 +4,10 @@
 
 export type PaletteMode =
   | { kind: "root"; issueId: string | null }
-  | { kind: "status" | "priority" | "estimate" | "move" | "tag" | "arc"; issueId: string };
+  | {
+      kind: "status" | "priority" | "estimate" | "move" | "tag" | "arc" | "workon";
+      issueId: string;
+    };
 
 export type CreateDefaults = {
   productId?: string;

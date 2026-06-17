@@ -445,3 +445,33 @@ surface to the Worker, and contradict the "authenticates with the token"
 framing; can be revisited if a browser-side or multi-client MCP need appears.
 Read tools verified end-to-end against production over stdio; the write tools
 reuse routes already exercised by the dogfood cutover (D32).
+
+### D35: Work-on-this kickoff — in-app copy + a `progress work` CLI (PROG-19)
+The outbound surface (SPEC §11.2) ships as two thin layers over the existing
+bundle endpoint (D33), no new server code:
+
+- **In-app** (`src/client/workOn.ts`): the issue page's **Work on this** field
+  and the `W` palette command copy either the bundle Markdown ("Copy as
+  prompt" — the §11.1 button) or the `progress work <KEY>` CLI line. The bundle
+  is fetched from `GET /api/issues/:key/bundle` and **prefetched on issue load**
+  into a module cache, so the click copies synchronously — honoring "no
+  interaction spinner" (SPEC §8.2) and staying inside the clipboard's
+  user-activation window.
+- **CLI** (`bin/progress.ts`, exposed as `progress`): `progress work <KEY>`
+  fetches the bundle with the Access service token (the D34 auth pattern),
+  creates/checks out `iss/<KEY>`, and `spawnSync`s `claude` with the bundle as
+  the opening prompt (direct exec, no shell — the Markdown can't be
+  reinterpreted). `--print` emits the bundle instead; `--no-branch` skips the
+  checkout.
+
+Two deciding choices: (1) **Branch-from-key is default-on**, not opt-in —
+SPEC calls it "the linchpin" for §5 auto-linking, and doing it at kickoff is
+what makes agent commits/PRs flow back with zero ceremony; `--no-branch` is the
+escape hatch. (2) **The CLI operates in the current directory** and never
+resolves a repo from its `gitUrl` — that keeps Progress free of
+machine-specific knowledge of where checkouts live (SPEC §11.2); the user runs
+it from the repo they mean. *Rejected:* a web-UI "launch a cloud session"
+button (SPEC §11.2 "Later") — needs headless-Claude infra and a repo-location
+map, out of scope for v1.x minimal. The bundle being key-addressed Markdown
+(D33) is what lets both layers be this thin. This completes the Agent
+Integration arc (D33 bundle → D34 MCP → D35 kickoff).

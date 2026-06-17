@@ -173,7 +173,7 @@ PRs) to be an **executable work order**, not just a record.
 ### 11.1 The context bundle (shared foundation)
 
 ✅ **Endpoint built** (PROG-17, D33) — see [REFERENCE §3](./REFERENCE.md#3-api).
-The "copy as prompt" button rides with the outbound kickoff (§11.2, PROG-19).
+The "copy as prompt" button shipped with the kickoff (✅ PROG-19, D35).
 
 A deterministic Markdown rendering of an issue and its surroundings, served
 as `GET /api/issues/:key/bundle`:
@@ -191,24 +191,31 @@ prompt" button for manual use.
 
 ### 11.2 Outbound — execute an issue from Progress
 
+✅ **v1.x minimal built** (PROG-19, D35) — the "Work on this" field + `W`
+palette command copy the bundle as a prompt or the `progress work <KEY>`
+one-liner; `bin/progress.ts` fetches the bundle, branches `iss/<KEY>`, and
+launches `claude`. See [REFERENCE §3](./REFERENCE.md#work-on-this-kickoff-d35)
+and [SETUP §7](./SETUP.md#7-agent-integration-mcp-server--work-cli).
+
 A "Work on this" action on an issue (palette command + button) that starts a
 Claude Code session primed with the bundle:
 
-- v1.x minimal: copy/handoff — a generated one-liner (e.g.
-  `progress work PROG-123`, a small CLI/script that fetches the bundle and
-  launches `claude` with it in the right checkout) keeps Progress free of
+- ✅ v1.x minimal: copy/handoff — a generated one-liner
+  (`progress work PROG-123`, a small CLI that fetches the bundle and launches
+  `claude` with it in the right checkout) keeps Progress free of
   machine-specific knowledge about where repos live.
 - Later: launch a cloud/headless Claude Code session directly from the web
   UI against the repo's `gitUrl`, working in a branch named from the issue
   key (e.g. `iss/PROG-123`).
-- Branch-from-key is the linchpin: it makes §5 magic-word linking automatic,
-  so agent work flows back into the issue's activity with zero ceremony.
+- ✅ Branch-from-key is the linchpin: it makes §5 magic-word linking automatic,
+  so agent work flows back into the issue's activity with zero ceremony. The
+  CLI checks out `iss/<KEY>` by default.
 
 ### 11.3 Inbound — interrogate Progress from Claude Code
 
 ✅ **Built** (PROG-18, D34) — `src/mcp/server.ts` (`bun run mcp`), a local
 stdio MCP server that wraps the API and authenticates with the Access service
-token; registration in [SETUP §7](./SETUP.md#7-progress-mcp-server), tool table
+token; registration in [SETUP §7](./SETUP.md#7-agent-integration-mcp-server--work-cli), tool table
 in [REFERENCE §3](./REFERENCE.md#3-api).
 
 Progress exposes an **MCP server** (it wraps the existing API; MCP is the
@@ -230,4 +237,6 @@ natural "API for third-party clients" from §6, promoted from deferred):
    agent branches/PRs appear on the issue automatically. Built (D29).
 
 Roadmap: webhook ✅ → mobile + deploy + dogfood ✅ → context bundle ✅
-(PROG-17) + MCP server ✅ (PROG-18) → outbound work-session kickoff (PROG-19).
+(PROG-17) + MCP server ✅ (PROG-18) → outbound kickoff ✅ (PROG-19). The
+Agent Integration arc is complete; remaining §11.2 "Later" item (cloud/headless
+launch from the web UI) is post-v1.x direction.

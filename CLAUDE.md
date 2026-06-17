@@ -69,8 +69,14 @@ shipped (PROG-18, D34)**: `src/mcp/server.ts` (`bun run mcp`), a local stdio
 MCP server wrapping the API with the Access service token — seven
 key-addressed tools (get_bundle / get_issue / list_issues / create_issue /
 update_status / comment / move_issue); registration in `docs/SETUP.md` §7.
-Next brick: the outbound "Work on this" kickoff (PROG-19, SPEC §11.2) plus
-the thin "copy as prompt" button. `bun run dev`
+**Work-on-this kickoff shipped (PROG-19, D35)**: the issue-page "Work on this"
+field + `W` palette command copy the bundle as a prompt or the
+`progress work <KEY>` CLI line (`src/client/workOn.ts`); `bin/progress.ts`
+fetches the bundle, branches `iss/<KEY>`, and launches `claude` primed with it.
+**The Agent Integration arc is complete** (D33→D34→D35). Remaining v1.x ideas
+are post-arc: PR-driven status automation (PROG-22), cloud/headless launch from
+the web UI (SPEC §11.2 "Later"), PROG-16 webhook registration (owner-side).
+`bun run dev`
 serves everything on :8000
 (see `docs/SETUP.md`). Shared wire types live in `src/shared/`. Synthetic
 5k-issue data: `bun run db:seed:scale`; reset via `docs/SETUP.md` §2. Update
