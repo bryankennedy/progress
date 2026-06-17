@@ -10,22 +10,26 @@
     "db:migrate": "wrangler d1 migrations apply progress-db --local",
     "db:seed": "wrangler d1 execute progress-db --local --file=./scripts/seed.sql",
     "db:seed:scale": "bun scripts/seed-scale.ts",
+    "mcp": "bun src/mcp/server.ts",
     "deploy": "bun run build && wrangler deploy"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@tanstack/react-query": "^5.101.0",
     "drizzle-orm": "^0.44.2",
     "hono": "^4.7.11",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-markdown": "^10.1.0",
-    "wouter": "^3.10.0"
+    "wouter": "^3.10.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.7.4",
     "@cloudflare/workers-types": "^4.20250610.0",
     "@tailwindcss/vite": "^4.1.8",
+    "@types/node": "^25.9.3",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.5.2",

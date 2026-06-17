@@ -418,3 +418,30 @@ today; comment/status updates ride the API/MCP surface in PROG-18). The
 reads are independent, so they run via `Promise.all` per [D31]. The "copy as
 prompt" button (§11.1) is a thin client follow-on, naturally bundled with
 the outbound kickoff work (PROG-19).
+
+### D34: Progress MCP server is a local stdio *client* of the API (PROG-18)
+The §11.3 MCP surface (`src/mcp/server.ts`, `bun run mcp`) is a **local stdio**
+MCP server the owner registers in Claude Code — **not** a remote MCP endpoint
+hosted on the Worker. The deciding constraint is in the issue itself:
+"authenticates with the Access service token (§11.4)." A server that
+*presents* the service token is a **client** of the Access-protected API; a
+Worker-hosted endpoint would instead sit *behind* Access and be
+authenticated-to. The client shape also keeps the Worker the single source of
+truth for domain logic (the "rigid simplicity" rule) — the MCP server holds no
+schema or business rules, only thin wrappers over existing routes plus
+key→id/name resolution off one `/api/workspace` snapshot (the same alias-aware
+resolution the Worker does). Validation vocabularies are imported from
+`src/shared/constants.ts`, the dependency-free source of truth, so the tools
+can't drift from the API's accepted statuses/priorities/estimates. Tools are
+**key-addressed** (agents speak in keys like PROG-18, not opaque ids) and
+mirror the API one-for-one: `get_bundle, get_issue, list_issues, create_issue,
+update_status, comment, move_issue`. Auth reads `CF_ACCESS_CLIENT_ID/SECRET`
+(the header names) with a `PROD_CF_ACCESS_*` fallback so the same `.env` the
+dogfood scripts use just works; `PROGRESS_BASE_URL` retargets it at local dev.
+Transport/SDK: `@modelcontextprotocol/sdk` over stdio (stdout is the JSON-RPC
+channel — the server logs only to stderr). *Rejected:* a Worker-hosted
+streamable-HTTP MCP server — it would duplicate auth handling, add a hosting
+surface to the Worker, and contradict the "authenticates with the token"
+framing; can be revisited if a browser-side or multi-client MCP need appears.
+Read tools verified end-to-end against production over stdio; the write tools
+reuse routes already exercised by the dogfood cutover (D32).

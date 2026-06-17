@@ -63,9 +63,14 @@ token via `scripts/dogfood-cutover.ts`). Same day, fixed a production
 `/api/workspace` 500 (D31: 9-statement read `db.batch` → `Promise.all`, plus
 an `app.onError` that logs real exceptions to `wrangler tail`). Remaining v1
 hookup is owner-side only: GitHub webhook registration on connected repos.
-Now building **v1.x agent integration** — next brick is the context bundle
-endpoint `GET /api/issues/:key/bundle` (SPEC §11.1), the shared foundation
-for the MCP server + "Work on this" kickoff (SPEC §11/D28). `bun run dev`
+Now building **v1.x agent integration**. Context bundle endpoint
+`GET /api/issues/:key/bundle` shipped (PROG-17, D33). **Progress MCP server
+shipped (PROG-18, D34)**: `src/mcp/server.ts` (`bun run mcp`), a local stdio
+MCP server wrapping the API with the Access service token — seven
+key-addressed tools (get_bundle / get_issue / list_issues / create_issue /
+update_status / comment / move_issue); registration in `docs/SETUP.md` §7.
+Next brick: the outbound "Work on this" kickoff (PROG-19, SPEC §11.2) plus
+the thin "copy as prompt" button. `bun run dev`
 serves everything on :8000
 (see `docs/SETUP.md`). Shared wire types live in `src/shared/`. Synthetic
 5k-issue data: `bun run db:seed:scale`; reset via `docs/SETUP.md` §2. Update

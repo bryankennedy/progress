@@ -206,8 +206,13 @@ Claude Code session primed with the bundle:
 
 ### 11.3 Inbound — interrogate Progress from Claude Code
 
-Progress exposes an **MCP server** (the Worker already hosts the API; MCP is
-the natural "API for third-party clients" from §6, promoted from deferred):
+✅ **Built** (PROG-18, D34) — `src/mcp/server.ts` (`bun run mcp`), a local
+stdio MCP server that wraps the API and authenticates with the Access service
+token; registration in [SETUP §7](./SETUP.md#7-progress-mcp-server), tool table
+in [REFERENCE §3](./REFERENCE.md#3-api).
+
+Progress exposes an **MCP server** (it wraps the existing API; MCP is the
+natural "API for third-party clients" from §6, promoted from deferred):
 
 - Tools: get issue/bundle by key, list/filter issues ("my todo in this
   repo"), update status, comment, create issues, move issues.
@@ -217,12 +222,12 @@ the natural "API for third-party clients" from §6, promoted from deferred):
 
 ### 11.4 Prerequisites & sequencing
 
-1. **Production deploy** (§7/§8.3) — agents need a stable URL.
-2. **Non-interactive auth**: a Cloudflare Access service token (same pattern
-   as the webhook's HMAC bypass) for the bundle/MCP surface; secrets via
-   env per §8.3.
+1. ✅ **Production deploy** (§7/§8.3) — agents need a stable URL. Live.
+2. ✅ **Non-interactive auth**: a Cloudflare Access service token (same
+   pattern as the webhook's HMAC bypass) for the bundle/MCP surface; secrets
+   via env per §8.3. Live (D32) — the MCP server (D34) presents it.
 3. ✅ **§5 webhook linking** — without it the loop doesn't close; with it,
    agent branches/PRs appear on the issue automatically. Built (D29).
 
-Roadmap: webhook ✅ → mobile + deploy + dogfood (next; v1 done) → context
-bundle + MCP server → outbound work-session kickoff.
+Roadmap: webhook ✅ → mobile + deploy + dogfood ✅ → context bundle ✅
+(PROG-17) + MCP server ✅ (PROG-18) → outbound work-session kickoff (PROG-19).

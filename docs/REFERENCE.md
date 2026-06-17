@@ -26,6 +26,7 @@ vision and unbuilt work see [`SPEC.md`](./SPEC.md); for rationale see
 | `src/client/store.ts` | Client store: workspace cache + every optimistic mutation |
 | `src/shared/` | Wire types (`types.ts`) and fixed vocabularies (`constants.ts`) shared client/server |
 | `src/db/schema.ts` | Drizzle schema — single schema source of truth, generates `drizzle/` migrations |
+| `src/mcp/server.ts` | Progress MCP server — local stdio client of the API (D34) |
 | `scripts/` | `seed.sql` (idempotent baseline), `seed-scale.ts` (5k-issue synthetic workspace) |
 
 ## 2. Domain model
@@ -182,6 +183,32 @@ simply don't resolve (so prose like "UTF-8" can't false-positive).
   the PR. First sight inserts the link + `pr_linked` activity; later events
   (edit/close/merge/reopen) update title and state in place, silently.
   GitHub's closed+merged flag is normalized to the `merged` state.
+
+### MCP server (D34)
+
+`src/mcp/server.ts` (`bun run mcp`) is a **local stdio MCP server** that wraps
+this API rather than re-implementing the domain — the Worker stays the single
+source of truth. It authenticates with the Cloudflare Access **service token**
+(`CF_ACCESS_CLIENT_ID`/`SECRET`, or the `PROD_CF_ACCESS_*` fallback) via the
+`CF-Access-Client-*` headers, the same non-interactive pattern the dogfood
+scripts use (SPEC §11.3/§11.4). Registration: SETUP §7.
+
+Tools are **key-addressed** (alias-aware) and validated against the shared
+vocabularies in `src/shared/constants.ts`:
+
+| Tool | Wraps |
+|---|---|
+| `get_bundle` | `GET /api/issues/:key/bundle` — the Markdown work order |
+| `get_issue` | one issue as structured JSON (fields + lineage names + tags) |
+| `list_issues` | filters `GET /api/workspace` in-process: `status, productKey, repo, arc, tag, query, limit` (AND-combined; default limit 50) |
+| `create_issue` | `POST /api/issues` (arc/repo by name, resolved within the product) |
+| `update_status` | `PATCH /api/issues/:id` `{ status }` |
+| `comment` | `POST /api/issues/:id/comments` |
+| `move_issue` | `POST /api/issues/:id/move` (destination product by key) |
+
+Key→id resolution and name lookups run off one `/api/workspace` snapshot per
+call, mirroring the Worker's own alias-aware resolution (retired keys resolve;
+results report the current canonical key).
 
 ## 4. Client architecture
 

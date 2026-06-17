@@ -88,6 +88,7 @@ the dev server is served directly at the VM's main URL — no nginx in between.
 | `src/client/` | React app (entry: `main.tsx`; `pages/`, `commands/` for palette/dialogs/keyboard, `store.ts` for all mutations) |
 | `src/shared/` | Wire types + fixed vocabularies, shared client/server (dependency-free) |
 | `src/db/schema.ts` | Drizzle schema — generates migrations |
+| `src/mcp/server.ts` | Progress MCP server (`bun run mcp`) — stdio client of the API (§7) |
 | `drizzle/` | Generated SQL migrations (committed) |
 | `scripts/seed.sql` | Idempotent seed data (`seed-scale.ts`: 5k-issue synthetic workspace) |
 | `wrangler.jsonc` | Worker config: D1 binding, SPA assets, `/api/*` routing |
@@ -146,3 +147,31 @@ repository: Settings → Webhooks → Add — payload URL
 `https://progress.bryan-22c.workers.dev/api/webhooks/github`, content type
 `application/json`, secret = `PROD_GITHUB_WEBHOOK_SECRET` from `.env`,
 events: Pushes + Pull requests.
+
+## 7. Progress MCP server
+
+`src/mcp/server.ts` (D34) exposes the production API to Claude Code as MCP
+tools (`get_bundle`, `get_issue`, `list_issues`, `create_issue`,
+`update_status`, `comment`, `move_issue`). It is a **local stdio** server — it
+runs on your machine and reaches the Access-protected API with the service
+token from §6, so nothing is hosted on the Worker.
+
+Smoke-test it standalone (lists tools, runs the read tools against production):
+
+```bash
+bun run mcp   # connects, prints "[progress-mcp] connected to …" on stderr
+```
+
+Register it with Claude Code (needs the service-token vars in scope — the
+`PROD_CF_ACCESS_*` from `.env` are picked up automatically, or pass
+`CF_ACCESS_CLIENT_ID`/`CF_ACCESS_CLIENT_SECRET` explicitly):
+
+```bash
+claude mcp add progress -- bun /ABS/PATH/TO/progress/src/mcp/server.ts
+```
+
+Override the target with `PROGRESS_BASE_URL` (defaults to production) to point
+the server at a local `bun run dev` instance instead. Then in any session:
+*"pull the bundle for PROG-18 and start working"* — the agent calls
+`get_bundle`, does the work, and reports back via `comment` / `update_status`
+(SPEC §11.3).
