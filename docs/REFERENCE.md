@@ -151,7 +151,10 @@ Sign-in is gated by the `ALLOWED_EMAILS` allowlist (currently the owner only).
 Auth routes: `GET /api/auth/login` (302 → Google, sets a signed state cookie),
 `GET /api/auth/callback` (verify state, exchange code, allowlist-check, upsert
 user by email, set session cookie, 302 → `/`), `POST /api/auth/logout`. See
-`src/worker/auth.ts`.
+`src/worker/auth.ts`. Client-side, a `401` from `GET /api/workspace` surfaces as
+an `UnauthenticatedError` that renders the **sign-in landing page**
+(`SignIn.tsx`, §5) — a brand mark and a "Sign in with Google" button linking to
+`/api/auth/login` — rather than auto-redirecting.
 
 ### Workspace & issues
 
@@ -282,6 +285,11 @@ canonical key — entirely client-side from the loaded workspace (D22).
 
 ## 5. UI surfaces
 
+- **Sign-in landing (`SignIn.tsx`)** — the only screen rendered without a loaded
+  workspace (on a `401`, PROG-34): centered brand mark, "Progress" wordmark, and
+  a single **Sign in with Google** link to `/api/auth/login`. No header, no store
+  access. In local dev the Worker falls back to the owner, so this appears only
+  when OAuth is configured (production).
 - **App header** — persistent across pages: the "Progress" home link, nav
   (Board · Agenda · Structure), and a **New** menu (Issue · Initiative ·
   Product · Repo · Arc) that opens the existing optimistic create flows. The

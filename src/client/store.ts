@@ -37,27 +37,43 @@ const timelineKey = (issueId: string) => ["issue", issueId, "timeline"] as const
 // Initial app load is the one permitted loading state; surface its cost.
 export const loadStats = { fetchMs: 0 };
 
+// Thrown when the workspace load returns 401 (PROG-34): no session cookie /
+// bearer. App.tsx renders the SignIn landing page on this rather than the error
+// banner; the retry guard below stops React Query from re-fetching it.
+export class UnauthenticatedError extends Error {
+  constructor() {
+    super("unauthenticated");
+    this.name = "UnauthenticatedError";
+  }
+}
+
 async function fetchWorkspace(): Promise<WorkspacePayload> {
   const t0 = performance.now();
   const res = await fetch("/api/workspace");
-  // Not signed in (PROG-34): bounce to Google sign-in. Returns a never-resolving
-  // promise so no error flashes before navigation.
-  if (res.status === 401) {
-    window.location.href = "/api/auth/login";
-    return new Promise<WorkspacePayload>(() => {});
-  }
+  // Not signed in: surface as a distinct error so App can show the landing page
+  // with a "Sign in with Google" CTA instead of silently redirecting.
+  if (res.status === 401) throw new UnauthenticatedError();
   if (!res.ok) throw new Error(`workspace load failed: HTTP ${res.status}`);
   const ws = (await res.json()) as WorkspacePayload;
   loadStats.fetchMs = performance.now() - t0;
   return ws;
 }
 
+const workspaceQuery = {
+  queryKey: WS_KEY,
+  queryFn: fetchWorkspace,
+  // No point retrying an unauthenticated load — the answer won't change until
+  // the user signs in. Other failures keep the default retry behavior.
+  retry: (failureCount: number, error: Error) =>
+    !(error instanceof UnauthenticatedError) && failureCount < 3,
+} as const;
+
 export function useWorkspace() {
-  return useQuery({ queryKey: WS_KEY, queryFn: fetchWorkspace });
+  return useQuery(workspaceQuery);
 }
 
 export function useWorkspaceSlice<T>(select: (ws: WorkspacePayload) => T): T | undefined {
-  return useQuery({ queryKey: WS_KEY, queryFn: fetchWorkspace, select }).data;
+  return useQuery({ ...workspaceQuery, select }).data;
 }
 
 // ---------- issue keys ----------

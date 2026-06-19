@@ -1,7 +1,8 @@
 import { Link, Route, Switch } from "wouter";
 import CommandLayer from "./commands/CommandLayer";
 import Header from "./Header";
-import { useWorkspace } from "./store";
+import SignIn from "./SignIn";
+import { UnauthenticatedError, useWorkspace } from "./store";
 import { Toasts } from "./toast";
 import Agenda from "./pages/Agenda";
 import ContainerPage, { type ContainerType } from "./pages/ContainerPage";
@@ -18,6 +19,9 @@ const CONTAINER_ROUTES: { path: string; type: ContainerType }[] = [
 
 export default function App() {
   const { data: workspace, isPending, error } = useWorkspace();
+
+  // Not signed in: the landing page is the whole screen (no header/shell).
+  if (error instanceof UnauthenticatedError) return <SignIn />;
 
   return (
     <div className="min-h-screen bg-canvas text-ink">
