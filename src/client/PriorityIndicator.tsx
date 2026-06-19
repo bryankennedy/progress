@@ -24,7 +24,7 @@ export default function PriorityIndicator({
         color
           ? { backgroundColor: color }
           : // none: a hollow ring so it reads as "unset", not low-but-colored.
-            { boxShadow: "inset 0 0 0 1.5px var(--color-stone-300, #d6d3d1)" }
+            { boxShadow: "inset 0 0 0 1.5px var(--color-ink-faint, #9a8b73)" }
       }
     />
   );

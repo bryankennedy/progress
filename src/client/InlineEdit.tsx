@@ -32,7 +32,7 @@ export default function InlineEdit({
           setEditing(true);
         }}
         title="Click to edit"
-        className={`cursor-text rounded text-left hover:bg-stone-200/40 ${className} ${value === "" ? "text-stone-400" : ""}`}
+        className={`cursor-text rounded text-left hover:bg-line/40 ${className} ${value === "" ? "text-ink-faint" : ""}`}
       >
         {value === "" ? placeholder : value}
       </button>
@@ -54,7 +54,7 @@ export default function InlineEdit({
           setEditing(false);
         }
       }}
-      className={`w-full rounded border border-stone-300 bg-white px-1 focus:outline-none ${inputClassName}`}
+      className={`w-full rounded border border-line bg-card px-1 focus:outline-none ${inputClassName}`}
     />
   );
 }

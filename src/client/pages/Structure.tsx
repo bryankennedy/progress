@@ -12,7 +12,7 @@ function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="rounded border border-dashed border-stone-300 px-2 py-0.5 text-xs text-stone-400 hover:border-stone-400 hover:text-stone-600"
+      className="rounded border border-dashed border-line px-2 py-0.5 text-xs text-ink-faint hover:border-ink-faint hover:text-ink-soft"
     >
       + {label}
     </button>
@@ -23,8 +23,8 @@ function NodeLink({ href, name, archived }: { href: string; name: string; archiv
   return (
     <Link
       href={href}
-      className={`rounded px-1.5 py-0.5 font-medium hover:bg-stone-100 ${
-        archived ? "text-stone-400 line-through" : "text-stone-800"
+      className={`rounded px-1.5 py-0.5 font-medium hover:bg-line ${
+        archived ? "text-ink-faint line-through" : "text-ink"
       }`}
     >
       {name}
@@ -48,7 +48,7 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
       <div className="flex items-baseline justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Structure</h1>
-          <p className="mt-1 text-xs text-stone-400">
+          <p className="mt-1 text-xs text-ink-faint">
             The Initiative → Product → Arc tree. Add anywhere; click a node to open it.
           </p>
         </div>
@@ -61,9 +61,9 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
             workspace.products.filter((p) => p.initiativeId === initiative.id),
           );
           return (
-            <section key={initiative.id} className="rounded-lg border border-stone-200 bg-white p-4">
+            <section key={initiative.id} className="rounded-lg border border-line bg-card p-4">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] uppercase tracking-wide text-stone-400">Initiative</span>
+                <span className="text-[10px] uppercase tracking-wide font-mono text-ink-faint">Initiative</span>
                 <NodeLink
                   href={`/initiative/${initiative.id}`}
                   name={initiative.name}
@@ -75,9 +75,9 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
                 />
               </div>
 
-              <div className="mt-3 space-y-3 border-l border-stone-100 pl-4">
+              <div className="mt-3 space-y-3 border-l border-line pl-4">
                 {products.length === 0 && (
-                  <p className="text-xs text-stone-400">No products yet.</p>
+                  <p className="text-xs text-ink-faint">No products yet.</p>
                 )}
                 {products.map((product) => {
                   const repos = byActive(workspace.repos.filter((r) => r.productId === product.id));
@@ -85,7 +85,7 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
                   return (
                     <div key={product.id}>
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[10px] uppercase tracking-wide text-stone-400">
+                        <span className="text-[10px] uppercase tracking-wide font-mono text-ink-faint">
                           Product
                         </span>
                         <NodeLink
@@ -93,7 +93,7 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
                           name={product.name}
                           archived={!!product.archivedAt}
                         />
-                        <span className="font-mono text-[11px] text-stone-400">
+                        <span className="font-mono text-[11px] text-ink-faint">
                           {product.keyPrefix}
                         </span>
                         <AddButton
@@ -106,16 +106,16 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
                         />
                       </div>
                       {(repos.length > 0 || arcs.length > 0) && (
-                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 border-l border-stone-100 pl-4 text-sm">
+                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 border-l border-line pl-4 text-sm">
                           {repos.map((r) => (
                             <span key={r.id} className="flex items-center gap-1">
-                              <span className="text-[10px] uppercase text-stone-300">repo</span>
+                              <span className="text-[10px] uppercase text-ink-faint">repo</span>
                               <NodeLink href={`/repo/${r.id}`} name={r.name} archived={!!r.archivedAt} />
                             </span>
                           ))}
                           {arcs.map((a) => (
                             <span key={a.id} className="flex items-center gap-1">
-                              <span className="text-[10px] uppercase text-stone-300">arc</span>
+                              <span className="text-[10px] uppercase text-ink-faint">arc</span>
                               <NodeLink href={`/arc/${a.id}`} name={a.name} archived={!!a.archivedAt} />
                             </span>
                           ))}
@@ -129,7 +129,7 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
           );
         })}
         {initiatives.length === 0 && (
-          <p className="text-sm text-stone-400">
+          <p className="text-sm text-ink-faint">
             No initiatives yet. Create one to start building structure.
           </p>
         )}

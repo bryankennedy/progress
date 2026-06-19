@@ -27,9 +27,9 @@ export default function Header() {
   ];
 
   return (
-    <header className="sticky top-0 z-40 border-b border-stone-200 bg-stone-50/90 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-line bg-paper/90 backdrop-blur">
       <div className="mx-auto flex max-w-screen-2xl items-center gap-1 px-3 py-2 sm:px-6">
-        <Link href="/" className="mr-2 font-semibold tracking-tight text-stone-900">
+        <Link href="/" className="mr-2 font-semibold tracking-tight text-ink">
           Progress
         </Link>
         <nav className="flex items-center gap-1 text-sm">
@@ -39,8 +39,8 @@ export default function Header() {
               href={item.href}
               className={`rounded px-2 py-1 ${
                 item.match(path)
-                  ? "bg-stone-200 text-stone-900"
-                  : "text-stone-500 hover:bg-stone-100 hover:text-stone-700"
+                  ? "bg-adobe-wash/40 text-adobe-deep"
+                  : "text-ink-soft hover:bg-line hover:text-ink"
               }`}
             >
               {item.label}
@@ -51,15 +51,15 @@ export default function Header() {
         <div className="relative ml-auto">
           <button
             onClick={() => setMenuOpen((o) => !o)}
-            className="rounded bg-stone-900 px-3 py-1 text-sm text-white hover:bg-stone-700"
+            className="rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep"
           >
-            New <span className="text-stone-400">▾</span>
+            New <span className="text-white/70">▾</span>
           </button>
           {menuOpen && (
             <>
               {/* Click-away backdrop. */}
               <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-0 z-50 mt-1 w-44 overflow-hidden rounded-lg border border-stone-200 bg-white py-1 shadow-xl">
+              <div className="absolute right-0 z-50 mt-1 w-44 overflow-hidden rounded-lg border border-line bg-card py-1 shadow-xl">
                 {newItems.map((item) => (
                   <button
                     key={item.label}
@@ -67,7 +67,7 @@ export default function Header() {
                       setMenuOpen(false);
                       item.run();
                     }}
-                    className="block w-full px-3 py-1.5 text-left text-sm text-stone-700 hover:bg-stone-100"
+                    className="block w-full px-3 py-1.5 text-left text-sm text-ink-soft hover:bg-line"
                   >
                     New {item.label.toLowerCase()}
                   </button>

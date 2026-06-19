@@ -99,17 +99,17 @@ export default function CommandPalette({ workspace }: { workspace: WorkspacePayl
     mode.kind !== "root" ? workspace.issues.find((i) => i.id === mode.issueId) : undefined;
 
   return (
-    <div className="fixed inset-0 z-50 bg-stone-900/20 p-4" onMouseDown={close}>
+    <div className="fixed inset-0 z-50 bg-ink/20 p-4" onMouseDown={close}>
       <div
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={onKeyDown}
-        className="mx-auto mt-[12vh] max-w-lg overflow-hidden rounded-xl border border-stone-200 bg-white shadow-2xl"
+        className="mx-auto mt-[12vh] max-w-lg overflow-hidden rounded-xl border border-line bg-card shadow-2xl"
       >
         {ctxIssue && (
-          <p className="border-b border-stone-100 px-4 pb-2 pt-3 text-xs text-stone-400">
+          <p className="border-b border-line px-4 pb-2 pt-3 text-xs text-ink-faint">
             {MODE_TITLES[mode.kind as keyof typeof MODE_TITLES]} ·{" "}
             <span className="font-mono">{issueKeyOf(workspace, ctxIssue)}</span>{" "}
-            <span className="text-stone-500">{ctxIssue.title}</span>
+            <span className="text-ink-soft">{ctxIssue.title}</span>
           </p>
         )}
         <input
@@ -120,7 +120,7 @@ export default function CommandPalette({ workspace }: { workspace: WorkspacePayl
             setSelected(0);
           }}
           placeholder={mode.kind === "root" ? "Type a command or search…" : "Filter…"}
-          className="w-full border-b border-stone-100 px-4 py-3 text-sm focus:outline-none"
+          className="w-full border-b border-line px-4 py-3 text-sm focus:outline-none"
         />
         <ul ref={listRef} className="max-h-80 overflow-y-auto p-1">
           {items.map((item, i) => (
@@ -130,15 +130,15 @@ export default function CommandPalette({ workspace }: { workspace: WorkspacePayl
                 onClick={() => execute(item)}
                 onMouseMove={() => setSelected(i)}
                 data-selected={i === sel || undefined}
-                className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm data-selected:bg-stone-100"
+                className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm data-selected:bg-line"
               >
                 <span className="truncate">{item.label}</span>
-                {item.hint && <span className="shrink-0 text-xs text-stone-400">{item.hint}</span>}
+                {item.hint && <span className="shrink-0 text-xs text-ink-faint">{item.hint}</span>}
               </button>
             </li>
           ))}
           {items.length === 0 && (
-            <li className="px-3 py-6 text-center text-sm text-stone-400">No matches.</li>
+            <li className="px-3 py-6 text-center text-sm text-ink-faint">No matches.</li>
           )}
         </ul>
       </div>

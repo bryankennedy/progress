@@ -20,14 +20,14 @@ export default function App() {
   const { data: workspace, isPending, error } = useWorkspace();
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900">
+    <div className="min-h-screen bg-canvas text-ink">
       {workspace && <Header />}
       {/* Wide shell for the board; narrow pages re-constrain themselves.
           Tighter padding on phones — the board needs the width. */}
       <main className="mx-auto max-w-screen-2xl px-3 py-5 sm:px-6 sm:py-10">
         {/* Initial app load: the only permitted loading state (SPEC §8.2). */}
-        {isPending && <p className="text-stone-400">Loading workspace…</p>}
-        {error && <p className="text-red-600">{String(error)}</p>}
+        {isPending && <p className="text-ink-faint">Loading workspace…</p>}
+        {error && <p className="text-danger">{String(error)}</p>}
         {workspace && <CommandLayer workspace={workspace} />}
         {workspace && (
           <Switch>
@@ -52,9 +52,9 @@ export default function App() {
               </Route>
             ))}
             <Route>
-              <p className="text-stone-500">
+              <p className="text-ink-soft">
                 Nothing here.{" "}
-                <Link href="/" className="text-sky-600 hover:underline">
+                <Link href="/" className="text-adobe hover:underline">
                   Back to the workspace
                 </Link>
               </p>

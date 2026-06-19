@@ -156,10 +156,10 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
   };
 
   const selectClass =
-    "rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-600 hover:border-stone-400";
+    "rounded border border-line bg-card px-2 py-1 text-xs text-ink-soft hover:border-ink-faint";
 
   return (
-    <div className="fixed inset-0 z-50 bg-stone-900/20 p-4" onMouseDown={() => setOpen(false)}>
+    <div className="fixed inset-0 z-50 bg-ink/20 p-4" onMouseDown={() => setOpen(false)}>
       <form
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
@@ -169,15 +169,15 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
           e.preventDefault();
           submit();
         }}
-        className="mx-auto mt-[12vh] max-w-lg rounded-xl border border-stone-200 bg-white p-4 shadow-2xl"
+        className="mx-auto mt-[12vh] max-w-lg rounded-xl border border-line bg-card p-4 shadow-2xl"
       >
-        <h2 className="text-xs font-medium uppercase tracking-wide text-stone-400">New issue</h2>
+        <h2 className="text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">New issue</h2>
         <input
           autoFocus
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Issue title"
-          className="mt-2 w-full rounded border border-stone-200 px-3 py-2 text-sm focus:border-stone-400 focus:outline-none"
+          className="mt-2 w-full rounded border border-line px-3 py-2 text-sm focus:border-ink-faint focus:outline-none"
         />
         <div className="mt-3 flex flex-wrap gap-2">
           <select value={container} onChange={(e) => onContainerChange(e.target.value)} className={selectClass}>
@@ -269,7 +269,7 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
         {/* Inline product create (SPEC v2 §4): name + key prefix + initiative,
             created and selected without leaving the dialog. */}
         {newProduct && (
-          <div className="mt-2 flex flex-wrap items-center gap-2 rounded border border-stone-200 bg-stone-50 p-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded border border-line bg-paper p-2">
             <input
               autoFocus
               value={newProduct.name}
@@ -285,7 +285,7 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
                 }
               }}
               placeholder="Product name"
-              className="min-w-40 flex-1 rounded border border-stone-200 px-2 py-1 text-xs focus:border-stone-400 focus:outline-none"
+              className="min-w-40 flex-1 rounded border border-line px-2 py-1 text-xs focus:border-ink-faint focus:outline-none"
             />
             <input
               value={newProduct.prefix}
@@ -296,7 +296,7 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
               }
               placeholder="KEY"
               title="Issue-key prefix: 2–8 letters"
-              className="w-20 rounded border border-stone-200 px-2 py-1 font-mono text-xs uppercase focus:border-stone-400 focus:outline-none"
+              className="w-20 rounded border border-line px-2 py-1 font-mono text-xs uppercase focus:border-ink-faint focus:outline-none"
             />
             <select
               value={newProduct.initiativeId}
@@ -313,7 +313,7 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
               type="button"
               onClick={submitNewProduct}
               disabled={newProduct.name.trim() === "" || !/^[A-Z]{2,8}$/.test(newProduct.prefix) || !newProduct.initiativeId}
-              className="rounded bg-stone-900 px-2 py-1 text-xs text-white hover:bg-stone-700 disabled:opacity-40"
+              className="rounded bg-adobe px-2 py-1 text-xs text-white hover:bg-adobe-deep disabled:opacity-40"
             >
               Add
             </button>
@@ -322,7 +322,7 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
 
         {/* Inline arc create (SPEC v2 §4): a name within the selected product. */}
         {newArc !== null && (
-          <div className="mt-2 flex flex-wrap items-center gap-2 rounded border border-stone-200 bg-stone-50 p-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded border border-line bg-paper p-2">
             <input
               autoFocus
               value={newArc}
@@ -334,13 +334,13 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
                 }
               }}
               placeholder="Arc name"
-              className="min-w-40 flex-1 rounded border border-stone-200 px-2 py-1 text-xs focus:border-stone-400 focus:outline-none"
+              className="min-w-40 flex-1 rounded border border-line px-2 py-1 text-xs focus:border-ink-faint focus:outline-none"
             />
             <button
               type="button"
               onClick={submitNewArc}
               disabled={newArc.trim() === "" || !selectedProductId}
-              className="rounded bg-stone-900 px-2 py-1 text-xs text-white hover:bg-stone-700 disabled:opacity-40"
+              className="rounded bg-adobe px-2 py-1 text-xs text-white hover:bg-adobe-deep disabled:opacity-40"
             >
               Add
             </button>
@@ -350,14 +350,14 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="rounded px-3 py-1 text-sm text-stone-500 hover:bg-stone-100"
+            className="rounded px-3 py-1 text-sm text-ink-soft hover:bg-line"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={title.trim() === "" || !selectedProductId}
-            className="rounded bg-stone-900 px-3 py-1 text-sm text-white hover:bg-stone-700 disabled:opacity-40"
+            className="rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep disabled:opacity-40"
           >
             Create issue
           </button>

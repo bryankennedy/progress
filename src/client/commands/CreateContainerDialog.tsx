@@ -96,12 +96,12 @@ export default function CreateContainerDialog({ workspace }: { workspace: Worksp
   };
 
   const inputClass =
-    "w-full rounded border border-stone-200 px-3 py-2 text-sm focus:border-stone-400 focus:outline-none";
+    "w-full rounded border border-line px-3 py-2 text-sm focus:border-ink-faint focus:outline-none";
   const selectClass =
-    "rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-600 hover:border-stone-400";
+    "rounded border border-line bg-card px-2 py-1 text-xs text-ink-soft hover:border-ink-faint";
 
   return (
-    <div className="fixed inset-0 z-50 bg-stone-900/20 p-4" onMouseDown={() => setRequest(null)}>
+    <div className="fixed inset-0 z-50 bg-ink/20 p-4" onMouseDown={() => setRequest(null)}>
       <form
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
@@ -111,9 +111,9 @@ export default function CreateContainerDialog({ workspace }: { workspace: Worksp
           e.preventDefault();
           submit();
         }}
-        className="mx-auto mt-[12vh] max-w-lg rounded-xl border border-stone-200 bg-white p-4 shadow-2xl"
+        className="mx-auto mt-[12vh] max-w-lg rounded-xl border border-line bg-card p-4 shadow-2xl"
       >
-        <h2 className="text-xs font-medium uppercase tracking-wide text-stone-400">
+        <h2 className="text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">
           New {KIND_LABELS[kind]}
         </h2>
         <input
@@ -144,7 +144,7 @@ export default function CreateContainerDialog({ workspace }: { workspace: Worksp
                 }}
                 placeholder="KEY"
                 title="Issue-key prefix: 2–8 letters"
-                className="w-24 rounded border border-stone-200 px-2 py-1 font-mono text-xs uppercase focus:border-stone-400 focus:outline-none"
+                className="w-24 rounded border border-line px-2 py-1 font-mono text-xs uppercase focus:border-ink-faint focus:outline-none"
               />
             </>
           )}
@@ -162,7 +162,7 @@ export default function CreateContainerDialog({ workspace }: { workspace: Worksp
               value={gitUrl}
               onChange={(e) => setGitUrl(e.target.value)}
               placeholder="Git URL (optional)"
-              className="min-w-48 flex-1 rounded border border-stone-200 px-2 py-1 text-xs focus:border-stone-400 focus:outline-none"
+              className="min-w-48 flex-1 rounded border border-line px-2 py-1 text-xs focus:border-ink-faint focus:outline-none"
             />
           )}
         </div>
@@ -170,14 +170,14 @@ export default function CreateContainerDialog({ workspace }: { workspace: Worksp
           <button
             type="button"
             onClick={() => setRequest(null)}
-            className="rounded px-3 py-1 text-sm text-stone-500 hover:bg-stone-100"
+            className="rounded px-3 py-1 text-sm text-ink-soft hover:bg-line"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={!canSubmit}
-            className="rounded bg-stone-900 px-3 py-1 text-sm text-white hover:bg-stone-700 disabled:opacity-40"
+            className="rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep disabled:opacity-40"
           >
             Create {KIND_LABELS[kind]}
           </button>

@@ -33,10 +33,10 @@ function parseFilters(search: string): Filters {
 
 // Order and presentation of the four buckets. Overdue is visually distinct.
 const BUCKETS: { key: AgendaBucket; label: string; accent: string }[] = [
-  { key: "overdue", label: "Overdue", accent: "text-red-600" },
-  { key: "today", label: "Today", accent: "text-stone-800" },
-  { key: "week", label: "This week", accent: "text-stone-800" },
-  { key: "later", label: "Later", accent: "text-stone-500" },
+  { key: "overdue", label: "Overdue", accent: "text-danger" },
+  { key: "today", label: "Today", accent: "text-ink" },
+  { key: "week", label: "This week", accent: "text-ink" },
+  { key: "later", label: "Later", accent: "text-ink-soft" },
 ];
 
 export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
@@ -93,7 +93,7 @@ export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
     <div className="mx-auto max-w-3xl">
       <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Agenda</h1>
-        <p className="text-xs text-stone-400">
+        <p className="text-xs text-ink-faint">
           {dated.length} dated {dated.length === 1 ? "issue" : "issues"} · sorted by due date
         </p>
       </header>
@@ -123,7 +123,7 @@ export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
         {filtersActive && (
           <button
             onClick={() => navigate("/agenda", { replace: true })}
-            className="text-xs text-stone-400 underline hover:text-stone-600"
+            className="text-xs text-ink-faint underline hover:text-ink-soft"
           >
             Clear filters
           </button>
@@ -136,10 +136,10 @@ export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
           if (issues.length === 0) return null;
           return (
             <section key={bucket.key}>
-              <h2 className={`text-sm font-medium uppercase tracking-wide ${bucket.accent}`}>
+              <h2 className={`text-sm font-medium uppercase tracking-wide font-mono ${bucket.accent}`}>
                 {bucket.label} · {issues.length}
               </h2>
-              <ul className="mt-3 divide-y divide-stone-100 rounded-lg border border-stone-200 bg-white">
+              <ul className="mt-3 divide-y divide-line rounded-lg border border-line bg-card">
                 {issues.map((issue) => (
                   <AgendaRow
                     key={issue.id}
@@ -155,7 +155,7 @@ export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
           );
         })}
         {dated.length === 0 && (
-          <p className="text-sm text-stone-400">
+          <p className="text-sm text-ink-faint">
             Nothing due{filtersActive ? " for this filter" : ""}. Add a due date to an issue and it
             shows up here.
           </p>
@@ -181,7 +181,7 @@ function FilterSelect({
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value || null)}
       className={`rounded border px-2 py-1 text-xs ${
-        value ? "border-stone-400 bg-stone-100 text-stone-700" : "border-stone-200 bg-white text-stone-500"
+        value ? "border-ink-faint bg-line text-ink-soft" : "border-line bg-card text-ink-soft"
       }`}
     >
       <option value="">{label}: all</option>
@@ -216,32 +216,32 @@ function AgendaRow({
     // Two lines so the title always gets the full row width (the metadata and
     // inline actions used to crowd it down to an ellipsis): line 1 is the
     // title; line 2 is product/arc · status · due, plus the bump/done actions.
-    <li data-issue-id={issue.id} className={`px-3 py-2.5 text-sm ${overdue ? "bg-red-50/50" : ""}`}>
+    <li data-issue-id={issue.id} className={`px-3 py-2.5 text-sm ${overdue ? "bg-danger-bg/50" : ""}`}>
       <div className="flex items-center gap-2.5">
         <PriorityIndicator priority={issue.priority} />
         <Link
           href={`/issue/${key}`}
-          className="shrink-0 font-mono text-xs text-stone-400 hover:text-stone-600"
+          className="shrink-0 font-mono text-xs text-ink-faint hover:text-ink-soft"
         >
           {key}
         </Link>
         <Link
           href={`/issue/${key}`}
-          className="min-w-0 flex-1 truncate font-medium hover:text-sky-700"
+          className="min-w-0 flex-1 truncate font-medium hover:text-adobe-deep"
         >
           {issue.title}
         </Link>
       </div>
 
-      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 pl-[22px] text-xs text-stone-400">
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 pl-[22px] text-xs text-ink-faint">
         <span className="truncate">
           {product?.name}
-          {arc && <span className="text-stone-300"> · {arc.name}</span>}
+          {arc && <span className="text-ink-faint"> · {arc.name}</span>}
         </span>
-        <span className="text-stone-300">·</span>
+        <span className="text-ink-faint">·</span>
         <span>{STATUS_LABELS[issue.status]}</span>
-        <span className="text-stone-300">·</span>
-        <span className={`font-medium ${overdue ? "text-red-600" : "text-stone-500"}`} title={due}>
+        <span className="text-ink-faint">·</span>
+        <span className={`font-medium ${overdue ? "text-danger" : "text-ink-soft"}`} title={due}>
           {relativeDue(due, today)} · {formatDueDate(due)}
         </span>
         {/* Cheap inline actions (SPEC v2 §6): bump the due date, mark done. */}
@@ -251,12 +251,12 @@ function AgendaRow({
             value={due}
             onChange={(e) => updateIssue(issue.id, { dueDate: e.target.value || null })}
             title="Bump the due date"
-            className="rounded border border-stone-200 bg-white px-1.5 py-0.5 text-stone-500 hover:border-stone-400"
+            className="rounded border border-line bg-card px-1.5 py-0.5 text-ink-soft hover:border-ink-faint"
           />
           <button
             onClick={() => setIssueStatus(issue.id, "done")}
             title="Mark done"
-            className="rounded border border-stone-200 bg-white px-2 py-0.5 text-stone-500 hover:border-emerald-400 hover:text-emerald-700"
+            className="rounded border border-line bg-card px-2 py-0.5 text-ink-soft hover:border-moss hover:text-moss-deep"
           >
             ✓ Done
           </button>

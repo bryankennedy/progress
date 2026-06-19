@@ -25,7 +25,7 @@ export default function EditableMarkdown({
           onChange={(e) => setDraft(e.target.value)}
           rows={8}
           autoFocus
-          className="w-full rounded border border-stone-300 bg-white p-3 font-mono text-sm"
+          className="w-full rounded border border-line bg-card p-3 font-mono text-sm"
         />
         <div className="mt-2 flex gap-2">
           <button
@@ -33,13 +33,13 @@ export default function EditableMarkdown({
               onSave(draft);
               setEditing(false);
             }}
-            className="rounded bg-stone-900 px-3 py-1 text-sm text-white hover:bg-stone-700"
+            className="rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep"
           >
             Save
           </button>
           <button
             onClick={() => setEditing(false)}
-            className="rounded px-3 py-1 text-sm text-stone-500 hover:bg-stone-100"
+            className="rounded px-3 py-1 text-sm text-ink-soft hover:bg-line"
           >
             Cancel
           </button>
@@ -54,10 +54,10 @@ export default function EditableMarkdown({
         setDraft(value);
         setEditing(true);
       }}
-      className="group -m-1 cursor-text rounded p-1 hover:bg-white"
+      className="group -m-1 cursor-text rounded p-1 hover:bg-card"
     >
       {value === "" ? (
-        <p className="text-stone-400">{placeholder}</p>
+        <p className="text-ink-faint">{placeholder}</p>
       ) : (
         <div className="prose-lite">
           <Markdown>{value}</Markdown>
