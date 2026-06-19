@@ -114,40 +114,48 @@ header New menu. The remote migration + `bun run deploy` were applied; the build
 was recorded in production via `bun --env-file=.env scripts/dogfood-v2.ts`
 (idempotent, like the cutover script) under the **v2 — Broaden & Due dates** arc.
 
-**Cloudflare Access is live** (configured 2026-06-12, SPEC §8.3): two
-self-hosted Zero Trust applications — "Progress" on the bare hostname with
-an Allow policy for the owner's email (One-time PIN login, team domain
-`purple-flower-89f4.cloudflareaccess.com`), and "Progress webhook bypass"
-on path `api/webhooks/github` with a Bypass · Everyone policy (the route
-authenticates via HMAC instead). Verified: `/` and `/api/*` 302 to the
-Access login; the webhook path reaches the Worker (401 unsigned, 200
-signed). Note: a Zero Trust app on a workers.dev hostname only enforces
-once its policy is actually attached — an app saved without one blocks
-nothing.
+### Authentication — in-app Google sign-in (PROG-34, supersedes Cloudflare Access)
 
-**Access service token** (for non-interactive clients — the dogfood cutover,
-future MCP/agent tooling; SPEC §8.3, §11.4). A third Zero Trust object: a
-**Service Token** named `progress-agent` plus a **Service Auth** policy on
-the "Progress" application that includes it. Set it up once:
+The Worker owns auth itself: it runs the Google OAuth flow, mints a signed
+session cookie, and attributes every write to the signed-in user (D12 — the
+Cloudflare Access gate — is retired; see DECISIONS). Identity comes from a
+session cookie (interactive) or a bearer token (automation); the GitHub webhook
+keeps its own HMAC. When the OAuth secrets are absent (local dev) the Worker
+falls back to the owner so `bun run dev` never hits a login wall.
 
-1. Zero Trust → **Access → Service auth → Service Tokens**. Reuse
-   `progress-agent` if it exists; otherwise **Create Service Token** (name
-   `progress-agent`, non-expiring). The **Client Secret is shown only at
-   creation** — if it wasn't saved, **Rotate** the token to get a new one.
-   The **Client ID** (ends in `.access`) is always visible.
-2. Zero Trust → **Access → Applications → Progress → Policies**: ensure a
-   policy with **Action = Service Auth**, **Include → Service Token =
-   `progress-agent`**. Without it the token is bounced to login (302).
-3. Put the pair in the gitignored `.env` as `PROD_CF_ACCESS_CLIENT_ID` /
-   `PROD_CF_ACCESS_CLIENT_SECRET` (see `.env.example`). Scripts send them as
-   the `CF-Access-Client-Id` / `CF-Access-Client-Secret` request headers.
+**Worker secrets** (`wrangler secret put <KEY>`; local equivalents in `.dev.vars`):
 
-Clients self-check: a `GET /api/workspace` with those headers returns 200
-when the token is accepted, and a 302-to-login when it isn't. The dogfood
-cutover (SPEC §7) ran through this token on 2026-06-16
-(`bun run scripts/dogfood-cutover.ts`, idempotent) — PROG-1..14 marked done,
-Agent Integration arc + v1.x backlog created; production holds 22 issues
-across 3 arcs.
+| Secret | Purpose |
+|---|---|
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 Web client |
+| `SESSION_SECRET` | HS256 key signing the session + OAuth-state cookies |
+| `PROGRESS_API_TOKEN` | bearer for non-interactive clients (→ owner) |
+| `ALLOWED_EMAILS` | comma-separated sign-in allowlist (currently `bryan@mysteryexperience.com`) |
+
+**Google OAuth client**: Google Cloud Console → APIs & Services → Credentials →
+**Create OAuth client ID** → *Web application*. Authorized redirect URIs:
+`https://progress.bryan-22c.workers.dev/api/auth/callback` (and
+`http://localhost:8000/api/auth/callback` to test locally). Copy the client
+id/secret into the secrets above.
+
+**Cutover (order matters** — the deployed Worker 401s the API without a
+cookie/token, and Access would otherwise block bearer automation):
+
+1. Create the OAuth client and add the redirect URI (above).
+2. `wrangler secret put` the four secrets; confirm `ALLOWED_EMAILS`.
+3. `bunx wrangler d1 migrations apply progress-db --remote` (applies
+   `0004_owner_email.sql`, repointing `usr_owner` to the owner email so
+   sign-in resolves to the existing row, preserving attribution).
+4. `bun run deploy`.
+5. **Remove the Cloudflare Access applications** (Zero Trust → Access →
+   Applications: delete "Progress" and "Progress webhook bypass", and the
+   `progress-agent` service token) so the app's own auth is the only gate.
+6. Put the live `PROGRESS_API_TOKEN` in the gitignored `.env` as
+   `PROD_PROGRESS_API_TOKEN`; re-verify the MCP server and `progress work`.
+
+Self-check after cutover: `GET /api/workspace` returns 401 with no auth, 200
+with `Authorization: Bearer <PROGRESS_API_TOKEN>`; visiting `/` in a browser
+bounces through Google sign-in. (Webhook registration below is unchanged.)
 
 Remaining one-time setup (owner-only): **GitHub webhook** per connected
 repository: Settings → Webhooks → Add — payload URL
@@ -163,8 +171,8 @@ events: Pushes + Pull requests.
 tools (`get_bundle`, `get_issue`, `list_issues`, `create_issue`,
 `update_status`, `set_due_date`, `comment`, `move_issue`). It is a **local
 stdio** server — it
-runs on your machine and reaches the Access-protected API with the service
-token from §6, so nothing is hosted on the Worker.
+runs on your machine and reaches the API with the `PROGRESS_API_TOKEN` bearer
+from §6, so nothing is hosted on the Worker.
 
 Smoke-test it standalone (lists tools, runs the read tools against production):
 
@@ -172,7 +180,7 @@ Smoke-test it standalone (lists tools, runs the read tools against production):
 bun run mcp   # connects, prints "[progress-mcp] connected to …" on stderr
 ```
 
-Register it with Claude Code. Use `bun --env-file` so the service token loads
+Register it with Claude Code. Use `bun --env-file` so the API token loads
 from `.env` regardless of where Claude Code launches the process — the secret
 stays in `.env` and never lands in `~/.claude.json`:
 

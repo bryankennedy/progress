@@ -21,8 +21,7 @@ const BASE = (process.env.PROGRESS_BASE_URL ?? "https://progress.bryan-22c.worke
   /\/+$/,
   "",
 );
-const CLIENT_ID = process.env.CF_ACCESS_CLIENT_ID ?? process.env.PROD_CF_ACCESS_CLIENT_ID;
-const CLIENT_SECRET = process.env.CF_ACCESS_CLIENT_SECRET ?? process.env.PROD_CF_ACCESS_CLIENT_SECRET;
+const API_TOKEN = process.env.PROGRESS_API_TOKEN ?? process.env.PROD_PROGRESS_API_TOKEN;
 
 const KEY_RE = /^[A-Z]{2,8}-\d+$/;
 
@@ -39,8 +38,8 @@ Options:
 
 Env:
   PROGRESS_BASE_URL                 (default: production)
-  CF_ACCESS_CLIENT_ID / _SECRET     Cloudflare Access service token
-                                    (falls back to PROD_CF_ACCESS_CLIENT_ID/_SECRET)`;
+  PROGRESS_API_TOKEN                Progress API token (Authorization: Bearer)
+                                    (falls back to PROD_PROGRESS_API_TOKEN)`;
 
 function fail(msg: string): never {
   console.error(`progress: ${msg}`);
@@ -48,19 +47,19 @@ function fail(msg: string): never {
 }
 
 async function fetchBundle(key: string): Promise<string> {
-  if (!CLIENT_ID || !CLIENT_SECRET)
-    fail("missing CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET (or PROD_ fallbacks) in env.");
+  if (!API_TOKEN)
+    fail("missing PROGRESS_API_TOKEN (or PROD_PROGRESS_API_TOKEN fallback) in env.");
   let res: Response;
   try {
     res = await fetch(`${BASE}/api/issues/${key}/bundle`, {
-      headers: { "CF-Access-Client-Id": CLIENT_ID, "CF-Access-Client-Secret": CLIENT_SECRET },
+      headers: { Authorization: `Bearer ${API_TOKEN}` },
       redirect: "manual",
     });
   } catch (e) {
     return fail(`couldn't reach ${BASE}: ${(e as Error).message}`);
   }
-  if (res.status === 302 || res.status === 0)
-    fail("redirected to the Access login — the service token is not being accepted.");
+  if (res.status === 401)
+    fail("401 unauthenticated — PROGRESS_API_TOKEN is missing or wrong.");
   if (res.status === 404) fail(`no issue found for ${key}.`);
   if (res.status === 400) fail(`malformed issue key: ${key} (expected e.g. PROG-19).`);
   const text = await res.text();

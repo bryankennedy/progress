@@ -1,0 +1,12 @@
+{
+  "name": "Progress",
+  "short_name": "Progress",
+  "background_color": "#f0e9d9",
+  "theme_color": "#f5efe0",
+  "display": "standalone",
+  "start_url": "/",
+  "icons": [
+    { "src": "/brand-assets/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/brand-assets/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

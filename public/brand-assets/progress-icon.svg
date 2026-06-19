@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512" role="img" aria-label="Progress">
+  <rect width="100" height="100" rx="22" fill="#f5efe0"></rect>
+  <g fill="none" stroke-linecap="round" stroke-width="9">
+    <path d="M22,76 C42,73 60,73 80,75" stroke="#566039"></path>
+    <path d="M26,62 C44,59 62,60 78,62" stroke="#79864c"></path>
+    <path d="M30,48 C46,45 62,46 74,48" stroke="#bb6f50"></path>
+    <path d="M34,35 C46,33 56,33 66,35" stroke="#d89572"></path>
+  </g>
+</svg>

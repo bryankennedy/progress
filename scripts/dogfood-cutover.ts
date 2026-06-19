@@ -1,29 +1,25 @@
 // Dogfood cutover (SPEC §7): bring Progress's own backlog in production up to
 // reality and seed the v1.x agent-integration backlog — through the LIVE API,
-// authenticated with the Cloudflare Access service token (SPEC §8.3, §11.4).
-// This is also the first real exercise of that token / Service Auth policy.
+// authenticated with the Progress API token (Authorization: Bearer, PROG-34).
 //
 // Run:  bun run scripts/dogfood-cutover.ts
-// Needs PROD_CF_ACCESS_CLIENT_ID / PROD_CF_ACCESS_CLIENT_SECRET in .env
+// Needs PROGRESS_API_TOKEN / PROD_PROGRESS_API_TOKEN in .env
 // (Bun auto-loads .env). Idempotent: re-running skips issues whose title
 // already exists in the product, and PATCH-to-done is a no-op once done.
 
 const BASE = "https://progress.bryan-22c.workers.dev";
 
-const CLIENT_ID = process.env.PROD_CF_ACCESS_CLIENT_ID;
-const CLIENT_SECRET = process.env.PROD_CF_ACCESS_CLIENT_SECRET;
-if (!CLIENT_ID || !CLIENT_SECRET) {
+const API_TOKEN = process.env.PROGRESS_API_TOKEN ?? process.env.PROD_PROGRESS_API_TOKEN;
+if (!API_TOKEN) {
   console.error(
-    "Missing PROD_CF_ACCESS_CLIENT_ID / PROD_CF_ACCESS_CLIENT_SECRET in .env.\n" +
-      "Create them in Zero Trust → Access → Service credentials and grant the\n" +
-      "token via a Service Auth policy on the Progress app.",
+    "Missing PROGRESS_API_TOKEN / PROD_PROGRESS_API_TOKEN in .env.\n" +
+      "Set it to the value behind `wrangler secret put PROGRESS_API_TOKEN`.",
   );
   process.exit(1);
 }
 
 const accessHeaders = {
-  "CF-Access-Client-Id": CLIENT_ID,
-  "CF-Access-Client-Secret": CLIENT_SECRET,
+  Authorization: `Bearer ${API_TOKEN}`,
   "Content-Type": "application/json",
 };
 
@@ -34,10 +30,9 @@ async function api(method: string, path: string, body?: unknown): Promise<any> {
     body: body === undefined ? undefined : JSON.stringify(body),
     redirect: "manual",
   });
-  if (res.status === 302 || res.status === 0) {
+  if (res.status === 401) {
     throw new Error(
-      `${method} ${path} → redirected to Access login. The service token is not ` +
-        `being accepted — check the Service Auth policy on the Progress app.`,
+      `${method} ${path} → 401 unauthenticated — PROGRESS_API_TOKEN is missing or wrong.`,
     );
   }
   const text = await res.text();

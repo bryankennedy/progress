@@ -20,6 +20,7 @@ import type {
   WorkspacePayload,
 } from "../shared/types";
 import { toast } from "./toast";
+import { prefetchBundle } from "./workOn";
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,21 +37,43 @@ const timelineKey = (issueId: string) => ["issue", issueId, "timeline"] as const
 // Initial app load is the one permitted loading state; surface its cost.
 export const loadStats = { fetchMs: 0 };
 
+// Thrown when the workspace load returns 401 (PROG-34): no session cookie /
+// bearer. App.tsx renders the SignIn landing page on this rather than the error
+// banner; the retry guard below stops React Query from re-fetching it.
+export class UnauthenticatedError extends Error {
+  constructor() {
+    super("unauthenticated");
+    this.name = "UnauthenticatedError";
+  }
+}
+
 async function fetchWorkspace(): Promise<WorkspacePayload> {
   const t0 = performance.now();
   const res = await fetch("/api/workspace");
+  // Not signed in: surface as a distinct error so App can show the landing page
+  // with a "Sign in with Google" CTA instead of silently redirecting.
+  if (res.status === 401) throw new UnauthenticatedError();
   if (!res.ok) throw new Error(`workspace load failed: HTTP ${res.status}`);
   const ws = (await res.json()) as WorkspacePayload;
   loadStats.fetchMs = performance.now() - t0;
   return ws;
 }
 
+const workspaceQuery = {
+  queryKey: WS_KEY,
+  queryFn: fetchWorkspace,
+  // No point retrying an unauthenticated load — the answer won't change until
+  // the user signs in. Other failures keep the default retry behavior.
+  retry: (failureCount: number, error: Error) =>
+    !(error instanceof UnauthenticatedError) && failureCount < 3,
+} as const;
+
 export function useWorkspace() {
-  return useQuery({ queryKey: WS_KEY, queryFn: fetchWorkspace });
+  return useQuery(workspaceQuery);
 }
 
 export function useWorkspaceSlice<T>(select: (ws: WorkspacePayload) => T): T | undefined {
-  return useQuery({ queryKey: WS_KEY, queryFn: fetchWorkspace, select }).data;
+  return useQuery({ ...workspaceQuery, select }).data;
 }
 
 // ---------- issue keys ----------
@@ -93,6 +116,16 @@ function writeIssue(id: string, write: (issue: WireIssue) => WireIssue) {
   );
 }
 
+// Re-warm the cached "Work on this" bundle after a server-confirmed change, so
+// a later copy reflects the edit/comment/tag/move instead of a stale snapshot
+// from page load. Keyed by the issue's current canonical key (a cross-product
+// move re-keys, and the issue is already updated in the store by then).
+function refreshBundle(id: string) {
+  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
+  const issue = ws?.issues.find((i) => i.id === id);
+  if (ws && issue) prefetchBundle(issueKeyOf(ws, issue));
+}
+
 // The optimistic-mutation template (SPEC §8.2): write the store
 // synchronously, sync to the server in the background, and on failure restore
 // the issue's pre-mutation snapshot and raise a toast. Rollback is per-issue
@@ -116,10 +149,13 @@ async function optimisticIssueMutation(
   if (!ok) {
     writeIssue(id, () => before);
     toast("Couldn't save that change — reverted.");
-  } else if (patch.status !== undefined) {
-    // The server appended a status_changed activity event; refresh the
-    // timeline if this issue's page has loaded it.
-    void queryClient.invalidateQueries({ queryKey: timelineKey(id) });
+  } else {
+    refreshBundle(id);
+    if (patch.status !== undefined) {
+      // The server appended a status_changed activity event; refresh the
+      // timeline if this issue's page has loaded it.
+      void queryClient.invalidateQueries({ queryKey: timelineKey(id) });
+    }
   }
 }
 
@@ -312,6 +348,7 @@ export function moveIssue(id: string, target: MoveTarget) {
       writeIssue(id, () => real);
       // The server appended a "moved" activity event.
       void queryClient.invalidateQueries({ queryKey: timelineKey(id) });
+      refreshBundle(id);
       return;
     }
     queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) => {
@@ -532,6 +569,7 @@ export function tagIssue(issueId: string, tag: { tagId: string } | { name: strin
             }
           : w,
       );
+      refreshBundle(issueId);
     } else {
       queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) =>
         w
@@ -569,6 +607,8 @@ export function untagIssue(issueId: string, tagId: string) {
         w ? { ...w, issueTags: [...w.issueTags, { issueId, tagId }] } : w,
       );
       toast("Couldn't remove that tag — restored.");
+    } else {
+      refreshBundle(issueId);
     }
   })();
 }
@@ -625,6 +665,7 @@ export function addComment(issueId: string, body: string) {
     }
     if (ok) {
       void queryClient.invalidateQueries({ queryKey: timelineKey(issueId) });
+      refreshBundle(issueId);
     } else {
       queryClient.setQueryData<Timeline>(timelineKey(issueId), (t) =>
         t ? { ...t, comments: t.comments.filter((cm) => cm.id !== temp.id) } : t,

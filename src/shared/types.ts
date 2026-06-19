@@ -39,6 +39,10 @@ export type WireCommitLink = Serialized<CommitLink>;
 // GET /api/workspace — the load-everything payload (SPEC §8.2, D20: comments
 // and activity are excluded and load per issue page).
 export type WorkspacePayload = {
+  // The signed-in user (PROG-34). Null only in the unconfigured local-dev
+  // path where the owner row may not be loaded; the client treats null as the
+  // dev owner.
+  me: WireUser | null;
   users: WireUser[];
   initiatives: WireInitiative[];
   products: WireProduct[];

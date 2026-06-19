@@ -130,15 +130,15 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
     <>
       <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Progress</h1>
-        <p className="text-xs text-stone-400">
+        <p className="text-xs text-ink-faint">
           {shownCount} issues on board · {workspace.issues.length} total · loaded in{" "}
           {Math.round(loadStats.fetchMs)} ms · ⌘K for commands
         </p>
         <button
           onClick={() => openCreateIssue()}
-          className="ml-auto rounded bg-stone-900 px-3 py-1 text-sm text-white hover:bg-stone-700"
+          className="ml-auto rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep"
         >
-          New issue <span className="text-stone-400">(C)</span>
+          New issue <span className="text-white/70">(C)</span>
         </button>
       </header>
 
@@ -196,8 +196,8 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
           onClick={() => setParam("backlog", filters.backlog ? null : "1")}
           className={`rounded border px-2 py-1 text-xs ${
             filters.backlog
-              ? "border-stone-400 bg-stone-100 text-stone-700"
-              : "border-stone-200 bg-white text-stone-400 hover:border-stone-400"
+              ? "border-ink-faint bg-line text-ink-soft"
+              : "border-line bg-card text-ink-faint hover:border-ink-faint"
           }`}
         >
           {filters.backlog ? "Hide backlog" : "Show backlog"}
@@ -205,7 +205,7 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
         {filtersActive && (
           <button
             onClick={() => navigate(filters.backlog ? "/?backlog=1" : "/", { replace: true })}
-            className="text-xs text-stone-400 underline hover:text-stone-600"
+            className="text-xs text-ink-faint underline hover:text-ink-soft"
           >
             Clear filters
           </button>
@@ -256,7 +256,7 @@ function FilterSelect({
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value || null)}
       className={`rounded border px-2 py-1 text-xs ${
-        value ? "border-stone-400 bg-stone-100 text-stone-700" : "border-stone-200 bg-white text-stone-500"
+        value ? "border-ink-faint bg-line text-ink-soft" : "border-line bg-card text-ink-soft"
       }`}
     >
       <option value="">{label}: all</option>
@@ -286,9 +286,9 @@ function BoardColumn({
   return (
     <section
       ref={setNodeRef}
-      className={`w-72 shrink-0 rounded-lg p-2 ${isOver ? "bg-sky-50 ring-1 ring-sky-200" : "bg-stone-100/60"}`}
+      className={`w-72 shrink-0 rounded-lg p-2 ${isOver ? "bg-adobe-wash/30 ring-1 ring-adobe-light" : "bg-line/40"}`}
     >
-      <h2 className="px-1 pb-2 text-xs font-medium uppercase tracking-wide text-stone-400">
+      <h2 className="px-1 pb-2 text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">
         {STATUS_LABELS[status]} · {issues.length}
       </h2>
       <div className="flex min-h-8 flex-col gap-1.5">
@@ -351,21 +351,21 @@ function CardView({
   const product = workspace.products.find((p) => p.id === issue.productId);
   return (
     <div
-      className={`cursor-pointer rounded-md border border-stone-200 bg-white p-2.5 text-sm hover:border-stone-300 ${
+      className={`cursor-pointer rounded-md border border-line bg-card p-2.5 text-sm hover:border-line ${
         dragging ? "rotate-1 shadow-lg" : "shadow-sm"
       }`}
     >
       <p className="flex items-baseline justify-between gap-2">
-        <span className="font-mono text-xs text-stone-400">
+        <span className="font-mono text-xs text-ink-faint">
           {product?.keyPrefix ?? "?"}-{issue.number}
         </span>
-        <span className="text-xs text-stone-400">{product?.name}</span>
+        <span className="text-xs text-ink-faint">{product?.name}</span>
       </p>
       <p className="mt-1 font-medium leading-snug">{issue.title}</p>
-      <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-stone-400">
+      <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-faint">
         {issue.priority !== "none" && <span>{PRIORITY_LABELS[issue.priority]}</span>}
         {issue.estimate !== null && (
-          <span className="rounded bg-stone-100 px-1">{issue.estimate}</span>
+          <span className="rounded bg-line px-1">{issue.estimate}</span>
         )}
         {tags.map((tag) => (
           <span

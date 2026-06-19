@@ -7,6 +7,16 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { openCreateContainer, openCreateIssue, type ContainerDialogRequest } from "./commands/controller";
+import { useWorkspaceSlice } from "./store";
+
+// End the session, then reload — an unauthenticated load bounces to sign-in.
+async function signOut() {
+  try {
+    await fetch("/api/auth/logout", { method: "POST" });
+  } finally {
+    window.location.href = "/";
+  }
+}
 
 const NAV: { href: string; label: string; match: (path: string) => boolean }[] = [
   { href: "/", label: "Board", match: (p) => p === "/" },
@@ -17,6 +27,8 @@ const NAV: { href: string; label: string; match: (path: string) => boolean }[] =
 export default function Header() {
   const [path] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [acctOpen, setAcctOpen] = useState(false);
+  const me = useWorkspaceSlice((ws) => ws.me);
 
   const newItems: { label: string; run: () => void }[] = [
     { label: "Issue", run: () => openCreateIssue() },
@@ -27,9 +39,9 @@ export default function Header() {
   ];
 
   return (
-    <header className="sticky top-0 z-40 border-b border-stone-200 bg-stone-50/90 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-line bg-paper/90 backdrop-blur">
       <div className="mx-auto flex max-w-screen-2xl items-center gap-1 px-3 py-2 sm:px-6">
-        <Link href="/" className="mr-2 font-semibold tracking-tight text-stone-900">
+        <Link href="/" className="mr-2 font-semibold tracking-tight text-ink">
           Progress
         </Link>
         <nav className="flex items-center gap-1 text-sm">
@@ -39,8 +51,8 @@ export default function Header() {
               href={item.href}
               className={`rounded px-2 py-1 ${
                 item.match(path)
-                  ? "bg-stone-200 text-stone-900"
-                  : "text-stone-500 hover:bg-stone-100 hover:text-stone-700"
+                  ? "bg-adobe-wash/40 text-adobe-deep"
+                  : "text-ink-soft hover:bg-line hover:text-ink"
               }`}
             >
               {item.label}
@@ -48,32 +60,64 @@ export default function Header() {
           ))}
         </nav>
 
-        <div className="relative ml-auto">
-          <button
-            onClick={() => setMenuOpen((o) => !o)}
-            className="rounded bg-stone-900 px-3 py-1 text-sm text-white hover:bg-stone-700"
-          >
-            New <span className="text-stone-400">▾</span>
-          </button>
-          {menuOpen && (
-            <>
-              {/* Click-away backdrop. */}
-              <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-0 z-50 mt-1 w-44 overflow-hidden rounded-lg border border-stone-200 bg-white py-1 shadow-xl">
-                {newItems.map((item) => (
-                  <button
-                    key={item.label}
-                    onClick={() => {
-                      setMenuOpen(false);
-                      item.run();
-                    }}
-                    className="block w-full px-3 py-1.5 text-left text-sm text-stone-700 hover:bg-stone-100"
-                  >
-                    New {item.label.toLowerCase()}
-                  </button>
-                ))}
-              </div>
-            </>
+        <div className="ml-auto flex items-center gap-2">
+          <div className="relative">
+            <button
+              onClick={() => setMenuOpen((o) => !o)}
+              className="rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep"
+            >
+              New <span className="text-white/70">▾</span>
+            </button>
+            {menuOpen && (
+              <>
+                {/* Click-away backdrop. */}
+                <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+                <div className="absolute right-0 z-50 mt-1 w-44 overflow-hidden rounded-lg border border-line bg-card py-1 shadow-xl">
+                  {newItems.map((item) => (
+                    <button
+                      key={item.label}
+                      onClick={() => {
+                        setMenuOpen(false);
+                        item.run();
+                      }}
+                      className="block w-full px-3 py-1.5 text-left text-sm text-ink-soft hover:bg-line"
+                    >
+                      New {item.label.toLowerCase()}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Signed-in identity + sign out (PROG-34). */}
+          {me && (
+            <div className="relative">
+              <button
+                onClick={() => setAcctOpen((o) => !o)}
+                title={me.email}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-adobe-wash/60 text-sm font-medium text-adobe-deep hover:bg-adobe-wash"
+              >
+                {me.name.slice(0, 1).toUpperCase()}
+              </button>
+              {acctOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setAcctOpen(false)} />
+                  <div className="absolute right-0 z-50 mt-1 w-56 overflow-hidden rounded-lg border border-line bg-card py-1 shadow-xl">
+                    <div className="border-b border-line px-3 py-2 text-sm">
+                      <div className="font-medium text-ink">{me.name}</div>
+                      <div className="truncate text-xs text-ink-faint">{me.email}</div>
+                    </div>
+                    <button
+                      onClick={signOut}
+                      className="block w-full px-3 py-1.5 text-left text-sm text-ink-soft hover:bg-line"
+                    >
+                      Sign out
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </div>
       </div>

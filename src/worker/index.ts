@@ -23,17 +23,47 @@ import {
   type PrState,
 } from "../db/schema";
 import { tagColor } from "../shared/constants";
+import { getCookie, setCookie, deleteCookie } from "hono/cookie";
+import {
+  SESSION_COOKIE,
+  STATE_COOKIE,
+  SESSION_TTL_SECONDS,
+  authConfigured,
+  redirectUri,
+  isAllowed,
+  googleAuthUrl,
+  exchangeCodeForIdentity,
+  signSession,
+  verifySession,
+  signState,
+  verifyState,
+  type AuthEnv,
+} from "./auth";
 
-type Bindings = {
+type Bindings = AuthEnv & {
   DB: D1Database;
   // Shared secret for GitHub webhook HMAC verification (SPEC §5). Local dev:
   // .dev.vars; production: `wrangler secret put GITHUB_WEBHOOK_SECRET`.
   GITHUB_WEBHOOK_SECRET?: string;
 };
 
-// Single-user v1: every write is attributed to the owner row the seed
-// guarantees (D13). Replaced by real auth context when multi-user lands.
+// Per-request identity set by the auth middleware (PROG-34): the logged-in
+// user's id (session cookie), or the owner for the automation bearer token and
+// the local-dev fallback.
+type Variables = { userId: string };
+
+// The owner row the seed guarantees (D13). Still the actor for the automation
+// bearer token, the webhook (no interactive user), and the local-dev fallback.
 const OWNER_ID = "usr_owner";
+
+// Constant-time string compare for the API bearer token (same shape as the
+// webhook's HMAC compare below).
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll("-", "")}`;
 
@@ -48,7 +78,7 @@ const isValidDueDate = (s: string): boolean => {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 };
 
-const app = new Hono<{ Bindings: Bindings }>();
+const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 // Without this, an uncaught throw became a bare "Internal Server Error" with
 // nothing in the logs — which is exactly why a production /api/workspace 500
@@ -58,6 +88,127 @@ const app = new Hono<{ Bindings: Bindings }>();
 app.onError((err, c) => {
   console.error("worker error:", c.req.method, c.req.path, err);
   return c.json({ error: "internal_error" }, 500);
+});
+
+// ---------- authentication (PROG-34, supersedes the Cloudflare Access gate D12) ----------
+//
+// Gate every /api route except health, the OAuth dance itself, and the GitHub
+// webhook (HMAC-authenticated, no interactive user). Identity comes from, in
+// order: the automation bearer token (→ owner), a valid session cookie, or —
+// when auth is unconfigured (local dev) — a fallback to the owner so
+// `bun run dev` and tests never hit a login wall. Otherwise 401.
+app.use("/api/*", async (c, next) => {
+  const path = c.req.path;
+  if (
+    path === "/api/health" ||
+    path.startsWith("/api/auth/") ||
+    path.startsWith("/api/webhooks/")
+  )
+    return next();
+
+  const env = c.env;
+  const auth = c.req.header("authorization");
+  if (auth?.startsWith("Bearer ")) {
+    const token = auth.slice("Bearer ".length).trim();
+    if (env.PROGRESS_API_TOKEN && safeEqual(token, env.PROGRESS_API_TOKEN)) {
+      c.set("userId", OWNER_ID);
+      return next();
+    }
+    return c.json({ error: "unauthenticated" }, 401);
+  }
+
+  if (env.SESSION_SECRET) {
+    const cookie = getCookie(c, SESSION_COOKIE);
+    if (cookie) {
+      const session = await verifySession(cookie, env.SESSION_SECRET);
+      if (session) {
+        c.set("userId", session.uid);
+        return next();
+      }
+    }
+  }
+
+  if (!authConfigured(env)) {
+    c.set("userId", OWNER_ID);
+    return next();
+  }
+  return c.json({ error: "unauthenticated" }, 401);
+});
+
+// Begin the OAuth flow: stash a signed state nonce in a short-lived cookie and
+// bounce to Google's consent screen.
+app.get("/api/auth/login", async (c) => {
+  const env = c.env;
+  if (!authConfigured(env)) return c.json({ error: "auth not configured" }, 503);
+  const secure = new URL(c.req.url).protocol === "https:";
+  const state = await signState(env.SESSION_SECRET!);
+  setCookie(c, STATE_COOKIE, state, {
+    httpOnly: true,
+    secure,
+    sameSite: "Lax",
+    path: "/",
+    maxAge: 600,
+  });
+  return c.redirect(googleAuthUrl(env, state, redirectUri(env, c.req.url)));
+});
+
+// OAuth redirect target: verify state, exchange the code, enforce the email
+// allowlist, upsert the user by email (preserving the existing owner row), and
+// set the session cookie.
+app.get("/api/auth/callback", async (c) => {
+  const env = c.env;
+  if (!authConfigured(env)) return c.json({ error: "auth not configured" }, 503);
+  const url = new URL(c.req.url);
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  const stateCookie = getCookie(c, STATE_COOKIE);
+  deleteCookie(c, STATE_COOKIE, { path: "/" });
+  if (
+    !code ||
+    !state ||
+    !stateCookie ||
+    !safeEqual(state, stateCookie) ||
+    !(await verifyState(state, env.SESSION_SECRET!))
+  )
+    return c.json({ error: "invalid oauth state" }, 400);
+
+  let identity;
+  try {
+    identity = await exchangeCodeForIdentity(env, code, redirectUri(env, c.req.url));
+  } catch (e) {
+    console.error("oauth callback:", e);
+    return c.json({ error: "authentication failed" }, 400);
+  }
+  if (!isAllowed(identity.email, env)) return c.json({ error: "not authorized" }, 403);
+
+  const db = drizzle(env.DB);
+  const email = identity.email.toLowerCase();
+  const now = new Date();
+  const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  let userId: string;
+  if (existing) {
+    userId = existing.id;
+    if (identity.name && identity.name !== existing.name)
+      await db.update(users).set({ name: identity.name }).where(eq(users.id, existing.id));
+  } else {
+    userId = newId("usr");
+    await db.insert(users).values({ id: userId, name: identity.name, email, createdAt: now });
+  }
+
+  const session = await signSession(userId, email, env.SESSION_SECRET!);
+  setCookie(c, SESSION_COOKIE, session, {
+    httpOnly: true,
+    secure: url.protocol === "https:",
+    sameSite: "Lax",
+    path: "/",
+    maxAge: SESSION_TTL_SECONDS,
+  });
+  return c.redirect("/");
+});
+
+app.post("/api/auth/logout", (c) => {
+  deleteCookie(c, SESSION_COOKIE, { path: "/" });
+  return c.json({ ok: true });
 });
 
 app.get("/api/health", (c) => c.json({ ok: true }));
@@ -96,6 +247,9 @@ app.get("/api/workspace", async (c) => {
     db.select().from(issueKeyAliases),
   ]);
   return c.json({
+    // The authenticated identity, so the client can render who's signed in and
+    // attribute "mine" without a second round trip (PROG-34).
+    me: allUsers.find((u) => u.id === c.get("userId")) ?? null,
     users: allUsers,
     initiatives: allInitiatives,
     products: allProducts,
@@ -162,7 +316,7 @@ app.post("/api/initiatives", async (c) => {
       id: idOr(body.id, "ini"),
       name: (body.name as string).trim(),
       description: typeof body.description === "string" ? body.description : "",
-      creatorId: OWNER_ID,
+      creatorId: c.get("userId"),
       createdAt: now,
       updatedAt: now,
     })
@@ -198,7 +352,7 @@ app.post("/api/products", async (c) => {
       name: (body.name as string).trim(),
       description: typeof body.description === "string" ? body.description : "",
       keyPrefix,
-      creatorId: OWNER_ID,
+      creatorId: c.get("userId"),
       createdAt: now,
       updatedAt: now,
     })
@@ -227,7 +381,7 @@ app.post("/api/repos", async (c) => {
       name: (body.name as string).trim(),
       description: typeof body.description === "string" ? body.description : "",
       gitUrl,
-      creatorId: OWNER_ID,
+      creatorId: c.get("userId"),
       createdAt: now,
       updatedAt: now,
     })
@@ -252,7 +406,7 @@ app.post("/api/arcs", async (c) => {
       productId: body.productId,
       name: (body.name as string).trim(),
       description: typeof body.description === "string" ? body.description : "",
-      creatorId: OWNER_ID,
+      creatorId: c.get("userId"),
       createdAt: now,
       updatedAt: now,
     })
@@ -460,8 +614,8 @@ app.post("/api/issues", async (c) => {
       priority,
       estimate,
       dueDate,
-      creatorId: OWNER_ID,
-      assigneeId: OWNER_ID,
+      creatorId: c.get("userId"),
+      assigneeId: c.get("userId"),
       createdAt: now,
       updatedAt: now,
       completedAt: status === "done" ? now : null,
@@ -516,7 +670,7 @@ app.post("/api/issues/:id/move", async (c) => {
       db.insert(activity).values({
         id: newId("act"),
         issueId: id,
-        actorId: OWNER_ID,
+        actorId: c.get("userId"),
         type: "moved",
         data: moveData,
         createdAt: now,
@@ -547,7 +701,7 @@ app.post("/api/issues/:id/move", async (c) => {
     db.insert(activity).values({
       id: newId("act"),
       issueId: id,
-      actorId: OWNER_ID,
+      actorId: c.get("userId"),
       type: "moved",
       data: { ...moveData, fromKey: oldKey, toKey: `${target.keyPrefix}-${number}` },
       createdAt: now,
@@ -634,7 +788,7 @@ app.patch("/api/issues/:id", async (c) => {
       db.insert(activity).values({
         id: newId("act"),
         issueId: id,
-        actorId: OWNER_ID,
+        actorId: c.get("userId"),
         type: "status_changed",
         data: { from: existing.status, to: body.status },
         createdAt: now,
@@ -753,7 +907,7 @@ app.post("/api/issues/:id/comments", async (c) => {
     .values({
       id: newId("cmt"),
       issueId: id,
-      authorId: OWNER_ID,
+      authorId: c.get("userId"),
       body: body.body,
       createdAt: now,
       updatedAt: now,

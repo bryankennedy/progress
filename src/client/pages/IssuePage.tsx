@@ -63,9 +63,9 @@ export default function IssuePage({
 
   if (!resolved) {
     return (
-      <p className="text-stone-500">
+      <p className="text-ink-soft">
         No issue with key <span className="font-mono">{keyParam}</span>.{" "}
-        <Link href="/" className="text-sky-600 hover:underline">
+        <Link href="/" className="text-adobe hover:underline">
           Back to the workspace
         </Link>
       </p>
@@ -83,13 +83,13 @@ export default function IssuePage({
 
   return (
     <div className="mx-auto max-w-3xl">
-      <nav className="text-sm text-stone-400">
-        <Link href="/" className="hover:text-stone-600">
+      <nav className="text-sm text-ink-faint">
+        <Link href="/" className="hover:text-ink-soft">
           Workspace
         </Link>{" "}
         /{" "}
         {product ? (
-          <Link href={`/product/${product.id}`} className="hover:text-stone-600">
+          <Link href={`/product/${product.id}`} className="hover:text-ink-soft">
             {product.name}
           </Link>
         ) : (
@@ -98,7 +98,7 @@ export default function IssuePage({
         {repo && (
           <>
             {" / "}
-            <Link href={`/repo/${repo.id}`} className="hover:text-stone-600">
+            <Link href={`/repo/${repo.id}`} className="hover:text-ink-soft">
               {repo.name}
             </Link>
           </>
@@ -106,7 +106,7 @@ export default function IssuePage({
       </nav>
 
       <header className="mt-4">
-        <p className="font-mono text-sm text-stone-400">{canonicalKey}</p>
+        <p className="font-mono text-sm text-ink-faint">{canonicalKey}</p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">
           <InlineEdit
             value={issue.title}
@@ -155,7 +155,7 @@ export default function IssuePage({
               type="date"
               value={issue.dueDate ?? ""}
               onChange={(e) => updateIssue(issue.id, { dueDate: e.target.value || null })}
-              className="w-full rounded border border-stone-200 bg-white px-2 py-1 text-sm hover:border-stone-400"
+              className="w-full rounded border border-line bg-card px-2 py-1 text-sm hover:border-ink-faint"
             />
           </Field>
           <Field label="Container">
@@ -165,29 +165,29 @@ export default function IssuePage({
             </p>
             <button
               onClick={() => openPalette({ kind: "move", issueId: issue.id })}
-              className="mt-0.5 text-xs text-sky-600 hover:underline"
+              className="mt-0.5 text-xs text-adobe hover:underline"
             >
-              Move… <span className="text-stone-400">(M)</span>
+              Move… <span className="text-ink-faint">(M)</span>
             </button>
           </Field>
           <Field label="Arc">
             {arc ? (
-              <Link href={`/arc/${arc.id}`} className="text-sm text-sky-700 hover:underline">
+              <Link href={`/arc/${arc.id}`} className="text-sm text-adobe-deep hover:underline">
                 {arc.name}
               </Link>
             ) : (
-              <span className="text-sm text-stone-400">—</span>
+              <span className="text-sm text-ink-faint">—</span>
             )}
             <button
               onClick={() => openPalette({ kind: "arc", issueId: issue.id })}
-              className="mt-0.5 block text-xs text-sky-600 hover:underline"
+              className="mt-0.5 block text-xs text-adobe hover:underline"
             >
-              Change… <span className="text-stone-400">(A)</span>
+              Change… <span className="text-ink-faint">(A)</span>
             </button>
           </Field>
           <Field label="Tags">
             {issueTags.length === 0 ? (
-              <span className="text-sm text-stone-400">—</span>
+              <span className="text-sm text-ink-faint">—</span>
             ) : (
               <span className="flex flex-wrap gap-1">
                 {issueTags.map((tag) => (
@@ -203,26 +203,26 @@ export default function IssuePage({
             )}
             <button
               onClick={() => openPalette({ kind: "tag", issueId: issue.id })}
-              className="mt-0.5 block text-xs text-sky-600 hover:underline"
+              className="mt-0.5 block text-xs text-adobe hover:underline"
             >
-              Edit… <span className="text-stone-400">(T)</span>
+              Edit… <span className="text-ink-faint">(T)</span>
             </button>
           </Field>
           <Field label="Work on this">
             <button
               onClick={() => void copyBundleAsPrompt(issueKeyOf(workspace, issue))}
-              className="block text-xs text-sky-600 hover:underline"
+              className="block text-xs text-adobe hover:underline"
             >
-              Copy as prompt <span className="text-stone-400">(W)</span>
+              Copy as prompt <span className="text-ink-faint">(W)</span>
             </button>
             <button
               onClick={() => copyWorkCommand(issueKeyOf(workspace, issue))}
-              className="mt-0.5 block text-xs text-sky-600 hover:underline"
+              className="mt-0.5 block text-xs text-adobe hover:underline"
             >
               Copy CLI command
             </button>
           </Field>
-          <div className="space-y-1 border-t border-stone-200 pt-3 text-xs text-stone-400">
+          <div className="space-y-1 border-t border-line pt-3 text-xs text-ink-faint">
             <p>Created {fmtTime(issue.createdAt)}</p>
             <p>Updated {fmtTime(issue.updatedAt)}</p>
             {issue.completedAt && <p>Completed {fmtTime(issue.completedAt)}</p>}
@@ -236,7 +236,7 @@ export default function IssuePage({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="mb-1 text-xs font-medium uppercase tracking-wide text-stone-400">{label}</p>
+      <p className="mb-1 text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">{label}</p>
       {children}
     </div>
   );
@@ -255,7 +255,7 @@ function FieldSelect({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded border border-stone-200 bg-white px-2 py-1 text-sm hover:border-stone-400"
+      className="w-full rounded border border-line bg-card px-2 py-1 text-sm hover:border-ink-faint"
     >
       {options.map(([v, label]) => (
         <option key={v} value={v}>
@@ -298,10 +298,10 @@ function TimelineSection({
     timeline !== undefined && (timeline.pullRequests.length > 0 || timeline.commits.length > 0);
 
   return (
-    <section className="mt-10 border-t border-stone-200 pt-6">
+    <section className="mt-10 border-t border-line pt-6">
       {hasGitLinks && (
         <div className="mb-8">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-stone-400">Git</h2>
+          <h2 className="text-sm font-medium uppercase tracking-wide font-mono text-ink-faint">Git</h2>
           <div className="mt-3 space-y-1.5">
             {timeline.pullRequests.map((pr) => (
               <PrRow key={`${pr.githubRepo}#${pr.prNumber}`} pr={pr} />
@@ -313,17 +313,17 @@ function TimelineSection({
         </div>
       )}
 
-      <h2 className="text-sm font-medium uppercase tracking-wide text-stone-400">Activity</h2>
+      <h2 className="text-sm font-medium uppercase tracking-wide font-mono text-ink-faint">Activity</h2>
 
-      {isPending && <p className="mt-3 text-sm text-stone-400">Loading…</p>}
-      {error && <p className="mt-3 text-sm text-red-600">{String(error)}</p>}
+      {isPending && <p className="mt-3 text-sm text-ink-faint">Loading…</p>}
+      {error && <p className="mt-3 text-sm text-danger">{String(error)}</p>}
 
       <ul className="mt-4 space-y-4">
         {entries.map((entry) =>
           entry.kind === "comment" ? (
-            <li key={entry.comment.id} className="rounded-lg border border-stone-200 bg-white p-3">
-              <p className="text-xs text-stone-400">
-                <span className="font-medium text-stone-600">
+            <li key={entry.comment.id} className="rounded-lg border border-line bg-card p-3">
+              <p className="text-xs text-ink-faint">
+                <span className="font-medium text-ink-soft">
                   {userName(entry.comment.authorId)}
                 </span>{" "}
                 · {fmtTime(entry.comment.createdAt)}
@@ -333,7 +333,7 @@ function TimelineSection({
               </div>
             </li>
           ) : (
-            <li key={entry.event.id} className="px-3 text-xs text-stone-400">
+            <li key={entry.event.id} className="px-3 text-xs text-ink-faint">
               {describeActivity(entry.event, workspace)} · {fmtTime(entry.event.createdAt)}
             </li>
           ),
@@ -346,7 +346,7 @@ function TimelineSection({
           onChange={(e) => setDraft(e.target.value)}
           rows={3}
           placeholder="Leave a comment… (Markdown)"
-          className="w-full rounded border border-stone-200 bg-white p-3 text-sm focus:border-stone-400 focus:outline-none"
+          className="w-full rounded border border-line bg-card p-3 text-sm focus:border-ink-faint focus:outline-none"
         />
         <button
           onClick={() => {
@@ -355,7 +355,7 @@ function TimelineSection({
             addComment(issue.id, body);
             setDraft("");
           }}
-          className="mt-2 rounded bg-stone-900 px-3 py-1 text-sm text-white hover:bg-stone-700 disabled:opacity-40"
+          className="mt-2 rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep disabled:opacity-40"
           disabled={draft.trim() === ""}
         >
           Comment
@@ -366,9 +366,9 @@ function TimelineSection({
 }
 
 const PR_STATE_STYLES: Record<PrState, string> = {
-  open: "bg-emerald-100 text-emerald-700",
-  merged: "bg-purple-100 text-purple-700",
-  closed: "bg-stone-200 text-stone-600",
+  open: "bg-adobe-wash/40 text-adobe-deep",
+  merged: "bg-moss-wash/50 text-moss-deep",
+  closed: "bg-line text-ink-soft",
 };
 
 function PrRow({ pr }: { pr: WirePrLink }) {
@@ -377,7 +377,7 @@ function PrRow({ pr }: { pr: WirePrLink }) {
       href={pr.url || undefined}
       target="_blank"
       rel="noreferrer"
-      className="flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm hover:border-stone-400"
+      className="flex items-center gap-2 rounded-lg border border-line bg-card px-3 py-2 text-sm hover:border-ink-faint"
     >
       <span
         className={`shrink-0 rounded-full px-2 py-px text-[10px] font-medium uppercase ${PR_STATE_STYLES[pr.state]}`}
@@ -385,7 +385,7 @@ function PrRow({ pr }: { pr: WirePrLink }) {
         {pr.state}
       </span>
       <span className="truncate font-medium">{pr.title}</span>
-      <span className="ml-auto shrink-0 text-xs text-stone-400">
+      <span className="ml-auto shrink-0 text-xs text-ink-faint">
         {pr.githubRepo}#{pr.prNumber}
       </span>
     </a>
@@ -398,11 +398,11 @@ function CommitRow({ commit }: { commit: WireCommitLink }) {
       href={commit.url || undefined}
       target="_blank"
       rel="noreferrer"
-      className="flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs hover:border-stone-400"
+      className="flex items-center gap-2 rounded-lg border border-line bg-card px-3 py-1.5 text-xs hover:border-ink-faint"
     >
-      <span className="shrink-0 font-mono text-stone-400">{commit.sha.slice(0, 7)}</span>
-      <span className="truncate text-stone-600">{commit.message}</span>
-      <span className="ml-auto shrink-0 text-stone-400">{commit.githubRepo}</span>
+      <span className="shrink-0 font-mono text-ink-faint">{commit.sha.slice(0, 7)}</span>
+      <span className="truncate text-ink-soft">{commit.message}</span>
+      <span className="ml-auto shrink-0 text-ink-faint">{commit.githubRepo}</span>
     </a>
   );
 }
