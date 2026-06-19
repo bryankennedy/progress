@@ -582,3 +582,31 @@ ship from `public/brand-assets/`. *Kept on-system:* errors/overdue use a derived
 on the global mermaid palette — it's a data encoding, not chrome. *Rejected:*
 linking `tokens.css` directly (the handoff's non-Tailwind path) — duplicates the
 palette outside Tailwind's utility system.
+
+### D42: in-app Google auth replaces Cloudflare Access (supersedes D12)
+**Supersedes D12.** The app now owns authentication and identity instead of
+delegating to the Cloudflare Access edge. Motivation (PROG-34): Access was only
+a gate — past it the Worker had zero identity awareness and every write was a
+hardcoded `usr_owner`, so content was effectively anonymous. The Worker now runs
+the **Google OAuth Authorization Code flow** itself (`src/worker/auth.ts`,
+`/api/auth/login` · `/callback` · `/logout`), mints a **stateless signed session
+cookie** (HS256 via `hono/jwt`; no sessions table — this is still the only writer
+of its own data), and an `/api/*` middleware resolves identity per request and
+attributes every write to it. *Decisions within:* (1) **owner-only allowlist** —
+sign-in is gated by `ALLOWED_EMAILS` (currently just the owner), so an open
+Google account can't read the workspace; (2) **bearer token for automation** —
+the MCP server, `progress work` CLI, and dogfood scripts drop the Access
+service-token headers for `Authorization: Bearer <PROGRESS_API_TOKEN>` (→ owner),
+keeping a non-interactive path without Access; (3) **unconfigured = dev owner** —
+when the OAuth secrets are absent the middleware falls back to `usr_owner`, so
+`bun run dev` and tests need no Google setup; (4) **id_token validated by claims,
+not signature** — it's received directly from Google's token endpoint over TLS
+(the Google-sanctioned shortcut), so we check `iss`/`aud`/`exp` but skip JWKS/RS256,
+keeping the module dependency-free. The webhook keeps its own HMAC and bypasses
+the new middleware. Migration `0004_owner_email.sql` repoints the seeded
+`usr_owner` to the owner email so sign-in resolves to the existing row,
+preserving all historical attribution. *Rejected:* keeping Access with Google as
+its IdP (doesn't move identity into the app — the stated goal); a D1 sessions
+table (statelessness suffices); a `users.google_sub` column (email matching is
+enough for owner-only; can add later as a stable anchor). Cutover steps + Access
+teardown: SETUP §6.

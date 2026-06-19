@@ -1,6 +1,6 @@
 // v2 dogfood pass (SPEC v2 §11): record the v2 build as issues in Progress's
-// own production backlog, through the LIVE API with the Cloudflare Access
-// service token — the same pattern as scripts/dogfood-cutover.ts. Completed
+// own production backlog, through the LIVE API with the Progress API token
+// (Authorization: Bearer) — the same pattern as scripts/dogfood-cutover.ts. Completed
 // build work lands as `done`; genuine follow-ups carry due dates so the new
 // Agenda view has real data across all four buckets.
 //
@@ -9,15 +9,13 @@
 // once it matches).
 
 const BASE = process.env.PROGRESS_BASE_URL ?? "https://progress.bryan-22c.workers.dev";
-const CLIENT_ID = process.env.PROD_CF_ACCESS_CLIENT_ID;
-const CLIENT_SECRET = process.env.PROD_CF_ACCESS_CLIENT_SECRET;
-if (!CLIENT_ID || !CLIENT_SECRET) {
-  console.error("Missing PROD_CF_ACCESS_CLIENT_ID / PROD_CF_ACCESS_CLIENT_SECRET in .env.");
+const API_TOKEN = process.env.PROGRESS_API_TOKEN ?? process.env.PROD_PROGRESS_API_TOKEN;
+if (!API_TOKEN) {
+  console.error("Missing PROGRESS_API_TOKEN / PROD_PROGRESS_API_TOKEN in .env.");
   process.exit(1);
 }
 const h = {
-  "CF-Access-Client-Id": CLIENT_ID,
-  "CF-Access-Client-Secret": CLIENT_SECRET,
+  Authorization: `Bearer ${API_TOKEN}`,
   "Content-Type": "application/json",
 };
 
@@ -28,8 +26,8 @@ async function api(method: string, path: string, body?: unknown): Promise<any> {
     redirect: "manual",
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (res.status === 302 || res.status === 0)
-    throw new Error(`${method} ${path} → redirected to Access login (service token rejected).`);
+  if (res.status === 401)
+    throw new Error(`${method} ${path} → 401 unauthenticated (PROGRESS_API_TOKEN rejected).`);
   const text = await res.text();
   if (!res.ok) throw new Error(`${method} ${path} → ${res.status}: ${text}`);
   return text ? JSON.parse(text) : null;

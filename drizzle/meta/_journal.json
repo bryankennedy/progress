@@ -29,6 +29,13 @@
       "when": 1781712156314,
       "tag": "0003_breezy_spot",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1781882000406,
+      "tag": "0004_owner_email",
+      "breakpoints": true
     }
   ]
 }

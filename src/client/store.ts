@@ -40,6 +40,12 @@ export const loadStats = { fetchMs: 0 };
 async function fetchWorkspace(): Promise<WorkspacePayload> {
   const t0 = performance.now();
   const res = await fetch("/api/workspace");
+  // Not signed in (PROG-34): bounce to Google sign-in. Returns a never-resolving
+  // promise so no error flashes before navigation.
+  if (res.status === 401) {
+    window.location.href = "/api/auth/login";
+    return new Promise<WorkspacePayload>(() => {});
+  }
   if (!res.ok) throw new Error(`workspace load failed: HTTP ${res.status}`);
   const ws = (await res.json()) as WorkspacePayload;
   loadStats.fetchMs = performance.now() - t0;

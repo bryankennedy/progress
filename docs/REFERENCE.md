@@ -130,18 +130,35 @@ away later does not unlink.
 ## 3. API
 
 All routes are JSON under `/api`. Errors are `{ error: string }` with 400
-(validation), 404 (missing), or 409 (key-prefix conflict). The single-user
-write identity is `usr_owner`. Any uncaught handler error is caught by a
-top-level `app.onError`: it logs the real exception (`console.error`, visible
+(validation), 401 (unauthenticated), 403 (not on the sign-in allowlist), 404
+(missing), or 409 (key-prefix conflict). Any uncaught handler error is caught by
+a top-level `app.onError`: it logs the real exception (`console.error`, visible
 in `wrangler tail`) and returns a generic `{ error: "internal_error" }` 500 —
-generic on purpose, since the webhook path bypasses Access (D31).
+generic on purpose, since the webhook path is publicly reachable (D31).
+
+### Authentication (PROG-34, supersedes D12)
+
+The Worker owns auth: in-app **Google OAuth** mints a stateless signed session
+cookie, and a middleware on `/api/*` resolves identity per request — exempting
+`/api/health`, `/api/auth/*`, and `/api/webhooks/*`. Order: an
+`Authorization: Bearer <PROGRESS_API_TOKEN>` header (non-interactive clients →
+`usr_owner`); else a valid `progress_session` cookie; else, **when the OAuth
+secrets are unset** (local dev), a fallback to `usr_owner` so `bun run dev` and
+tests never hit a login wall; else `401`. Every write is attributed to the
+resolved user (`c.get("userId")` → `creatorId`/`assigneeId`/`authorId`/
+`actorId`); the webhook, having no interactive user, still writes as `usr_owner`.
+Sign-in is gated by the `ALLOWED_EMAILS` allowlist (currently the owner only).
+Auth routes: `GET /api/auth/login` (302 → Google, sets a signed state cookie),
+`GET /api/auth/callback` (verify state, exchange code, allowlist-check, upsert
+user by email, set session cookie, 302 → `/`), `POST /api/auth/logout`. See
+`src/worker/auth.ts`.
 
 ### Workspace & issues
 
 | Route | Behavior |
 |---|---|
 | `GET /api/health` | `{ ok: true }` |
-| `GET /api/workspace` | The load-everything payload: users, initiatives, products, repos, arcs, issues, tags, issueTags, issueKeyAliases — nine independent reads run with `Promise.all` (not a `db.batch`/transaction, which 500'd on production D1; D31). Comments/activity are deliberately excluded (D20). |
+| `GET /api/workspace` | The load-everything payload: `me` (the signed-in user, PROG-34), users, initiatives, products, repos, arcs, issues, tags, issueTags, issueKeyAliases — nine independent reads run with `Promise.all` (not a `db.batch`/transaction, which 500'd on production D1; D31). Comments/activity are deliberately excluded (D20). |
 | `POST /api/issues` | `{ title, productId, repoId?, arcId?, description?, status?, priority?, estimate?, dueDate? }` → 201 `{ issue }`. `dueDate` is `YYYY-MM-DD` or null, validated (impossible dates rejected). Number allocated by atomic increment of the product sequence; gaps from failed creates are harmless (D24). |
 | `PATCH /api/issues/:id` | Any of `title, description, status, priority, estimate, arcId, dueDate` — validated per field; arc must be same-product; `dueDate` is `YYYY-MM-DD` or null to clear. A status change atomically appends a `status_changed` activity row and maintains `completedAt`. |
 | `POST /api/issues/:id/move` | `{ productId, repoId }` (`repoId: null` = product-level). Within-product keeps key + arc; cross-product re-keys, clears arc, writes the alias, logs `moved`. 400 on no-op. |
@@ -192,10 +209,10 @@ simply don't resolve (so prose like "UTF-8" can't false-positive).
 
 `src/mcp/server.ts` (`bun run mcp`) is a **local stdio MCP server** that wraps
 this API rather than re-implementing the domain — the Worker stays the single
-source of truth. It authenticates with the Cloudflare Access **service token**
-(`CF_ACCESS_CLIENT_ID`/`SECRET`, or the `PROD_CF_ACCESS_*` fallback) via the
-`CF-Access-Client-*` headers, the same non-interactive pattern the dogfood
-scripts use (SPEC §11.3/§11.4). Registration: SETUP §7.
+source of truth. It authenticates with the **`PROGRESS_API_TOKEN`** bearer
+(or the `PROD_PROGRESS_API_TOKEN` fallback) via the `Authorization: Bearer`
+header, the same non-interactive pattern the dogfood scripts and `progress work`
+CLI use (SPEC §11.3/§11.4, PROG-34). Registration: SETUP §7.
 
 Tools are **key-addressed** (alias-aware) and validated against the shared
 vocabularies in `src/shared/constants.ts`:
@@ -225,7 +242,7 @@ Two ways to hand an issue's bundle to a Claude Code session (SPEC §11.2):
   `GET /api/issues/:key/bundle` and prefetched on issue load so the copy is
   instant (no spinner; SPEC §8.2).
 - **CLI** — `bin/progress.ts` (`progress work <KEY>`): fetches the bundle with
-  the Access service token, creates/checks out `iss/<KEY>` (branch-from-key, so
+  the `PROGRESS_API_TOKEN` bearer, creates/checks out `iss/<KEY>` (branch-from-key, so
   later commits/PRs auto-link via §5), then launches `claude` primed with the
   bundle as its opening prompt — all in the current directory, so Progress
   never needs to know where repos live. Flags: `--no-branch`, `--print`.

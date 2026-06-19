@@ -1,19 +1,20 @@
 #!/usr/bin/env bun
 // Progress MCP server (SPEC §11.3, PROG-18). A local stdio MCP server that wraps
-// the production Progress API and authenticates with a Cloudflare Access service
-// token (§11.4) — the same bypass pattern the webhook uses with HMAC. It is a
-// CLIENT of the Access-protected API, not a second copy of the domain logic, so
-// the Worker stays the single source of truth (the "rigid simplicity" rule).
+// the production Progress API and authenticates with the Progress API token
+// (PROG-34) — sent as an `Authorization: Bearer` header, the same non-interactive
+// path the dogfood scripts and `progress work` CLI use. It is a CLIENT of the
+// authenticated API, not a second copy of the domain logic, so the Worker stays
+// the single source of truth (the "rigid simplicity" rule).
 //
 // Run:   bun src/mcp/server.ts   (or `bun run mcp`)
 // Env:   PROGRESS_BASE_URL                 (default: production URL below)
-//        CF_ACCESS_CLIENT_ID  / CF_ACCESS_CLIENT_SECRET   (the service token)
-//          — falls back to PROD_CF_ACCESS_CLIENT_ID/SECRET so the same .env the
-//            dogfood scripts use just works.
+//        PROGRESS_API_TOKEN                (the bearer token)
+//          — falls back to PROD_PROGRESS_API_TOKEN so the same .env the dogfood
+//            scripts use just works.
 //
 // Register in Claude Code (see docs/SETUP.md §7):
 //   claude mcp add progress -- bun /abs/path/to/src/mcp/server.ts
-// with the service-token env vars in scope.
+// with PROGRESS_API_TOKEN in scope.
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -32,21 +33,19 @@ const BASE = (process.env.PROGRESS_BASE_URL ?? "https://progress.bryan-22c.worke
   /\/+$/,
   "",
 );
-const CLIENT_ID = process.env.CF_ACCESS_CLIENT_ID ?? process.env.PROD_CF_ACCESS_CLIENT_ID;
-const CLIENT_SECRET = process.env.CF_ACCESS_CLIENT_SECRET ?? process.env.PROD_CF_ACCESS_CLIENT_SECRET;
+const API_TOKEN = process.env.PROGRESS_API_TOKEN ?? process.env.PROD_PROGRESS_API_TOKEN;
 
-if (!CLIENT_ID || !CLIENT_SECRET) {
+if (!API_TOKEN) {
   console.error(
-    "[progress-mcp] Missing CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET (or PROD_* fallbacks).\n" +
-      "Create a Cloudflare Access service token and grant it via the Service Auth policy\n" +
-      "on the Progress app (docs/SETUP.md §6/§7), then expose those vars to this server.",
+    "[progress-mcp] Missing PROGRESS_API_TOKEN (or PROD_PROGRESS_API_TOKEN fallback).\n" +
+      "Set it to the Progress API token (the value behind `wrangler secret put\n" +
+      "PROGRESS_API_TOKEN`; see docs/SETUP.md §6/§7), then expose it to this server.",
   );
   process.exit(1);
 }
 
 const accessHeaders: Record<string, string> = {
-  "CF-Access-Client-Id": CLIENT_ID,
-  "CF-Access-Client-Secret": CLIENT_SECRET,
+  Authorization: `Bearer ${API_TOKEN}`,
   "Content-Type": "application/json",
 };
 
@@ -57,10 +56,9 @@ async function api(method: string, path: string, body?: unknown): Promise<Respon
     body: body === undefined ? undefined : JSON.stringify(body),
     redirect: "manual",
   });
-  if (res.status === 302 || res.status === 0) {
+  if (res.status === 401) {
     throw new Error(
-      `${method} ${path} redirected to the Access login — the service token is not being ` +
-        `accepted. Check the Service Auth policy on the Progress app.`,
+      `${method} ${path} → 401 unauthenticated — PROGRESS_API_TOKEN is missing or wrong.`,
     );
   }
   return res;
