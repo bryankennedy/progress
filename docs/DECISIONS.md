@@ -563,3 +563,22 @@ in the create-issue dialog (which folds in the long-deferred "add arc from the
 New Issue modal"). All of it reuses the v1 optimistic container write paths
 (D26) — **no new write endpoints**; v2's structure work is surfaces only. Closes
 SPEC §9 Q4.
+
+### D41: visual identity is the "Adobe & Moss" design system
+Adopted the finished **"Progress — Adobe & Moss"** brand (delivered in
+`brand-assets/`): a muted, papery, high-contrast look — deep ink (`#2c241b`) on
+cream paper/canvas, **Spectral** for headings/body and **IBM Plex Mono** for
+labels/meta/keys, with two semantic accents — **Salmon Adobe** (`#bb6f50`) for
+primary actions / active "now" states (CTAs, links, active nav, open PRs) and
+**Olive Moss** (`#79864c`) for completed/grounded states (done, merged PRs).
+Tokens live in `brand-assets/tokens.css` (source of truth) and are **mirrored
+into Tailwind v4's `@theme`** in `src/client/styles.css` rather than loaded as a
+separate stylesheet, so each token is a utility (`bg-paper`, `text-ink`,
+`bg-adobe`, `border-line`, `font-mono`, brand `--radius-*`). All ~250 hard-coded
+`stone/sky/red/emerald/purple` utilities were refactored to these tokens
+(one-shot pass, `scripts/retheme.mjs`). Brand icons + `manifest.webmanifest`
+ship from `public/brand-assets/`. *Kept on-system:* errors/overdue use a derived
+`--danger` (papery tomato), not a stock red; the priority-dot scale (D39) stays
+on the global mermaid palette — it's a data encoding, not chrome. *Rejected:*
+linking `tokens.css` directly (the handoff's non-Tailwind path) — duplicates the
+palette outside Tailwind's utility system.
