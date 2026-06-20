@@ -8,7 +8,7 @@
 // issue whose title already exists in the product; PATCH-to-state is a no-op
 // once it matches).
 
-const BASE = process.env.PROGRESS_BASE_URL ?? "https://progress.bryan-22c.workers.dev";
+const BASE = process.env.PROGRESS_BASE_URL ?? "https://progress.bck.dev";
 const API_TOKEN = process.env.PROGRESS_API_TOKEN ?? process.env.PROD_PROGRESS_API_TOKEN;
 if (!API_TOKEN) {
   console.error("Missing PROGRESS_API_TOKEN / PROD_PROGRESS_API_TOKEN in .env.");

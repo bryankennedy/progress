@@ -134,7 +134,7 @@ falls back to the owner so `bun run dev` never hits a login wall.
 
 **Google OAuth client**: Google Cloud Console → APIs & Services → Credentials →
 **Create OAuth client ID** → *Web application*. Authorized redirect URIs:
-`https://progress.bryan-22c.workers.dev/api/auth/callback` (and
+`https://progress.bck.dev/api/auth/callback` (and
 `http://localhost:8000/api/auth/callback` to test locally). Copy the client
 id/secret into the secrets above.
 
@@ -159,7 +159,7 @@ bounces through Google sign-in. (Webhook registration below is unchanged.)
 
 Remaining one-time setup (owner-only): **GitHub webhook** per connected
 repository: Settings → Webhooks → Add — payload URL
-`https://progress.bryan-22c.workers.dev/api/webhooks/github`, content type
+`https://progress.bck.dev/api/webhooks/github`, content type
 `application/json`, secret = `PROD_GITHUB_WEBHOOK_SECRET` from `.env`,
 events: Pushes + Pull requests.
 

@@ -7,7 +7,7 @@
 // (Bun auto-loads .env). Idempotent: re-running skips issues whose title
 // already exists in the product, and PATCH-to-done is a no-op once done.
 
-const BASE = "https://progress.bryan-22c.workers.dev";
+const BASE = process.env.PROGRESS_BASE_URL ?? "https://progress.bck.dev";
 
 const API_TOKEN = process.env.PROGRESS_API_TOKEN ?? process.env.PROD_PROGRESS_API_TOKEN;
 if (!API_TOKEN) {
@@ -61,7 +61,7 @@ const NEW_ISSUES: NewIssue[] = [
     title: "Register the GitHub webhook on connected repos",
     description:
       "Point real repositories at the live endpoint (SPEC §5): Settings → Webhooks → " +
-      "payload URL `https://progress.bryan-22c.workers.dev/api/webhooks/github`, content " +
+      "payload URL `https://progress.bck.dev/api/webhooks/github`, content " +
       "type `application/json`, shared secret, events Pushes + Pull requests. The endpoint " +
       "is deployed and verified (401 unsigned / 200 signed); this is the owner-side hookup.",
     status: "todo",

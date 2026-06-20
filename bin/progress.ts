@@ -17,7 +17,7 @@
 
 import { execFileSync, spawnSync } from "node:child_process";
 
-const BASE = (process.env.PROGRESS_BASE_URL ?? "https://progress.bryan-22c.workers.dev").replace(
+const BASE = (process.env.PROGRESS_BASE_URL ?? "https://progress.bck.dev").replace(
   /\/+$/,
   "",
 );

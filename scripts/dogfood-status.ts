@@ -6,7 +6,7 @@
 // Needs PROGRESS_API_TOKEN / PROD_PROGRESS_API_TOKEN in .env.
 // Idempotent: a PATCH to a status the issue already holds is a no-op.
 
-const BASE = "https://progress.bryan-22c.workers.dev";
+const BASE = process.env.PROGRESS_BASE_URL ?? "https://progress.bck.dev";
 
 const API_TOKEN = process.env.PROGRESS_API_TOKEN ?? process.env.PROD_PROGRESS_API_TOKEN;
 if (!API_TOKEN) {
