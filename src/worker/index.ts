@@ -67,6 +67,16 @@ function safeEqual(a: string, b: string): boolean {
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll("-", "")}`;
 
+// Local-dev detection for the unconfigured-auth fallback below. Only a loopback
+// origin may run unauthenticated-as-owner; any real (deployed) hostname without
+// configured auth must fail CLOSED. Without this, a production deploy that lost
+// its OAuth/session secrets would silently serve the entire write API as the
+// owner instead of returning 401.
+function isLoopbackHost(requestUrl: string): boolean {
+  const host = new URL(requestUrl).hostname;
+  return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+}
+
 // Due dates (SPEC v2 §5) are wall-calendar days stored as ISO `YYYY-MM-DD`
 // text — timezone-safe by design. Accept the canonical form only, and reject
 // impossible dates (e.g. 2026-13-40) by round-tripping through UTC: parsing at
@@ -95,8 +105,9 @@ app.onError((err, c) => {
 // Gate every /api route except health, the OAuth dance itself, and the GitHub
 // webhook (HMAC-authenticated, no interactive user). Identity comes from, in
 // order: the automation bearer token (→ owner), a valid session cookie, or —
-// when auth is unconfigured (local dev) — a fallback to the owner so
-// `bun run dev` and tests never hit a login wall. Otherwise 401.
+// when auth is unconfigured AND the request is to a loopback origin (local
+// dev) — a fallback to the owner so `bun run dev` and tests never hit a login
+// wall. A deployed origin with unconfigured auth fails closed. Otherwise 401.
 app.use("/api/*", async (c, next) => {
   const path = c.req.path;
   if (
@@ -128,7 +139,7 @@ app.use("/api/*", async (c, next) => {
     }
   }
 
-  if (!authConfigured(env)) {
+  if (!authConfigured(env) && isLoopbackHost(c.req.url)) {
     c.set("userId", OWNER_ID);
     return next();
   }
