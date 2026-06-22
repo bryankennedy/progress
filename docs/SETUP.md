@@ -168,16 +168,27 @@ enabled in `wrangler.jsonc`. To view them:
   Observability). Filter by field, e.g. `event = unhandled_error` or
   `requestId = <the x-request-id a user reported>`.
 
-**Alerts** (one-time, dashboard — there's no wrangler equivalent): Cloudflare
-dashboard → **Notifications** → Add. Useful ones for this Worker:
+**Alerting** (one-time, owner task). Note Cloudflare's account-level
+**Notifications** catalog has **no generic Workers error-rate / uncaught-exception
+alert** — don't go looking for a "Workers → Script errors" type; it isn't there.
+The reliable signal comes from the readiness endpoint instead:
 
-1. **Workers errors** — product *Workers*, type *Script errors*, scoped to the
-   `progress` script → email `bryan@mysteryexperience.com`. Fires on a spike in
-   uncaught exceptions (the `unhandled_error` path).
-2. **Health/uptime** — Cloudflare *Health Checks* (Traffic → Health Checks) on
-   `https://progress.bck.dev/api/health` expecting HTTP 200; the endpoint now
-   round-trips D1 (#5), so a 503 there means the database is unreachable, not
-   merely that the Worker is down. Attach a notification to the health check.
+1. **External uptime monitor (recommended, plan-independent).** Point any
+   uptime service (UptimeRobot / Better Stack / Healthchecks.io free tier) at
+   `https://progress.bck.dev/api/health`, expect HTTP `200`, alert on failure to
+   `bryan@mysteryexperience.com`. Because the endpoint round-trips D1 (#5), a
+   `503` means the database is unreachable — a true end-to-end health signal, not
+   just "the Worker booted". This is the primary alert.
+2. **Cloudflare Health Checks (only if available on the plan).** Zone-level under
+   the `bck.dev` zone → *Traffic → Health Checks* (not account Notifications), an
+   HTTPS check on `/api/health` expecting `200`; it then exposes a *Health Check
+   Status Notification* type. Standalone Health Checks can be a paid add-on, so
+   this may be absent — the external monitor above covers the same need without
+   that dependency.
+
+Error **visibility** (the forensic trail once a monitor flags an outage) needs no
+alert setup — it's the structured logs above: Workers & Pages → `progress` →
+Logs, filter `event = unhandled_error`.
 
 **v2 shipped 2026-06-17** (migration `0003_breezy_spot.sql` — the nullable
 `issues.due_date`): due dates, the Agenda view, the Structure route, and the
