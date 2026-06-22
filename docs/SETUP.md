@@ -110,6 +110,44 @@ Redeploy after changes: `bun run deploy` (builds, then `wrangler deploy`).
 Schema changes additionally need
 `bunx wrangler d1 migrations apply progress-db --remote` first.
 
+### Rollback & recovery
+
+Two independent axes — **code** (the Worker artifact) and **data** (the D1
+database). Roll back the one that broke; they're decoupled.
+
+**Code — revert to a previous Worker version (no rebuild):**
+
+```sh
+bunx wrangler deployments list                 # find the prior version id + timestamp
+bunx wrangler rollback [<version-id>]           # omit the id to roll back one deploy
+```
+
+`rollback` re-points the live Worker at an already-uploaded version instantly;
+it does **not** touch D1. Prefer it for a bad code deploy. To instead roll
+*forward* from source, `git revert` the offending commit and `bun run deploy`.
+Caveat: a rollback past a deploy that applied a migration leaves older code
+running against the newer schema — if the bad deploy included a schema change,
+plan the data axis below too.
+
+**Data — D1 time travel (point-in-time restore, ~30-day window):**
+
+```sh
+bunx wrangler d1 time-travel info progress-db                 # current restorable window
+bunx wrangler d1 time-travel restore progress-db --timestamp=<ISO-8601>
+# or restore to a specific transaction:
+bunx wrangler d1 time-travel restore progress-db --bookmark=<bookmark>
+```
+
+Restore is **destructive and in-place** — it rewinds `progress-db` to that point
+and discards everything after, so capture the current state first
+(`bunx wrangler d1 export progress-db --remote --output=pre-restore.sql`) and,
+where possible, grab a `--bookmark` *before* the bad write so you can pin the
+exact transaction. Restore is the whole database, not a single table.
+
+This recovery path is documented but **unexercised in production** — see the
+open readiness item to run a real time-travel restore drill (e.g. against a
+throwaway D1) and confirm the steps before an incident forces them.
+
 **v2 shipped 2026-06-17** (migration `0003_breezy_spot.sql` — the nullable
 `issues.due_date`): due dates, the Agenda view, the Structure route, and the
 header New menu. The remote migration + `bun run deploy` were applied; the build
