@@ -24,6 +24,7 @@ import {
 } from "../db/schema";
 import { tagColor } from "../shared/constants";
 import { isValidRank, rankAfter } from "../shared/rank";
+import { log } from "./log";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import {
   SESSION_COOKIE,
@@ -51,7 +52,7 @@ type Bindings = AuthEnv & {
 // Per-request identity set by the auth middleware (PROG-34): the logged-in
 // user's id (session cookie), or the owner for the automation bearer token and
 // the local-dev fallback.
-type Variables = { userId: string };
+type Variables = { userId: string; requestId: string };
 
 // The owner row the seed guarantees (D13). Still the actor for the automation
 // bearer token, the webhook (no interactive user), and the local-dev fallback.
@@ -68,6 +69,16 @@ function safeEqual(a: string, b: string): boolean {
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll("-", "")}`;
 
+// Local-dev detection for the unconfigured-auth fallback below. Only a loopback
+// origin may run unauthenticated-as-owner; any real (deployed) hostname without
+// configured auth must fail CLOSED. Without this, a production deploy that lost
+// its OAuth/session secrets would silently serve the entire write API as the
+// owner instead of returning 401.
+function isLoopbackHost(requestUrl: string): boolean {
+  const host = new URL(requestUrl).hostname;
+  return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+}
+
 // Due dates (SPEC v2 §5) are wall-calendar days stored as ISO `YYYY-MM-DD`
 // text — timezone-safe by design. Accept the canonical form only, and reject
 // impossible dates (e.g. 2026-13-40) by round-tripping through UTC: parsing at
@@ -81,13 +92,41 @@ const isValidDueDate = (s: string): boolean => {
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
+// Assign a request id to every request and emit one structured access line when
+// it completes. Reuse Cloudflare's `cf-ray` when present (so a log line ties
+// back to the dashboard's request trace) and fall back to a uuid in local dev.
+// The id is echoed as `x-request-id` for client-side correlation and stashed on
+// the context so any error logged mid-request carries the same id (see log.ts).
+// Health checks are skipped to keep uptime-monitor polling out of the logs.
+app.use("*", async (c, next) => {
+  const requestId = c.req.header("cf-ray") ?? crypto.randomUUID();
+  c.set("requestId", requestId);
+  c.header("x-request-id", requestId);
+  const start = Date.now();
+  await next();
+  if (c.req.path.startsWith("/api/") && c.req.path !== "/api/health") {
+    log("info", "request", {
+      requestId,
+      method: c.req.method,
+      path: c.req.path,
+      status: c.res.status,
+      durationMs: Date.now() - start,
+    });
+  }
+});
+
 // Without this, an uncaught throw became a bare "Internal Server Error" with
 // nothing in the logs — which is exactly why a production /api/workspace 500
-// was undiagnosable. Log the full error server-side (visible in `wrangler
-// tail`); keep the response body generic so the Access-bypassed webhook path
-// can't be used to read internals.
+// was undiagnosable. Log the full error server-side (visible in Workers Logs /
+// `wrangler tail`, correlatable by requestId); keep the response body generic so
+// the webhook path can't be used to read internals.
 app.onError((err, c) => {
-  console.error("worker error:", c.req.method, c.req.path, err);
+  log("error", "unhandled_error", {
+    requestId: c.get("requestId"),
+    method: c.req.method,
+    path: c.req.path,
+    error: err,
+  });
   return c.json({ error: "internal_error" }, 500);
 });
 
@@ -96,8 +135,9 @@ app.onError((err, c) => {
 // Gate every /api route except health, the OAuth dance itself, and the GitHub
 // webhook (HMAC-authenticated, no interactive user). Identity comes from, in
 // order: the automation bearer token (→ owner), a valid session cookie, or —
-// when auth is unconfigured (local dev) — a fallback to the owner so
-// `bun run dev` and tests never hit a login wall. Otherwise 401.
+// when auth is unconfigured AND the request is to a loopback origin (local
+// dev) — a fallback to the owner so `bun run dev` and tests never hit a login
+// wall. A deployed origin with unconfigured auth fails closed. Otherwise 401.
 app.use("/api/*", async (c, next) => {
   const path = c.req.path;
   if (
@@ -129,7 +169,7 @@ app.use("/api/*", async (c, next) => {
     }
   }
 
-  if (!authConfigured(env)) {
+  if (!authConfigured(env) && isLoopbackHost(c.req.url)) {
     c.set("userId", OWNER_ID);
     return next();
   }
@@ -177,7 +217,7 @@ app.get("/api/auth/callback", async (c) => {
   try {
     identity = await exchangeCodeForIdentity(env, code, redirectUri(env, c.req.url));
   } catch (e) {
-    console.error("oauth callback:", e);
+    log("error", "oauth_callback_failed", { requestId: c.get("requestId"), error: e });
     return c.json({ error: "authentication failed" }, 400);
   }
   if (!isAllowed(identity.email, env)) return c.json({ error: "not authorized" }, 403);
@@ -212,7 +252,18 @@ app.post("/api/auth/logout", (c) => {
   return c.json({ ok: true });
 });
 
-app.get("/api/health", (c) => c.json({ ok: true }));
+// Readiness, not just liveness: a trivial round-trip to D1 so the check fails
+// (503) when the database binding is unreachable, instead of reporting healthy
+// just because the Worker booted. Kept cheap — `SELECT 1`, no table access.
+app.get("/api/health", async (c) => {
+  try {
+    await drizzle(c.env.DB).run(sql`select 1`);
+    return c.json({ ok: true, db: "ok" });
+  } catch (e) {
+    log("error", "health_d1_probe_failed", { requestId: c.get("requestId"), error: e });
+    return c.json({ ok: false, db: "error" }, 503);
+  }
+});
 
 // The single "load everything" endpoint that feeds the client store
 // (SPEC §8.2: fetch the full workspace up front, render from memory after).

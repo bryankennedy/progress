@@ -24,6 +24,11 @@ const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
 
+// Cap on the server-to-server token exchange. Without it, a hung Google endpoint
+// would hold the OAuth callback request open indefinitely; abort and surface a
+// 4xx instead so the user can simply retry sign-in.
+const TOKEN_EXCHANGE_TIMEOUT_MS = 10_000;
+
 // The subset of Worker bindings auth needs. Optional so the unconfigured path
 // (local dev) can be detected by their absence.
 export type AuthEnv = {
@@ -83,17 +88,26 @@ export async function exchangeCodeForIdentity(
   code: string,
   redirect: string,
 ): Promise<GoogleIdentity> {
-  const res = await fetch(GOOGLE_TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      code,
-      client_id: env.GOOGLE_CLIENT_ID!,
-      client_secret: env.GOOGLE_CLIENT_SECRET!,
-      redirect_uri: redirect,
-      grant_type: "authorization_code",
-    }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(GOOGLE_TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code,
+        client_id: env.GOOGLE_CLIENT_ID!,
+        client_secret: env.GOOGLE_CLIENT_SECRET!,
+        redirect_uri: redirect,
+        grant_type: "authorization_code",
+      }),
+      // Abort rather than hang forever if Google's token endpoint stalls.
+      signal: AbortSignal.timeout(TOKEN_EXCHANGE_TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError"))
+      throw new Error("google token exchange timed out");
+    throw err;
+  }
   if (!res.ok) throw new Error(`google token exchange failed: HTTP ${res.status}`);
   const tokens = (await res.json()) as { id_token?: string };
   if (!tokens.id_token) throw new Error("google token response had no id_token");

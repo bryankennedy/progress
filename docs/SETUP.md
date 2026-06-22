@@ -99,9 +99,11 @@ the dev server is served directly at the VM's main URL — no nginx in between.
 
 ## 6. Production deploy
 
-Deployed 2026-06-12: <https://progress.bryan-22c.workers.dev> (single
-Worker; D1 `progress-db` in ENAM, id in `wrangler.jsonc` — local dev
-ignores it). Migrations + the idempotent dogfood seed are applied;
+Live at <https://progress.bck.dev> (the canonical host; the original
+`progress.bryan-22c.workers.dev` workers.dev URL still resolves). First
+deployed 2026-06-12 — single Worker; D1 `progress-db` in ENAM, id in
+`wrangler.jsonc` — local dev ignores it. Migrations + the idempotent
+dogfood seed are applied;
 `GITHUB_WEBHOOK_SECRET` is set via `wrangler secret put` (the value also
 lives in the local gitignored `.env` as `PROD_GITHUB_WEBHOOK_SECRET`, for
 GitHub-side registration).
@@ -109,6 +111,75 @@ GitHub-side registration).
 Redeploy after changes: `bun run deploy` (builds, then `wrangler deploy`).
 Schema changes additionally need
 `bunx wrangler d1 migrations apply progress-db --remote` first.
+
+### Rollback & recovery
+
+Two independent axes — **code** (the Worker artifact) and **data** (the D1
+database). Roll back the one that broke; they're decoupled.
+
+**Code — revert to a previous Worker version (no rebuild):**
+
+```sh
+bunx wrangler deployments list                 # find the prior version id + timestamp
+bunx wrangler rollback [<version-id>]           # omit the id to roll back one deploy
+```
+
+`rollback` re-points the live Worker at an already-uploaded version instantly;
+it does **not** touch D1. Prefer it for a bad code deploy. To instead roll
+*forward* from source, `git revert` the offending commit and `bun run deploy`.
+Caveat: a rollback past a deploy that applied a migration leaves older code
+running against the newer schema — if the bad deploy included a schema change,
+plan the data axis below too.
+
+**Data — D1 time travel (point-in-time restore, ~30-day window):**
+
+```sh
+bunx wrangler d1 time-travel info progress-db                 # current restorable window
+bunx wrangler d1 time-travel restore progress-db --timestamp=<ISO-8601>
+# or restore to a specific transaction:
+bunx wrangler d1 time-travel restore progress-db --bookmark=<bookmark>
+```
+
+Restore is **destructive and in-place** — it rewinds `progress-db` to that point
+and discards everything after, so capture the current state first
+(`bunx wrangler d1 export progress-db --remote --output=pre-restore.sql`) and,
+where possible, grab a `--bookmark` *before* the bad write so you can pin the
+exact transaction. Restore is the whole database, not a single table.
+
+This recovery path is documented but **unexercised in production** — see the
+open readiness item to run a real time-travel restore drill (e.g. against a
+throwaway D1) and confirm the steps before an incident forces them.
+
+### Observability & alerts
+
+The Worker emits **structured JSON logs** (`src/worker/log.ts`) — one line per
+event, every field filterable. A top-level middleware tags each request with a
+`requestId` (Cloudflare's `cf-ray` in prod, a uuid locally), echoes it as the
+`x-request-id` response header, and logs a `request` access line
+(`method`/`path`/`status`/`durationMs`) on completion. Any error logged while
+serving that request (`unhandled_error`, `oauth_callback_failed`,
+`health_d1_probe_failed`) carries the same `requestId`, so a failure traces end
+to end. Health-check polling is deliberately not access-logged.
+
+Logs are retained and queryable in the dashboard because `observability` is
+enabled in `wrangler.jsonc`. To view them:
+
+- **Live tail:** `bunx wrangler tail` (add `--format=pretty`, or
+  `--status=error` to watch only failures).
+- **Dashboard:** Workers & Pages → `progress` → **Logs** (a.k.a. Workers
+  Observability). Filter by field, e.g. `event = unhandled_error` or
+  `requestId = <the x-request-id a user reported>`.
+
+**Alerts** (one-time, dashboard — there's no wrangler equivalent): Cloudflare
+dashboard → **Notifications** → Add. Useful ones for this Worker:
+
+1. **Workers errors** — product *Workers*, type *Script errors*, scoped to the
+   `progress` script → email `bryan@mysteryexperience.com`. Fires on a spike in
+   uncaught exceptions (the `unhandled_error` path).
+2. **Health/uptime** — Cloudflare *Health Checks* (Traffic → Health Checks) on
+   `https://progress.bck.dev/api/health` expecting HTTP 200; the endpoint now
+   round-trips D1 (#5), so a 503 there means the database is unreachable, not
+   merely that the Worker is down. Attach a notification to the health check.
 
 **v2 shipped 2026-06-17** (migration `0003_breezy_spot.sql` — the nullable
 `issues.due_date`): due dates, the Agenda view, the Structure route, and the
@@ -136,7 +207,7 @@ falls back to the owner so `bun run dev` never hits a login wall.
 
 **Google OAuth client**: Google Cloud Console → APIs & Services → Credentials →
 **Create OAuth client ID** → *Web application*. Authorized redirect URIs:
-`https://progress.bryan-22c.workers.dev/api/auth/callback` (and
+`https://progress.bck.dev/api/auth/callback` (and
 `http://localhost:8000/api/auth/callback` to test locally). Copy the client
 id/secret into the secrets above.
 
@@ -161,7 +232,7 @@ bounces through Google sign-in. (Webhook registration below is unchanged.)
 
 Remaining one-time setup (owner-only): **GitHub webhook** per connected
 repository: Settings → Webhooks → Add — payload URL
-`https://progress.bryan-22c.workers.dev/api/webhooks/github`, content type
+`https://progress.bck.dev/api/webhooks/github`, content type
 `application/json`, secret = `PROD_GITHUB_WEBHOOK_SECRET` from `.env`,
 events: Pushes + Pull requests.
 
