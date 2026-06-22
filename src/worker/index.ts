@@ -23,6 +23,7 @@ import {
   type PrState,
 } from "../db/schema";
 import { tagColor } from "../shared/constants";
+import { log } from "./log";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import {
   SESSION_COOKIE,
@@ -50,7 +51,7 @@ type Bindings = AuthEnv & {
 // Per-request identity set by the auth middleware (PROG-34): the logged-in
 // user's id (session cookie), or the owner for the automation bearer token and
 // the local-dev fallback.
-type Variables = { userId: string };
+type Variables = { userId: string; requestId: string };
 
 // The owner row the seed guarantees (D13). Still the actor for the automation
 // bearer token, the webhook (no interactive user), and the local-dev fallback.
@@ -90,13 +91,41 @@ const isValidDueDate = (s: string): boolean => {
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
+// Assign a request id to every request and emit one structured access line when
+// it completes. Reuse Cloudflare's `cf-ray` when present (so a log line ties
+// back to the dashboard's request trace) and fall back to a uuid in local dev.
+// The id is echoed as `x-request-id` for client-side correlation and stashed on
+// the context so any error logged mid-request carries the same id (see log.ts).
+// Health checks are skipped to keep uptime-monitor polling out of the logs.
+app.use("*", async (c, next) => {
+  const requestId = c.req.header("cf-ray") ?? crypto.randomUUID();
+  c.set("requestId", requestId);
+  c.header("x-request-id", requestId);
+  const start = Date.now();
+  await next();
+  if (c.req.path.startsWith("/api/") && c.req.path !== "/api/health") {
+    log("info", "request", {
+      requestId,
+      method: c.req.method,
+      path: c.req.path,
+      status: c.res.status,
+      durationMs: Date.now() - start,
+    });
+  }
+});
+
 // Without this, an uncaught throw became a bare "Internal Server Error" with
 // nothing in the logs — which is exactly why a production /api/workspace 500
-// was undiagnosable. Log the full error server-side (visible in `wrangler
-// tail`); keep the response body generic so the Access-bypassed webhook path
-// can't be used to read internals.
+// was undiagnosable. Log the full error server-side (visible in Workers Logs /
+// `wrangler tail`, correlatable by requestId); keep the response body generic so
+// the webhook path can't be used to read internals.
 app.onError((err, c) => {
-  console.error("worker error:", c.req.method, c.req.path, err);
+  log("error", "unhandled_error", {
+    requestId: c.get("requestId"),
+    method: c.req.method,
+    path: c.req.path,
+    error: err,
+  });
   return c.json({ error: "internal_error" }, 500);
 });
 
@@ -187,7 +216,7 @@ app.get("/api/auth/callback", async (c) => {
   try {
     identity = await exchangeCodeForIdentity(env, code, redirectUri(env, c.req.url));
   } catch (e) {
-    console.error("oauth callback:", e);
+    log("error", "oauth_callback_failed", { requestId: c.get("requestId"), error: e });
     return c.json({ error: "authentication failed" }, 400);
   }
   if (!isAllowed(identity.email, env)) return c.json({ error: "not authorized" }, 403);
@@ -230,7 +259,7 @@ app.get("/api/health", async (c) => {
     await drizzle(c.env.DB).run(sql`select 1`);
     return c.json({ ok: true, db: "ok" });
   } catch (e) {
-    console.error("health: D1 probe failed:", e);
+    log("error", "health_d1_probe_failed", { requestId: c.get("requestId"), error: e });
     return c.json({ ok: false, db: "error" }, 503);
   }
 });

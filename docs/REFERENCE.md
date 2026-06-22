@@ -143,8 +143,11 @@ cookie, and a middleware on `/api/*` resolves identity per request — exempting
 `/api/health`, `/api/auth/*`, and `/api/webhooks/*`. Order: an
 `Authorization: Bearer <PROGRESS_API_TOKEN>` header (non-interactive clients →
 `usr_owner`); else a valid `progress_session` cookie; else, **when the OAuth
-secrets are unset** (local dev), a fallback to `usr_owner` so `bun run dev` and
-tests never hit a login wall; else `401`. Every write is attributed to the
+secrets are unset _and_ the request is to a loopback origin** (local dev), a
+fallback to `usr_owner` so `bun run dev` and tests never hit a login wall; else
+`401`. The loopback condition makes the fallback fail **closed**: a deployed
+origin with unconfigured auth returns `401` rather than silently serving the API
+as the owner. Every write is attributed to the
 resolved user (`c.get("userId")` → `creatorId`/`assigneeId`/`authorId`/
 `actorId`); the webhook, having no interactive user, still writes as `usr_owner`.
 Sign-in is gated by the `ALLOWED_EMAILS` allowlist (currently the owner only).
@@ -156,11 +159,22 @@ an `UnauthenticatedError` that renders the **sign-in landing page**
 (`SignIn.tsx`, §5) — a brand mark and a "Sign in with Google" button linking to
 `/api/auth/login` — rather than auto-redirecting.
 
+### Observability
+
+Every request is tagged with a `requestId` (Cloudflare's `cf-ray` in prod, a
+uuid locally), echoed as the `x-request-id` response header. The Worker logs
+**structured JSON** (`src/worker/log.ts`): a `request` access line per `/api/*`
+call (`method`/`path`/`status`/`durationMs`, excluding `/api/health`) and error
+events (`unhandled_error`, `oauth_callback_failed`, `health_d1_probe_failed`)
+carrying the same `requestId`. `observability` is enabled in `wrangler.jsonc`, so
+the logs are queryable in the dashboard. Operational detail — tailing, querying,
+and alert setup — is in `docs/SETUP.md` §6.
+
 ### Workspace & issues
 
 | Route | Behavior |
 |---|---|
-| `GET /api/health` | `{ ok: true }` |
+| `GET /api/health` | Readiness probe: round-trips D1 (`select 1`). `{ ok: true, db: "ok" }` (200) when reachable, `{ ok: false, db: "error" }` (503) when not — so it reflects database reachability, not just that the Worker booted. The only `/api/*` route never access-logged. |
 | `GET /api/workspace` | The load-everything payload: `me` (the signed-in user, PROG-34), users, initiatives, products, repos, arcs, issues, tags, issueTags, issueKeyAliases — nine independent reads run with `Promise.all` (not a `db.batch`/transaction, which 500'd on production D1; D31). Comments/activity are deliberately excluded (D20). |
 | `POST /api/issues` | `{ title, productId, repoId?, arcId?, description?, status?, priority?, estimate?, dueDate? }` → 201 `{ issue }`. `dueDate` is `YYYY-MM-DD` or null, validated (impossible dates rejected). Number allocated by atomic increment of the product sequence; gaps from failed creates are harmless (D24). |
 | `PATCH /api/issues/:id` | Any of `title, description, status, priority, estimate, arcId, dueDate` — validated per field; arc must be same-product; `dueDate` is `YYYY-MM-DD` or null to clear. A status change atomically appends a `status_changed` activity row and maintains `completedAt`. |

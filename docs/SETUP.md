@@ -148,6 +148,37 @@ This recovery path is documented but **unexercised in production** — see the
 open readiness item to run a real time-travel restore drill (e.g. against a
 throwaway D1) and confirm the steps before an incident forces them.
 
+### Observability & alerts
+
+The Worker emits **structured JSON logs** (`src/worker/log.ts`) — one line per
+event, every field filterable. A top-level middleware tags each request with a
+`requestId` (Cloudflare's `cf-ray` in prod, a uuid locally), echoes it as the
+`x-request-id` response header, and logs a `request` access line
+(`method`/`path`/`status`/`durationMs`) on completion. Any error logged while
+serving that request (`unhandled_error`, `oauth_callback_failed`,
+`health_d1_probe_failed`) carries the same `requestId`, so a failure traces end
+to end. Health-check polling is deliberately not access-logged.
+
+Logs are retained and queryable in the dashboard because `observability` is
+enabled in `wrangler.jsonc`. To view them:
+
+- **Live tail:** `bunx wrangler tail` (add `--format=pretty`, or
+  `--status=error` to watch only failures).
+- **Dashboard:** Workers & Pages → `progress` → **Logs** (a.k.a. Workers
+  Observability). Filter by field, e.g. `event = unhandled_error` or
+  `requestId = <the x-request-id a user reported>`.
+
+**Alerts** (one-time, dashboard — there's no wrangler equivalent): Cloudflare
+dashboard → **Notifications** → Add. Useful ones for this Worker:
+
+1. **Workers errors** — product *Workers*, type *Script errors*, scoped to the
+   `progress` script → email `bryan@mysteryexperience.com`. Fires on a spike in
+   uncaught exceptions (the `unhandled_error` path).
+2. **Health/uptime** — Cloudflare *Health Checks* (Traffic → Health Checks) on
+   `https://progress.bck.dev/api/health` expecting HTTP 200; the endpoint now
+   round-trips D1 (#5), so a 503 there means the database is unreachable, not
+   merely that the Worker is down. Attach a notification to the health check.
+
 **v2 shipped 2026-06-17** (migration `0003_breezy_spot.sql` — the nullable
 `issues.due_date`): due dates, the Agenda view, the Structure route, and the
 header New menu. The remote migration + `bun run deploy` were applied; the build
