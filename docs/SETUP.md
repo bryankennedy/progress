@@ -97,9 +97,11 @@ the dev server is served directly at the VM's main URL — no nginx in between.
 
 ## 6. Production deploy
 
-Deployed 2026-06-12: <https://progress.bryan-22c.workers.dev> (single
-Worker; D1 `progress-db` in ENAM, id in `wrangler.jsonc` — local dev
-ignores it). Migrations + the idempotent dogfood seed are applied;
+Live at <https://progress.bck.dev> (the canonical host; the original
+`progress.bryan-22c.workers.dev` workers.dev URL still resolves). First
+deployed 2026-06-12 — single Worker; D1 `progress-db` in ENAM, id in
+`wrangler.jsonc` — local dev ignores it. Migrations + the idempotent
+dogfood seed are applied;
 `GITHUB_WEBHOOK_SECRET` is set via `wrangler secret put` (the value also
 lives in the local gitignored `.env` as `PROD_GITHUB_WEBHOOK_SECRET`, for
 GitHub-side registration).
