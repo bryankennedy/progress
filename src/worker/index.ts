@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, max, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import {
   activity,
@@ -23,6 +23,7 @@ import {
   type PrState,
 } from "../db/schema";
 import { tagColor } from "../shared/constants";
+import { isValidRank, rankAfter } from "../shared/rank";
 import { log } from "./log";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import {
@@ -650,6 +651,13 @@ app.post("/api/issues", async (c) => {
     .set({ nextIssueNumber: sql`${products.nextIssueNumber} + 1` })
     .where(eq(products.id, product.id))
     .returning({ next: products.nextIssueNumber });
+  // Board rank (PROG-43): append after the current last issue so a new card
+  // lands at the bottom of its column. Ranks are a single global order; sorting
+  // only ever compares cards within one column, so being globally last places
+  // it last among its column's members.
+  const [{ maxRank } = { maxRank: null }] = await db
+    .select({ maxRank: max(issues.rank) })
+    .from(issues);
   const now = new Date();
   const [issue] = await db
     .insert(issues)
@@ -665,6 +673,7 @@ app.post("/api/issues", async (c) => {
       priority,
       estimate,
       dueDate,
+      rank: rankAfter(maxRank ?? null),
       creatorId: c.get("userId"),
       assigneeId: c.get("userId"),
       createdAt: now,
@@ -769,6 +778,7 @@ type IssuePatchBody = Partial<{
   estimate: number | null;
   arcId: string | null;
   dueDate: string | null;
+  rank: string;
 }>;
 
 // Generalized issue field update — the server side of the optimistic-mutation
@@ -805,6 +815,13 @@ app.patch("/api/issues/:id", async (c) => {
     if (body.dueDate !== null && (typeof body.dueDate !== "string" || !isValidDueDate(body.dueDate)))
       return c.json({ error: `invalid dueDate: ${String(body.dueDate)} (expected YYYY-MM-DD)` }, 400);
     set.dueDate = body.dueDate;
+  }
+  if (body.rank !== undefined) {
+    // The client computes the new fractional-index key (it knows the neighbors);
+    // the server only checks it's well-formed (PROG-43).
+    if (!isValidRank(body.rank))
+      return c.json({ error: `invalid rank: ${String(body.rank)}` }, 400);
+    set.rank = body.rank;
   }
 
   const db = drizzle(c.env.DB);
