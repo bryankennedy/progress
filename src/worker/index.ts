@@ -222,7 +222,18 @@ app.post("/api/auth/logout", (c) => {
   return c.json({ ok: true });
 });
 
-app.get("/api/health", (c) => c.json({ ok: true }));
+// Readiness, not just liveness: a trivial round-trip to D1 so the check fails
+// (503) when the database binding is unreachable, instead of reporting healthy
+// just because the Worker booted. Kept cheap — `SELECT 1`, no table access.
+app.get("/api/health", async (c) => {
+  try {
+    await drizzle(c.env.DB).run(sql`select 1`);
+    return c.json({ ok: true, db: "ok" });
+  } catch (e) {
+    console.error("health: D1 probe failed:", e);
+    return c.json({ ok: false, db: "error" }, 503);
+  }
+});
 
 // The single "load everything" endpoint that feeds the client store
 // (SPEC §8.2: fetch the full workspace up front, render from memory after).
