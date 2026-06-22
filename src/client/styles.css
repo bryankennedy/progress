@@ -51,6 +51,14 @@
 
 /* Papery base: deep ink on light canvas, Spectral throughout. */
 @layer base {
+  /* PROG-39: scale the default font up 20%. Tailwind's text utilities and the
+     rem-based sizes in this file are all relative to the root font size, so
+     setting it once here enlarges body copy, headings, and every `text-*`
+     utility uniformly (spacing, also rem-based, scales with it so the layout
+     stays proportional). 16px browser default → 19.2px. */
+  html {
+    font-size: 120%;
+  }
   body {
     background-color: var(--color-canvas);
     color: var(--color-ink);
