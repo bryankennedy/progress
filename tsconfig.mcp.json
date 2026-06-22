@@ -13,5 +13,6 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src/mcp", "bin", "src/shared"]
+  "include": ["src/mcp", "bin", "src/shared"],
+  "exclude": ["**/*.test.ts"]
 }

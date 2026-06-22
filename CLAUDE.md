@@ -69,9 +69,12 @@ indicator (§6–§7, D38/D39). Nouns unchanged. Recorded in prod as the **v2 �
 Broaden & Due dates** arc (`scripts/dogfood-v2.ts`). Owner-side leftover from v1
 still open: GitHub webhook registration (PROG-16/PROG-30).
 
-**Phase: v2.1 — candidate.** Likely next step per SPEC §8: **recurring due
-dates** (chores repeat); the due-date model + Agenda were built not to preclude
-it. Also pending: reminders/digests, start dates, date+time.
+**Phase: v2.1 — in progress.** Shipped: **manual kanban ordering** (PROG-43/D43)
+— each issue carries a fractional-index `rank`, so cards have a drag-to-set
+vertical work order within a column (migration `0005_issue_rank`). Likely next
+step per SPEC §8: **recurring due dates** (chores repeat); the due-date model +
+Agenda were built not to preclude it. Also pending: reminders/digests, start
+dates, date+time.
 
 `bun run dev` serves everything on :8000 (see `docs/SETUP.md`). Shared wire types
 live in `src/shared/`. Synthetic 5k-issue data: `bun run db:seed:scale`; reset

@@ -92,6 +92,12 @@ VALUES
    'Board scrolls horizontally, issue pages reflow; genuinely usable on a phone.',
    'backlog', 'low', 3, 'usr_owner', NULL, unixepoch(), unixepoch(), NULL);
 
+-- Board ranks (PROG-43): the inserts above leave `rank` at its "" default;
+-- assign canonical fractional-index keys by issue number, exactly as migration
+-- 0005 backfills production. Width-12 decimal, offset +1 so a key never ends in
+-- "0". Idempotent: only fills rows still at the default.
+UPDATE issues SET rank = printf('%012d', number * 1000 + 1) WHERE rank = '';
+
 -- Tags (colors from the standard palette).
 INSERT OR IGNORE INTO tags (id, name, color, created_at)
 VALUES

@@ -132,6 +132,12 @@ export const issues = sqliteTable(
     // everywhere — stored as ISO `YYYY-MM-DD` text, NOT an instant (unlike the
     // createdAt/updatedAt timestamps). null = no due date. API-validated.
     dueDate: text("due_date"),
+    // Manual board ordering (PROG-43): a fractional-index key — see
+    // `src/shared/rank.ts`. Issues in a column sort by this lexicographically,
+    // so dropping one between two others is a single-row write. Always set
+    // (server-assigned on create, backfilled by migration 0005); the "" default
+    // exists only so the ADD COLUMN is valid before backfill.
+    rank: text("rank").notNull().default(""),
     creatorId: text("creator_id")
       .notNull()
       .references(() => users.id),
