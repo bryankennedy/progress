@@ -9,7 +9,8 @@
     "dev": "vite",
     "build": "vite build",
     "check": "tsc -b",
-    "test": "bun test",
+    "test": "bun test src",
+    "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "wrangler d1 migrations apply progress-db --local",
     "db:seed": "wrangler d1 execute progress-db --local --file=./scripts/seed.sql",
@@ -33,6 +34,7 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.7.4",
     "@cloudflare/workers-types": "^4.20250610.0",
+    "@playwright/test": "^1.61.0",
     "@tailwindcss/vite": "^4.1.8",
     "@types/node": "^25.9.3",
     "@types/react": "^19.1.6",

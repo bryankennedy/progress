@@ -67,6 +67,8 @@ the dev server is served directly at the VM's main URL — no nginx in between.
 |---|---|
 | `bun run dev` | Dev server (client + worker + local D1) |
 | `bun run check` | Type-check all tsconfig project references |
+| `bun run test` | Unit tests (`bun test`, scoped to `src/`) — e.g. the board-rank helper |
+| `bun run test:e2e` | Browser e2e (Playwright) — board drag-and-drop. One-time: `bunx playwright install chromium`. Boots a dev server if none is running |
 | `bun run build` | Production build to `dist/` |
 | `bun run db:generate` | Generate a SQL migration from `src/db/schema.ts` changes |
 | `bun run db:migrate` | Apply pending migrations to local D1 |

@@ -348,14 +348,22 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
             />
           ))}
         </div>
-        <DragOverlay>
+        {/* dropAnimation={null}: skip the default drop tween. It animates the
+            overlay back to the *original* dragged node, but the reorder is
+            already committed to state by onDragEnd, so the tween flies the card
+            to its old slot before the re-render snaps it to the new one
+            (PROG-43). Dropping it makes the card settle in place instantly —
+            on-brand with the instant-UI rule. */}
+        <DragOverlay dropAnimation={null}>
           {draggingIssue && (
-            <CardView
-              issue={draggingIssue}
-              workspace={workspace}
-              tags={tagsByIssue.get(draggingIssue.id) ?? []}
-              dragging
-            />
+            <div data-drag-overlay>
+              <CardView
+                issue={draggingIssue}
+                workspace={workspace}
+                tags={tagsByIssue.get(draggingIssue.id) ?? []}
+                dragging
+              />
+            </div>
           )}
         </DragOverlay>
       </DndContext>

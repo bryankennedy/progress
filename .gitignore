@@ -27,3 +27,7 @@ dist/
 
 # Generated synthetic-scale seed SQL — regenerate with `bun run db:seed:scale`
 scripts/seed-scale.generated.sql
+
+# Playwright e2e output — reports and traces are regenerated each run
+test-results/
+playwright-report/
