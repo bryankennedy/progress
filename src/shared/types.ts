@@ -4,6 +4,7 @@
 
 import type {
   Activity,
+  AllowedEmail,
   Arc,
   Comment,
   CommitLink,
@@ -35,6 +36,7 @@ export type WireComment = Serialized<Comment>;
 export type WireActivity = Serialized<Activity>;
 export type WirePrLink = Serialized<PrLink>;
 export type WireCommitLink = Serialized<CommitLink>;
+export type WireAllowedEmail = Serialized<AllowedEmail>;
 
 // GET /api/workspace — the load-everything payload (SPEC §8.2, D20: comments
 // and activity are excluded and load per issue page).
@@ -43,6 +45,12 @@ export type WorkspacePayload = {
   // path where the owner row may not be loaded; the client treats null as the
   // dev owner.
   me: WireUser | null;
+  // Whether `me` may manage the sign-in allowlist (D43). Gates the Admin
+  // nav link + page client-side; the API enforces independently.
+  isSuperAdmin: boolean;
+  // The runtime sign-in allowlist — populated only for super-admins; an empty
+  // array for everyone else (the list is never shipped to non-admins).
+  allowedEmails: WireAllowedEmail[];
   users: WireUser[];
   initiatives: WireInitiative[];
   products: WireProduct[];

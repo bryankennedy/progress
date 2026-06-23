@@ -8,6 +8,7 @@ import { QueryClient, useQuery } from "@tanstack/react-query";
 import { tagColor, type IssuePriority, type IssueStatus } from "../shared/constants";
 import type {
   WireActivity,
+  WireAllowedEmail,
   WireArc,
   WireComment,
   WireCommitLink,
@@ -671,6 +672,116 @@ export function addComment(issueId: string, body: string) {
         t ? { ...t, comments: t.comments.filter((cm) => cm.id !== temp.id) } : t,
       );
       toast("Couldn't post that comment — removed.");
+    }
+  })();
+}
+
+// ---------- admin: sign-in allowlist (D43) ----------
+//
+// Same optimistic template as tags: write the cached `allowedEmails` slice
+// synchronously, sync in the background, reconcile the server row (real id) on
+// success, roll back + toast on failure. Only ever runs on the Admin page,
+// which is super-admin-gated; the API enforces the boundary regardless.
+
+const byEmail = (a: WireAllowedEmail, b: WireAllowedEmail) => a.email.localeCompare(b.email);
+
+function writeAllowedEmails(write: (list: WireAllowedEmail[]) => WireAllowedEmail[]) {
+  queryClient.setQueryData<WorkspacePayload>(WS_KEY, (ws) =>
+    ws ? { ...ws, allowedEmails: write(ws.allowedEmails) } : ws,
+  );
+}
+
+export function addAllowedEmail(email: string, note: string) {
+  const normalized = email.trim().toLowerCase();
+  const trimmedNote = note.trim();
+  if (normalized === "") return;
+  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
+  if (!ws) return;
+  if (ws.allowedEmails.some((e) => e.email === normalized)) {
+    toast("That email is already on the list.");
+    return;
+  }
+
+  const tempId = `ael_${crypto.randomUUID().replaceAll("-", "")}`;
+  const temp: WireAllowedEmail = {
+    id: tempId,
+    email: normalized,
+    note: trimmedNote,
+    addedByEmail: ws.me?.email ?? "",
+    createdAt: new Date().toISOString(),
+  };
+  writeAllowedEmails((list) => [...list, temp].sort(byEmail));
+
+  void (async () => {
+    let saved: WireAllowedEmail | undefined;
+    let conflict = false;
+    try {
+      const res = await fetch("/api/admin/allowlist", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: normalized, note: trimmedNote }),
+      });
+      if (res.ok) saved = ((await res.json()) as { allowedEmail: WireAllowedEmail }).allowedEmail;
+      else if (res.status === 409) conflict = true;
+    } catch {
+      // handled below
+    }
+    if (saved) {
+      const real = saved;
+      writeAllowedEmails((list) => list.map((e) => (e.id === tempId ? real : e)).sort(byEmail));
+    } else {
+      writeAllowedEmails((list) => list.filter((e) => e.id !== tempId));
+      toast(conflict ? "That email is already on the list." : "Couldn't add that email — removed.");
+    }
+  })();
+}
+
+export function updateAllowedEmailNote(id: string, note: string) {
+  const before = queryClient
+    .getQueryData<WorkspacePayload>(WS_KEY)
+    ?.allowedEmails.find((e) => e.id === id);
+  if (!before) return;
+  const trimmed = note.trim();
+  if (trimmed === before.note) return;
+  writeAllowedEmails((list) => list.map((e) => (e.id === id ? { ...e, note: trimmed } : e)));
+
+  void (async () => {
+    let ok = false;
+    try {
+      ok = (
+        await fetch(`/api/admin/allowlist/${id}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ note: trimmed }),
+        })
+      ).ok;
+    } catch {
+      ok = false;
+    }
+    if (!ok) {
+      writeAllowedEmails((list) => list.map((e) => (e.id === id ? before : e)));
+      toast("Couldn't save that note — reverted.");
+    }
+  })();
+}
+
+export function removeAllowedEmail(id: string) {
+  const before = queryClient
+    .getQueryData<WorkspacePayload>(WS_KEY)
+    ?.allowedEmails.find((e) => e.id === id);
+  if (!before) return;
+  writeAllowedEmails((list) => list.filter((e) => e.id !== id));
+
+  void (async () => {
+    let ok = false;
+    try {
+      ok = (await fetch(`/api/admin/allowlist/${id}`, { method: "DELETE" })).ok;
+    } catch {
+      ok = false;
+    }
+    if (!ok) {
+      writeAllowedEmails((list) => [...list, before].sort(byEmail));
+      toast("Couldn't remove that email — restored.");
     }
   })();
 }

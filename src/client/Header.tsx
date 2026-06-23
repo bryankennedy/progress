@@ -18,17 +18,27 @@ async function signOut() {
   }
 }
 
-const NAV: { href: string; label: string; match: (path: string) => boolean }[] = [
+type NavItem = { href: string; label: string; match: (path: string) => boolean };
+
+const NAV: NavItem[] = [
   { href: "/", label: "Board", match: (p) => p === "/" },
   { href: "/agenda", label: "Agenda", match: (p) => p.startsWith("/agenda") },
   { href: "/structure", label: "Structure", match: (p) => p.startsWith("/structure") },
 ];
+
+// Super-admin-only; appended to NAV at render time (D43).
+const ADMIN_NAV: NavItem = {
+  href: "/admin",
+  label: "Admin",
+  match: (p) => p.startsWith("/admin"),
+};
 
 export default function Header() {
   const [path] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [acctOpen, setAcctOpen] = useState(false);
   const me = useWorkspaceSlice((ws) => ws.me);
+  const isSuperAdmin = useWorkspaceSlice((ws) => ws.isSuperAdmin);
 
   const newItems: { label: string; run: () => void }[] = [
     { label: "Issue", run: () => openCreateIssue() },
@@ -45,7 +55,9 @@ export default function Header() {
           Progress
         </Link>
         <nav className="flex items-center gap-1 text-sm">
-          {NAV.map((item) => (
+          {/* The Admin (allowlist) link only exists for super-admins (D43);
+              appended so it sits last in the nav. */}
+          {[...NAV, ...(isSuperAdmin ? [ADMIN_NAV] : [])].map((item) => (
             <Link
               key={item.href}
               href={item.href}

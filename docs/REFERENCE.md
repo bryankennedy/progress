@@ -150,7 +150,14 @@ origin with unconfigured auth returns `401` rather than silently serving the API
 as the owner. Every write is attributed to the
 resolved user (`c.get("userId")` → `creatorId`/`assigneeId`/`authorId`/
 `actorId`); the webhook, having no interactive user, still writes as `usr_owner`.
-Sign-in is gated by the `ALLOWED_EMAILS` allowlist (currently the owner only).
+Sign-in is gated two ways (D43): **super-admins** (the `SUPER_ADMIN_EMAILS`
+secret) are always allowed and manage everyone else via the **Admin** page
+(`/admin`); other users must have a row in the D1 `allowed_emails` table. The
+check `super-admin OR allowlisted` runs at the OAuth callback **and** on every
+`/api/*` request, so removing someone revokes their live session within seconds
+(the middleware drops the cookie and returns `401`). Admin CRUD lives at
+`/api/admin/allowlist` gated on a per-request `isSuperAdmin` flag; `/api/workspace`
+ships `isSuperAdmin` + the `allowedEmails` list to super-admins only.
 Auth routes: `GET /api/auth/login` (302 → Google, sets a signed state cookie),
 `GET /api/auth/callback` (verify state, exchange code, allowlist-check, upsert
 user by email, set session cookie, 302 → `/`), `POST /api/auth/logout`. See

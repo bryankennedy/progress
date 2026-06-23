@@ -610,3 +610,26 @@ its IdP (doesn't move identity into the app — the stated goal); a D1 sessions
 table (statelessness suffices); a `users.google_sub` column (email matching is
 enough for owner-only; can add later as a stable anchor). Cutover steps + Access
 teardown: SETUP §6.
+
+### D43: two-tier access — env super-admins + a D1-managed allowlist (refines D42)
+**Refines D42.** D42 gated sign-in on a single `ALLOWED_EMAILS` env secret, so
+changing who can use the app meant editing a secret and redeploying. D43
+splits access into two tiers: (1) **super-admins** — the env secret, renamed
+`SUPER_ADMIN_EMAILS` — who can reach the **Admin** page (`/admin`) and are always
+allowed; (2) **allowed users** — rows in a new D1 `allowed_emails` table
+(`email` + optional `note` + `addedByEmail` + `createdAt`), edited at runtime
+through the Admin page's optimistic CRUD. *Decisions within:* (a) **super-admins
+are env-only, never in the table** — so the page can never remove the last admin
+(no lock-out); (b) **enforce on every request, not just login** — the middleware
+re-runs `super-admin OR allowlisted` per `/api/*` call and drops the session
+cookie + `401`s on failure, so removal revokes a live 30-day session within
+seconds (one cheap indexed D1 lookup per request, negligible at this scale);
+(c) **start the table empty** — super-admins add everyone via the page; no data
+migration from the old secret; (d) **the list is super-admin-only data** —
+`/api/workspace` ships `isSuperAdmin` + `allowedEmails` to super-admins and an
+empty array to everyone else; `/api/admin/*` is gated on the same per-request
+flag. A transitional fallback reads `SUPER_ADMIN_EMAILS ?? ALLOWED_EMAILS` so the
+rename doesn't lock anyone out before the prod secret is cut over; the old key is
+removed in a follow-up. *Rejected:* login-time-only enforcement (a removed user
+keeps access up to 30 days — too loose for an access tool); storing super-admins
+in the table too (re-introduces lock-out risk). Migration `0005`.

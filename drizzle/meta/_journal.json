@@ -36,6 +36,13 @@
       "when": 1781882000406,
       "tag": "0004_owner_email",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1782239953988,
+      "tag": "0005_friendly_captain_cross",
+      "breakpoints": true
     }
   ]
 }
