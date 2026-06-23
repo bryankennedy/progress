@@ -1,8 +1,9 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { and, asc, eq, inArray, max, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import {
   activity,
+  allowedEmails,
   arcs,
   comments,
   commitLinks,
@@ -33,7 +34,7 @@ import {
   SESSION_TTL_SECONDS,
   authConfigured,
   redirectUri,
-  isAllowed,
+  isSuperAdmin,
   googleAuthUrl,
   exchangeCodeForIdentity,
   signSession,
@@ -52,12 +53,35 @@ type Bindings = AuthEnv & {
 
 // Per-request identity set by the auth middleware (PROG-34): the logged-in
 // user's id (session cookie), or the owner for the automation bearer token and
-// the local-dev fallback.
-type Variables = { userId: string; requestId: string };
+// the local-dev fallback. `userEmail` + `isSuperAdmin` (D44) back the Admin
+// allowlist gate without a second user lookup in handlers.
+type Variables = {
+  userId: string;
+  userEmail: string;
+  isSuperAdmin: boolean;
+  requestId: string;
+};
 
 // The owner row the seed guarantees (D13). Still the actor for the automation
 // bearer token, the webhook (no interactive user), and the local-dev fallback.
 const OWNER_ID = "usr_owner";
+
+// True if `email` may use the app (D44): a super-admin (env secret) or a row
+// in the runtime allowlist. Lowercased compare; the allowlist stores lowercase.
+async function isEmailAllowed(
+  db: ReturnType<typeof drizzle>,
+  env: AuthEnv,
+  email: string | undefined,
+): Promise<boolean> {
+  if (!email) return false;
+  if (isSuperAdmin(email, env)) return true;
+  const [row] = await db
+    .select({ id: allowedEmails.id })
+    .from(allowedEmails)
+    .where(eq(allowedEmails.email, email.trim().toLowerCase()))
+    .limit(1);
+  return Boolean(row);
+}
 
 // Constant-time string compare for the API bearer token (same shape as the
 // webhook's HMAC compare below).
@@ -153,7 +177,10 @@ app.use("/api/*", async (c, next) => {
   if (auth?.startsWith("Bearer ")) {
     const token = auth.slice("Bearer ".length).trim();
     if (env.PROGRESS_API_TOKEN && safeEqual(token, env.PROGRESS_API_TOKEN)) {
+      // Automation acts as the owner — fully privileged, treated as super-admin.
       c.set("userId", OWNER_ID);
+      c.set("userEmail", "");
+      c.set("isSuperAdmin", true);
       return next();
     }
     return c.json({ error: "unauthenticated" }, 401);
@@ -164,14 +191,27 @@ app.use("/api/*", async (c, next) => {
     if (cookie) {
       const session = await verifySession(cookie, env.SESSION_SECRET);
       if (session) {
+        // Re-check access every request (D44) so removing someone from the
+        // allowlist revokes their live session within seconds rather than on its
+        // 30-day expiry. Drop the cookie and 401 so the client bounces to
+        // sign-in (→ the friendly not-authorized page on re-auth).
+        if (!(await isEmailAllowed(drizzle(env.DB), env, session.email))) {
+          deleteCookie(c, SESSION_COOKIE, { path: "/" });
+          return c.json({ error: "unauthenticated" }, 401);
+        }
         c.set("userId", session.uid);
+        c.set("userEmail", session.email);
+        c.set("isSuperAdmin", isSuperAdmin(session.email, env));
         return next();
       }
     }
   }
 
   if (!authConfigured(env) && isLoopbackHost(c.req.url)) {
+    // Local-dev owner fallback — full privileges including the Admin page.
     c.set("userId", OWNER_ID);
+    c.set("userEmail", "");
+    c.set("isSuperAdmin", true);
     return next();
   }
   return c.json({ error: "unauthenticated" }, 401);
@@ -221,11 +261,13 @@ app.get("/api/auth/callback", async (c) => {
     log("error", "oauth_callback_failed", { requestId: c.get("requestId"), error: e });
     return c.json({ error: "authentication failed" }, 400);
   }
-  // Authenticated with Google but not on the allowlist: this is a full-page
-  // navigation, so serve a friendly HTML page (PROG-57) rather than raw JSON.
-  if (!isAllowed(identity.email, env)) return c.html(notAuthorizedPage(), 403);
-
   const db = drizzle(env.DB);
+  // Allowed = super-admin (env secret) OR a row in the runtime allowlist (D44).
+  // Not allowed → the friendly not-authorized page (PROG-57); the callback is a
+  // full-page navigation, so a raw JSON 403 would read as a bug.
+  if (!(await isEmailAllowed(db, env, identity.email)))
+    return c.html(notAuthorizedPage(), 403);
+
   const email = identity.email.toLowerCase();
   const now = new Date();
   const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
@@ -301,10 +343,20 @@ app.get("/api/workspace", async (c) => {
     db.select().from(issueTags),
     db.select().from(issueKeyAliases),
   ]);
+  // The runtime allowlist is sensitive (who has access) and only the Admin page
+  // needs it, so fetch + ship it to super-admins only (D44).
+  const isSuper = c.get("isSuperAdmin");
+  const allAllowedEmails = isSuper
+    ? await db.select().from(allowedEmails).orderBy(asc(allowedEmails.email))
+    : [];
   return c.json({
     // The authenticated identity, so the client can render who's signed in and
     // attribute "mine" without a second round trip (PROG-34).
     me: allUsers.find((u) => u.id === c.get("userId")) ?? null,
+    // Whether the signed-in user may manage the allowlist (gates the Admin nav
+    // link + page; the API enforces independently).
+    isSuperAdmin: isSuper,
+    allowedEmails: allAllowedEmails,
     users: allUsers,
     initiatives: allInitiatives,
     products: allProducts,
@@ -315,6 +367,72 @@ app.get("/api/workspace", async (c) => {
     issueTags: allIssueTags,
     issueKeyAliases: allKeyAliases,
   });
+});
+
+// ---------- admin: sign-in allowlist CRUD (D44) ----------
+//
+// Super-admins (env secret) manage who else may use the app. Every route is
+// gated on the per-request `isSuperAdmin` flag set by the auth middleware; the
+// client also hides the page, but the server is the real boundary.
+
+// Minimal, permissive email shape check — we only need to reject obvious junk,
+// not RFC-5322-validate (Google already vouched for real sign-ins).
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function requireSuperAdmin(c: Context<{ Bindings: Bindings; Variables: Variables }>) {
+  return c.get("isSuperAdmin") ? null : c.json({ error: "forbidden" }, 403);
+}
+
+app.post("/api/admin/allowlist", async (c) => {
+  const denied = requireSuperAdmin(c);
+  if (denied) return denied;
+  const body = (await c.req.json()) as { email?: unknown; note?: unknown };
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  if (!EMAIL_RE.test(email)) return c.json({ error: "a valid email is required" }, 400);
+  const note = typeof body.note === "string" ? body.note.trim() : "";
+
+  const db = drizzle(c.env.DB);
+  const [existing] = await db
+    .select()
+    .from(allowedEmails)
+    .where(eq(allowedEmails.email, email))
+    .limit(1);
+  if (existing) return c.json({ error: "that email is already on the list" }, 409);
+
+  const [row] = await db
+    .insert(allowedEmails)
+    .values({
+      id: newId("ael"),
+      email,
+      note,
+      addedByEmail: c.get("userEmail"),
+      createdAt: new Date(),
+    })
+    .returning();
+  return c.json({ allowedEmail: row }, 201);
+});
+
+app.patch("/api/admin/allowlist/:id", async (c) => {
+  const denied = requireSuperAdmin(c);
+  if (denied) return denied;
+  const body = (await c.req.json()) as { note?: unknown };
+  if (typeof body.note !== "string") return c.json({ error: "note must be a string" }, 400);
+  const db = drizzle(c.env.DB);
+  const [row] = await db
+    .update(allowedEmails)
+    .set({ note: body.note.trim() })
+    .where(eq(allowedEmails.id, c.req.param("id")))
+    .returning();
+  if (!row) return c.json({ error: "not found" }, 404);
+  return c.json({ allowedEmail: row });
+});
+
+app.delete("/api/admin/allowlist/:id", async (c) => {
+  const denied = requireSuperAdmin(c);
+  if (denied) return denied;
+  const db = drizzle(c.env.DB);
+  await db.delete(allowedEmails).where(eq(allowedEmails.id, c.req.param("id")));
+  return c.json({ ok: true });
 });
 
 // ---------- container CRUD (D26) ----------

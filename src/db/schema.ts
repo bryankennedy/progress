@@ -271,6 +271,24 @@ export const commitLinks = sqliteTable(
   (t) => [primaryKey({ columns: [t.issueId, t.sha] })],
 );
 
+// Sign-in allowlist (D44): who may use the app, managed at runtime from the
+// Admin page instead of the SUPER_ADMIN_EMAILS env secret. Super-admins (env)
+// are allowed implicitly and are NOT stored here, so this list can never lock
+// out the last admin. Email is stored lowercased; the unique index dedupes.
+export const allowedEmails = sqliteTable(
+  "allowed_emails",
+  {
+    id: text("id").primaryKey(),
+    email: text("email").notNull(),
+    // Optional free-text label (e.g. "Jane — contractor"); purely for the owner.
+    note: text("note").notNull().default(""),
+    // Email of the super-admin who added the row — light-touch audit trail.
+    addedByEmail: text("added_by_email").notNull().default(""),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  },
+  (t) => [uniqueIndex("allowed_emails_email_unique").on(t.email)],
+);
+
 export type User = typeof users.$inferSelect;
 export type Initiative = typeof initiatives.$inferSelect;
 export type Product = typeof products.$inferSelect;
@@ -284,3 +302,4 @@ export type Comment = typeof comments.$inferSelect;
 export type Activity = typeof activity.$inferSelect;
 export type PrLink = typeof prLinks.$inferSelect;
 export type CommitLink = typeof commitLinks.$inferSelect;
+export type AllowedEmail = typeof allowedEmails.$inferSelect;

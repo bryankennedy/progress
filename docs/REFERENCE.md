@@ -15,7 +15,7 @@ vision and unbuilt work see [`SPEC.md`](./SPEC.md); for rationale see
 | Frontend | React 19 + Vite + Tailwind 4 |
 | Client state | TanStack Query, whole workspace in one cache entry (D21) |
 | Routing | wouter (D22) |
-| Drag & drop | @dnd-kit/core + @dnd-kit/sortable (D23, D43) |
+| Drag & drop | @dnd-kit/core + @dnd-kit/sortable (D23, D44) |
 | Markdown | react-markdown + hand-rolled `.prose-lite` styles |
 | Tooling | Bun (packages & scripts), Node 22 LTS, TypeScript strict, ESM |
 
@@ -91,7 +91,7 @@ graph TD
 | Priority | `urgent` · `high` · `medium` · `low` · `none` (default `none`) |
 | Estimate | 0 / 1 / 2 / 3 / 5 / 8 points, or null |
 | Due date | Optional calendar day, ISO `YYYY-MM-DD` (timezone-safe, not an instant); drives the Agenda (D37) |
-| Board order | `rank` — a fractional-index key (`src/shared/rank.ts`) giving each card a manual vertical position in its column; drag a card above/below another. Always set; one-row reorder, no renumbering (D43) |
+| Board order | `rank` — a fractional-index key (`src/shared/rank.ts`) giving each card a manual vertical position in its column; drag a card above/below another. Always set; one-row reorder, no renumbering (D44) |
 | Tags | 0..n global tags |
 | Arc | 0..1, same product |
 | Comments + Activity | Markdown thread interleaved with append-only events into one timeline |
@@ -151,7 +151,14 @@ origin with unconfigured auth returns `401` rather than silently serving the API
 as the owner. Every write is attributed to the
 resolved user (`c.get("userId")` → `creatorId`/`assigneeId`/`authorId`/
 `actorId`); the webhook, having no interactive user, still writes as `usr_owner`.
-Sign-in is gated by the `ALLOWED_EMAILS` allowlist (currently the owner only).
+Sign-in is gated two ways (D44): **super-admins** (the `SUPER_ADMIN_EMAILS`
+secret) are always allowed and manage everyone else via the **Admin** page
+(`/admin`); other users must have a row in the D1 `allowed_emails` table. The
+check `super-admin OR allowlisted` runs at the OAuth callback **and** on every
+`/api/*` request, so removing someone revokes their live session within seconds
+(the middleware drops the cookie and returns `401`). Admin CRUD lives at
+`/api/admin/allowlist` gated on a per-request `isSuperAdmin` flag; `/api/workspace`
+ships `isSuperAdmin` + the `allowedEmails` list to super-admins only.
 Auth routes: `GET /api/auth/login` (302 → Google, sets a signed state cookie),
 `GET /api/auth/callback` (verify state, exchange code, allowlist-check, upsert
 user by email, set session cookie, 302 → `/`), `POST /api/auth/logout`. See
@@ -177,8 +184,8 @@ and alert setup — is in `docs/SETUP.md` §6.
 |---|---|
 | `GET /api/health` | Readiness probe: round-trips D1 (`select 1`). `{ ok: true, db: "ok" }` (200) when reachable, `{ ok: false, db: "error" }` (503) when not — so it reflects database reachability, not just that the Worker booted. The only `/api/*` route never access-logged. |
 | `GET /api/workspace` | The load-everything payload: `me` (the signed-in user, PROG-34), users, initiatives, products, repos, arcs, issues, tags, issueTags, issueKeyAliases — nine independent reads run with `Promise.all` (not a `db.batch`/transaction, which 500'd on production D1; D31). Comments/activity are deliberately excluded (D20). |
-| `POST /api/issues` | `{ title, productId, repoId?, arcId?, description?, status?, priority?, estimate?, dueDate? }` → 201 `{ issue }`. `dueDate` is `YYYY-MM-DD` or null, validated (impossible dates rejected). Number allocated by atomic increment of the product sequence; gaps from failed creates are harmless (D24). A board `rank` is auto-assigned, appended after the current last issue (D43). |
-| `PATCH /api/issues/:id` | Any of `title, description, status, priority, estimate, arcId, dueDate, rank` — validated per field; arc must be same-product; `dueDate` is `YYYY-MM-DD` or null to clear. `rank` is a fractional-index board key the client computes from the drop site's neighbors (D43). A status change atomically appends a `status_changed` activity row and maintains `completedAt`. |
+| `POST /api/issues` | `{ title, productId, repoId?, arcId?, description?, status?, priority?, estimate?, dueDate? }` → 201 `{ issue }`. `dueDate` is `YYYY-MM-DD` or null, validated (impossible dates rejected). Number allocated by atomic increment of the product sequence; gaps from failed creates are harmless (D24). A board `rank` is auto-assigned, appended after the current last issue (D44). |
+| `PATCH /api/issues/:id` | Any of `title, description, status, priority, estimate, arcId, dueDate, rank` — validated per field; arc must be same-product; `dueDate` is `YYYY-MM-DD` or null to clear. `rank` is a fractional-index board key the client computes from the drop site's neighbors (D44). A status change atomically appends a `status_changed` activity row and maintains `completedAt`. |
 | `POST /api/issues/:id/move` | `{ productId, repoId }` (`repoId: null` = product-level). Within-product keeps key + arc; cross-product re-keys, clears arc, writes the alias, logs `moved`. 400 on no-op. |
 | `GET /api/issues/:id/timeline` | `{ comments, activity, pullRequests, commits }`, each ordered by `createdAt`. |
 | `GET /api/issues/:key/bundle` | Looked up by **key** (alias-aware), not id. Returns `text/markdown` — a deterministic context "work order": issue fields + tags, lineage with descriptions (product → repo incl. `gitUrl` → arc, where the arc description carries the "why"), comments, linked PRs/commits, then a stable report-back preamble. A retired key resolves and renders the current canonical key. 400 malformed key, 404 unknown. Shared foundation for the agent surfaces (SPEC §11.1, D33). |
@@ -330,7 +337,7 @@ canonical key — entirely client-side from the loaded workspace (D22).
   "Clear filters" clears the memory too (PROG-58). Drag-and-drop reorders cards
   vertically
   within a column (a manual work order) and moves them between columns to set
-  status; both persist as one optimistic write via the card's `rank` (D43).
+  status; both persist as one optimistic write via the card's `rank` (D44).
   Mouse drags activate after 4px of movement (plain clicks navigate), touch
   drags after a 250ms press-and-hold (plain swipes scroll the board) — D30.
 - **Container pages** — description-on-top open page (inline-editable name,

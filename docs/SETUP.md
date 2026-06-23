@@ -214,7 +214,7 @@ falls back to the owner so `bun run dev` never hits a login wall.
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 Web client |
 | `SESSION_SECRET` | HS256 key signing the session + OAuth-state cookies |
 | `PROGRESS_API_TOKEN` | bearer for non-interactive clients (→ owner) |
-| `ALLOWED_EMAILS` | comma-separated sign-in allowlist (currently `bryan@mysteryexperience.com`) |
+| `SUPER_ADMIN_EMAILS` | comma-separated super-admins (currently `bryan@mysteryexperience.com`): manage the allowlist on the Admin page, always allowed. Everyone else is added via that page (stored in D1). Old name `ALLOWED_EMAILS` is read as a fallback (D44) |
 
 **Google OAuth client**: Google Cloud Console → APIs & Services → Credentials →
 **Create OAuth client ID** → *Web application*. Authorized redirect URIs:
@@ -226,7 +226,8 @@ id/secret into the secrets above.
 cookie/token, and Access would otherwise block bearer automation):
 
 1. Create the OAuth client and add the redirect URI (above).
-2. `wrangler secret put` the four secrets; confirm `ALLOWED_EMAILS`.
+2. `wrangler secret put` the secrets; confirm `SUPER_ADMIN_EMAILS` (the renamed
+   `ALLOWED_EMAILS` — set the new key, then delete the old one once verified).
 3. `bunx wrangler d1 migrations apply progress-db --remote` (applies
    `0004_owner_email.sql`, repointing `usr_owner` to the owner email so
    sign-in resolves to the existing row, preserving attribution).

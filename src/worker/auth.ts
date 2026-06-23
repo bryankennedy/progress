@@ -36,6 +36,12 @@ export type AuthEnv = {
   GOOGLE_CLIENT_SECRET?: string;
   SESSION_SECRET?: string;
   PROGRESS_API_TOKEN?: string;
+  // Super-admins: comma-separated emails that may manage the runtime allowlist
+  // and are always allowed to sign in (D44). `ALLOWED_EMAILS` is the old
+  // name, read only as a transitional fallback so a deploy that hasn't set the
+  // renamed secret yet doesn't lock everyone out; remove once secrets are cut.
+  SUPER_ADMIN_EMAILS?: string;
+  /** @deprecated superseded by SUPER_ADMIN_EMAILS; kept as a fallback only. */
   ALLOWED_EMAILS?: string;
   APP_BASE_URL?: string;
 };
@@ -55,9 +61,12 @@ export function redirectUri(env: AuthEnv, requestUrl: string): string {
   return `${base}/api/auth/callback`;
 }
 
-export function isAllowed(email: string | undefined, env: AuthEnv): boolean {
+// Super-admins are env-defined (the secret). They manage the D1 allowlist and
+// are always allowed to sign in — the actual "may use the app" check
+// (super-admin OR allowlisted) lives in index.ts where D1 is available.
+export function isSuperAdmin(email: string | undefined, env: AuthEnv): boolean {
   if (!email) return false;
-  const allow = (env.ALLOWED_EMAILS ?? "")
+  const allow = (env.SUPER_ADMIN_EMAILS ?? env.ALLOWED_EMAILS ?? "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
