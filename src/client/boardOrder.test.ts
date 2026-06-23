@@ -63,6 +63,42 @@ describe("reorder — across columns", () => {
   });
 });
 
+// PROG-59: a cross-column drop into a POPULATED column is committed from the
+// live preview, in which onDragOver has already moved the active card into the
+// target column. At release dnd-kit may report `over` as the active card itself
+// or as a neighbouring target card — both must keep the card in the target
+// (the old bug passed the frozen pre-drag order and collapsed to a no-op, so the
+// card flew back to its source column unless dropped below every card).
+describe("reorder — cross-column drop committed from the live preview (PROG-59)", () => {
+  // Live state: active "a" has been previewed at the TOP of a populated target.
+  const previewTop = () => makeColumns({ in_progress: [], backlog: ["a", "b", "c", "d"] });
+
+  it("keeps the card at the top when over is the active card itself", () => {
+    const r = reorder(previewTop(), "a", "a", false)!;
+    expect(r.to).toBe("backlog");
+    expect(r.columns.backlog).toEqual(["a", "b", "c", "d"]);
+    expect(r.columns.in_progress).toEqual([]);
+  });
+
+  it("positions by the hovered target card, not back to the source", () => {
+    const r = reorder(previewTop(), "a", "b", false)!;
+    expect(r.to).toBe("backlog");
+    expect(r.columns.backlog).toEqual(["b", "a", "c", "d"]);
+  });
+
+  it("lands at the chosen top even when the card was previewed in at the bottom", () => {
+    // Entered the column low (onDragOver placed it last), then dragged up to the
+    // top before release (over = first card). onDragEnd's arrayMove fixes it.
+    const cols = makeColumns({ in_progress: [], backlog: ["b", "c", "d", "a"] });
+    expect(reorder(cols, "a", "b", false)!.columns.backlog).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("drops to the bottom when released over the column area", () => {
+    const cols = makeColumns({ in_progress: [], backlog: ["a", "b", "c", "d"] });
+    expect(reorder(cols, "a", "backlog", false)!.columns.backlog).toEqual(["b", "c", "d", "a"]);
+  });
+});
+
 describe("reorder — invalid drops", () => {
   it("returns null for an unknown over target", () => {
     expect(reorder(makeColumns({ todo: ["a"] }), "a", "nope", false)).toBeNull();

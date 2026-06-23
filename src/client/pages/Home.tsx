@@ -209,13 +209,18 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
       setColumns(sourceColumns);
       return;
     }
-    // Resolve placement from the *stable* pre-drag order (sourceColumns), not the
-    // live `columns` (which onDragOver mutates). `below` = pointer past the
-    // hovered card's middle, used only for cross-column drops.
+    // Resolve placement from the LIVE `columns`, which onDragOver has already
+    // updated to the on-screen preview (PROG-59). Using the frozen pre-drag
+    // order here is wrong for a cross-column drop into a populated column: the
+    // preview has moved the active card into the target, so on release dnd-kit
+    // reports `over` as the active card itself — which, looked up in the stale
+    // order, still sits in the source column, so the move collapsed to a no-op
+    // and the card flew back. `below` = pointer past the hovered card's middle,
+    // used only when active and over land in different columns.
     const translated = e.active.rect.current.translated;
     const below =
       translated && e.over ? translated.top > e.over.rect.top + e.over.rect.height / 2 : false;
-    const result = reorder(sourceColumns, id, overId, below);
+    const result = reorder(columns, id, overId, below);
     if (!result) {
       setColumns(sourceColumns);
       return;
