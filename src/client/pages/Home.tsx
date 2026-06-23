@@ -38,6 +38,7 @@ import {
   type IssueStatus,
 } from "../../shared/constants";
 import { rankBetween } from "../../shared/rank";
+import { reorder, type ColumnMap } from "../boardOrder";
 import type { WireIssue, WireTag, WorkspacePayload } from "../../shared/types";
 import { openCreateIssue } from "../commands/controller";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
@@ -51,8 +52,6 @@ type Filters = Partial<Record<FilterKey, string>> & { backlog?: boolean };
 // order is the alphabet order, so `localeCompare` (case-folding, locale-aware)
 // would mis-sort them. Matches SQLite's default BINARY collation.
 const byRank = (a: WireIssue, b: WireIssue) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0);
-
-type ColumnMap = Record<IssueStatus, string[]>;
 
 function parseFilters(search: string): Filters {
   const params = new URLSearchParams(search);
@@ -194,26 +193,24 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
       setColumns(sourceColumns);
       return;
     }
-    const to = columnOf(overId);
-    if (!to) {
+    // Resolve placement from the *stable* pre-drag order (sourceColumns), not the
+    // live `columns` (which onDragOver mutates). `below` = pointer past the
+    // hovered card's middle, used only for cross-column drops.
+    const translated = e.active.rect.current.translated;
+    const below =
+      translated && e.over ? translated.top > e.over.rect.top + e.over.rect.height / 2 : false;
+    const result = reorder(sourceColumns, id, overId, below);
+    if (!result) {
       setColumns(sourceColumns);
       return;
     }
-
-    // Rebuild the final order independent of live drag state: drop the active
-    // card from every column, then insert it into `to` at the drop site.
-    const next = {} as ColumnMap;
-    for (const s of ISSUE_STATUSES) next[s] = columns[s].filter((x) => x !== id);
-    const overIsColumn = overId in columns;
-    const overIndex = overIsColumn ? next[to].length : next[to].indexOf(overId);
-    const insertAt = overIndex < 0 ? next[to].length : overIndex;
-    next[to] = [...next[to].slice(0, insertAt), id, ...next[to].slice(insertAt)];
+    const { columns: next, to } = result;
     setColumns(next);
 
-    const items = next[to];
-    const pos = items.indexOf(id);
-    const prevId = pos > 0 ? items[pos - 1]! : null;
-    const nextId = pos < items.length - 1 ? items[pos + 1]! : null;
+    const targetItems = next[to];
+    const pos = targetItems.indexOf(id);
+    const prevId = pos > 0 ? targetItems[pos - 1]! : null;
+    const nextId = pos < targetItems.length - 1 ? targetItems[pos + 1]! : null;
 
     // No-op guard: same column and same neighbors as the stored order ⇒ a click
     // or a drag that landed back home; skip the write.
