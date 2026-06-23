@@ -183,3 +183,43 @@ test("dragging a card to the TOP of a populated column moves it there (PROG-59)"
   const movedRank = (await rankOf(page, mover))!;
   expect(movedRank < targetTopBefore.rank).toBe(true);
 });
+
+test("dragging a card into an EMPTY column drops it there (PROG-40)", async ({ page }) => {
+  // A lone card in `todo`, an empty `in_progress` — both on-screen (cols 2 & 3).
+  // Empty columns are now full-height; the regression was that closestCorners
+  // measured to their far corners and handed the drop to a neighbour's card.
+  const ws = await (await page.request.get("/api/workspace")).json();
+  const mover = ws.issues.map((i: { id: string }) => i.id)[0]!;
+  await isolateColumn(page, "in_progress", []); // empty the target column
+  await isolateColumn(page, "todo", [mover]);
+
+  await page.goto("/?backlog=1");
+  await page.waitForSelector(`[data-issue-id="${mover}"]`);
+  expect((await issueOf(page, mover))!.status).toBe("todo"); // sanity: starts elsewhere
+
+  // The empty column has no card to aim at, so target the column section itself.
+  const col = (await page
+    .locator("section", { has: page.getByRole("heading", { name: /^In Progress/ }) })
+    .boundingBox())!;
+  const targetX = col.x + col.width / 2;
+  const targetY = col.y + Math.min(col.height / 2, 200);
+  const moverBox = await boxOf(page, mover);
+
+  await press(page, moverBox);
+  await glideTo(page, moverBox.cx, moverBox.cy + 6, targetX, targetY);
+  // Nudge over the empty column until the preview moves the card into it (its
+  // DOM x crosses past the midpoint toward the target column), then release.
+  const half = (moverBox.x + targetX) / 2;
+  for (let i = 0; i < 40 && (await liveX(page, mover)) < half; i++) {
+    await page.mouse.move(targetX, targetY + (i % 2));
+    await page.waitForTimeout(20);
+  }
+  expect(await liveX(page, mover)).toBeGreaterThan(half); // preview committed
+  await page.mouse.up();
+
+  await expect
+    .poll(async () => (await issueOf(page, mover))?.status, {
+      message: "the card should land in the empty column it was dropped on",
+    })
+    .toBe("in_progress");
+});

@@ -11,13 +11,17 @@
 // position in one move.
 
 import {
-  closestCorners,
+  closestCenter,
   DndContext,
   DragOverlay,
+  getFirstCollision,
   MouseSensor,
+  pointerWithin,
+  rectIntersection,
   TouchSensor,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
@@ -29,7 +33,7 @@ import {
 } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import {
   ISSUE_PRIORITIES,
@@ -170,6 +174,42 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
   );
 
   const draggingIssue = activeId ? issuesById.get(activeId) : undefined;
+
+  // Collision strategy for variable-height columns (PROG-40/PROG-59). Plain
+  // closestCorners measures distance to a droppable's corners, so a tall EMPTY
+  // column (its corners far from the pointer) loses to a small card in a
+  // neighbouring column — the card then lands in the wrong column or snaps back.
+  // Instead: take what the pointer is actually inside; if that's a column,
+  // narrow to the closest card within it (or keep the column itself when it's
+  // empty, so an empty column accepts the drop). Falls back to the last target
+  // so the card doesn't flicker away over a gutter. (The canonical dnd-kit
+  // multiple-containers pattern.)
+  const lastOverId = useRef<string | null>(null);
+  const collisionDetection = useCallback<CollisionDetection>(
+    (args) => {
+      const pointer = pointerWithin(args);
+      const hits = pointer.length > 0 ? pointer : rectIntersection(args);
+      let overId = getFirstCollision(hits, "id") as string | null;
+      if (overId != null) {
+        if (overId in columns) {
+          const items = columns[overId as IssueStatus];
+          if (items.length > 0) {
+            const inner = closestCenter({
+              ...args,
+              droppableContainers: args.droppableContainers.filter(
+                (c) => c.id !== overId && items.includes(String(c.id)),
+              ),
+            });
+            overId = (getFirstCollision(inner, "id") as string | null) ?? overId;
+          }
+        }
+        lastOverId.current = overId;
+        return [{ id: overId }];
+      }
+      return lastOverId.current ? [{ id: lastOverId.current }] : [];
+    },
+    [columns],
+  );
 
   const columnOf = (id: string): IssueStatus | undefined => {
     if (id in columns) return id as IssueStatus; // dropped on a column itself
@@ -354,7 +394,7 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
 
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={collisionDetection}
         onDragStart={onDragStart}
         onDragOver={onDragOver}
         onDragEnd={onDragEnd}
