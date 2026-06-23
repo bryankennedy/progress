@@ -24,6 +24,7 @@ import {
 } from "../db/schema";
 import { tagColor } from "../shared/constants";
 import { log } from "./log";
+import { notAuthorizedPage } from "./pages";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import {
   SESSION_COOKIE,
@@ -219,7 +220,9 @@ app.get("/api/auth/callback", async (c) => {
     log("error", "oauth_callback_failed", { requestId: c.get("requestId"), error: e });
     return c.json({ error: "authentication failed" }, 400);
   }
-  if (!isAllowed(identity.email, env)) return c.json({ error: "not authorized" }, 403);
+  // Authenticated with Google but not on the allowlist: this is a full-page
+  // navigation, so serve a friendly HTML page (PROG-57) rather than raw JSON.
+  if (!isAllowed(identity.email, env)) return c.html(notAuthorizedPage(), 403);
 
   const db = drizzle(env.DB);
   const email = identity.email.toLowerCase();
