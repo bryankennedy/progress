@@ -168,9 +168,13 @@ for (let i = 1; i <= COUNTS.issues; i++) {
   const updated = created + int(0, NOW - created);
   const completed = status === "done" ? updated : "NULL";
   const title = esc(`${pick(VERBS)} the ${pick(ADJECTIVES)} ${pick(NOUNS)}`);
+  // Board rank (PROG-43): width-12 zero-padded decimal in insertion order,
+  // offset by 1 so it never ends in "0" (canonical for src/shared/rank.ts) —
+  // same scheme migration 0005 backfills with.
+  const rank = String(i * 1000 + 1).padStart(12, "0");
 
   issueRows.push(
-    `('${id}', '${product}', ${repo ? `'${repo}'` : "NULL"}, ${arc ? `'${arc}'` : "NULL"}, ${number}, '${title}', '', '${status}', '${priority}', ${estimate}, 'usr_owner', ${assignee}, ${created}, ${updated}, ${completed})`,
+    `('${id}', '${product}', ${repo ? `'${repo}'` : "NULL"}, ${arc ? `'${arc}'` : "NULL"}, ${number}, '${title}', '', '${status}', '${priority}', ${estimate}, '${rank}', 'usr_owner', ${assignee}, ${created}, ${updated}, ${completed})`,
   );
 
   const tagCount = weighted([[0, 40], [1, 35], [2, 20], [3, 5]] as const);
@@ -180,7 +184,7 @@ for (let i = 1; i <= COUNTS.issues; i++) {
 }
 insertChunked(
   "issues",
-  "id, product_id, repo_id, arc_id, number, title, description, status, priority, estimate, creator_id, assignee_id, created_at, updated_at, completed_at",
+  "id, product_id, repo_id, arc_id, number, title, description, status, priority, estimate, rank, creator_id, assignee_id, created_at, updated_at, completed_at",
   issueRows,
 );
 insertChunked("issue_tags", "issue_id, tag_id", issueTagRows);

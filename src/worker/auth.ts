@@ -37,7 +37,7 @@ export type AuthEnv = {
   SESSION_SECRET?: string;
   PROGRESS_API_TOKEN?: string;
   // Super-admins: comma-separated emails that may manage the runtime allowlist
-  // and are always allowed to sign in (D43). `ALLOWED_EMAILS` is the old
+  // and are always allowed to sign in (D44). `ALLOWED_EMAILS` is the old
   // name, read only as a transitional fallback so a deploy that hasn't set the
   // renamed secret yet doesn't lock everyone out; remove once secrets are cut.
   SUPER_ADMIN_EMAILS?: string;

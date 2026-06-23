@@ -78,7 +78,7 @@ wrangler secret put GOOGLE_CLIENT_ID        # from Part B
 wrangler secret put GOOGLE_CLIENT_SECRET    # from Part B
 wrangler secret put SESSION_SECRET          # any long random string
 wrangler secret put PROGRESS_API_TOKEN      # any long random string (automation bearer)
-wrangler secret put SUPER_ADMIN_EMAILS      # bryan@mysteryexperience.com (was ALLOWED_EMAILS; D43)
+wrangler secret put SUPER_ADMIN_EMAILS      # bryan@mysteryexperience.com (was ALLOWED_EMAILS; D44)
 
 bunx wrangler d1 migrations apply progress-db --remote   # applies 0004_owner_email.sql
 bun run deploy
@@ -123,4 +123,4 @@ curl -s -o /dev/null -w "%{http_code}\n" \
 Then open `https://progress.bck.dev` in a browser → it bounces to Google →
 returns signed in. A Google account that is neither a super-admin
 (`SUPER_ADMIN_EMAILS`) nor on the D1 allowlist gets **403 not authorized**
-(D43).
+(D44).

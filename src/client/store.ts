@@ -6,6 +6,7 @@
 
 import { QueryClient, useQuery } from "@tanstack/react-query";
 import { tagColor, type IssuePriority, type IssueStatus } from "../shared/constants";
+import { rankAfter } from "../shared/rank";
 import type {
   WireActivity,
   WireAllowedEmail,
@@ -168,6 +169,10 @@ export type IssuePatch = Partial<{
   estimate: number | null;
   arcId: string | null;
   dueDate: string | null;
+  // Fractional-index board position (PROG-43). The caller computes the key from
+  // the drop site's neighbors via `rankBetween`; a reorder across columns sends
+  // `status` alongside it in one patch.
+  rank: string;
 }>;
 
 export function updateIssue(id: string, patch: IssuePatch) {
@@ -217,6 +222,11 @@ export function createIssue(input: IssueCreateInput): string | undefined {
 
   const tempId = `iss_optimistic_${Date.now()}`;
   const now = new Date().toISOString();
+  // Optimistic board rank: append after the current last issue, mirroring the
+  // server (PROG-43). The single writer means our max matches the DB's, so the
+  // server returns the same key; the temp row is replaced on reconcile anyway.
+  const ranks = ws.issues.map((i) => i.rank).filter(Boolean);
+  const maxRank = ranks.length ? ranks.reduce((a, b) => (a > b ? a : b)) : null;
   const temp: WireIssue = {
     id: tempId,
     productId: input.productId,
@@ -229,6 +239,7 @@ export function createIssue(input: IssueCreateInput): string | undefined {
     priority: input.priority,
     estimate: input.estimate,
     dueDate: input.dueDate,
+    rank: rankAfter(maxRank),
     creatorId: "usr_owner",
     assigneeId: "usr_owner",
     createdAt: now,
@@ -676,7 +687,7 @@ export function addComment(issueId: string, body: string) {
   })();
 }
 
-// ---------- admin: sign-in allowlist (D43) ----------
+// ---------- admin: sign-in allowlist (D44) ----------
 //
 // Same optimistic template as tags: write the cached `allowedEmails` slice
 // synchronously, sync in the background, reconcile the server row (real id) on

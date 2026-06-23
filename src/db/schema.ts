@@ -132,6 +132,12 @@ export const issues = sqliteTable(
     // everywhere — stored as ISO `YYYY-MM-DD` text, NOT an instant (unlike the
     // createdAt/updatedAt timestamps). null = no due date. API-validated.
     dueDate: text("due_date"),
+    // Manual board ordering (PROG-43): a fractional-index key — see
+    // `src/shared/rank.ts`. Issues in a column sort by this lexicographically,
+    // so dropping one between two others is a single-row write. Always set
+    // (server-assigned on create, backfilled by migration 0005); the "" default
+    // exists only so the ADD COLUMN is valid before backfill.
+    rank: text("rank").notNull().default(""),
     creatorId: text("creator_id")
       .notNull()
       .references(() => users.id),
@@ -265,7 +271,7 @@ export const commitLinks = sqliteTable(
   (t) => [primaryKey({ columns: [t.issueId, t.sha] })],
 );
 
-// Sign-in allowlist (D43): who may use the app, managed at runtime from the
+// Sign-in allowlist (D44): who may use the app, managed at runtime from the
 // Admin page instead of the SUPER_ADMIN_EMAILS env secret. Super-admins (env)
 // are allowed implicitly and are NOT stored here, so this list can never lock
 // out the last admin. Email is stored lowercased; the unique index dedupes.

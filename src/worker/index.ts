@@ -1,5 +1,5 @@
 import { Hono, type Context } from "hono";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, max, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import {
   activity,
@@ -24,7 +24,9 @@ import {
   type PrState,
 } from "../db/schema";
 import { tagColor } from "../shared/constants";
+import { isValidRank, rankAfter } from "../shared/rank";
 import { log } from "./log";
+import { notAuthorizedPage } from "./pages";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import {
   SESSION_COOKIE,
@@ -51,7 +53,7 @@ type Bindings = AuthEnv & {
 
 // Per-request identity set by the auth middleware (PROG-34): the logged-in
 // user's id (session cookie), or the owner for the automation bearer token and
-// the local-dev fallback. `userEmail` + `isSuperAdmin` (D43) back the Admin
+// the local-dev fallback. `userEmail` + `isSuperAdmin` (D44) back the Admin
 // allowlist gate without a second user lookup in handlers.
 type Variables = {
   userId: string;
@@ -64,7 +66,7 @@ type Variables = {
 // bearer token, the webhook (no interactive user), and the local-dev fallback.
 const OWNER_ID = "usr_owner";
 
-// True if `email` may use the app (D43): a super-admin (env secret) or a row
+// True if `email` may use the app (D44): a super-admin (env secret) or a row
 // in the runtime allowlist. Lowercased compare; the allowlist stores lowercase.
 async function isEmailAllowed(
   db: ReturnType<typeof drizzle>,
@@ -189,7 +191,7 @@ app.use("/api/*", async (c, next) => {
     if (cookie) {
       const session = await verifySession(cookie, env.SESSION_SECRET);
       if (session) {
-        // Re-check access every request (D43) so removing someone from the
+        // Re-check access every request (D44) so removing someone from the
         // allowlist revokes their live session within seconds rather than on its
         // 30-day expiry. Drop the cookie and 401 so the client bounces to
         // sign-in (→ the friendly not-authorized page on re-auth).
@@ -259,12 +261,12 @@ app.get("/api/auth/callback", async (c) => {
     log("error", "oauth_callback_failed", { requestId: c.get("requestId"), error: e });
     return c.json({ error: "authentication failed" }, 400);
   }
-
   const db = drizzle(env.DB);
-  // Allowed = super-admin (env secret) OR a row in the runtime allowlist
-  // (D43). PROG-57 (separate PR) replaces this 403 with a friendly HTML page.
+  // Allowed = super-admin (env secret) OR a row in the runtime allowlist (D44).
+  // Not allowed → the friendly not-authorized page (PROG-57); the callback is a
+  // full-page navigation, so a raw JSON 403 would read as a bug.
   if (!(await isEmailAllowed(db, env, identity.email)))
-    return c.json({ error: "not authorized" }, 403);
+    return c.html(notAuthorizedPage(), 403);
 
   const email = identity.email.toLowerCase();
   const now = new Date();
@@ -342,7 +344,7 @@ app.get("/api/workspace", async (c) => {
     db.select().from(issueKeyAliases),
   ]);
   // The runtime allowlist is sensitive (who has access) and only the Admin page
-  // needs it, so fetch + ship it to super-admins only (D43).
+  // needs it, so fetch + ship it to super-admins only (D44).
   const isSuper = c.get("isSuperAdmin");
   const allAllowedEmails = isSuper
     ? await db.select().from(allowedEmails).orderBy(asc(allowedEmails.email))
@@ -367,7 +369,7 @@ app.get("/api/workspace", async (c) => {
   });
 });
 
-// ---------- admin: sign-in allowlist CRUD (D43) ----------
+// ---------- admin: sign-in allowlist CRUD (D44) ----------
 //
 // Super-admins (env secret) manage who else may use the app. Every route is
 // gated on the per-request `isSuperAdmin` flag set by the auth middleware; the
@@ -770,6 +772,13 @@ app.post("/api/issues", async (c) => {
     .set({ nextIssueNumber: sql`${products.nextIssueNumber} + 1` })
     .where(eq(products.id, product.id))
     .returning({ next: products.nextIssueNumber });
+  // Board rank (PROG-43): append after the current last issue so a new card
+  // lands at the bottom of its column. Ranks are a single global order; sorting
+  // only ever compares cards within one column, so being globally last places
+  // it last among its column's members.
+  const [{ maxRank } = { maxRank: null }] = await db
+    .select({ maxRank: max(issues.rank) })
+    .from(issues);
   const now = new Date();
   const [issue] = await db
     .insert(issues)
@@ -785,6 +794,7 @@ app.post("/api/issues", async (c) => {
       priority,
       estimate,
       dueDate,
+      rank: rankAfter(maxRank ?? null),
       creatorId: c.get("userId"),
       assigneeId: c.get("userId"),
       createdAt: now,
@@ -889,6 +899,7 @@ type IssuePatchBody = Partial<{
   estimate: number | null;
   arcId: string | null;
   dueDate: string | null;
+  rank: string;
 }>;
 
 // Generalized issue field update — the server side of the optimistic-mutation
@@ -925,6 +936,13 @@ app.patch("/api/issues/:id", async (c) => {
     if (body.dueDate !== null && (typeof body.dueDate !== "string" || !isValidDueDate(body.dueDate)))
       return c.json({ error: `invalid dueDate: ${String(body.dueDate)} (expected YYYY-MM-DD)` }, 400);
     set.dueDate = body.dueDate;
+  }
+  if (body.rank !== undefined) {
+    // The client computes the new fractional-index key (it knows the neighbors);
+    // the server only checks it's well-formed (PROG-43).
+    if (!isValidRank(body.rank))
+      return c.json({ error: `invalid rank: ${String(body.rank)}` }, 400);
+    set.rank = body.rank;
   }
 
   const db = drizzle(c.env.DB);

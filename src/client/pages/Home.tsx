@@ -3,20 +3,33 @@
 // toggle by default (open question #2 default). Filters live in URL query
 // params so any filtered board is bookmarkable — this is how the global
 // board covers the deferred per-product/per-arc boards.
+//
+// Cards carry a manual vertical order within their column (PROG-43): drag a
+// card above or below another to set the order you'll work them in. Position is
+// a fractional-index `rank` (src/shared/rank.ts), so a drop is a single
+// optimistic write — no renumbering. Dragging across columns sets status *and*
+// position in one move.
 
 import {
+  closestCorners,
   DndContext,
   DragOverlay,
   MouseSensor,
   TouchSensor,
-  useDraggable,
-  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { useMemo, useState } from "react";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { useDroppable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import {
   ISSUE_PRIORITIES,
@@ -24,14 +37,22 @@ import {
   type IssuePriority,
   type IssueStatus,
 } from "../../shared/constants";
+import { rankBetween } from "../../shared/rank";
+import { reorder, type ColumnMap } from "../boardOrder";
+import { filtersToRestore, loadBoardFilters, saveBoardFilters } from "../boardFilters";
 import type { WireIssue, WireTag, WorkspacePayload } from "../../shared/types";
 import { openCreateIssue } from "../commands/controller";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
-import { issueKeyOf, loadStats, setIssueStatus } from "../store";
+import { issueKeyOf, loadStats, updateIssue, type IssuePatch } from "../store";
 
 const FILTER_KEYS = ["initiative", "product", "repo", "arc", "tag", "priority"] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
 type Filters = Partial<Record<FilterKey, string>> & { backlog?: boolean };
+
+// Binary (byte-order) comparison — ranks span digits + letters whose ASCII
+// order is the alphabet order, so `localeCompare` (case-folding, locale-aware)
+// would mis-sort them. Matches SQLite's default BINARY collation.
+const byRank = (a: WireIssue, b: WireIssue) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0);
 
 function parseFilters(search: string): Filters {
   const params = new URLSearchParams(search);
@@ -48,6 +69,21 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
   const search = useSearch();
   const [, navigate] = useLocation();
   const filters = useMemo(() => parseFilters(search), [search]);
+
+  // Sticky filters (PROG-58): on a fresh mount with a bare URL, re-apply the
+  // saved selection; thereafter mirror the URL into storage on every change.
+  // Captured once at mount so a later filter change doesn't re-trigger a
+  // restore. A no-op when there's nothing saved or the URL already has filters.
+  const [restoreTarget] = useState(() => filtersToRestore(search, loadBoardFilters()));
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (!restoredRef.current && restoreTarget) {
+      restoredRef.current = true;
+      navigate(`/?${restoreTarget}`, { replace: true });
+      return; // don't persist the transient pre-restore (empty) URL
+    }
+    saveBoardFilters(search);
+  }, [search, navigate, restoreTarget]);
 
   const setParam = (key: string, value: string | null) => {
     const params = new URLSearchParams(search);
@@ -70,9 +106,9 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
     return map;
   }, [workspace.tags, workspace.issueTags]);
 
-  const productById = useMemo(
-    () => new Map(workspace.products.map((p) => [p.id, p])),
-    [workspace.products],
+  const issuesById = useMemo(
+    () => new Map(workspace.issues.map((i) => [i.id, i])),
+    [workspace.issues],
   );
 
   const visibleByStatus = useMemo(() => {
@@ -95,12 +131,29 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
     });
     const groups = new Map<IssueStatus, WireIssue[]>(ISSUE_STATUSES.map((s) => [s, []]));
     for (const issue of issues) groups.get(issue.status)!.push(issue);
-    const keyOf = (i: WireIssue) =>
-      `${productById.get(i.productId)?.keyPrefix ?? ""}-${String(i.number).padStart(8, "0")}`;
-    for (const group of groups.values())
-      group.sort((a, b) => keyOf(a).localeCompare(keyOf(b)));
+    // Manual board order (PROG-43): cards sort by their fractional rank.
+    for (const group of groups.values()) group.sort(byRank);
     return groups;
-  }, [workspace.issues, workspace.products, filters, tagsByIssue, productById]);
+  }, [workspace.issues, workspace.products, filters, tagsByIssue]);
+
+  // The drag model works on ordered id-lists per column. `sourceColumns` is the
+  // store's truth (rank order); `columns` is a working copy mutated live during
+  // a drag for cross-column preview and reset from source when idle.
+  const sourceColumns = useMemo(() => {
+    const cols = {} as ColumnMap;
+    for (const status of ISSUE_STATUSES)
+      cols[status] = visibleByStatus.get(status)!.map((i) => i.id);
+    return cols;
+  }, [visibleByStatus]);
+
+  const [columns, setColumns] = useState<ColumnMap>(sourceColumns);
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  // Re-sync from the store whenever it changes, except mid-drag (so an
+  // optimistic write landing during a drag doesn't yank the cards).
+  useEffect(() => {
+    if (!activeId) setColumns(sourceColumns);
+  }, [sourceColumns, activeId]);
 
   // Mouse: a distance constraint keeps plain clicks (card → issue page) from
   // starting a drag. Touch: a hold-delay keeps swipes scrolling the board
@@ -109,27 +162,103 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
     useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
   );
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const draggingIssue = draggingId
-    ? workspace.issues.find((i) => i.id === draggingId)
-    : undefined;
 
-  const onDragStart = (e: DragStartEvent) => setDraggingId(String(e.active.id));
-  const onDragEnd = (e: DragEndEvent) => {
-    setDraggingId(null);
-    const issue = workspace.issues.find((i) => i.id === String(e.active.id));
-    const target = e.over?.id as IssueStatus | undefined;
-    if (issue && target && target !== issue.status) setIssueStatus(issue.id, target);
+  const draggingIssue = activeId ? issuesById.get(activeId) : undefined;
+
+  const columnOf = (id: string): IssueStatus | undefined => {
+    if (id in columns) return id as IssueStatus; // dropped on a column itself
+    return ISSUE_STATUSES.find((s) => columns[s].includes(id));
   };
 
-  const columns = ISSUE_STATUSES.filter((s) => s !== "backlog" || filters.backlog);
-  const shownCount = columns.reduce((n, s) => n + visibleByStatus.get(s)!.length, 0);
+  const onDragStart = (e: DragStartEvent) => setActiveId(String(e.active.id));
+
+  // Live preview only: float the active card into the column it's hovering.
+  // Final placement is recomputed from scratch in onDragEnd, so this never
+  // affects correctness — only what you see while dragging.
+  const onDragOver = (e: DragOverEvent) => {
+    const id = String(e.active.id);
+    const overId = e.over ? String(e.over.id) : null;
+    if (!overId) return;
+    const from = columnOf(id);
+    const to = columnOf(overId);
+    if (!from || !to || from === to) return;
+    setColumns((prev) => {
+      const toItems = prev[to];
+      const overIsColumn = overId in prev;
+      const translated = e.active.rect.current.translated;
+      const below =
+        !overIsColumn && translated && e.over
+          ? translated.top > e.over.rect.top + e.over.rect.height / 2
+          : false;
+      const overIndex = overIsColumn ? toItems.length : toItems.indexOf(overId);
+      const insertAt = overIsColumn ? toItems.length : overIndex + (below ? 1 : 0);
+      return {
+        ...prev,
+        [from]: prev[from].filter((x) => x !== id),
+        [to]: [...toItems.slice(0, insertAt), id, ...toItems.slice(insertAt)],
+      };
+    });
+  };
+
+  const onDragEnd = (e: DragEndEvent) => {
+    setActiveId(null);
+    const id = String(e.active.id);
+    const overId = e.over ? String(e.over.id) : null;
+    const issue = issuesById.get(id);
+    if (!overId || !issue) {
+      setColumns(sourceColumns);
+      return;
+    }
+    // Resolve placement from the *stable* pre-drag order (sourceColumns), not the
+    // live `columns` (which onDragOver mutates). `below` = pointer past the
+    // hovered card's middle, used only for cross-column drops.
+    const translated = e.active.rect.current.translated;
+    const below =
+      translated && e.over ? translated.top > e.over.rect.top + e.over.rect.height / 2 : false;
+    const result = reorder(sourceColumns, id, overId, below);
+    if (!result) {
+      setColumns(sourceColumns);
+      return;
+    }
+    const { columns: next, to } = result;
+    setColumns(next);
+
+    const targetItems = next[to];
+    const pos = targetItems.indexOf(id);
+    const prevId = pos > 0 ? targetItems[pos - 1]! : null;
+    const nextId = pos < targetItems.length - 1 ? targetItems[pos + 1]! : null;
+
+    // No-op guard: same column and same neighbors as the stored order ⇒ a click
+    // or a drag that landed back home; skip the write.
+    const src = sourceColumns[issue.status];
+    const sIdx = src.indexOf(id);
+    const srcPrev = sIdx > 0 ? src[sIdx - 1]! : null;
+    const srcNext = sIdx < src.length - 1 ? src[sIdx + 1]! : null;
+    if (to === issue.status && srcPrev === prevId && srcNext === nextId) return;
+
+    const newRank = rankBetween(
+      prevId ? (issuesById.get(prevId)?.rank ?? null) : null,
+      nextId ? (issuesById.get(nextId)?.rank ?? null) : null,
+    );
+    const patch: IssuePatch = { rank: newRank };
+    if (to !== issue.status) patch.status = to;
+    updateIssue(id, patch);
+  };
+
+  const onDragCancel = () => {
+    setActiveId(null);
+    setColumns(sourceColumns);
+  };
+
+  const visibleColumns = ISSUE_STATUSES.filter((s) => s !== "backlog" || filters.backlog);
+  const shownCount = visibleColumns.reduce((n, s) => n + columns[s].length, 0);
   const filtersActive = FILTER_KEYS.some((k) => filters[k]);
 
   return (
     <>
+      {/* No page title here: the global header already shows the "Progress"
+          app name (PROG-53 — drop the redundant heading). */}
       <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Progress</h1>
         <p className="text-xs text-ink-faint">
           {shownCount} issues on board · {workspace.issues.length} total · loaded in{" "}
           {Math.round(loadStats.fetchMs)} ms · ⌘K for commands
@@ -212,27 +341,43 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
         )}
       </div>
 
-      <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDragEnd={onDragEnd}
+        onDragCancel={onDragCancel}
+      >
         <div className="mt-5 flex items-start gap-3 overflow-x-auto pb-6">
-          {columns.map((status) => (
+          {visibleColumns.map((status) => (
             <BoardColumn
               key={status}
               status={status}
-              issues={visibleByStatus.get(status)!}
+              issueIds={columns[status]}
+              issuesById={issuesById}
               workspace={workspace}
               tagsByIssue={tagsByIssue}
-              draggingId={draggingId}
+              activeId={activeId}
             />
           ))}
         </div>
-        <DragOverlay>
+        {/* dropAnimation={null}: skip the default drop tween. It animates the
+            overlay back to the *original* dragged node, but the reorder is
+            already committed to state by onDragEnd, so the tween flies the card
+            to its old slot before the re-render snaps it to the new one
+            (PROG-43). Dropping it makes the card settle in place instantly —
+            on-brand with the instant-UI rule. */}
+        <DragOverlay dropAnimation={null}>
           {draggingIssue && (
-            <CardView
-              issue={draggingIssue}
-              workspace={workspace}
-              tags={tagsByIssue.get(draggingIssue.id) ?? []}
-              dragging
-            />
+            <div data-drag-overlay>
+              <CardView
+                issue={draggingIssue}
+                workspace={workspace}
+                tags={tagsByIssue.get(draggingIssue.id) ?? []}
+                dragging
+              />
+            </div>
           )}
         </DragOverlay>
       </DndContext>
@@ -271,17 +416,21 @@ function FilterSelect({
 
 function BoardColumn({
   status,
-  issues,
+  issueIds,
+  issuesById,
   workspace,
   tagsByIssue,
-  draggingId,
+  activeId,
 }: {
   status: IssueStatus;
-  issues: WireIssue[];
+  issueIds: string[];
+  issuesById: Map<string, WireIssue>;
   workspace: WorkspacePayload;
   tagsByIssue: Map<string, WireTag[]>;
-  draggingId: string | null;
+  activeId: string | null;
 }) {
+  // Droppable so an empty column (or the space below the last card) still
+  // accepts a drop; cards themselves are the sortable items inside.
   const { setNodeRef, isOver } = useDroppable({ id: status });
   return (
     <section
@@ -289,19 +438,25 @@ function BoardColumn({
       className={`w-72 shrink-0 rounded-lg p-2 ${isOver ? "bg-adobe-wash/30 ring-1 ring-adobe-light" : "bg-line/40"}`}
     >
       <h2 className="px-1 pb-2 text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">
-        {STATUS_LABELS[status]} · {issues.length}
+        {STATUS_LABELS[status]} · {issueIds.length}
       </h2>
-      <div className="flex min-h-8 flex-col gap-1.5">
-        {issues.map((issue) => (
-          <BoardCard
-            key={issue.id}
-            issue={issue}
-            workspace={workspace}
-            tags={tagsByIssue.get(issue.id) ?? []}
-            hidden={draggingId === issue.id}
-          />
-        ))}
-      </div>
+      <SortableContext items={issueIds} strategy={verticalListSortingStrategy}>
+        <div className="flex min-h-8 flex-col gap-1.5">
+          {issueIds.map((id) => {
+            const issue = issuesById.get(id);
+            if (!issue) return null;
+            return (
+              <BoardCard
+                key={id}
+                issue={issue}
+                workspace={workspace}
+                tags={tagsByIssue.get(id) ?? []}
+                hidden={activeId === id}
+              />
+            );
+          })}
+        </div>
+      </SortableContext>
     </section>
   );
 }
@@ -317,18 +472,20 @@ function BoardCard({
   tags: WireTag[];
   hidden: boolean;
 }) {
-  const { setNodeRef, listeners, attributes } = useDraggable({ id: issue.id });
+  const { setNodeRef, listeners, attributes, transform, transition, isDragging } = useSortable({
+    id: issue.id,
+  });
   return (
     <div
       ref={setNodeRef}
       {...listeners}
       {...attributes}
       data-issue-id={issue.id}
-      className={hidden ? "opacity-30" : ""}
+      className={hidden || isDragging ? "opacity-30" : ""}
       // Keeps taps/holds responsive on touch without blocking board scroll
       // (safe with the hold-delay sensor; touch-action:none would kill
       // scrolling over cards).
-      style={{ touchAction: "manipulation" }}
+      style={{ touchAction: "manipulation", transform: CSS.Transform.toString(transform), transition }}
     >
       <Link href={`/issue/${issueKeyOf(workspace, issue)}`}>
         <CardView issue={issue} workspace={workspace} tags={tags} />

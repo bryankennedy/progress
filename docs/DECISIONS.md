@@ -611,9 +611,38 @@ table (statelessness suffices); a `users.google_sub` column (email matching is
 enough for owner-only; can add later as a stable anchor). Cutover steps + Access
 teardown: SETUP §6.
 
-### D43: two-tier access — env super-admins + a D1-managed allowlist (refines D42)
+### D43: kanban cards carry a manual order via a fractional-index `rank` (PROG-43)
+Issues now have an explicit vertical order on the board, not just a status
+column — so the owner can rank what to work on next, putting one card ahead of
+another. The order is stored as a per-issue **`rank`**: a string
+*fractional-index* key (`src/shared/rank.ts`) that sorts lexicographically, so a
+card dropped between two others gets a key *between* their keys and the move is a
+**single-row write** — no renumbering of neighbors, which keeps reordering
+optimistic and instant (Hard requirement #1). Ranks are one global order; sorting
+only ever compares cards within a column, so global position doubles as
+in-column position. New issues are appended after the current last rank (bottom
+of their column); migration `0005_issue_rank` backfills existing rows in the old
+board order (by product, then issue number). The board upgrades from
+`@dnd-kit/core` draggable/droppable to **`@dnd-kit/sortable`** for within- and
+cross-column positional drops; a cross-column drop sends `status` + `rank` in one
+PATCH. *Decisions within:* (1) **fractional index over an integer `position`** —
+an integer scheme needs to renumber a whole column per drop (N writes) or leave
+gaps that still eventually collide; fractional keys are O(1) writes and never
+need rebalancing at single-user scale. (2) **home-rolled, dependency-free helper
+over the `fractional-indexing` npm package** — keeps `src/shared` dep-free (like
+`constants.ts`) and lets the migration backfill in pure SQL with compatible
+fixed-width decimal keys; covered by `bun test` (100k-insertion torture test).
+(3) **base-62, ASCII-ordered alphabet** so a byte-wise compare (SQLite's default
+BINARY collation, and the client's `<`) equals digit order; keys are kept
+**canonical (never end in "0")** so any gap stays subdividable. (4) **client
+computes the key, server only validates** it's well-formed — mirrors the existing
+optimistic-mutation split. *Rejected:* per-column integer positions (write
+amplification); `localeCompare` for the client sort (case-folding would mis-order
+letter-bearing keys — must be a binary compare).
+
+### D44: two-tier access — env super-admins + a D1-managed allowlist (refines D42)
 **Refines D42.** D42 gated sign-in on a single `ALLOWED_EMAILS` env secret, so
-changing who can use the app meant editing a secret and redeploying. D43
+changing who can use the app meant editing a secret and redeploying. D44
 splits access into two tiers: (1) **super-admins** — the env secret, renamed
 `SUPER_ADMIN_EMAILS` — who can reach the **Admin** page (`/admin`) and are always
 allowed; (2) **allowed users** — rows in a new D1 `allowed_emails` table
@@ -632,4 +661,4 @@ flag. A transitional fallback reads `SUPER_ADMIN_EMAILS ?? ALLOWED_EMAILS` so th
 rename doesn't lock anyone out before the prod secret is cut over; the old key is
 removed in a follow-up. *Rejected:* login-time-only enforcement (a removed user
 keeps access up to 30 days — too loose for an access tool); storing super-admins
-in the table too (re-introduces lock-out risk). Migration `0005`.
+in the table too (re-introduces lock-out risk). Migration `0006`.

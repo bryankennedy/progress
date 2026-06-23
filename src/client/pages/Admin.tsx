@@ -1,4 +1,4 @@
-// Admin — sign-in allowlist management (D43). Super-admins (defined by the
+// Admin — sign-in allowlist management (D44). Super-admins (defined by the
 // SUPER_ADMIN_EMAILS secret) curate who else may use the app; the list lives in
 // D1 and is edited here through the existing optimistic store flow
 // (addAllowedEmail / updateAllowedEmailNote / removeAllowedEmail). The route is

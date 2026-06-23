@@ -45,7 +45,7 @@ export type WorkspacePayload = {
   // path where the owner row may not be loaded; the client treats null as the
   // dev owner.
   me: WireUser | null;
-  // Whether `me` may manage the sign-in allowlist (D43). Gates the Admin
+  // Whether `me` may manage the sign-in allowlist (D44). Gates the Admin
   // nav link + page client-side; the API enforces independently.
   isSuperAdmin: boolean;
   // The runtime sign-in allowlist — populated only for super-admins; an empty

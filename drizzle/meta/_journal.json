@@ -40,8 +40,15 @@
     {
       "idx": 5,
       "version": "6",
-      "when": 1782239953988,
-      "tag": "0005_friendly_captain_cross",
+      "when": 1782142354282,
+      "tag": "0005_issue_rank",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1782241348557,
+      "tag": "0006_supreme_rattler",
       "breakpoints": true
     }
   ]

@@ -26,7 +26,7 @@ const NAV: NavItem[] = [
   { href: "/structure", label: "Structure", match: (p) => p.startsWith("/structure") },
 ];
 
-// Super-admin-only; appended to NAV at render time (D43).
+// Super-admin-only; appended to NAV at render time (D44).
 const ADMIN_NAV: NavItem = {
   href: "/admin",
   label: "Admin",
@@ -55,7 +55,7 @@ export default function Header() {
           Progress
         </Link>
         <nav className="flex items-center gap-1 text-sm">
-          {/* The Admin (allowlist) link only exists for super-admins (D43);
+          {/* The Admin (allowlist) link only exists for super-admins (D44);
               appended so it sits last in the nav. */}
           {[...NAV, ...(isSuperAdmin ? [ADMIN_NAV] : [])].map((item) => (
             <Link
