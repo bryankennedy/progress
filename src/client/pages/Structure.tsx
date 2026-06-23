@@ -19,13 +19,24 @@ function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
   );
 }
 
-function NodeLink({ href, name, archived }: { href: string; name: string; archived: boolean }) {
+function NodeLink({
+  href,
+  name,
+  archived,
+  muted = false,
+}: {
+  href: string;
+  name: string;
+  archived: boolean;
+  muted?: boolean;
+}) {
+  // `muted` (repos) reads as supporting detail beneath the arc — lower-contrast
+  // and italic so the more important arcs stay visually primary.
+  const tone = archived ? "text-ink-faint line-through" : muted ? "text-ink-soft" : "text-ink";
   return (
     <Link
       href={href}
-      className={`rounded px-1.5 py-0.5 font-medium hover:bg-line ${
-        archived ? "text-ink-faint line-through" : "text-ink"
-      }`}
+      className={`rounded px-1.5 py-0.5 hover:bg-line ${muted ? "italic font-normal" : "font-medium"} ${tone}`}
     >
       {name}
     </Link>
@@ -34,15 +45,18 @@ function NodeLink({ href, name, archived }: { href: string; name: string; archiv
 
 // A labeled list of like-kind nodes (all Repos, or all Arcs) under a Product —
 // the type word appears once as a section heading instead of being repeated on
-// every row, mirroring the Initiative/Product tree above.
+// every row, mirroring the Initiative/Product tree above. `muted` dims the
+// whole group (used for repos, which sit below the more important arcs).
 function NodeGroup({
   label,
   nodes,
   hrefBase,
+  muted = false,
 }: {
   label: string;
   nodes: { id: string; name: string; archivedAt: string | null }[];
   hrefBase: string;
+  muted?: boolean;
 }) {
   if (nodes.length === 0) return null;
   return (
@@ -55,6 +69,7 @@ function NodeGroup({
             href={`${hrefBase}/${n.id}`}
             name={n.name}
             archived={!!n.archivedAt}
+            muted={muted}
           />
         ))}
       </div>
@@ -138,14 +153,15 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
                       {(repos.length > 0 || arcs.length > 0) && (
                         <div className="mt-2 space-y-2 border-l border-line pl-4">
                           <NodeGroup
-                            label={repos.length === 1 ? "Repo" : "Repos"}
-                            nodes={repos}
-                            hrefBase="/repo"
-                          />
-                          <NodeGroup
                             label={arcs.length === 1 ? "Arc" : "Arcs"}
                             nodes={arcs}
                             hrefBase="/arc"
+                          />
+                          <NodeGroup
+                            label={repos.length === 1 ? "Repo" : "Repos"}
+                            nodes={repos}
+                            hrefBase="/repo"
+                            muted
                           />
                         </div>
                       )}
