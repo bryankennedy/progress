@@ -1,6 +1,5 @@
-import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
-import { SESSION_COOKIE, signSession } from "../src/worker/auth";
+import { signInAsOwner } from "./auth";
 
 // Board vertical reordering (PROG-43), in a real browser — pointer events can't
 // be unit-tested. The exhaustive index math (incl. the drag-down off-by-one)
@@ -12,9 +11,12 @@ type Box = { id: string; x: number; y: number; w: number; h: number; cx: number;
 
 // page.request shares the page's cookie jar (the standalone `request` fixture
 // has its own and would 401 once auth is configured).
-async function rankOf(page: Page, id: string): Promise<string | undefined> {
+async function issueOf(page: Page, id: string): Promise<{ rank: string; status: string } | undefined> {
   const ws = await (await page.request.get("/api/workspace")).json();
-  return ws.issues.find((i: { id: string }) => i.id === id)?.rank;
+  return ws.issues.find((i: { id: string }) => i.id === id);
+}
+async function rankOf(page: Page, id: string): Promise<string | undefined> {
+  return (await issueOf(page, id))?.rank;
 }
 
 // Cards grouped into columns by x position, each ordered top→bottom (= rank order).
@@ -63,33 +65,16 @@ async function glideY(page: Page, x: number, fromY: number, toY: number) {
   }
 }
 
-// Read a key from the gitignored .dev.vars (KEY=value lines), if present.
-function devVar(key: string): string | undefined {
-  try {
-    const txt = readFileSync(new URL("../.dev.vars", import.meta.url), "utf8");
-    for (const line of txt.split(/\r?\n/)) {
-      const eq = line.indexOf("=");
-      if (eq > 0 && line.slice(0, eq).trim() === key) return line.slice(eq + 1).trim();
-    }
-  } catch {
-    /* no .dev.vars → auth is unconfigured and the worker falls back to owner */
+// Glide the pointer (already pressed) to an absolute (x, y) in small steps.
+async function glideTo(page: Page, fromX: number, fromY: number, toX: number, toY: number) {
+  const steps = 24;
+  for (let s = 1; s <= steps; s++) {
+    await page.mouse.move(fromX + ((toX - fromX) * s) / steps, fromY + ((toY - fromY) * s) / steps);
   }
-  return undefined;
 }
 
 test.beforeEach(async ({ page, context }) => {
-  // When local auth is configured (real OAuth creds in .dev.vars), the worker's
-  // owner fallback is off and every /api/* call would 401. Sign a session cookie
-  // for the owner — exactly what a logged-in user carries — so the board loads.
-  // With auth unconfigured (CI / fresh checkout) there's no secret, the worker
-  // falls back to the owner, and this is simply skipped.
-  const secret = devVar("SESSION_SECRET");
-  if (secret) {
-    const token = await signSession("usr_owner", "owner@example.com", secret);
-    await context.addCookies([
-      { name: SESSION_COOKIE, value: token, domain: "localhost", path: "/" },
-    ]);
-  }
+  await signInAsOwner(context);
   await page.goto("/?backlog=1"); // show every column
   await page.waitForSelector("[data-issue-id]");
 });
@@ -139,4 +124,53 @@ test("dragging a card DOWN past its neighbor persists — does not snap back (PR
     }, { message: "c0 should sort after c1 after dragging down past it" })
     .toBe(true);
   expect(await rankOf(page, c0.id)).not.toBe(before); // it actually changed
+});
+
+test("dragging a card to the TOP of a populated column moves it there (PROG-59)", async ({
+  page,
+}) => {
+  // Arrange the issue's exact scenario via the API so the test is deterministic
+  // regardless of prior drag tests: a card in `todo` and a populated `backlog`.
+  // Both are the two leftmost columns, so they stay on-screen at this viewport
+  // (a far-right column like in_review would scroll out of view and the drag
+  // would never engage).
+  const ws = await (await page.request.get("/api/workspace")).json();
+  const ids: string[] = ws.issues.map((i: { id: string }) => i.id);
+  const mover = ids[0]!;
+  const fillers = ids.slice(1, 4); // ensure backlog has several cards
+  const patch = (id: string, body: object) =>
+    page.request.patch(`/api/issues/${id}`, { data: body });
+  await patch(mover, { status: "todo" });
+  for (const id of fillers) await patch(id, { status: "backlog" });
+
+  await page.goto("/?backlog=1");
+  await page.waitForSelector(`[data-issue-id="${mover}"]`);
+
+  const box = async (id: string): Promise<Box> => {
+    const b = (await page.locator(`[data-issue-id="${id}"]`).boundingBox())!;
+    return { id, x: b.x, y: b.y, w: b.width, h: b.height, cx: b.x + b.width / 2, cy: b.y + b.height / 2 };
+  };
+  // The backlog column = the column the fillers are in; its top card is the one
+  // with the smallest y among them.
+  const fillerBoxes = (await Promise.all(fillers.map(box))).sort((a, b) => a.y - b.y);
+  const targetTop = fillerBoxes[0]!;
+  const moverBox = await box(mover);
+  expect(Math.round(moverBox.x)).not.toBe(Math.round(targetTop.x)); // genuinely different columns
+  const targetTopBefore = (await issueOf(page, targetTop.id))!;
+
+  // Drag the lone card over the TOP card of the populated column and release —
+  // the gesture that used to fly it back unless dropped below every card.
+  await press(page, moverBox);
+  await glideTo(page, moverBox.cx, moverBox.cy + 6, targetTop.cx, targetTop.y + 4);
+  await page.mouse.up();
+
+  await expect
+    .poll(async () => (await issueOf(page, mover))?.status, {
+      message: "the dragged card should adopt the target column's status",
+    })
+    .toBe("backlog");
+  // And it landed at the top: ranks are base-62 strings, so compare with a
+  // lexicographic `<` (what the board sorts by), never numeric toBeLessThan.
+  const movedRank = (await rankOf(page, mover))!;
+  expect(movedRank < targetTopBefore.rank).toBe(true);
 });

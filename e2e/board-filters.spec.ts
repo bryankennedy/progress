@@ -1,25 +1,10 @@
-import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
-import { SESSION_COOKIE, signSession } from "../src/worker/auth";
+import { signInAsOwner } from "./auth";
 
 // Sticky board filters (PROG-58): a filter chosen on the board must survive
 // navigating away and back, and clearing must stick. Needs a real browser
 // (localStorage + wouter navigation); the restore decision itself is unit-tested
 // in src/client/boardFilters.test.ts.
-
-// Read a key from the gitignored .dev.vars (KEY=value lines), if present.
-function devVar(key: string): string | undefined {
-  try {
-    const txt = readFileSync(new URL("../.dev.vars", import.meta.url), "utf8");
-    for (const line of txt.split(/\r?\n/)) {
-      const eq = line.indexOf("=");
-      if (eq > 0 && line.slice(0, eq).trim() === key) return line.slice(eq + 1).trim();
-    }
-  } catch {
-    /* no .dev.vars → auth is unconfigured and the worker falls back to owner */
-  }
-  return undefined;
-}
 
 // The Priority dropdown is a fixed vocabulary, so it always has options — pick
 // the first real one and return its value + visible label.
@@ -37,13 +22,7 @@ async function priorityValue(page: Page): Promise<string> {
 }
 
 test.beforeEach(async ({ page, context }) => {
-  const secret = devVar("SESSION_SECRET");
-  if (secret) {
-    const token = await signSession("usr_owner", "owner@example.com", secret);
-    await context.addCookies([
-      { name: SESSION_COOKIE, value: token, domain: "localhost", path: "/" },
-    ]);
-  }
+  await signInAsOwner(context);
   // Start from a clean slate so a stale memory from another test doesn't leak in.
   await page.goto("/");
   await page.evaluate(() => window.localStorage.removeItem("progress:board-filters"));

@@ -1,11 +1,16 @@
 // Pure board-reordering math for the kanban (PROG-43), factored out of Home so
-// it can be unit-tested without a browser. Given the current per-column card
-// order and a drop (active card released over a target), it returns the new
-// order. The subtlety this isolates: a within-column move must use arrayMove,
-// which adjusts for the index shift when moving DOWN — a naive
-// remove-then-insert-at-the-target-index lands one slot short going down (it was
-// the off-by-one that snapped a one-slot drop back and made a two-slot drop look
-// like one).
+// it can be unit-tested without a browser. Given the *current* per-column card
+// order (the live, preview-updated order — see PROG-59) and a drop (active card
+// released over a target), it returns the new order. Two subtleties it isolates:
+//
+//  - A within-column move must use arrayMove, which adjusts for the index shift
+//    when moving DOWN — a naive remove-then-insert-at-the-target-index lands one
+//    slot short going down (PROG-43: snapped a one-slot drop back, made a
+//    two-slot drop look like one).
+//  - For a cross-column drag, the caller passes the LIVE columns in which
+//    onDragOver has already placed the active card in the target column. So at
+//    drop the active card is found in the target, and `overId` may even be the
+//    active card itself — both handled by the from===to branch (PROG-59).
 
 import { arrayMove } from "@dnd-kit/sortable";
 import { ISSUE_STATUSES, type IssueStatus } from "../shared/constants";
