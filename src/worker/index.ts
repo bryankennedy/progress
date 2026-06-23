@@ -7,6 +7,7 @@ import {
   arcs,
   comments,
   commitLinks,
+  images,
   initiatives,
   ISSUE_ESTIMATES,
   ISSUE_PRIORITIES,
@@ -46,6 +47,9 @@ import {
 
 type Bindings = AuthEnv & {
   DB: D1Database;
+  // Blob storage for pasted/uploaded images (PROG-42). Served through the Worker
+  // behind the /api auth gate; resized at the edge via cf.image when available.
+  IMAGES: R2Bucket;
   // Shared secret for GitHub webhook HMAC verification (SPEC §5). Local dev:
   // .dev.vars; production: `wrangler secret put GITHUB_WEBHOOK_SECRET`.
   GITHUB_WEBHOOK_SECRET?: string;
@@ -433,6 +437,85 @@ app.delete("/api/admin/allowlist/:id", async (c) => {
   const db = drizzle(c.env.DB);
   await db.delete(allowedEmails).where(eq(allowedEmails.id, c.req.param("id")));
   return c.json({ ok: true });
+});
+
+// ---------- images: paste/upload to R2, serve auth-gated (PROG-42) ----------
+//
+// Blobs live in R2; a D1 `images` row authorizes + attributes them. Both routes
+// sit behind the /api auth gate, so an image is viewable by any signed-in
+// (allowlisted) user or the bearer token — never the public internet. Markdown
+// in descriptions/comments references them as `/api/images/<id>`.
+
+const IMAGE_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+  "image/avif",
+]);
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB — generous for screenshots.
+
+app.post("/api/images", async (c) => {
+  const contentType = (c.req.header("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
+  if (!IMAGE_TYPES.has(contentType))
+    return c.json({ error: `unsupported image type: ${contentType || "none"}` }, 400);
+
+  const bytes = await c.req.arrayBuffer();
+  if (bytes.byteLength === 0) return c.json({ error: "empty body" }, 400);
+  if (bytes.byteLength > MAX_IMAGE_BYTES)
+    return c.json({ error: `image too large (max ${MAX_IMAGE_BYTES / (1024 * 1024)} MB)` }, 400);
+
+  const id = newId("img");
+  const r2Key = `img/${id}`;
+  await c.env.IMAGES.put(r2Key, bytes, { httpMetadata: { contentType } });
+
+  const db = drizzle(c.env.DB);
+  await db.insert(images).values({
+    id,
+    r2Key,
+    contentType,
+    size: bytes.byteLength,
+    uploaderId: c.get("userId"),
+    createdAt: new Date(),
+  });
+  return c.json({ image: { id, url: `/api/images/${id}` } }, 201);
+});
+
+app.get("/api/images/:id", async (c) => {
+  const id = c.req.param("id");
+  const db = drizzle(c.env.DB);
+  const [row] = await db.select().from(images).where(eq(images.id, id)).limit(1);
+  if (!row) return c.json({ error: "image not found" }, 404);
+
+  const url = new URL(c.req.url);
+  const width = Number(url.searchParams.get("w"));
+  const wantResize = Number.isFinite(width) && width > 0;
+  // Immutable: an image id is content the client never reuses for new bytes.
+  const cacheControl = "private, max-age=31536000, immutable";
+
+  // Resize at the edge via a cf.image subrequest to our own raw variant. We only
+  // do this on a deployed origin (cf.image is a no-op off-edge, and a self-fetch
+  // to localhost would loop under Miniflare); locally and without a token we just
+  // stream the original. The subrequest carries the bearer so it clears the gate.
+  if (wantResize && url.searchParams.get("raw") !== "1" && !isLoopbackHost(c.req.url) && c.env.PROGRESS_API_TOKEN) {
+    const rawUrl = `${url.origin}/api/images/${id}?raw=1`;
+    const resized = await fetch(
+      new Request(rawUrl, { headers: { Authorization: `Bearer ${c.env.PROGRESS_API_TOKEN}` } }),
+      { cf: { image: { width: Math.min(width, 2400), fit: "scale-down", quality: 85 } } },
+    );
+    if (resized.ok) {
+      const out = new Response(resized.body, resized);
+      out.headers.set("Cache-Control", cacheControl);
+      return out;
+    }
+    // Resizing unavailable (feature off, etc.) → fall through to the original.
+  }
+
+  const obj = await c.env.IMAGES.get(row.r2Key);
+  if (!obj) return c.json({ error: "image blob missing" }, 404);
+  return new Response(obj.body, {
+    headers: { "Content-Type": row.contentType, "Cache-Control": cacheControl },
+  });
 });
 
 // ---------- container CRUD (D26) ----------
@@ -1072,6 +1155,7 @@ app.get("/api/issues/:key/bundle", async (c) => {
     comments: commentRows,
     pullRequests: prRows,
     commits: commitRows,
+    baseUrl: new URL(c.req.url).origin,
   });
   return c.body(md, 200, { "Content-Type": "text/markdown; charset=utf-8" });
 });
@@ -1199,7 +1283,22 @@ type BundleData = {
   comments: { body: string; createdAt: Date; author: string }[];
   pullRequests: (typeof prLinks.$inferSelect)[];
   commits: (typeof commitLinks.$inferSelect)[];
+  // Origin for resolving relative `/api/images/...` refs to absolute URLs an
+  // agent (MCP/CLI, bearer-authed) can actually fetch (PROG-42).
+  baseUrl: string;
 };
+
+// Pull markdown image targets out of a body, resolving app-relative paths to
+// absolute URLs. Used to give the agent bundle an explicit "Images" list.
+const IMAGE_MD_RE = /!\[[^\]]*\]\(\s*([^)\s]+)/g;
+function extractImageUrls(text: string, baseUrl: string): string[] {
+  const out: string[] = [];
+  for (const m of text.matchAll(IMAGE_MD_RE)) {
+    const ref = m[1]!;
+    out.push(ref.startsWith("/") ? baseUrl + ref : ref);
+  }
+  return out;
+}
 
 // Deterministic: every value comes from the row data (no Date.now / locale),
 // and collections arrive pre-sorted, so the same issue always renders byte
@@ -1244,6 +1343,21 @@ function renderBundle(b: BundleData): string {
   if (b.comments.length === 0) out.push("_None._", "");
   else
     for (const cm of b.comments) out.push(`**${cm.author}** · ${day(cm.createdAt)}`, "", para(cm.body), "");
+
+  // Images embedded in the description/comments, as absolute URLs (PROG-42) — a
+  // vision-capable agent (bearer-authed via MCP/CLI) can fetch these for context.
+  const imageUrls = [
+    ...new Set([
+      ...extractImageUrls(issue.description, b.baseUrl),
+      ...b.comments.flatMap((cm) => extractImageUrls(cm.body, b.baseUrl)),
+    ]),
+  ];
+  out.push(`## Images (${imageUrls.length})`, "");
+  if (imageUrls.length === 0) out.push("_None._", "");
+  else {
+    for (const u of imageUrls) out.push(`- ${u}`);
+    out.push("");
+  }
 
   out.push(`## Linked pull requests (${b.pullRequests.length})`, "");
   if (b.pullRequests.length === 0) out.push("_None._");

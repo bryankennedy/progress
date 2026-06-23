@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import Markdown from "react-markdown";
+import Markdown from "../Markdown";
+import MarkdownTextarea from "../MarkdownTextarea";
 import { Link, useLocation } from "wouter";
 import {
   ISSUE_ESTIMATES,
@@ -341,9 +342,9 @@ function TimelineSection({
       </ul>
 
       <div className="mt-6">
-        <textarea
+        <MarkdownTextarea
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={setDraft}
           rows={3}
           placeholder="Leave a comment… (Markdown)"
           className="w-full rounded border border-line bg-card p-3 text-sm focus:border-ink-faint focus:outline-none"

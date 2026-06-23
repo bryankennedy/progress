@@ -289,6 +289,21 @@ export const allowedEmails = sqliteTable(
   (t) => [uniqueIndex("allowed_emails_email_unique").on(t.email)],
 );
 
+// Uploaded/pasted images (PROG-42). The blob lives in R2 (`r2Key`); this row is
+// the D1 record so the worker can authorize and look up an image by id, and
+// attribute it to its uploader. Referenced from description/comment markdown as
+// `/api/images/<id>`; never hard-deleted with its issue (orphans are harmless).
+export const images = sqliteTable("images", {
+  id: text("id").primaryKey(),
+  r2Key: text("r2_key").notNull(),
+  contentType: text("content_type").notNull(),
+  size: integer("size").notNull(),
+  uploaderId: text("uploader_id")
+    .notNull()
+    .references(() => users.id),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type Initiative = typeof initiatives.$inferSelect;
 export type Product = typeof products.$inferSelect;
@@ -303,3 +318,4 @@ export type Activity = typeof activity.$inferSelect;
 export type PrLink = typeof prLinks.$inferSelect;
 export type CommitLink = typeof commitLinks.$inferSelect;
 export type AllowedEmail = typeof allowedEmails.$inferSelect;
+export type Image = typeof images.$inferSelect;

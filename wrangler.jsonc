@@ -22,6 +22,15 @@
       "migrations_dir": "drizzle"
     }
   ],
+  // Blob storage for pasted/uploaded images (PROG-42). Served through the Worker
+  // so access stays behind the /api auth gate. Local dev uses Miniflare's local
+  // bucket; prod needs `wrangler r2 bucket create progress-images`.
+  "r2_buckets": [
+    {
+      "binding": "IMAGES",
+      "bucket_name": "progress-images"
+    }
+  ],
   "observability": {
     "enabled": true
   }
