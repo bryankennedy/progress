@@ -29,7 +29,7 @@ import {
 } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import {
   ISSUE_PRIORITIES,
@@ -39,6 +39,7 @@ import {
 } from "../../shared/constants";
 import { rankBetween } from "../../shared/rank";
 import { reorder, type ColumnMap } from "../boardOrder";
+import { filtersToRestore, loadBoardFilters, saveBoardFilters } from "../boardFilters";
 import type { WireIssue, WireTag, WorkspacePayload } from "../../shared/types";
 import { openCreateIssue } from "../commands/controller";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
@@ -68,6 +69,21 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
   const search = useSearch();
   const [, navigate] = useLocation();
   const filters = useMemo(() => parseFilters(search), [search]);
+
+  // Sticky filters (PROG-58): on a fresh mount with a bare URL, re-apply the
+  // saved selection; thereafter mirror the URL into storage on every change.
+  // Captured once at mount so a later filter change doesn't re-trigger a
+  // restore. A no-op when there's nothing saved or the URL already has filters.
+  const [restoreTarget] = useState(() => filtersToRestore(search, loadBoardFilters()));
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (!restoredRef.current && restoreTarget) {
+      restoredRef.current = true;
+      navigate(`/?${restoreTarget}`, { replace: true });
+      return; // don't persist the transient pre-restore (empty) URL
+    }
+    saveBoardFilters(search);
+  }, [search, navigate, restoreTarget]);
 
   const setParam = (key: string, value: string | null) => {
     const params = new URLSearchParams(search);
