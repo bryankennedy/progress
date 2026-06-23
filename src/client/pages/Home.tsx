@@ -40,6 +40,7 @@ import {
 import { rankBetween } from "../../shared/rank";
 import { reorder, type ColumnMap } from "../boardOrder";
 import { filtersToRestore, loadBoardFilters, saveBoardFilters } from "../boardFilters";
+import { recentlyCompleted } from "../boardDone";
 import type { WireIssue, WireTag, WorkspacePayload } from "../../shared/types";
 import { openCreateIssue } from "../commands/controller";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
@@ -133,7 +134,12 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
     for (const issue of issues) groups.get(issue.status)!.push(issue);
     // Manual board order (PROG-43): cards sort by their fractional rank.
     for (const group of groups.values()) group.sort(byRank);
-    return groups;
+    // Done can grow without bound — cap it to the most recently completed
+    // issues so it doesn't dominate the board (PROG-40). `doneTotal` keeps the
+    // header honest about how many are hidden.
+    const doneTotal = groups.get("done")!.length;
+    groups.set("done", recentlyCompleted(groups.get("done")!));
+    return { groups, doneTotal };
   }, [workspace.issues, workspace.products, filters, tagsByIssue]);
 
   // The drag model works on ordered id-lists per column. `sourceColumns` is the
@@ -142,7 +148,7 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
   const sourceColumns = useMemo(() => {
     const cols = {} as ColumnMap;
     for (const status of ISSUE_STATUSES)
-      cols[status] = visibleByStatus.get(status)!.map((i) => i.id);
+      cols[status] = visibleByStatus.groups.get(status)!.map((i) => i.id);
     return cols;
   }, [visibleByStatus]);
 
@@ -354,12 +360,16 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
         onDragEnd={onDragEnd}
         onDragCancel={onDragCancel}
       >
-        <div className="mt-5 flex items-start gap-3 overflow-x-auto pb-6">
+        {/* items-stretch: all columns share the tallest column's height, so a
+            card can be dragged straight sideways into any column's drop zone
+            instead of having to travel to its top (PROG-40). */}
+        <div className="mt-5 flex items-stretch gap-3 overflow-x-auto pb-6">
           {visibleColumns.map((status) => (
             <BoardColumn
               key={status}
               status={status}
               issueIds={columns[status]}
+              total={status === "done" ? visibleByStatus.doneTotal : undefined}
               issuesById={issuesById}
               workspace={workspace}
               tagsByIssue={tagsByIssue}
@@ -422,6 +432,7 @@ function FilterSelect({
 function BoardColumn({
   status,
   issueIds,
+  total,
   issuesById,
   workspace,
   tagsByIssue,
@@ -429,24 +440,31 @@ function BoardColumn({
 }: {
   status: IssueStatus;
   issueIds: string[];
+  // When the column is capped (Done — PROG-40), the true count before capping,
+  // so the header can show "shown of total". Undefined ⇒ nothing is hidden.
+  total?: number;
   issuesById: Map<string, WireIssue>;
   workspace: WorkspacePayload;
   tagsByIssue: Map<string, WireTag[]>;
   activeId: string | null;
 }) {
   // Droppable so an empty column (or the space below the last card) still
-  // accepts a drop; cards themselves are the sortable items inside.
+  // accepts a drop; cards themselves are the sortable items inside. The
+  // section stretches to the board's full height (items-stretch on the row)
+  // and the card list grows to fill it, so the drop zone spans the whole
+  // column — drag sideways into it without going to the top (PROG-40).
   const { setNodeRef, isOver } = useDroppable({ id: status });
+  const hiddenCount = total !== undefined && total > issueIds.length;
   return (
     <section
       ref={setNodeRef}
-      className={`w-72 shrink-0 rounded-lg p-2 ${isOver ? "bg-adobe-wash/30 ring-1 ring-adobe-light" : "bg-line/40"}`}
+      className={`flex w-72 shrink-0 flex-col rounded-lg p-2 ${isOver ? "bg-adobe-wash/30 ring-1 ring-adobe-light" : "bg-line/40"}`}
     >
       <h2 className="px-1 pb-2 text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">
-        {STATUS_LABELS[status]} · {issueIds.length}
+        {STATUS_LABELS[status]} · {hiddenCount ? `${issueIds.length} of ${total}` : issueIds.length}
       </h2>
       <SortableContext items={issueIds} strategy={verticalListSortingStrategy}>
-        <div className="flex min-h-8 flex-col gap-1.5">
+        <div className="flex min-h-8 flex-1 flex-col gap-1.5">
           {issueIds.map((id) => {
             const issue = issuesById.get(id);
             if (!issue) return null;
