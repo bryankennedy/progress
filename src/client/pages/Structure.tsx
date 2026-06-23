@@ -32,6 +32,36 @@ function NodeLink({ href, name, archived }: { href: string; name: string; archiv
   );
 }
 
+// A labeled list of like-kind nodes (all Repos, or all Arcs) under a Product —
+// the type word appears once as a section heading instead of being repeated on
+// every row, mirroring the Initiative/Product tree above.
+function NodeGroup({
+  label,
+  nodes,
+  hrefBase,
+}: {
+  label: string;
+  nodes: { id: string; name: string; archivedAt: string | null }[];
+  hrefBase: string;
+}) {
+  if (nodes.length === 0) return null;
+  return (
+    <div>
+      <span className="text-[10px] uppercase tracking-wide font-mono text-ink-faint">{label}</span>
+      <div className="mt-1 flex flex-col items-start gap-0.5 border-l border-line pl-3 text-sm">
+        {nodes.map((n) => (
+          <NodeLink
+            key={n.id}
+            href={`${hrefBase}/${n.id}`}
+            name={n.name}
+            archived={!!n.archivedAt}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Structure({ workspace }: { workspace: WorkspacePayload }) {
   // Active first, archived last (dimmed), so curating stays focused on live
   // structure while archived nodes remain reachable to unarchive.
@@ -106,19 +136,17 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
                         />
                       </div>
                       {(repos.length > 0 || arcs.length > 0) && (
-                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 border-l border-line pl-4 text-sm">
-                          {repos.map((r) => (
-                            <span key={r.id} className="flex items-center gap-1">
-                              <span className="text-[10px] uppercase text-ink-faint">repo</span>
-                              <NodeLink href={`/repo/${r.id}`} name={r.name} archived={!!r.archivedAt} />
-                            </span>
-                          ))}
-                          {arcs.map((a) => (
-                            <span key={a.id} className="flex items-center gap-1">
-                              <span className="text-[10px] uppercase text-ink-faint">arc</span>
-                              <NodeLink href={`/arc/${a.id}`} name={a.name} archived={!!a.archivedAt} />
-                            </span>
-                          ))}
+                        <div className="mt-2 space-y-2 border-l border-line pl-4">
+                          <NodeGroup
+                            label={repos.length === 1 ? "Repo" : "Repos"}
+                            nodes={repos}
+                            hrefBase="/repo"
+                          />
+                          <NodeGroup
+                            label={arcs.length === 1 ? "Arc" : "Arcs"}
+                            nodes={arcs}
+                            hrefBase="/arc"
+                          />
                         </div>
                       )}
                     </div>
