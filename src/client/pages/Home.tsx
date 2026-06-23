@@ -240,8 +240,9 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
 
   return (
     <>
+      {/* No page title here: the global header already shows the "Progress"
+          app name (PROG-53 — drop the redundant heading). */}
       <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Progress</h1>
         <p className="text-xs text-ink-faint">
           {shownCount} issues on board · {workspace.issues.length} total · loaded in{" "}
           {Math.round(loadStats.fetchMs)} ms · ⌘K for commands
