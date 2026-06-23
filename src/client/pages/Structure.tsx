@@ -142,12 +142,12 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
                           {product.keyPrefix}
                         </span>
                         <AddButton
-                          label="Repo"
-                          onClick={() => openCreateContainer({ kind: "repo", productId: product.id })}
-                        />
-                        <AddButton
                           label="Arc"
                           onClick={() => openCreateContainer({ kind: "arc", productId: product.id })}
+                        />
+                        <AddButton
+                          label="Repo"
+                          onClick={() => openCreateContainer({ kind: "repo", productId: product.id })}
                         />
                       </div>
                       {(repos.length > 0 || arcs.length > 0) && (
