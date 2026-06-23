@@ -54,7 +54,7 @@ function NodeGroup({
   muted = false,
 }: {
   label: string;
-  nodes: { id: string; name: string; archivedAt: string | null }[];
+  nodes: { id: string; name: string; archivedAt: string | null; gitUrl?: string | null }[];
   hrefBase: string;
   muted?: boolean;
 }) {
@@ -64,13 +64,24 @@ function NodeGroup({
       <span className="text-[10px] uppercase tracking-wide font-mono text-ink-faint">{label}</span>
       <div className="mt-1 flex flex-col items-start gap-0.5 border-l border-line pl-3 text-sm">
         {nodes.map((n) => (
-          <NodeLink
-            key={n.id}
-            href={`${hrefBase}/${n.id}`}
-            name={n.name}
-            archived={!!n.archivedAt}
-            muted={muted}
-          />
+          <div key={n.id} className="flex flex-wrap items-baseline gap-x-2">
+            <NodeLink
+              href={`${hrefBase}/${n.id}`}
+              name={n.name}
+              archived={!!n.archivedAt}
+              muted={muted}
+            />
+            {n.gitUrl && (
+              <a
+                href={n.gitUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="truncate font-mono text-xs text-ink-faint hover:text-ink-soft hover:underline"
+              >
+                {n.gitUrl.replace(/^https?:\/\//, "")}
+              </a>
+            )}
+          </div>
         ))}
       </div>
     </div>
