@@ -188,8 +188,24 @@ and alert setup — is in `docs/SETUP.md` §6.
 | `PATCH /api/issues/:id` | Any of `title, description, status, priority, estimate, arcId, dueDate, rank` — validated per field; arc must be same-product; `dueDate` is `YYYY-MM-DD` or null to clear. `rank` is a fractional-index board key the client computes from the drop site's neighbors (D44). A status change atomically appends a `status_changed` activity row and maintains `completedAt`. |
 | `POST /api/issues/:id/move` | `{ productId, repoId }` (`repoId: null` = product-level). Within-product keeps key + arc; cross-product re-keys, clears arc, writes the alias, logs `moved`. 400 on no-op. |
 | `GET /api/issues/:id/timeline` | `{ comments, activity, pullRequests, commits }`, each ordered by `createdAt`. |
-| `GET /api/issues/:key/bundle` | Looked up by **key** (alias-aware), not id. Returns `text/markdown` — a deterministic context "work order": issue fields + tags, lineage with descriptions (product → repo incl. `gitUrl` → arc, where the arc description carries the "why"), comments, linked PRs/commits, then a stable report-back preamble. A retired key resolves and renders the current canonical key. 400 malformed key, 404 unknown. Shared foundation for the agent surfaces (SPEC §11.1, D33). |
+| `GET /api/issues/:key/bundle` | Looked up by **key** (alias-aware), not id. Returns `text/markdown` — a deterministic context "work order": issue fields + tags, lineage with descriptions (product → repo incl. `gitUrl` → arc, where the arc description carries the "why"), comments, an **Images** list (absolute URLs of every image referenced in the description/comments, so a bearer-authed agent can fetch them — PROG-42), linked PRs/commits, then a stable report-back preamble. A retired key resolves and renders the current canonical key. 400 malformed key, 404 unknown. Shared foundation for the agent surfaces (SPEC §11.1, D33). |
 | `POST /api/issues/:id/comments` | `{ body }` → 201 `{ comment }`. |
+
+### Images (PROG-42)
+
+Pasted/uploaded images live in the R2 bucket bound as `IMAGES`; a D1 `images`
+row authorizes and attributes each. Both routes sit behind the `/api/*` auth
+gate, so an image is viewable by any signed-in (allowlisted) user or the bearer
+token — never the public internet.
+
+| Route | Behavior |
+|---|---|
+| `POST /api/images` | Raw image bytes as the body (`Content-Type` = the image type). Validates type (png/jpeg/gif/webp/avif) + size (≤10 MB), stores to R2, records the row → 201 `{ image: { id, url } }` where `url` is `/api/images/<id>`. |
+| `GET /api/images/:id` | Streams the blob with an immutable cache header. `?w=<px>` returns an edge-resized variant via a `cf.image` subrequest **in production**; locally / off-edge / with resizing disabled it streams the original (graceful fallback). `?raw=1` always streams the original. |
+
+Descriptions/comments reference images as `/api/images/<id>` markdown; the shared
+`Markdown` renderer requests a `?w=` display variant and links to the original,
+and `MarkdownTextarea` handles paste + the "+ Image" button in both editors.
 
 ### Tags
 

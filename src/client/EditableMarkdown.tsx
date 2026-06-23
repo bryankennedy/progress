@@ -3,7 +3,8 @@
 // descriptions and container descriptions.
 
 import { useState } from "react";
-import Markdown from "react-markdown";
+import Markdown from "./Markdown";
+import MarkdownTextarea from "./MarkdownTextarea";
 
 export default function EditableMarkdown({
   value,
@@ -20,9 +21,9 @@ export default function EditableMarkdown({
   if (editing) {
     return (
       <section>
-        <textarea
+        <MarkdownTextarea
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={setDraft}
           rows={8}
           autoFocus
           className="w-full rounded border border-line bg-card p-3 font-mono text-sm"

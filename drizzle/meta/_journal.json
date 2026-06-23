@@ -50,6 +50,13 @@
       "when": 1782241348557,
       "tag": "0006_supreme_rattler",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1782242737257,
+      "tag": "0007_goofy_moira_mactaggert",
+      "breakpoints": true
     }
   ]
 }

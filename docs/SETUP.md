@@ -108,6 +108,13 @@ dogfood seed are applied;
 lives in the local gitignored `.env` as `PROD_GITHUB_WEBHOOK_SECRET`, for
 GitHub-side registration).
 
+**Image uploads (PROG-42)** use an R2 bucket bound as `IMAGES`. Local dev gets a
+Miniflare bucket automatically; production needs a one-time
+`wrangler r2 bucket create progress-images`. For the `?w=` display variants to
+actually resize, enable **Transformations / Image Resizing** on the `bck.dev`
+zone (Cloudflare dashboard → Images → Transformations); until then the worker
+streams the original bytes (everything still works, just unresized).
+
 Redeploy after changes: `bun run deploy` (builds, then `wrangler deploy`).
 Schema changes additionally need
 `bunx wrangler d1 migrations apply progress-db --remote` first.
