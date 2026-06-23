@@ -19,16 +19,72 @@ function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
   );
 }
 
-function NodeLink({ href, name, archived }: { href: string; name: string; archived: boolean }) {
+function NodeLink({
+  href,
+  name,
+  archived,
+  muted = false,
+}: {
+  href: string;
+  name: string;
+  archived: boolean;
+  muted?: boolean;
+}) {
+  // `muted` (repos) reads as supporting detail beneath the arc — lower-contrast
+  // and italic so the more important arcs stay visually primary.
+  const tone = archived ? "text-ink-faint line-through" : muted ? "text-ink-soft" : "text-ink";
   return (
     <Link
       href={href}
-      className={`rounded px-1.5 py-0.5 font-medium hover:bg-line ${
-        archived ? "text-ink-faint line-through" : "text-ink"
-      }`}
+      className={`rounded px-1.5 py-0.5 hover:bg-line ${muted ? "italic font-normal" : "font-medium"} ${tone}`}
     >
       {name}
     </Link>
+  );
+}
+
+// A labeled list of like-kind nodes (all Repos, or all Arcs) under a Product —
+// the type word appears once as a section heading instead of being repeated on
+// every row, mirroring the Initiative/Product tree above. `muted` dims the
+// whole group (used for repos, which sit below the more important arcs).
+function NodeGroup({
+  label,
+  nodes,
+  hrefBase,
+  muted = false,
+}: {
+  label: string;
+  nodes: { id: string; name: string; archivedAt: string | null; gitUrl?: string | null }[];
+  hrefBase: string;
+  muted?: boolean;
+}) {
+  if (nodes.length === 0) return null;
+  return (
+    <div>
+      <span className="text-[10px] uppercase tracking-wide font-mono text-ink-faint">{label}</span>
+      <div className="mt-1 flex flex-col items-start gap-0.5 border-l border-line pl-3 text-sm">
+        {nodes.map((n) => (
+          <div key={n.id} className="flex flex-wrap items-baseline gap-x-2">
+            <NodeLink
+              href={`${hrefBase}/${n.id}`}
+              name={n.name}
+              archived={!!n.archivedAt}
+              muted={muted}
+            />
+            {n.gitUrl && (
+              <a
+                href={n.gitUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="truncate font-mono text-xs text-ink-faint hover:text-ink-soft hover:underline"
+              >
+                {n.gitUrl.replace(/^https?:\/\//, "")}
+              </a>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -97,28 +153,27 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
                           {product.keyPrefix}
                         </span>
                         <AddButton
-                          label="Repo"
-                          onClick={() => openCreateContainer({ kind: "repo", productId: product.id })}
-                        />
-                        <AddButton
                           label="Arc"
                           onClick={() => openCreateContainer({ kind: "arc", productId: product.id })}
                         />
+                        <AddButton
+                          label="Repo"
+                          onClick={() => openCreateContainer({ kind: "repo", productId: product.id })}
+                        />
                       </div>
                       {(repos.length > 0 || arcs.length > 0) && (
-                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 border-l border-line pl-4 text-sm">
-                          {repos.map((r) => (
-                            <span key={r.id} className="flex items-center gap-1">
-                              <span className="text-[10px] uppercase text-ink-faint">repo</span>
-                              <NodeLink href={`/repo/${r.id}`} name={r.name} archived={!!r.archivedAt} />
-                            </span>
-                          ))}
-                          {arcs.map((a) => (
-                            <span key={a.id} className="flex items-center gap-1">
-                              <span className="text-[10px] uppercase text-ink-faint">arc</span>
-                              <NodeLink href={`/arc/${a.id}`} name={a.name} archived={!!a.archivedAt} />
-                            </span>
-                          ))}
+                        <div className="mt-2 space-y-2 border-l border-line pl-4">
+                          <NodeGroup
+                            label={arcs.length === 1 ? "Arc" : "Arcs"}
+                            nodes={arcs}
+                            hrefBase="/arc"
+                          />
+                          <NodeGroup
+                            label={repos.length === 1 ? "Repo" : "Repos"}
+                            nodes={repos}
+                            hrefBase="/repo"
+                            muted
+                          />
                         </div>
                       )}
                     </div>
