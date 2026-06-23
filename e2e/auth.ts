@@ -2,6 +2,15 @@ import { readFileSync } from "node:fs";
 import type { BrowserContext } from "@playwright/test";
 import { SESSION_COOKIE, signSession } from "../src/worker/auth";
 
+// Test-only helper (nothing under e2e/ is bundled into the app — it's not in
+// any tsconfig or the Vite build). It exists in the PROG-59 PR because that PR
+// adds a browser drag test, and a browser test can't see the board without a
+// logged-in session. Two specs (board-reorder, board-filters) had this sign-in
+// copy-pasted; rather than paste it a third time it's factored here — and the
+// move was forced anyway: main's D44 allowlist now 401s the old hardcoded
+// owner@example.com session, so the existing specs were already red on main
+// until this signs with an authorized (super-admin) email.
+//
 // Shared e2e sign-in. When local auth is configured (real OAuth creds in
 // .dev.vars), the worker's owner fallback is off and every /api/* call would
 // 401, so we mint the owner a signed session cookie — exactly what a logged-in
