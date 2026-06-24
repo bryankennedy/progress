@@ -23,6 +23,7 @@ import { useRegisterPageIssue } from "../commands/currentIssue";
 import EditableMarkdown from "../EditableMarkdown";
 import InlineEdit from "../InlineEdit";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
+import PriorityIndicator from "../PriorityIndicator";
 import {
   addComment,
   findIssueByKey,
@@ -138,11 +139,16 @@ export default function IssuePage({
             />
           </Field>
           <Field label="Priority">
-            <FieldSelect
-              value={issue.priority}
-              options={ISSUE_PRIORITIES.map((p) => [p, PRIORITY_LABELS[p]])}
-              onChange={(v) => updateIssue(issue.id, { priority: v as IssuePriority })}
-            />
+            <div className="flex items-center gap-2">
+              <PriorityIndicator priority={issue.priority} />
+              <div className="min-w-0 flex-1">
+                <FieldSelect
+                  value={issue.priority}
+                  options={ISSUE_PRIORITIES.map((p) => [p, PRIORITY_LABELS[p]])}
+                  onChange={(v) => updateIssue(issue.id, { priority: v as IssuePriority })}
+                />
+              </div>
+            </div>
           </Field>
           <Field label="Estimate">
             <FieldSelect
