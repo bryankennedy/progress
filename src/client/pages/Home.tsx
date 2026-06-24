@@ -47,7 +47,9 @@ import { filtersToRestore, loadBoardFilters, saveBoardFilters } from "../boardFi
 import { recentlyCompleted } from "../boardDone";
 import type { WireIssue, WireTag, WorkspacePayload } from "../../shared/types";
 import { openCreateIssue } from "../commands/controller";
+import { dayDiff, formatDueDate, relativeDue, todayISO } from "../dates";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
+import PriorityIndicator from "../PriorityIndicator";
 import { issueKeyOf, loadStats, updateIssue, type IssuePatch } from "../store";
 
 const FILTER_KEYS = ["initiative", "product", "repo", "arc", "tag", "priority"] as const;
@@ -594,21 +596,63 @@ function CardView({
         <span className="text-xs text-ink-faint">{product?.name}</span>
       </p>
       <p className="mt-1 font-medium leading-snug">{issue.title}</p>
-      <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-faint">
-        {issue.priority !== "none" && <span>{PRIORITY_LABELS[issue.priority]}</span>}
-        {issue.estimate !== null && (
-          <span className="rounded bg-line px-1">{issue.estimate}</span>
-        )}
-        {tags.map((tag) => (
-          <span
-            key={tag.id}
-            className="rounded-full px-1.5 py-px text-[10px] text-white"
-            style={{ backgroundColor: tag.color }}
-          >
-            {tag.name}
-          </span>
-        ))}
-      </p>
+      {/* Estimate + tags get their own line so they don't crowd the date/priority
+          footer below (PROG-61). */}
+      {(issue.estimate !== null || tags.length > 0) && (
+        <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-faint">
+          {issue.estimate !== null && (
+            <span className="rounded bg-line px-1">{issue.estimate}</span>
+          )}
+          {tags.map((tag) => (
+            <span
+              key={tag.id}
+              className="rounded-full px-1.5 py-px text-[10px] text-white"
+              style={{ backgroundColor: tag.color }}
+            >
+              {tag.name}
+            </span>
+          ))}
+        </p>
+      )}
+      {(issue.dueDate || issue.priority !== "none") && (
+        // Footer balances the two at-a-glance signals: the due date reads from
+        // the bottom-left corner and the priority glyph is pinned bottom-right
+        // (PROG-61) so date and priority never crowd each other.
+        <div className="mt-2 flex items-end justify-between gap-2 text-xs text-ink-faint">
+          <span className="min-w-0">{issue.dueDate && <CardDueDate due={issue.dueDate} />}</span>
+          {issue.priority !== "none" && (
+            <PriorityIndicator priority={issue.priority} className="shrink-0" />
+          )}
+        </div>
+      )}
     </div>
+  );
+}
+
+// The due date as it appears on a board card: a calendar glyph + the Agenda's
+// own phrasing ("in 3 days · Jul 1"), sized and weighted to match the priority
+// indicator so the two corners read as a balanced pair. Color echoes the
+// priority language — overdue uses the same on-system danger tomato as urgent,
+// due-today the active "adobe" accent, else a quiet neutral.
+function CardDueDate({ due }: { due: string }) {
+  const today = todayISO();
+  const diff = dayDiff(today, due);
+  const tone =
+    diff < 0 ? "text-danger" : diff === 0 ? "text-adobe-deep font-medium" : "text-ink-soft";
+  return (
+    <span className={`inline-flex items-center gap-1 font-mono ${tone}`} title={`Due ${due}`}>
+      <svg
+        viewBox="0 0 16 16"
+        aria-hidden="true"
+        className="h-3.5 w-3.5 shrink-0"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      >
+        <rect x="2.5" y="3.5" width="11" height="10" rx="1.5" />
+        <path d="M2.5 6.5h11M5.5 2v2M10.5 2v2" strokeLinecap="round" />
+      </svg>
+      {relativeDue(due, today)} · {formatDueDate(due)}
+    </span>
   );
 }
