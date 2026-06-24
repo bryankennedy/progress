@@ -289,8 +289,19 @@ app.get("/api/auth/callback", async (c) => {
   // Allowed = super-admin (env secret) OR a row in the runtime allowlist (D44).
   // Not allowed → the friendly not-authorized page (PROG-57); the callback is a
   // full-page navigation, so a raw JSON 403 would read as a bug.
-  if (!(await isEmailAllowed(db, env, identity.email)))
+  if (!(await isEmailAllowed(db, env, identity.email))) {
+    // A completed Google login (not bot noise) rejected by the allowlist — a
+    // low-volume, security-relevant signal. Promote to Sentry at warning level
+    // so it's distinct from real errors; requestId ties it to the Logs line.
+    const requestId = c.get("requestId");
+    log("warn", "not_authorized", { requestId, email: identity.email });
+    Sentry.captureMessage("not_authorized: allowlist-rejected login", {
+      level: "warning",
+      tags: { requestId },
+      extra: { email: identity.email },
+    });
     return c.html(notAuthorizedPage(), 403);
+  }
 
   const email = identity.email.toLowerCase();
   const now = new Date();
@@ -329,7 +340,11 @@ app.get("/api/health", async (c) => {
     await drizzle(c.env.DB).run(sql`select 1`);
     return c.json({ ok: true, db: "ok" });
   } catch (e) {
-    log("error", "health_d1_probe_failed", { requestId: c.get("requestId"), error: e });
+    const requestId = c.get("requestId");
+    log("error", "health_d1_probe_failed", { requestId, error: e });
+    // DB unreachable is a true critical condition — promote to Sentry. The probe
+    // returns a handled 503, so it never reaches onError; capture it explicitly.
+    Sentry.captureException(e, { tags: { requestId }, extra: { probe: "d1" } });
     return c.json({ ok: false, db: "error" }, 503);
   }
 });
