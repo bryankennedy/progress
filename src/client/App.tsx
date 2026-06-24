@@ -6,6 +6,7 @@ import { UnauthenticatedError, useWorkspace } from "./store";
 import { Toasts } from "./toast";
 import Admin from "./pages/Admin";
 import Agenda from "./pages/Agenda";
+import Archive from "./pages/Archive";
 import ContainerPage, { type ContainerType } from "./pages/ContainerPage";
 import Home from "./pages/Home";
 import IssuePage from "./pages/IssuePage";
@@ -44,6 +45,9 @@ export default function App() {
             </Route>
             <Route path="/structure">
               <Structure workspace={workspace} />
+            </Route>
+            <Route path="/archive">
+              <Archive workspace={workspace} />
             </Route>
             <Route path="/admin">
               <Admin workspace={workspace} />

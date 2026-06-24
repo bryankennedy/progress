@@ -188,7 +188,7 @@ and alert setup — is in `docs/SETUP.md` §6.
 | `PATCH /api/issues/:id` | Any of `title, description, status, priority, estimate, arcId, dueDate, rank` — validated per field; arc must be same-product; `dueDate` is `YYYY-MM-DD` or null to clear. `rank` is a fractional-index board key the client computes from the drop site's neighbors (D44). A status change atomically appends a `status_changed` activity row and maintains `completedAt`. |
 | `POST /api/issues/:id/move` | `{ productId, repoId }` (`repoId: null` = product-level). Within-product keeps key + arc; cross-product re-keys, clears arc, writes the alias, logs `moved`. 400 on no-op. |
 | `GET /api/issues/:id/timeline` | `{ comments, activity, pullRequests, commits }`, each ordered by `createdAt`. |
-| `GET /api/issues/:key/bundle` | Looked up by **key** (alias-aware), not id. Returns `text/markdown` — a deterministic context "work order": issue fields + tags, lineage with descriptions (product → repo incl. `gitUrl` → arc, where the arc description carries the "why"), comments, an **Images** list (absolute URLs of every image referenced in the description/comments, so a bearer-authed agent can fetch them — PROG-42), linked PRs/commits, then a stable report-back preamble. A retired key resolves and renders the current canonical key. 400 malformed key, 404 unknown. Shared foundation for the agent surfaces (SPEC §11.1, D33). |
+| `GET /api/issues/:key/bundle` | Looked up by **key** (alias-aware), not id. Returns `text/markdown` — a deterministic context "work order": issue fields + tags, lineage with descriptions (product → repo incl. `gitUrl` → arc, where the arc description carries the "why"), comments, an **Images** list (absolute URLs of every image referenced in the description/comments, so a bearer-authed agent can fetch them — PROG-42), linked PRs/commits, then a stable report-back preamble — branch/key auto-linking + status flow, plus a **Committing & PRs** block that embeds a local, key-aware copy of the owner's smart-commit conventions (logical chunks, secret-scan, `type(scope): KEY subject`, no AI attribution) so a handed-off agent commits to the owner's rules (PROG-62). A retired key resolves and renders the current canonical key. 400 malformed key, 404 unknown. Rendered by `src/worker/bundle.ts` (`renderBundle`); shared foundation for the agent surfaces (SPEC §11.1, D33). |
 | `POST /api/issues/:id/comments` | `{ body }` → 201 `{ comment }`. |
 
 ### Images (PROG-42)
@@ -316,8 +316,8 @@ Two ways to hand an issue's bundle to a Claude Code session (SPEC §11.2):
 ### Routing & key resolution
 
 Routes: `/` (board), `/agenda` (the due-date view), `/structure` (the
-container tree), `/issue/:key`, `/initiative/:id`, `/product/:id`,
-`/repo/:id`, `/arc/:id`. Issue URLs are key-based; `findIssueByKey` resolves
+container tree), `/archive` (completed arcs), `/issue/:key`,
+`/initiative/:id`, `/product/:id`, `/repo/:id`, `/arc/:id`. Issue URLs are key-based; `findIssueByKey` resolves
 current keys first, then alias keys with a `replaceState` redirect to the
 canonical key — entirely client-side from the loaded workspace (D22).
 
@@ -329,9 +329,12 @@ canonical key — entirely client-side from the loaded workspace (D22).
   access. In local dev the Worker falls back to the owner, so this appears only
   when OAuth is configured (production).
 - **App header** — persistent across pages: the "Progress" home link, nav
-  (Board · Agenda · Structure), and a **New** menu (Issue · Initiative ·
-  Product · Repo · Arc) that opens the existing optimistic create flows. The
-  always-available structure-creation entry point (SPEC v2 §4).
+  (Board · Agenda · Structure · Archive), a **New** menu (Issue · Initiative ·
+  Product · Repo · Arc) that opens the existing optimistic create flows, and the
+  signed-in identity avatar. The always-available structure-creation entry point
+  (SPEC v2 §4). The avatar dropdown holds the profile + **Sign out**, plus an
+  **Admin** link for super-admins (D44) — Admin lives here, not in the top nav,
+  as a rare destination.
 - **Agenda (`/agenda`)** — the time-driven cut: every issue with a due date
   that isn't done/canceled, sorted by due date ascending and grouped **Overdue ·
   Today · This week · Later** (computed from the owner's local day; "this week"
@@ -344,7 +347,14 @@ canonical key — entirely client-side from the loaded workspace (D22).
   entirely from the store.
 - **Structure (`/structure`)** — the Initiative → Product → (Repo · Arc) tree
   with an inline "+ add" on each node (D40); a dedicated home for curating
-  structure that keeps the board uncluttered.
+  structure that keeps the board uncluttered. Active arcs always show; archived
+  (completed) arcs render crossed-out but are capped at the first 5 per product,
+  with a "+N more in Archive →" link to `/archive` once they pile up beyond that
+  (`capArchived`, PROG-45).
+- **Archive (`/archive`)** — a top-nav destination listing every archived arc,
+  grouped by Initiative → Product (mirroring the Structure tree). Also reached
+  from Structure's "+N more" link; unarchiving still happens on the arc page
+  (PROG-45).
 - **Board (`/`)** — the global "My Work" kanban. Columns are the fixed
   statuses; Backlog hides behind a toggle by default. Filters (initiative,
   product, repo, arc, tag, priority) live in URL query params, so any

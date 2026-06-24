@@ -4,6 +4,13 @@ Append-only. Newest at the bottom. Each entry: what was decided, why, and what
 was rejected. Do not re-litigate settled decisions — supersede them with a new
 entry that references the old one.
 
+**Entry ids are keyed to the issue, not a running number.** Head a new entry
+`### <KEY> — <title>` (e.g. `### PROG-62 — …`); a second decision from the same
+issue gets a letter suffix (`### PROG-62b — …`). This lets agents working
+different issues in parallel append without racing for the same number. Entries
+**D1–D48** predate this convention and keep their numbers — cite them as `D33`
+as before; cite issue-keyed ones by their key (`PROG-62`).
+
 ---
 
 ## 2026-06-11 — Founding decisions (spec interview)
@@ -756,6 +763,79 @@ and tags sit on their own line *above* the footer (not trailing the date) so the
 two at-a-glance signals don't get crowded. Each line renders only when it has
 content — estimate/tags line when either exists, footer when date or priority
 exists — so bare cards stay clean.
+
+### D48: the context bundle embeds a local smart-commit (PROG-62)
+The "copy as prompt" work order (`GET /api/issues/:key/bundle`) already told a
+handed-off agent *what to link* — branch named with the key, key in the
+commit/PR so the §5 webhook auto-links it, status flow `todo → … → done`. It said
+nothing about *how to craft the commits*, so that depended on whether the
+receiving session happened to have the owner's `smart_commit` skill installed.
+D48 inlines a condensed, key-aware copy of that skill as a **Committing & PRs**
+subsection of the report-back preamble: the five steps (analyze → secret-scan →
+plan logical chunks → Conventional-Commit `type(scope): KEY subject` with a *why*
+body and **no `Co-Authored-By`/AI attribution** → verify). The commit example
+interpolates the issue key, which both reinforces the existing auto-link
+convention and matches the prod git history (e.g. `feat(observability): PROG-60
+…`). It rides in the bundle text, so every surface inherits it for free — the
+`W` palette / "Work on this" copy, the `progress work` CLI, and the `get_bundle`
+MCP tool — with no dependency on the agent's local skill set. *Implementation:*
+`renderBundle` + `BundleData` were extracted from the worker entry into
+`src/worker/bundle.ts` so the render is unit-testable in isolation
+(`bundle.test.ts` asserts the steps, the rules, key interpolation, and
+determinism). *Rejected:* near-verbatim reproduction of the skill (too heavy for
+an artifact pasted into every prompt); a generic `type(scope): subject` example
+(loses the key reinforcement). Kept deterministic per D33 — the new text is
+static plus the already-interpolated key.
+
+---
+
+## 2026-06-24 — v3 functionality: archived arcs
+
+### D49: completed arcs collapse behind an `/archive` route, capped at 5 inline (PROG-45)
+Archiving is the terminal "done" state for a container (no separate status —
+D-era schema, `archivedAt`), and the Structure page rendered every archived arc
+crossed-out inline. The owner's concern: once more than a handful pile up under a
+product they bury the live structure the page exists to curate. Decision: on
+Structure, **active arcs always show**; archived arcs still render crossed-out
+but only the **first 5 per product** inline, with a "+N more in Archive →" link
+once they exceed that. A new **`/archive`** route lists every archived arc
+grouped Initiative → Product (mirroring the tree), reached from a top-nav
+**Archive** link (after Structure) and from Structure's "+N more" link. The cap lives in a pure,
+unit-tested helper (`capArchived`, `structureArchive.ts`) mirroring the Done-column
+cap (`recentlyCompleted`, PROG-40 / `boardDone.ts`); the rendering stays in
+`Structure`/`Archive`. **Per-product** cap (not a single global one) because arcs
+are already grouped per product, so that's where the pile-up reads. Unarchiving is
+unchanged — still the Archive/Unarchive toggle on the arc page. *Rejected:* hiding
+archived arcs entirely (the issue's first framing — the owner's follow-up comment
+refined it to keep the first few visible).
+
+Header nav was reorganized alongside this: **Archive** is a top-level nav link
+after Structure (the owner wanted it surfaced, not buried behind the "+N more"
+link only), and the super-admin **Admin** link moved out of the top nav into the
+profile avatar dropdown (alongside Sign out) — a rare destination doesn't earn
+top-nav space, and the dropdown already gated on the signed-in user.
+
+### PROG-62 — decision log keyed by issue, not a running number
+First entry under the new scheme (and its own justification). The `D<n>`
+counter assumed one author appending in sequence; with multiple agents working
+different issues in parallel VMs, two of them independently reach for "the next
+number" and produce a duplicate id plus a merge conflict on `DECISIONS.md` —
+exactly the trivial-but-annoying collision that prompted this. Keying each entry
+to the issue (`### <KEY> — title`) removes the shared counter, so entries from
+different issues can never collide on their id; the only residual is a trailing
+"both appended at EOF" git conflict, which is an unambiguous keep-both. Applied
+in three places so the convention is coherent: this log's header rule, the
+project `CLAUDE.md` decision-log description, and the **copy-as-prompt** bundle
+(`src/worker/bundle.ts`) — a new *Avoiding merge collisions (parallel agents)*
+section tells a handed-off agent to key append-only entries to its own issue
+rather than a global sequence, generalized to any running-counter log.
+*Rejected:* keeping the `D<n>` counter with a "rebase before appending" rule
+(still races between branches, and renumbering on conflict is error-prone);
+one-file-per-decision under `docs/decisions/` with a generated index (fully
+conflict-free but a heavy restructure of 48 entries and every `(D33)` citation —
+out of proportion to a trivial conflict, revisit if collisions persist).
+Supersedes the implicit sequential-numbering convention; D1–D48 keep their
+numbers (append-only, never renumber).
 
 ---
 

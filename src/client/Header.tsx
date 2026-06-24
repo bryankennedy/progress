@@ -24,14 +24,8 @@ const NAV: NavItem[] = [
   { href: "/", label: "Board", match: (p) => p === "/" },
   { href: "/agenda", label: "Agenda", match: (p) => p.startsWith("/agenda") },
   { href: "/structure", label: "Structure", match: (p) => p.startsWith("/structure") },
+  { href: "/archive", label: "Archive", match: (p) => p.startsWith("/archive") },
 ];
-
-// Super-admin-only; appended to NAV at render time (D44).
-const ADMIN_NAV: NavItem = {
-  href: "/admin",
-  label: "Admin",
-  match: (p) => p.startsWith("/admin"),
-};
 
 export default function Header() {
   const [path] = useLocation();
@@ -55,9 +49,7 @@ export default function Header() {
           Progress
         </Link>
         <nav className="flex items-center gap-1 text-sm">
-          {/* The Admin (allowlist) link only exists for super-admins (D44);
-              appended so it sits last in the nav. */}
-          {[...NAV, ...(isSuperAdmin ? [ADMIN_NAV] : [])].map((item) => (
+          {NAV.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -120,6 +112,17 @@ export default function Header() {
                       <div className="font-medium text-ink">{me.name}</div>
                       <div className="truncate text-xs text-ink-faint">{me.email}</div>
                     </div>
+                    {/* Admin (allowlist) lives here, not in the top nav — it's a
+                        rare super-admin destination (D44). */}
+                    {isSuperAdmin && (
+                      <Link
+                        href="/admin"
+                        onClick={() => setAcctOpen(false)}
+                        className="block w-full px-3 py-1.5 text-left text-sm text-ink-soft hover:bg-line"
+                      >
+                        Admin
+                      </Link>
+                    )}
                     <button
                       onClick={signOut}
                       className="block w-full px-3 py-1.5 text-left text-sm text-ink-soft hover:bg-line"
