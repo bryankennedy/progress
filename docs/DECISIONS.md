@@ -756,3 +756,25 @@ and tags sit on their own line *above* the footer (not trailing the date) so the
 two at-a-glance signals don't get crowded. Each line renders only when it has
 content — estimate/tags line when either exists, footer when date or priority
 exists — so bare cards stay clean.
+
+## 2026-06-24 — v3 functionality: archived arcs
+
+### D48: completed arcs collapse behind an `/archive` route, capped at 5 inline (PROG-45)
+Archiving is the terminal "done" state for a container (no separate status —
+D-era schema, `archivedAt`), and the Structure page rendered every archived arc
+crossed-out inline. The owner's concern: once more than a handful pile up under a
+product they bury the live structure the page exists to curate. Decision: on
+Structure, **active arcs always show**; archived arcs still render crossed-out
+but only the **first 5 per product** inline, with a "+N more in Archive →" link
+once they exceed that. A new low-traffic **`/archive`** route lists every
+archived arc grouped Initiative → Product (mirroring the tree) and is reached
+only via that link — deliberately **not in the primary nav** (the owner asked for
+"a distinct section that isn't used as much"). The cap lives in a pure,
+unit-tested helper (`capArchived`, `structureArchive.ts`) mirroring the Done-column
+cap (`recentlyCompleted`, PROG-40 / `boardDone.ts`); the rendering stays in
+`Structure`/`Archive`. **Per-product** cap (not a single global one) because arcs
+are already grouped per product, so that's where the pile-up reads. Unarchiving is
+unchanged — still the Archive/Unarchive toggle on the arc page. *Rejected:* hiding
+archived arcs entirely (the issue's first framing — the owner's follow-up comment
+refined it to keep the first few visible); a nav entry for Archive (it's a rarely
+needed destination, not a daily surface).

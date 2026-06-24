@@ -316,8 +316,8 @@ Two ways to hand an issue's bundle to a Claude Code session (SPEC §11.2):
 ### Routing & key resolution
 
 Routes: `/` (board), `/agenda` (the due-date view), `/structure` (the
-container tree), `/issue/:key`, `/initiative/:id`, `/product/:id`,
-`/repo/:id`, `/arc/:id`. Issue URLs are key-based; `findIssueByKey` resolves
+container tree), `/archive` (completed arcs — not in the nav), `/issue/:key`,
+`/initiative/:id`, `/product/:id`, `/repo/:id`, `/arc/:id`. Issue URLs are key-based; `findIssueByKey` resolves
 current keys first, then alias keys with a `replaceState` redirect to the
 canonical key — entirely client-side from the loaded workspace (D22).
 
@@ -344,7 +344,14 @@ canonical key — entirely client-side from the loaded workspace (D22).
   entirely from the store.
 - **Structure (`/structure`)** — the Initiative → Product → (Repo · Arc) tree
   with an inline "+ add" on each node (D40); a dedicated home for curating
-  structure that keeps the board uncluttered.
+  structure that keeps the board uncluttered. Active arcs always show; archived
+  (completed) arcs render crossed-out but are capped at the first 5 per product,
+  with a "+N more in Archive →" link to `/archive` once they pile up beyond that
+  (`capArchived`, PROG-45).
+- **Archive (`/archive`)** — a low-traffic destination listing every archived
+  arc, grouped by Initiative → Product (mirroring the Structure tree). Reached
+  from Structure's "more" link, not the primary nav; unarchiving still happens on
+  the arc page (PROG-45).
 - **Board (`/`)** — the global "My Work" kanban. Columns are the fixed
   statuses; Backlog hides behind a toggle by default. Filters (initiative,
   product, repo, arc, tag, priority) live in URL query params, so any
