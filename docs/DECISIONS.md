@@ -662,3 +662,31 @@ rename doesn't lock anyone out before the prod secret is cut over; the old key i
 removed in a follow-up. *Rejected:* login-time-only enforcement (a removed user
 keeps access up to 30 days — too loose for an access tool); storing super-admins
 in the table too (re-introduces lock-out risk). Migration `0006`.
+
+---
+
+## 2026-06-24 — v3 robustness: CI/CD
+
+### D45: auto-deploy on push to `main` via GitHub Actions (PROG-54)
+Production deploys were a manual `bun run deploy`, with schema changes needing a
+separate remote-migration step — easy to forget, and nothing stopped failing
+code from shipping. D45 makes pushes to `main` deploy automatically through a
+single GitHub Actions workflow (`.github/workflows/ci.yml`): a **`test`** job
+(`bun run check` + `bun test src`) gates every PR and the main push, and a
+**`deploy`** job — `needs: test`, push-to-main only — applies pending D1
+migrations `--remote` then `bun run deploy`s. *Decisions within:* (1) **GitHub
+Actions over Cloudflare Workers Builds** — Workers Builds integrates via the
+Cloudflare GitHub App, which only reaches github.com / GHE Cloud; this repo is on
+a self-hosted GitHub-compatible host the app can't see. Actions driving
+`wrangler` with a `CLOUDFLARE_API_TOKEN` is portable and keeps deploy logic
+in-repo, and is effectively free at this repo's scale. (2) **Auto-apply
+migrations as part of deploy** so code and schema never drift; D1 time-travel
+(SETUP §6) is the safety net. (3) **Gate on typecheck + unit tests only**, not
+Playwright e2e — the unit suite is ~1s and browser-free, keeping CI cheap and
+stable per the owner's ask; e2e stays opt-in/manual. (4) **Branch protection**
+on `main` requires the `test` check green before merge (PR-based flow), making
+"don't deploy failing code" structural rather than a convention. *Rejected:*
+Workers Builds (host-incompatible); deploy-code-only with manual migrations (the
+drift footgun this issue exists to remove); e2e in the required gate (slow,
+flaky, costly). `wrangler deploy` leaves existing `wrangler secret`s intact, so
+prod `GITHUB_WEBHOOK_SECRET` is preserved across deploys.
