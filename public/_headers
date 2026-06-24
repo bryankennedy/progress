@@ -1,0 +1,28 @@
+# Security headers for the static app (PROG-65).
+#
+# The Worker only runs for `/api/*` (wrangler.jsonc `run_worker_first`), so the
+# SPA document, JS, CSS, fonts, and icons are served straight from Cloudflare's
+# asset handler — the Worker can't add headers to them. This `_headers` file is
+# how Cloudflare static assets attach response headers; Vite copies `public/*`
+# to the asset root, so it ships as `/_headers`. API responses get their own
+# headers from a Worker middleware (src/worker/index.ts); the two are
+# complementary, not redundant.
+#
+# CSP is tuned to exactly what the built `index.html` loads (verified PROG-65):
+#   - script-src 'self'        — one external module bundle, no inline scripts.
+#   - style-src 'unsafe-inline'— React/dnd-kit set inline `style` attributes
+#                                (drag transforms, dynamic colors); plus the
+#                                Google Fonts stylesheet host.
+#   - font-src gstatic + data: — Google Fonts files; data: for any inlined glyph.
+#   - img-src 'self' data: blob:— uploaded images are same-origin (/api/images);
+#                                data:/blob: cover pasted-image previews.
+#   - connect-src 'self'       — the client only ever fetches its own /api.
+#   - frame-ancestors 'none'   — clickjacking defense (superset of X-Frame-Options).
+# Sign-in is a top-level link to Google (not a form), so form-action 'self' is safe.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; manifest-src 'self'
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), interest-cohort=()

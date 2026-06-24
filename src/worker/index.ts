@@ -129,6 +129,22 @@ const isValidDueDate = (s: string): boolean => {
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
+// Security headers on everything the Worker serves — the /api/* JSON, the image
+// blobs (PROG-42), and the standalone not-authorized page (PROG-57). These
+// complement public/_headers, which carries the CSP for the statically-served
+// SPA document/assets the Worker never sees (run_worker_first is /api/* only).
+// CSP is deliberately *not* set here: the not-authorized page relies on inline
+// styles + Google Fonts, and the JSON API needs no CSP. nosniff is the key one
+// for /api/images, whose stored content-type is client-asserted — it stops a
+// browser from MIME-sniffing a mislabeled upload into something executable.
+app.use("*", async (c, next) => {
+  await next();
+  c.res.headers.set("X-Content-Type-Options", "nosniff");
+  c.res.headers.set("X-Frame-Options", "DENY");
+  c.res.headers.set("Referrer-Policy", "no-referrer");
+  c.res.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+});
+
 // Assign a request id to every request and emit one structured access line when
 // it completes. Reuse Cloudflare's `cf-ray` when present (so a log line ties
 // back to the dashboard's request trace) and fall back to a uuid in local dev.
@@ -286,6 +302,15 @@ app.get("/api/auth/callback", async (c) => {
     Sentry.captureException(e, { tags: { requestId }, extra: { path: c.req.path } });
     return c.json({ error: "authentication failed" }, 400);
   }
+  // Defense-in-depth (PROG-65): only honor a Google-verified email. The
+  // allowlist is the real gate, but matching an entry on an *unverified* address
+  // must never grant access — reject before the allowlist is even consulted.
+  if (!identity.emailVerified) {
+    const requestId = c.get("requestId");
+    log("warn", "email_unverified", { requestId, email: identity.email });
+    return c.html(notAuthorizedPage(), 403);
+  }
+
   const db = drizzle(env.DB);
   // Allowed = super-admin (env secret) OR a row in the runtime allowlist (D44).
   // Not allowed → the friendly not-authorized page (PROG-57); the callback is a
@@ -570,6 +595,19 @@ type ContainerBody = {
 // Letters only: a digit in the prefix would break PREFIX-n key parsing.
 const KEY_PREFIX_RE = /^[A-Z]{2,8}$/;
 
+// gitUrl is rendered as a clickable link in the client (Structure/ContainerPage),
+// so it must be a real web URL (PROG-65). Without this, a `javascript:` (or
+// `data:`) value would be a stored XSS vector the moment someone clicks it.
+function isValidGitUrl(s: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(s);
+  } catch {
+    return false;
+  }
+  return u.protocol === "http:" || u.protocol === "https:";
+}
+
 const badName = (name: unknown) => typeof name !== "string" || name.trim() === "";
 
 // Container ids may be client-generated (D26: the store creates the row
@@ -657,8 +695,8 @@ app.post("/api/repos", async (c) => {
   if (badName(body.name)) return c.json({ error: "name must be a non-empty string" }, 400);
   if (typeof body.productId !== "string") return c.json({ error: "productId is required" }, 400);
   const gitUrl = body.gitUrl ?? null;
-  if (gitUrl !== null && typeof gitUrl !== "string")
-    return c.json({ error: "gitUrl must be a string or null" }, 400);
+  if (gitUrl !== null && (typeof gitUrl !== "string" || !isValidGitUrl(gitUrl)))
+    return c.json({ error: "gitUrl must be an http(s) URL or null" }, 400);
 
   const db = drizzle(c.env.DB);
   const [product] = await db.select().from(products).where(eq(products.id, body.productId)).limit(1);
@@ -749,8 +787,8 @@ app.patch("/api/repos/:id", async (c) => {
   const { set, error } = containerPatchSet(body);
   if (error) return c.json({ error }, 400);
   if (body.gitUrl !== undefined) {
-    if (body.gitUrl !== null && typeof body.gitUrl !== "string")
-      return c.json({ error: "gitUrl must be a string or null" }, 400);
+    if (body.gitUrl !== null && (typeof body.gitUrl !== "string" || !isValidGitUrl(body.gitUrl)))
+      return c.json({ error: "gitUrl must be an http(s) URL or null" }, 400);
     set.gitUrl = body.gitUrl;
   }
   if (Object.keys(set).length === 0) return c.json({ error: "no valid fields in patch" }, 400);
