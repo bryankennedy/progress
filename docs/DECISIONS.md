@@ -779,3 +779,31 @@ determinism). *Rejected:* near-verbatim reproduction of the skill (too heavy for
 an artifact pasted into every prompt); a generic `type(scope): subject` example
 (loses the key reinforcement). Kept deterministic per D33 — the new text is
 static plus the already-interpolated key.
+
+---
+
+## 2026-06-24 — v3 functionality: archived arcs
+
+### D49: completed arcs collapse behind an `/archive` route, capped at 5 inline (PROG-45)
+Archiving is the terminal "done" state for a container (no separate status —
+D-era schema, `archivedAt`), and the Structure page rendered every archived arc
+crossed-out inline. The owner's concern: once more than a handful pile up under a
+product they bury the live structure the page exists to curate. Decision: on
+Structure, **active arcs always show**; archived arcs still render crossed-out
+but only the **first 5 per product** inline, with a "+N more in Archive →" link
+once they exceed that. A new **`/archive`** route lists every archived arc
+grouped Initiative → Product (mirroring the tree), reached from a top-nav
+**Archive** link (after Structure) and from Structure's "+N more" link. The cap lives in a pure,
+unit-tested helper (`capArchived`, `structureArchive.ts`) mirroring the Done-column
+cap (`recentlyCompleted`, PROG-40 / `boardDone.ts`); the rendering stays in
+`Structure`/`Archive`. **Per-product** cap (not a single global one) because arcs
+are already grouped per product, so that's where the pile-up reads. Unarchiving is
+unchanged — still the Archive/Unarchive toggle on the arc page. *Rejected:* hiding
+archived arcs entirely (the issue's first framing — the owner's follow-up comment
+refined it to keep the first few visible).
+
+Header nav was reorganized alongside this: **Archive** is a top-level nav link
+after Structure (the owner wanted it surfaced, not buried behind the "+N more"
+link only), and the super-admin **Admin** link moved out of the top nav into the
+profile avatar dropdown (alongside Sign out) — a rare destination doesn't earn
+top-nav space, and the dropdown already gated on the signed-in user.

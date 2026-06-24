@@ -7,6 +7,7 @@
 import { Link } from "wouter";
 import type { WorkspacePayload } from "../../shared/types";
 import { openCreateContainer } from "../commands/controller";
+import { capArchived } from "../structureArchive";
 
 function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
@@ -46,24 +47,34 @@ function NodeLink({
 // A labeled list of like-kind nodes (all Repos, or all Arcs) under a Product —
 // the type word appears once as a section heading instead of being repeated on
 // every row, mirroring the Initiative/Product tree above. `muted` dims the
-// whole group (used for repos, which sit below the more important arcs).
+// whole group (used for repos, which sit below the more important arcs). When
+// `collapseArchived` is set, archived nodes beyond the inline limit are hidden
+// behind a "more" link to /archive (PROG-45 — arcs only; repos don't accumulate
+// the same way).
 function NodeGroup({
   label,
   nodes,
   hrefBase,
   muted = false,
+  collapseArchived = false,
 }: {
   label: string;
   nodes: { id: string; name: string; archivedAt: string | null; gitUrl?: string | null }[];
   hrefBase: string;
   muted?: boolean;
+  collapseArchived?: boolean;
 }) {
   if (nodes.length === 0) return null;
+  // `nodes` arrives active-first, archived-last (byActive), so capping keeps
+  // every active node and only the first N archived ones inline.
+  const { shown, hiddenCount } = collapseArchived
+    ? capArchived(nodes)
+    : { shown: nodes, hiddenCount: 0 };
   return (
     <div>
       <span className="text-[10px] uppercase tracking-wide font-mono text-ink-faint">{label}</span>
       <div className="mt-1 flex flex-col items-start gap-0.5 border-l border-line pl-3 text-sm">
-        {nodes.map((n) => (
+        {shown.map((n) => (
           <div key={n.id} className="flex flex-wrap items-baseline gap-x-2">
             <NodeLink
               href={`${hrefBase}/${n.id}`}
@@ -83,6 +94,14 @@ function NodeGroup({
             )}
           </div>
         ))}
+        {hiddenCount > 0 && (
+          <Link
+            href="/archive"
+            className="rounded px-1.5 py-0.5 text-xs text-ink-faint italic hover:bg-line hover:text-ink-soft"
+          >
+            + {hiddenCount} more in Archive →
+          </Link>
+        )}
       </div>
     </div>
   );
@@ -167,6 +186,7 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
                             label={arcs.length === 1 ? "Arc" : "Arcs"}
                             nodes={arcs}
                             hrefBase="/arc"
+                            collapseArchived
                           />
                           <NodeGroup
                             label={repos.length === 1 ? "Repo" : "Repos"}
