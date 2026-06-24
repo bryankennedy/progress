@@ -690,3 +690,34 @@ Workers Builds (host-incompatible); deploy-code-only with manual migrations (the
 drift footgun this issue exists to remove); e2e in the required gate (slow,
 flaky, costly). `wrangler deploy` leaves existing `wrangler secret`s intact, so
 prod `GITHUB_WEBHOOK_SECRET` is preserved across deploys.
+
+---
+
+## 2026-06-24 — Observability tooling (PROG-60)
+
+### D46: Cloudflare Workers Logs (native) + Sentry for errors; defer product analytics
+The observability question (PROG-60) was "one tool or two, cheapest path, 2026
+landscape" for both *system errors* and *user activity*. Decision: treat them as
+two concerns but solve only the system side now, with two free tools, and defer
+the product-analytics side. *Decisions within:* (1) **System errors/ops →
+Cloudflare Workers Logs (already enabled, `observability` in `wrangler.jsonc`) as
+the searchable record + Sentry as the alert/triage layer.** Workers Logs is free
+(200k events/day, 3-day retention) and already ingests our structured JSON logs
+keyed by `requestId`; Sentry (`@sentry/cloudflare`, free Developer plan: 5k
+errors/mo, 30-day retention) adds what Logs lacks — grouped exceptions with
+stack traces, longer retention, and *alerting on a new error type*, which
+Cloudflare's Notifications catalog has no native equivalent for (see SETUP §6).
+They cross-link by `requestId`. (2) **Wire Sentry now**, gated entirely on
+`SENTRY_DSN` so it's a no-op locally/in tests; tracing off (`tracesSampleRate:
+0`) to stay in the free tier; needs `nodejs_compat`. (3) **User activity →
+deferred.** This is a solo/allowlisted-few app, so "who did what" is already in
+the structured request logs (`userId` + endpoint) landing in Workers Logs;
+dedicated product analytics is overkill until there are multiple users to
+analyze. *Rejected:* **GCP Cloud Logging** — wrong cloud for a Cloudflare Worker
+(cross-cloud egress, second billing/auth surface, less generous free tier) and
+buys nothing over the native path. **PostHog now** — the right tool *when*
+multi-user product analytics becomes a real question (free 1M events/mo, 1-yr
+retention); adopting it for one user adds a client SDK + privacy surface for
+questions we don't have yet. Revisit Sentry vs. Cloudflare-native error tracking
+later: the Baselime acquisition (2024) is folding error-tracking/alerting into
+the Workers dashboard, which may eventually subsume the Sentry layer.
