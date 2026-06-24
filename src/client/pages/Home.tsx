@@ -11,13 +11,17 @@
 // position in one move.
 
 import {
-  closestCorners,
+  closestCenter,
   DndContext,
   DragOverlay,
+  getFirstCollision,
   MouseSensor,
+  pointerWithin,
+  rectIntersection,
   TouchSensor,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
@@ -29,7 +33,7 @@ import {
 } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import {
   ISSUE_PRIORITIES,
@@ -40,6 +44,7 @@ import {
 import { rankBetween } from "../../shared/rank";
 import { reorder, type ColumnMap } from "../boardOrder";
 import { filtersToRestore, loadBoardFilters, saveBoardFilters } from "../boardFilters";
+import { recentlyCompleted } from "../boardDone";
 import type { WireIssue, WireTag, WorkspacePayload } from "../../shared/types";
 import { openCreateIssue } from "../commands/controller";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
@@ -133,7 +138,12 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
     for (const issue of issues) groups.get(issue.status)!.push(issue);
     // Manual board order (PROG-43): cards sort by their fractional rank.
     for (const group of groups.values()) group.sort(byRank);
-    return groups;
+    // Done can grow without bound — cap it to the most recently completed
+    // issues so it doesn't dominate the board (PROG-40). `doneTotal` keeps the
+    // header honest about how many are hidden.
+    const doneTotal = groups.get("done")!.length;
+    groups.set("done", recentlyCompleted(groups.get("done")!));
+    return { groups, doneTotal };
   }, [workspace.issues, workspace.products, filters, tagsByIssue]);
 
   // The drag model works on ordered id-lists per column. `sourceColumns` is the
@@ -142,18 +152,30 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
   const sourceColumns = useMemo(() => {
     const cols = {} as ColumnMap;
     for (const status of ISSUE_STATUSES)
-      cols[status] = visibleByStatus.get(status)!.map((i) => i.id);
+      cols[status] = visibleByStatus.groups.get(status)!.map((i) => i.id);
     return cols;
   }, [visibleByStatus]);
 
   const [columns, setColumns] = useState<ColumnMap>(sourceColumns);
   const [activeId, setActiveId] = useState<string | null>(null);
+  // Mirror of activeId for effects/handlers that must read it without depending
+  // on it (a ref updates synchronously and doesn't re-trigger effects).
+  const activeIdRef = useRef<string | null>(null);
+  const setActive = (id: string | null) => {
+    activeIdRef.current = id;
+    setActiveId(id);
+  };
 
-  // Re-sync from the store whenever it changes, except mid-drag (so an
-  // optimistic write landing during a drag doesn't yank the cards).
+  // Re-sync the working copy from the store ONLY when the store itself changes
+  // (and not mid-drag). Crucially this does NOT depend on `activeId`: keying it
+  // on activeId made the resync fire the instant a drop cleared the drag — one
+  // render before the optimistic store write landed — so it briefly reset the
+  // just-moved card to its OLD column (a sub-100ms flash) before the store
+  // caught up and corrected it (PROG-40 follow-up). Now the resync waits for the
+  // fresh `sourceColumns`, so it never applies a stale order.
   useEffect(() => {
-    if (!activeId) setColumns(sourceColumns);
-  }, [sourceColumns, activeId]);
+    if (!activeIdRef.current) setColumns(sourceColumns);
+  }, [sourceColumns]);
 
   // Mouse: a distance constraint keeps plain clicks (card → issue page) from
   // starting a drag. Touch: a hold-delay keeps swipes scrolling the board
@@ -165,12 +187,48 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
 
   const draggingIssue = activeId ? issuesById.get(activeId) : undefined;
 
+  // Collision strategy for variable-height columns (PROG-40/PROG-59). Plain
+  // closestCorners measures distance to a droppable's corners, so a tall EMPTY
+  // column (its corners far from the pointer) loses to a small card in a
+  // neighbouring column — the card then lands in the wrong column or snaps back.
+  // Instead: take what the pointer is actually inside; if that's a column,
+  // narrow to the closest card within it (or keep the column itself when it's
+  // empty, so an empty column accepts the drop). Falls back to the last target
+  // so the card doesn't flicker away over a gutter. (The canonical dnd-kit
+  // multiple-containers pattern.)
+  const lastOverId = useRef<string | null>(null);
+  const collisionDetection = useCallback<CollisionDetection>(
+    (args) => {
+      const pointer = pointerWithin(args);
+      const hits = pointer.length > 0 ? pointer : rectIntersection(args);
+      let overId = getFirstCollision(hits, "id") as string | null;
+      if (overId != null) {
+        if (overId in columns) {
+          const items = columns[overId as IssueStatus];
+          if (items.length > 0) {
+            const inner = closestCenter({
+              ...args,
+              droppableContainers: args.droppableContainers.filter(
+                (c) => c.id !== overId && items.includes(String(c.id)),
+              ),
+            });
+            overId = (getFirstCollision(inner, "id") as string | null) ?? overId;
+          }
+        }
+        lastOverId.current = overId;
+        return [{ id: overId }];
+      }
+      return lastOverId.current ? [{ id: lastOverId.current }] : [];
+    },
+    [columns],
+  );
+
   const columnOf = (id: string): IssueStatus | undefined => {
     if (id in columns) return id as IssueStatus; // dropped on a column itself
     return ISSUE_STATUSES.find((s) => columns[s].includes(id));
   };
 
-  const onDragStart = (e: DragStartEvent) => setActiveId(String(e.active.id));
+  const onDragStart = (e: DragStartEvent) => setActive(String(e.active.id));
 
   // Live preview only: float the active card into the column it's hovering.
   // Final placement is recomputed from scratch in onDragEnd, so this never
@@ -201,7 +259,7 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
   };
 
   const onDragEnd = (e: DragEndEvent) => {
-    setActiveId(null);
+    setActive(null);
     const id = String(e.active.id);
     const overId = e.over ? String(e.over.id) : null;
     const issue = issuesById.get(id);
@@ -251,7 +309,7 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
   };
 
   const onDragCancel = () => {
-    setActiveId(null);
+    setActive(null);
     setColumns(sourceColumns);
   };
 
@@ -348,18 +406,22 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
 
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={collisionDetection}
         onDragStart={onDragStart}
         onDragOver={onDragOver}
         onDragEnd={onDragEnd}
         onDragCancel={onDragCancel}
       >
-        <div className="mt-5 flex items-start gap-3 overflow-x-auto pb-6">
+        {/* items-stretch: all columns share the tallest column's height, so a
+            card can be dragged straight sideways into any column's drop zone
+            instead of having to travel to its top (PROG-40). */}
+        <div className="mt-5 flex items-stretch gap-3 overflow-x-auto pb-6">
           {visibleColumns.map((status) => (
             <BoardColumn
               key={status}
               status={status}
               issueIds={columns[status]}
+              total={status === "done" ? visibleByStatus.doneTotal : undefined}
               issuesById={issuesById}
               workspace={workspace}
               tagsByIssue={tagsByIssue}
@@ -422,6 +484,7 @@ function FilterSelect({
 function BoardColumn({
   status,
   issueIds,
+  total,
   issuesById,
   workspace,
   tagsByIssue,
@@ -429,24 +492,31 @@ function BoardColumn({
 }: {
   status: IssueStatus;
   issueIds: string[];
+  // When the column is capped (Done — PROG-40), the true count before capping,
+  // so the header can show "shown of total". Undefined ⇒ nothing is hidden.
+  total?: number;
   issuesById: Map<string, WireIssue>;
   workspace: WorkspacePayload;
   tagsByIssue: Map<string, WireTag[]>;
   activeId: string | null;
 }) {
   // Droppable so an empty column (or the space below the last card) still
-  // accepts a drop; cards themselves are the sortable items inside.
+  // accepts a drop; cards themselves are the sortable items inside. The
+  // section stretches to the board's full height (items-stretch on the row)
+  // and the card list grows to fill it, so the drop zone spans the whole
+  // column — drag sideways into it without going to the top (PROG-40).
   const { setNodeRef, isOver } = useDroppable({ id: status });
+  const hiddenCount = total !== undefined && total > issueIds.length;
   return (
     <section
       ref={setNodeRef}
-      className={`w-72 shrink-0 rounded-lg p-2 ${isOver ? "bg-adobe-wash/30 ring-1 ring-adobe-light" : "bg-line/40"}`}
+      className={`flex w-72 shrink-0 flex-col rounded-lg p-2 ${isOver ? "bg-adobe-wash/30 ring-1 ring-adobe-light" : "bg-line/40"}`}
     >
       <h2 className="px-1 pb-2 text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">
-        {STATUS_LABELS[status]} · {issueIds.length}
+        {STATUS_LABELS[status]} · {hiddenCount ? `${issueIds.length} of ${total}` : issueIds.length}
       </h2>
       <SortableContext items={issueIds} strategy={verticalListSortingStrategy}>
-        <div className="flex min-h-8 flex-col gap-1.5">
+        <div className="flex min-h-8 flex-1 flex-col gap-1.5">
           {issueIds.map((id) => {
             const issue = issuesById.get(id);
             if (!issue) return null;

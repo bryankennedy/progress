@@ -355,7 +355,12 @@ canonical key — entirely client-side from the loaded workspace (D22).
   within a column (a manual work order) and moves them between columns to set
   status; both persist as one optimistic write via the card's `rank` (D44).
   Mouse drags activate after 4px of movement (plain clicks navigate), touch
-  drags after a 250ms press-and-hold (plain swipes scroll the board) — D30.
+  drags after a 250ms press-and-hold (plain swipes scroll the board) — D30. All
+  columns render at one shared height, so a card can be dropped into any
+  column's full-height zone without dragging to its top. The **Done** column is
+  capped to the 10 most-recently-completed issues (by `completedAt`) so it can't
+  grow without bound; its header reads "Done · 10 of N" when older ones are
+  hidden (they stay reachable via search, Agenda, and container pages) — PROG-40.
 - **Container pages** — description-on-top open page (inline-editable name,
   Markdown description, key prefix / git URL where applicable, archive
   toggle), child-container chips with "+ New" buttons, and a
