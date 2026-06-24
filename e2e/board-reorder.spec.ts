@@ -223,3 +223,48 @@ test("dragging a card into an EMPTY column drops it there (PROG-40)", async ({ p
     })
     .toBe("in_progress");
 });
+
+test("a card dropped in a new column doesn't flash back to its old one (PROG-40)", async ({
+  page,
+}) => {
+  // Cross-column drop: lone card in `todo` → top of a populated `backlog`.
+  const ws = await (await page.request.get("/api/workspace")).json();
+  const ids: string[] = ws.issues.map((i: { id: string }) => i.id);
+  const mover = ids[0]!;
+  const fillers = ids.slice(1, 4);
+  await isolateColumn(page, "todo", [mover]);
+  await isolateColumn(page, "backlog", fillers);
+
+  await page.goto("/?backlog=1");
+  await page.waitForSelector(`[data-issue-id="${mover}"]`);
+  const targetTop = (await boxesIn(page, fillers))[0]!;
+  const moverBox = await boxOf(page, mover);
+
+  await press(page, moverBox);
+  await glideTo(page, moverBox.cx, moverBox.cy + 6, targetTop.cx, targetTop.cy);
+  const half = (moverBox.x + targetTop.x) / 2;
+  for (let i = 0; i < 40 && (await liveX(page, mover)) >= half; i++) {
+    await page.mouse.move(targetTop.cx, targetTop.cy + (i % 2));
+    await page.waitForTimeout(20);
+  }
+
+  // Sample the card's x every frame across the release. The bug was a stale
+  // store-resync briefly snapping the just-moved card back to its OLD column
+  // (a ~360px x-jump) before settling; the card must stay put.
+  await page.evaluate((id) => {
+    (window as unknown as { __xs: number[] }).__xs = [];
+    const t0 = performance.now();
+    (function tick() {
+      const el = document.querySelector(`[data-issue-id="${id}"]`);
+      if (el) (window as unknown as { __xs: number[] }).__xs.push(Math.round(el.getBoundingClientRect().x));
+      if (performance.now() - t0 < 400) requestAnimationFrame(tick);
+    })();
+  }, mover);
+  await page.mouse.up();
+  await page.waitForTimeout(450);
+
+  const xs = await page.evaluate(() => (window as unknown as { __xs: number[] }).__xs);
+  const finalX = xs.at(-1)!;
+  const maxDeviation = Math.max(...xs.map((x) => Math.abs(x - finalX)));
+  expect(maxDeviation).toBeLessThan(40); // no fly-back to the old column
+});

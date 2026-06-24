@@ -158,12 +158,24 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
 
   const [columns, setColumns] = useState<ColumnMap>(sourceColumns);
   const [activeId, setActiveId] = useState<string | null>(null);
+  // Mirror of activeId for effects/handlers that must read it without depending
+  // on it (a ref updates synchronously and doesn't re-trigger effects).
+  const activeIdRef = useRef<string | null>(null);
+  const setActive = (id: string | null) => {
+    activeIdRef.current = id;
+    setActiveId(id);
+  };
 
-  // Re-sync from the store whenever it changes, except mid-drag (so an
-  // optimistic write landing during a drag doesn't yank the cards).
+  // Re-sync the working copy from the store ONLY when the store itself changes
+  // (and not mid-drag). Crucially this does NOT depend on `activeId`: keying it
+  // on activeId made the resync fire the instant a drop cleared the drag — one
+  // render before the optimistic store write landed — so it briefly reset the
+  // just-moved card to its OLD column (a sub-100ms flash) before the store
+  // caught up and corrected it (PROG-40 follow-up). Now the resync waits for the
+  // fresh `sourceColumns`, so it never applies a stale order.
   useEffect(() => {
-    if (!activeId) setColumns(sourceColumns);
-  }, [sourceColumns, activeId]);
+    if (!activeIdRef.current) setColumns(sourceColumns);
+  }, [sourceColumns]);
 
   // Mouse: a distance constraint keeps plain clicks (card → issue page) from
   // starting a drag. Touch: a hold-delay keeps swipes scrolling the board
@@ -216,7 +228,7 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
     return ISSUE_STATUSES.find((s) => columns[s].includes(id));
   };
 
-  const onDragStart = (e: DragStartEvent) => setActiveId(String(e.active.id));
+  const onDragStart = (e: DragStartEvent) => setActive(String(e.active.id));
 
   // Live preview only: float the active card into the column it's hovering.
   // Final placement is recomputed from scratch in onDragEnd, so this never
@@ -247,7 +259,7 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
   };
 
   const onDragEnd = (e: DragEndEvent) => {
-    setActiveId(null);
+    setActive(null);
     const id = String(e.active.id);
     const overId = e.over ? String(e.over.id) : null;
     const issue = issuesById.get(id);
@@ -297,7 +309,7 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
   };
 
   const onDragCancel = () => {
-    setActiveId(null);
+    setActive(null);
     setColumns(sourceColumns);
   };
 
