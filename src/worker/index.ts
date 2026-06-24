@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/cloudflare";
 import { Hono, type Context } from "hono";
 import { and, asc, eq, inArray, max, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
@@ -53,6 +54,12 @@ type Bindings = AuthEnv & {
   // Shared secret for GitHub webhook HMAC verification (SPEC §5). Local dev:
   // .dev.vars; production: `wrangler secret put GITHUB_WEBHOOK_SECRET`.
   GITHUB_WEBHOOK_SECRET?: string;
+  // Sentry error tracking (PROG-60). Unset → the SDK is a no-op, so local dev
+  // and tests never send. Production: `wrangler secret put SENTRY_DSN`.
+  SENTRY_DSN?: string;
+  // Tags events so prod errors are separable from any local testing. Defaults
+  // to "production"; the DSN being unset already keeps dev silent.
+  SENTRY_ENVIRONMENT?: string;
 };
 
 // Per-request identity set by the auth middleware (PROG-34): the logged-in
@@ -150,11 +157,19 @@ app.use("*", async (c, next) => {
 // `wrangler tail`, correlatable by requestId); keep the response body generic so
 // the webhook path can't be used to read internals.
 app.onError((err, c) => {
+  const requestId = c.get("requestId");
   log("error", "unhandled_error", {
-    requestId: c.get("requestId"),
+    requestId,
     method: c.req.method,
     path: c.req.path,
     error: err,
+  });
+  // Hono catches the throw and returns below, so it never propagates out of the
+  // fetch handler for `withSentry` to auto-capture — report it explicitly.
+  // `requestId` ties the Sentry issue back to the matching Workers Logs line.
+  Sentry.captureException(err, {
+    tags: { requestId },
+    extra: { method: c.req.method, path: c.req.path },
   });
   return c.json({ error: "internal_error" }, 500);
 });
@@ -1540,4 +1555,17 @@ app.post("/api/webhooks/github", async (c) => {
   return c.json({ ok: true, ignored: event });
 });
 
-export default app;
+// Wrap the Hono app so unhandled throws and explicit `captureException` calls
+// reach Sentry (PROG-60). With no `SENTRY_DSN` the wrapper is a no-op, so dev
+// and tests are unaffected. `tracesSampleRate: 0` keeps performance/transaction
+// volume at zero — error tracking only, so the free tier stays free.
+export default Sentry.withSentry(
+  (env: Bindings) => ({
+    dsn: env.SENTRY_DSN,
+    environment: env.SENTRY_ENVIRONMENT ?? "production",
+    tracesSampleRate: 0,
+    // Don't attach request headers/IP (PII) to events by default.
+    sendDefaultPii: false,
+  }),
+  app,
+);

@@ -224,6 +224,38 @@ Error **visibility** (the forensic trail once a monitor flags an outage) needs n
 alert setup — it's the structured logs above: Workers & Pages → `progress` →
 Logs, filter `event = unhandled_error`.
 
+#### Error tracking — Sentry (PROG-60, D46)
+
+Workers Logs is the searchable record; **Sentry** is the *alert-and-triage* layer
+it lacks — it groups exceptions, keeps full stack traces (30-day retention on the
+free tier vs Logs' 3 days), and emails on the first occurrence of a new error
+type, which is precisely the uncaught-exception alert Cloudflare's Notifications
+catalog doesn't offer. The Worker is wired via `@sentry/cloudflare`: the default
+export is wrapped in `Sentry.withSentry(...)` and `app.onError` calls
+`Sentry.captureException(err, { tags: { requestId } })`, so every Sentry issue
+cross-links to the matching Workers Logs line by `requestId`. The SDK needs the
+`nodejs_compat` flag (set in `wrangler.jsonc`). It only sends when `SENTRY_DSN` is
+set — **no DSN means a silent no-op**, so local dev and tests never report.
+Tracing is off (`tracesSampleRate: 0`): error events only, to stay inside the
+free tier.
+
+One-time account setup (owner):
+
+1. Create a free account at <https://sentry.io> (Developer plan: 5k errors/mo,
+   30-day retention — ample for this app).
+2. **Create project** → platform **Cloudflare Workers** → name it `progress`.
+3. Copy the project **DSN** (Project → Settings → **Client Keys (DSN)**). It's a
+   URL like `https://<key>@o<org>.ingest.sentry.io/<project>`; not a hard secret,
+   but treat it as one.
+4. Set it as a production Worker secret: `bunx wrangler secret put SENTRY_DSN`
+   (paste the DSN). Leave it **unset locally** — keep the `.dev.vars` line blank
+   so dev stays silent. (It's documented in `.env.example`.)
+5. *(Optional)* Alerts → confirm the default "A new issue is created" rule mails
+   `bryan@mysteryexperience.com`; add a rate rule (e.g. >N events/hour) if wanted.
+6. Verify after the next deploy: temporarily hit a route that throws (or check the
+   first real 500) → the issue appears in Sentry with the `requestId` tag, and the
+   same `requestId` finds the `unhandled_error` line in Workers Logs.
+
 **v2 shipped 2026-06-17** (migration `0003_breezy_spot.sql` — the nullable
 `issues.due_date`): due dates, the Agenda view, the Structure route, and the
 header New menu. The remote migration + `bun run deploy` were applied; the build

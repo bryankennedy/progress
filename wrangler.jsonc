@@ -5,6 +5,9 @@
   "name": "progress",
   "main": "src/worker/index.ts",
   "compatibility_date": "2025-12-01",
+  // Required by @sentry/cloudflare (PROG-60) — the SDK uses Node's
+  // AsyncLocalStorage to scope captured events to the current request.
+  "compatibility_flags": ["nodejs_compat"],
   "assets": {
     // Client routes are handled by the SPA; anything that isn't a real asset
     // falls back to index.html.
