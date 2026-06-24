@@ -207,18 +207,26 @@ enabled in `wrangler.jsonc`. To view them:
 alert** — don't go looking for a "Workers → Script errors" type; it isn't there.
 The reliable signal comes from the readiness endpoint instead:
 
-1. **External uptime monitor (recommended, plan-independent).** Point any
-   uptime service (UptimeRobot / Better Stack / Healthchecks.io free tier) at
-   `https://progress.bck.dev/api/health`, expect HTTP `200`, alert on failure to
-   `bryan@mysteryexperience.com`. Because the endpoint round-trips D1 (#5), a
-   `503` means the database is unreachable — a true end-to-end health signal, not
-   just "the Worker booted". This is the primary alert.
-2. **Cloudflare Health Checks (only if available on the plan).** Zone-level under
-   the `bck.dev` zone → *Traffic → Health Checks* (not account Notifications), an
-   HTTPS check on `/api/health` expecting `200`; it then exposes a *Health Check
-   Status Notification* type. Standalone Health Checks can be a paid add-on, so
-   this may be absent — the external monitor above covers the same need without
-   that dependency.
+1. **External uptime monitor — Better Stack (set up, PROG-47).** The live monitor
+   polls `https://progress.bck.dev/api/health` every 180 s from US + EU and emails
+   `bryan@mysteryexperience.com` on failure. Because the endpoint round-trips D1
+   (#5), a `503` means the database is unreachable — a true end-to-end health
+   signal, not just "the Worker booted". This is the primary alert. The monitor is
+   **config as code**: `scripts/monitors.ts` declares it and `bun run
+   monitors:sync` creates-or-updates it idempotently against the Better Stack
+   Uptime API using `BETTERSTACK_API_TOKEN` from `.env`; add another app by
+   appending to the `MONITORS` array and re-running. Better Stack is the
+   general-purpose alerting layer for the stack (DECISIONS PROG-47) — its free
+   tier also covers cron/heartbeat monitors and a status page when wanted.
+   *One-time account setup:* sign in to Better Stack, create an **Uptime API
+   token** (Settings → API tokens → Team-based), put it in `.env` as
+   `BETTERSTACK_API_TOKEN`, then run the sync.
+2. **Cloudflare Health Checks (unused alternative).** Zone-level under the
+   `bck.dev` zone → *Traffic → Health Checks* (not account Notifications), an
+   HTTPS check on `/api/health` expecting `200`, exposing a *Health Check Status
+   Notification* type. Not used — it's the wrong layer for a Worker (it monitors
+   origins behind the proxy) and standalone Health Checks can be a paid add-on;
+   the Better Stack monitor above covers the need without that dependency.
 
 Error **visibility** (the forensic trail once a monitor flags an outage) needs no
 alert setup — it's the structured logs above: Workers & Pages → `progress` →
