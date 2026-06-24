@@ -35,6 +35,13 @@ describe("renderBundle — Committing & PRs (smart-commit)", () => {
     expect(md).toContain("**Plan**");
     expect(md).toContain("**Commit**");
     expect(md).toContain("**Verify**");
+    expect(md).toContain("**Push the PR**");
+  });
+
+  it("tells the agent to push a PR rather than stall at a local commit", () => {
+    const md = renderBundle(bundle());
+    expect(md).toMatch(/open a pull request/i);
+    expect(md).toMatch(/don't (stall|stop) at a local commit/i);
   });
 
   it("carries the must-follow rules: conventional format, secret-scan, no AI attribution", () => {
