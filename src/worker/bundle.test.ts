@@ -44,6 +44,15 @@ describe("renderBundle — Committing & PRs (smart-commit)", () => {
     expect(md).toMatch(/don't (stall|stop) at a local commit/i);
   });
 
+  it("steers append-only docs (DECISIONS.md) to issue-keyed ids to avoid parallel-agent races", () => {
+    const md = renderBundle(bundle({ key: "ACME-7" }));
+    expect(md).toContain("Avoiding merge collisions");
+    expect(md).toContain("docs/DECISIONS.md");
+    // The decision heading example is keyed to this issue, not a global D<n>.
+    expect(md).toContain("### ACME-7 — <title>");
+    expect(md).toMatch(/never claim the next global running number/i);
+  });
+
   it("carries the must-follow rules: conventional format, secret-scan, no AI attribution", () => {
     const md = renderBundle(bundle());
     expect(md).toContain("Conventional Commits");

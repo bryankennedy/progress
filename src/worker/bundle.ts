@@ -133,5 +133,19 @@ export function renderBundle(b: BundleData): string {
     `6. **Push the PR** — once the work is functioning and verified, push the branch and open a pull request (title/body naming **${b.key}**) for review. The work isn't handed off until the PR is up, so don't stop at a local commit. Then move **${b.key}** to \`in_review\` (item 2).`,
     "",
   );
+  // Multiple agents often work different issues against this repo in parallel,
+  // so append-only docs with a global running counter (e.g. DECISIONS.md's
+  // `D<n>`) race — two agents grab the same number and conflict (PROG-62). Tell
+  // the agent to key such entries to THIS issue instead, which can't collide
+  // across issues.
+  out.push("### Avoiding merge collisions (parallel agents)", "");
+  out.push(
+    `Other agents may be editing this repo on other issues at the same time. In **append-only docs**, never claim the next global running number — that races. Key the entry to this issue instead:`,
+    "",
+    `- **\`docs/DECISIONS.md\`** — head a new decision \`### ${b.key} — <title>\` (not the next \`D<n>\`); a second decision for the same issue gets a letter suffix (\`### ${b.key}b — …\`). Append at the end of the file.`,
+    `- Same rule for any other append-only log keyed by a running counter: derive the id from **${b.key}**, not a shared sequence.`,
+    `- If a trailing merge conflict still appears in such a file, it's a "keep both entries" resolution — never renumber or drop the other agent's entry.`,
+    "",
+  );
   return out.join("\n");
 }
