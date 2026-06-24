@@ -1,6 +1,7 @@
 // The global "My Work" board (SPEC §4): one kanban across all initiatives
-// and products. Columns are the fixed statuses; Backlog hides behind a
-// toggle by default (open question #2 default). Filters live in URL query
+// and products. Columns are the fixed statuses minus Canceled (PROG-63 — the
+// board shows work you intend to do); Backlog hides behind a toggle by default
+// (open question #2 default). Filters live in URL query
 // params so any filtered board is bookmarkable — this is how the global
 // board covers the deferred per-product/per-arc boards.
 //
@@ -315,7 +316,13 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
     setColumns(sourceColumns);
   };
 
-  const visibleColumns = ISSUE_STATUSES.filter((s) => s !== "backlog" || filters.backlog);
+  // Canceled is a valid status (set it from the issue page or any status
+  // dropdown) but never gets a board column — PROG-63: the board is for work
+  // you intend to do, so canceled issues just drop off it. Backlog still hides
+  // behind its toggle.
+  const visibleColumns = ISSUE_STATUSES.filter(
+    (s) => s !== "canceled" && (s !== "backlog" || filters.backlog),
+  );
   const shownCount = visibleColumns.reduce((n, s) => n + columns[s].length, 0);
   const filtersActive = FILTER_KEYS.some((k) => filters[k]);
 

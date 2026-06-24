@@ -757,9 +757,34 @@ two at-a-glance signals don't get crowded. Each line renders only when it has
 content — estimate/tags line when either exists, footer when date or priority
 exists — so bare cards stay clean.
 
+### D48: the context bundle embeds a local smart-commit (PROG-62)
+The "copy as prompt" work order (`GET /api/issues/:key/bundle`) already told a
+handed-off agent *what to link* — branch named with the key, key in the
+commit/PR so the §5 webhook auto-links it, status flow `todo → … → done`. It said
+nothing about *how to craft the commits*, so that depended on whether the
+receiving session happened to have the owner's `smart_commit` skill installed.
+D48 inlines a condensed, key-aware copy of that skill as a **Committing & PRs**
+subsection of the report-back preamble: the five steps (analyze → secret-scan →
+plan logical chunks → Conventional-Commit `type(scope): KEY subject` with a *why*
+body and **no `Co-Authored-By`/AI attribution** → verify). The commit example
+interpolates the issue key, which both reinforces the existing auto-link
+convention and matches the prod git history (e.g. `feat(observability): PROG-60
+…`). It rides in the bundle text, so every surface inherits it for free — the
+`W` palette / "Work on this" copy, the `progress work` CLI, and the `get_bundle`
+MCP tool — with no dependency on the agent's local skill set. *Implementation:*
+`renderBundle` + `BundleData` were extracted from the worker entry into
+`src/worker/bundle.ts` so the render is unit-testable in isolation
+(`bundle.test.ts` asserts the steps, the rules, key interpolation, and
+determinism). *Rejected:* near-verbatim reproduction of the skill (too heavy for
+an artifact pasted into every prompt); a generic `type(scope): subject` example
+(loses the key reinforcement). Kept deterministic per D33 — the new text is
+static plus the already-interpolated key.
+
+---
+
 ## 2026-06-24 — v3 functionality: archived arcs
 
-### D48: completed arcs collapse behind an `/archive` route, capped at 5 inline (PROG-45)
+### D49: completed arcs collapse behind an `/archive` route, capped at 5 inline (PROG-45)
 Archiving is the terminal "done" state for a container (no separate status —
 D-era schema, `archivedAt`), and the Structure page rendered every archived arc
 crossed-out inline. The owner's concern: once more than a handful pile up under a
