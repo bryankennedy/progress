@@ -1,0 +1,57 @@
+# CI/CD for Progress (PROG-54).
+#
+# Two jobs in one file:
+#   test   — typecheck + unit suite. Runs on every PR and on pushes to main.
+#            This is the gate; make it the required status check on `main`.
+#   deploy — only on push to main, only if `test` is green. Applies any pending
+#            D1 migrations to the remote prod DB, then builds + deploys the Worker.
+#
+# Why GitHub Actions (not Cloudflare Workers Builds): the repo lives on a
+# self-hosted GitHub-compatible host, which the Cloudflare GitHub App can't
+# reach. Actions driving `wrangler` with an API token is portable and keeps the
+# deploy logic in-repo. See docs/DECISIONS.md.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN   — "Edit Cloudflare Workers" template + Account › D1:Edit
+#   CLOUDFLARE_ACCOUNT_ID  — from `bunx wrangler whoami`
+# `wrangler deploy` never touches existing `wrangler secret`s, so prod
+# GITHUB_WEBHOOK_SECRET is preserved.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded PR runs; never cancel an in-flight deploy.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run check # tsc -b
+      - run: bun test src # unit suite
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      # Keep code + schema in lockstep. No-op when no migrations are pending.
+      - run: bunx wrangler d1 migrations apply progress-db --remote
+      - run: bun run deploy # build + wrangler deploy

@@ -117,7 +117,32 @@ streams the original bytes (everything still works, just unresized).
 
 Redeploy after changes: `bun run deploy` (builds, then `wrangler deploy`).
 Schema changes additionally need
-`bunx wrangler d1 migrations apply progress-db --remote` first.
+`bunx wrangler d1 migrations apply progress-db --remote` first. This is the
+**break-glass** path — day to day, deploys are automatic (below).
+
+### Continuous deployment (PROG-54)
+
+Pushing to `main` auto-deploys via GitHub Actions (`.github/workflows/ci.yml`).
+The workflow has two jobs: **`test`** (`bun run check` + `bun test src`) runs on
+every PR and on the main push; **`deploy`** runs only after `test` is green on a
+push to `main`, applies any pending D1 migrations
+(`wrangler d1 migrations apply progress-db --remote`), then `bun run deploy`s.
+Migrations are auto-applied so code and schema stay in lockstep; the recovery
+axes below are unchanged. `wrangler deploy` never touches `wrangler secret`s, so
+prod `GITHUB_WEBHOOK_SECRET` survives every deploy.
+
+One-time setup (owner, outside the repo):
+
+- **Repo secrets** (Settings → Secrets and variables → Actions):
+  `CLOUDFLARE_API_TOKEN` (the *Edit Cloudflare Workers* token template **plus**
+  Account › D1 : Edit) and `CLOUDFLARE_ACCOUNT_ID` (from `bunx wrangler whoami`).
+- **Branch protection** for `main` (Settings → Branches): require a PR, require
+  the **`test`** status check to pass, require branches up to date, block force
+  pushes and deletion. (Solo repo: skip "require approvals" or add yourself as a
+  bypass — you can't approve your own PR.)
+
+Manual `bun run deploy` from a logged-in machine still works as the break-glass
+path if Actions is unavailable.
 
 ### Rollback & recovery
 
