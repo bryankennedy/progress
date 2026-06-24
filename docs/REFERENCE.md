@@ -206,6 +206,11 @@ trusted (D44). `gitUrl` is validated server-side as an `http(s)` URL on
 `POST`/`PATCH /api/repos`, so a `javascript:` value can't reach the client as a
 clickable link.
 
+Vulnerability disclosure: a `SECURITY.md` at the repo root and an RFC 9116
+`public/.well-known/security.txt` (served at `/.well-known/security.txt`) point
+reporters at the contact + policy. The `security.txt` `Expires` field is
+mandatory — renew it before it lapses (an expired file is worse than none).
+
 ### Workspace & issues
 
 | Route | Behavior |

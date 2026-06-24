@@ -913,6 +913,13 @@ name/emails/domains appear, an intentional develop-in-public choice).
   is intentionally no per-resource ownership check, because every allowlisted
   account is trusted. Documented in REFERENCE so it reads as a decision, not a
   gap.
+- **Vulnerability disclosure is published** as a repo-root `SECURITY.md` and an
+  RFC 9116 `public/.well-known/security.txt` (canonical `https://progress.bck.dev`,
+  served at `/.well-known/security.txt`). Low cost, and a fitting maturity signal
+  for a develop-in-public portfolio repo whose public surface is the OAuth flow +
+  webhook + health probe even though the app is allowlisted. The `security.txt`
+  `Expires` field is mandatory and set ~1 year out (2027-07-01); it must be
+  renewed before lapsing, since an expired file is worse than none.
 
 *Deferred:* app-level rate limiting — the unauthenticated surface is minimal
 (OAuth callback rejects on signed-state before any work; the webhook is
