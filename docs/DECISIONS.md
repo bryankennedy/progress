@@ -721,3 +721,38 @@ retention); adopting it for one user adds a client SDK + privacy surface for
 questions we don't have yet. Revisit Sentry vs. Cloudflare-native error tracking
 later: the Baselime acquisition (2024) is folding error-tracking/alerting into
 the Workers dashboard, which may eventually subsume the Sentry layer.
+
+---
+
+## 2026-06-24 — v3 design: priority indicator
+
+### D47: priority indicator becomes Linear-style signal bars, toned on-palette (PROG-61, supersedes D39)
+The D39 dot differentiated priority by **color alone**, so urgent vs high vs
+medium was unreadable at a glance and invisible to color-blind users — and on a
+card the priority showed as a plain text label, not the dot at all. D47 rebuilds
+the same one reusable component (`PriorityIndicator`) as three ascending
+**signal bars** (à la this app's "personal Linear" lineage): rank is carried by
+**shape** (bars filled: low 1, medium 2, high 3) *and* color, so it survives
+grayscale. **Urgent** breaks the ramp with a filled badge + exclamation so the
+most pressing work pops; **none** is three faded bars (reads as "unset", same
+intent as D39's hollow ring). The `PRIORITY_COLORS` map is retoned off the raw
+spectrum (`#ED6245/#F08B23/#F2C42E/#546EB4`) into the warm **Adobe & Moss**
+palette (D41) — urgent `#b23c28` (the on-system danger tomato), high `#bd6a30`
+(terracotta), medium `#c79a31` (gold), low `#6f7896` (muted slate) — so the
+glyph stops reading as stock UI chrome. One mapping, no configuration, still
+SVG-cheap at list density. Adopted on the board card (replacing the text label),
+the issue page Priority field, and container list rows; the Agenda inherits it
+for free. *Rejected:* keeping the color-only dot (the legibility problem this
+issue exists to fix); emoji (renders inconsistently per-OS, too heavy on a dense
+board). Reopens and re-answers SPEC §9 Q3 (D39's "a dot is most compact"
+conclusion did not survive contact with the board's at-a-glance scanning need).
+
+Same change also surfaces the **due date on board cards** so date and priority
+read together: a card footer puts the due date bottom-left (a calendar glyph +
+the Agenda's own `relativeDue · formatDueDate` phrasing from `dates.ts`, reusing
+its language so the two views agree — overdue in `danger`, due-today in
+`adobe-deep`) and floats the priority glyph to the bottom-right corner. Estimate
+and tags sit on their own line *above* the footer (not trailing the date) so the
+two at-a-glance signals don't get crowded. Each line renders only when it has
+content — estimate/tags line when either exists, footer when date or priority
+exists — so bare cards stay clean.

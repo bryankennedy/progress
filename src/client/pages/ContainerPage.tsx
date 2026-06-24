@@ -16,6 +16,7 @@ import { openCreateContainer } from "../commands/controller";
 import EditableMarkdown from "../EditableMarkdown";
 import InlineEdit from "../InlineEdit";
 import { PRIORITY_LABELS as SHARED_PRIORITY_LABELS, STATUS_LABELS } from "../labels";
+import PriorityIndicator from "../PriorityIndicator";
 import { issueKeyOf, updateContainer, updateIssue } from "../store";
 
 export type ContainerType = "initiative" | "product" | "repo" | "arc";
@@ -326,6 +327,7 @@ function IssueRow({ issue, workspace }: { issue: WireIssue; workspace: Workspace
         <span className="rounded bg-line px-1 text-xs text-ink-soft">{issue.estimate}</span>
       )}
       {/* Inline edits go through the same optimistic template as everywhere. */}
+      <PriorityIndicator priority={issue.priority} />
       <select
         value={issue.priority}
         onChange={(e) => updateIssue(issue.id, { priority: e.target.value as IssuePriority })}

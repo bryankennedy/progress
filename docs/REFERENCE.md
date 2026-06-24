@@ -336,7 +336,9 @@ canonical key — entirely client-side from the loaded workspace (D22).
   that isn't done/canceled, sorted by due date ascending and grouped **Overdue ·
   Today · This week · Later** (computed from the owner's local day; "this week"
   is a rolling 7 days, D38). Each row carries the **priority indicator** (§7.2 /
-  D39), key, title, the due date as a relative phrase ("in 3 days"), product/arc
+  D39, redesigned as on-palette signal bars in D47 — one reusable
+  `PriorityIndicator` shared by the board card, issue page, and container lists),
+  key, title, the due date as a relative phrase ("in 3 days"), product/arc
   and status; overdue rows are visually distinct. Filterable by product/arc/tag
   via URL params (the board pattern), with inline mark-done and bump-due. Renders
   entirely from the store.
@@ -361,6 +363,11 @@ canonical key — entirely client-side from the loaded workspace (D22).
   capped to the 10 most-recently-completed issues (by `completedAt`) so it can't
   grow without bound; its header reads "Done · 10 of N" when older ones are
   hidden (they stay reachable via search, Agenda, and container pages) — PROG-40.
+  Each **card** pairs its two at-a-glance signals in a footer: the **due date**
+  (if any) sits bottom-left as a calendar glyph + the Agenda's phrasing ("in 3
+  days · Jul 1", overdue in danger red, due-today in the adobe accent), and the
+  **priority indicator** floats to the bottom-right corner (PROG-61). Estimate
+  and tags sit on their own line above the footer so they don't crowd it.
 - **Container pages** — description-on-top open page (inline-editable name,
   Markdown description, key prefix / git URL where applicable, archive
   toggle), child-container chips with "+ New" buttons, and a
