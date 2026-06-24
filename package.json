@@ -16,6 +16,7 @@
     "db:seed": "wrangler d1 execute progress-db --local --file=./scripts/seed.sql",
     "db:seed:scale": "bun scripts/seed-scale.ts",
     "mcp": "bun src/mcp/server.ts",
+    "monitors:sync": "bun --env-file=.env scripts/monitors.ts",
     "deploy": "bun run build && wrangler deploy"
   },
   "dependencies": {
