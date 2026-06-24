@@ -20,7 +20,10 @@ deliberately — keep it that way as milestones land:
   REFERENCE rather than renumbering. The frozen **v1** roadmap is
   `docs/archive/SPEC-v1.md` — pre-v2 `SPEC §X` citations resolve there.
 - `docs/DECISIONS.md` — append-only decision log. Settled questions live here;
-  don't re-litigate them — supersede with a new entry if something changes.
+  don't re-litigate them — supersede with a new entry if something changes. New
+  entries are **keyed to their issue** (`### KEY — title`), not a running `D<n>`
+  number, so parallel agents on different issues don't collide (PROG-62); D1–D48
+  keep their historical numbers.
 - `docs/SETUP.md` — how-to: install, run, schema changes, deploy.
 
 When a decision of consequence is made in conversation, record it in
