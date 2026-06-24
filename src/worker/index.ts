@@ -277,7 +277,12 @@ app.get("/api/auth/callback", async (c) => {
   try {
     identity = await exchangeCodeForIdentity(env, code, redirectUri(env, c.req.url));
   } catch (e) {
-    log("error", "oauth_callback_failed", { requestId: c.get("requestId"), error: e });
+    const requestId = c.get("requestId");
+    log("error", "oauth_callback_failed", { requestId, error: e });
+    // The catch returns a handled 400, so this never reaches `onError`/`withSentry`
+    // on its own — report it explicitly so auth-exchange failures surface in Sentry's
+    // alert/triage layer, with the same requestId that finds the Workers Logs line (PROG-60).
+    Sentry.captureException(e, { tags: { requestId }, extra: { path: c.req.path } });
     return c.json({ error: "authentication failed" }, 400);
   }
   const db = drizzle(env.DB);
