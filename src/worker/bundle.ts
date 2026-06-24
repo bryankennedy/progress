@@ -123,13 +123,14 @@ export function renderBundle(b: BundleData): string {
   // both reinforces auto-linking (item 1) and matches the prod git history.
   out.push("### Committing & PRs", "");
   out.push(
-    "Before committing, split the working tree into logical commits:",
+    "Split the working tree into logical commits, then push a PR for review — don't stall at a local commit:",
     "",
     "1. **Analyze** — `git status` and `git diff` (incl. `--cached`) to see exactly what changed.",
     "2. **Security check** — scan the diff for secrets, API keys, passwords, tokens, or PII. If you find any, **STOP**, do not commit, and flag it.",
     "3. **Plan** — one commit per logical unit of work; keep unrelated changes in separate commits.",
     `4. **Commit** — use [Conventional Commits](https://www.conventionalcommits.org/): \`type(scope): ${b.key} subject\` (types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert). Subject in imperative mood, no trailing period; the body explains *why* (context), *what* (the change), and any side effects. Do **not** add \`Co-Authored-By\` or any AI/Claude attribution.`,
     "5. **Verify** — `git status` and `git log` to confirm the history is clean and complete.",
+    `6. **Push the PR** — once the work is functioning and verified, push the branch and open a pull request (title/body naming **${b.key}**) for review. The work isn't handed off until the PR is up, so don't stop at a local commit. Then move **${b.key}** to \`in_review\` (item 2).`,
     "",
   );
   return out.join("\n");
