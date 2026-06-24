@@ -1,0 +1,15 @@
+# Security policy for Progress (https://progress.bck.dev), per RFC 9116.
+#
+# Progress is a single-user, allowlisted personal tracker — the app is private
+# (Google sign-in + email allowlist). This file is for reporting issues in the
+# publicly reachable surface (the OAuth flow, the GitHub webhook, the health
+# probe) or in the public source repository.
+#
+# Renew before the Expires date below — an expired security.txt is worse than
+# none (PROG-65).
+
+Contact: mailto:bryan@bryankennedy.org
+Expires: 2027-07-01T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://progress.bck.dev/.well-known/security.txt
+Policy: https://github.com/bryankennedy/progress/blob/main/SECURITY.md

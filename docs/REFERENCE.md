@@ -160,8 +160,9 @@ check `super-admin OR allowlisted` runs at the OAuth callback **and** on every
 `/api/admin/allowlist` gated on a per-request `isSuperAdmin` flag; `/api/workspace`
 ships `isSuperAdmin` + the `allowedEmails` list to super-admins only.
 Auth routes: `GET /api/auth/login` (302 → Google, sets a signed state cookie),
-`GET /api/auth/callback` (verify state, exchange code, allowlist-check, upsert
-user by email, set session cookie, 302 → `/`), `POST /api/auth/logout`. See
+`GET /api/auth/callback` (verify state, exchange code, require a Google-**verified**
+email, allowlist-check, upsert user by email, set session cookie, 302 → `/`),
+`POST /api/auth/logout`. See
 `src/worker/auth.ts`. Client-side, a `401` from `GET /api/workspace` surfaces as
 an `UnauthenticatedError` that renders the **sign-in landing page**
 (`SignIn.tsx`, §5) — a brand mark and a "Sign in with Google" button linking to
@@ -177,6 +178,38 @@ events (`unhandled_error`, `oauth_callback_failed`, `health_d1_probe_failed`)
 carrying the same `requestId`. `observability` is enabled in `wrangler.jsonc`, so
 the logs are queryable in the dashboard. Operational detail — tailing, querying,
 and alert setup — is in `docs/SETUP.md` §6.
+
+### Security headers (PROG-65)
+
+Two complementary layers, because the Worker only runs for `/api/*`
+(`run_worker_first`) while the SPA document, JS, CSS, and fonts are served
+straight from Cloudflare's asset handler:
+
+- **`public/_headers`** (ships to the asset root) carries the full set for the
+  statically-served app, including a **Content-Security-Policy** tuned to exactly
+  what `index.html` loads — `script-src 'self'`, `style-src 'self' 'unsafe-inline'
+  https://fonts.googleapis.com` (inline styles cover React `style={}` + dnd-kit
+  drag transforms), `font-src` Google Fonts, `img-src 'self' data: blob:`,
+  `connect-src 'self'`, `frame-ancestors 'none'`, `object-src 'none'`,
+  `base-uri 'self'`.
+- A Worker `app.use("*")` middleware sets `X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and HSTS on everything
+  the Worker serves — the `/api/*` JSON, the **image blobs** (so a client-asserted
+  upload `Content-Type` can't be MIME-sniffed into something executable), and the
+  not-authorized page. CSP is intentionally *not* set here (the not-authorized
+  page uses inline styles + Google Fonts; JSON needs none).
+
+Both layers also carry HSTS. The single-tenant trust model is deliberate: any
+allowlisted user (or the bearer token) can read all workspace data and all images
+— there is no per-resource ownership check, because every allowlisted account is
+trusted (D44). `gitUrl` is validated server-side as an `http(s)` URL on
+`POST`/`PATCH /api/repos`, so a `javascript:` value can't reach the client as a
+clickable link.
+
+Vulnerability disclosure: a `SECURITY.md` at the repo root and an RFC 9116
+`public/.well-known/security.txt` (served at `/.well-known/security.txt`) point
+reporters at the contact + policy. The `security.txt` `Expires` field is
+mandatory — renew it before it lapses (an expired file is worse than none).
 
 ### Workspace & issues
 
