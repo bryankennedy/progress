@@ -167,14 +167,14 @@ function buildItems(
         id: s,
         label: STATUS_LABELS[s],
         hint: s === issue.status ? "current" : undefined,
-        run: () => updateIssue(issue.id, { status: s }),
+        run: () => void updateIssue(issue.id, { status: s }),
       }));
     case "priority":
       return ISSUE_PRIORITIES.filter((p) => matches(PRIORITY_LABELS[p])).map((p) => ({
         id: p,
         label: PRIORITY_LABELS[p],
         hint: p === issue.priority ? "current" : undefined,
-        run: () => updateIssue(issue.id, { priority: p }),
+        run: () => void updateIssue(issue.id, { priority: p }),
       }));
     case "estimate":
       return [null, ...ISSUE_ESTIMATES]
@@ -184,7 +184,7 @@ function buildItems(
           id: String(e.value),
           label: e.label,
           hint: e.value === issue.estimate ? "current" : undefined,
-          run: () => updateIssue(issue.id, { estimate: e.value }),
+          run: () => void updateIssue(issue.id, { estimate: e.value }),
         }));
     case "tag": {
       const assigned = new Set(
@@ -227,13 +227,13 @@ function buildItems(
           id: "arc:none",
           label: "No arc",
           hint: issue.arcId === null ? "current" : undefined,
-          run: () => updateIssue(issue.id, { arcId: null }),
+          run: () => void updateIssue(issue.id, { arcId: null }),
         },
         ...productArcs.map((a) => ({
           id: a.id,
           label: a.name,
           hint: a.id === issue.arcId ? "current" : undefined,
-          run: () => updateIssue(issue.id, { arcId: a.id }),
+          run: () => void updateIssue(issue.id, { arcId: a.id }),
         })),
       ].filter((item) => matches(item.label));
     }
@@ -281,7 +281,7 @@ function buildItems(
           id: o.id,
           label: o.label,
           hint: o.value === issue.dueDate ? "current" : o.value === null ? undefined : relativeDue(o.value, today),
-          run: () => updateIssue(issue.id, { dueDate: o.value }),
+          run: () => void updateIssue(issue.id, { dueDate: o.value }),
         }));
       const typed = query.trim();
       if (/^\d{4}-\d{2}-\d{2}$/.test(typed) && typed !== issue.dueDate) {
@@ -289,7 +289,7 @@ function buildItems(
           id: "due:typed",
           label: `Set to ${typed}`,
           hint: relativeDue(typed, today),
-          run: () => updateIssue(issue.id, { dueDate: typed }),
+          run: () => void updateIssue(issue.id, { dueDate: typed }),
         });
       }
       return items;

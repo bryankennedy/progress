@@ -229,7 +229,10 @@ export default function ContainerPage({
           <EditableMarkdown
             value={resolved.description}
             placeholder="Add a description…"
-            onSave={(description) => updateContainer(type, id, { description })}
+            draftScope={{ meId: workspace.me?.id ?? "anon", targetId: id }}
+            onSave={(description) =>
+              updateContainer(type, id, { description }, { toastOnError: false })
+            }
           />
         </div>
       </header>

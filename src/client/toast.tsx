@@ -1,10 +1,17 @@
-// Minimal toast: only failure feedback for rolled-back optimistic mutations
-// needs it (SPEC §8.2 — "failures roll back with a toast"). No dependency,
-// module-level store so non-React code (the mutation layer) can raise one.
+// Minimal toast: failure feedback for rolled-back optimistic mutations
+// (SPEC §8.2 — "failures roll back with a toast"). No dependency, module-level
+// store so non-React code (the mutation layer) can raise one.
+//
+// PROG-51 adds a sticky variant with an optional action: when a save fails
+// after retries, the toast must persist (not vanish in 5s) and offer a Retry
+// so the user's preserved draft can be re-sent without hunting for it.
 
 import { useSyncExternalStore } from "react";
 
-type Toast = { id: number; message: string };
+type ToastAction = { label: string; run: () => void };
+// `key` (sticky toasts only) dedupes by source: a repeated failure from the same
+// composer replaces its toast instead of stacking another identical one.
+type Toast = { id: number; message: string; action?: ToastAction; sticky: boolean; key?: string };
 
 let toasts: readonly Toast[] = [];
 const listeners = new Set<() => void>();
@@ -14,14 +21,35 @@ function emit() {
   for (const cb of listeners) cb();
 }
 
-export function toast(message: string, dismissAfterMs = 5000) {
-  const entry = { id: nextId++, message };
-  toasts = [...toasts, entry];
+function dismiss(id: number) {
+  toasts = toasts.filter((t) => t.id !== id);
   emit();
-  setTimeout(() => {
-    toasts = toasts.filter((t) => t !== entry);
-    emit();
-  }, dismissAfterMs);
+}
+
+export function toast(message: string, dismissAfterMs = 5000) {
+  const id = nextId++;
+  toasts = [...toasts, { id, message, sticky: false }];
+  emit();
+  setTimeout(() => dismiss(id), dismissAfterMs);
+}
+
+// A persistent toast carrying an action (e.g. Retry). It stays until the user
+// invokes the action or dismisses it — used for failed saves where the work is
+// recoverable. Running the action dismisses the toast. An optional `key` dedupes
+// by source: a fresh failure from the same place replaces its existing toast
+// rather than stacking duplicates on a retry-storm.
+export function toastAction(message: string, action: ToastAction, key?: string) {
+  const id = nextId++;
+  const wrapped: ToastAction = {
+    label: action.label,
+    run: () => {
+      dismiss(id);
+      action.run();
+    },
+  };
+  const rest = key ? toasts.filter((t) => t.key !== key) : toasts;
+  toasts = [...rest, { id, message, action: wrapped, sticky: true, key }];
+  emit();
 }
 
 function subscribe(cb: () => void) {
@@ -38,9 +66,26 @@ export function Toasts() {
         <div
           key={t.id}
           data-toast
-          className="rounded-md border border-danger-border bg-danger-bg px-4 py-2 text-sm text-danger shadow-md"
+          className="flex items-center gap-3 rounded-md border border-danger-border bg-danger-bg px-4 py-2 text-sm text-danger shadow-md"
         >
-          {t.message}
+          <span>{t.message}</span>
+          {t.action && (
+            <button
+              onClick={t.action.run}
+              className="rounded border border-danger-border px-2 py-0.5 text-xs font-medium hover:bg-danger-border/20"
+            >
+              {t.action.label}
+            </button>
+          )}
+          {t.sticky && (
+            <button
+              onClick={() => dismiss(t.id)}
+              aria-label="Dismiss"
+              className="text-danger/60 hover:text-danger"
+            >
+              ✕
+            </button>
+          )}
         </div>
       ))}
     </div>
