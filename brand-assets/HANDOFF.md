@@ -7,6 +7,7 @@ Drop the contents of this `brand-assets/` folder into your app and wire it up. E
 - `favicon-16.png`, `favicon-32.png` — browser tab favicons
 - `apple-touch-icon-180.png` — iOS home-screen icon
 - `icon-512.png` — PWA / Android, standard
+- `icon-1024.png` — PWA hi-res (gives Chrome a sharper source for the macOS dock `.app` icon)
 - `icon-512-maskable.png` — PWA maskable (has safe-zone padding so OS masks don't clip)
 - `tokens.css` — all color, type, and radius tokens as CSS custom properties
 
@@ -28,6 +29,7 @@ Drop the contents of this `brand-assets/` folder into your app and wire it up. E
   "theme_color": "#f5efe0",
   "icons": [
     { "src": "/brand-assets/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/brand-assets/icon-1024.png", "sizes": "1024x1024", "type": "image/png" },
     { "src": "/brand-assets/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
