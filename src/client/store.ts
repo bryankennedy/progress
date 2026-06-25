@@ -517,11 +517,20 @@ export type ContainerPatch = Partial<{
   gitUrl: string | null;
 }>;
 
-export function updateContainer(kind: ContainerKind, id: string, patch: ContainerPatch) {
+// Returns whether the server confirmed the change. Like updateIssue, most
+// callers fire-and-forget; the container-description editor awaits it (with
+// `toastOnError: false`) to clear/keep its draft and show its own Retry message
+// (PROG-51).
+export function updateContainer(
+  kind: ContainerKind,
+  id: string,
+  patch: ContainerPatch,
+  opts?: { toastOnError?: boolean },
+): Promise<boolean> {
   const collection = CONTAINER_COLLECTIONS[kind];
   const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
   const before = (ws?.[collection] as WireContainer[] | undefined)?.find((x) => x.id === id);
-  if (!before) return;
+  if (!before) return Promise.resolve(false);
 
   const now = new Date().toISOString();
   // Mirror the server's PATCH semantics (archived boolean → archivedAt).
@@ -535,24 +544,29 @@ export function updateContainer(kind: ContainerKind, id: string, patch: Containe
     list.map((x) => (x.id === id ? ({ ...x, ...optimistic } as WireContainer) : x)),
   );
 
-  void (async () => {
-    let ok = false;
-    let message = "";
-    try {
-      const res = await fetch(`/api/${collection}/${id}`, {
+  // PATCH is idempotent, so retry transient D1 resets (PROG-51).
+  return (async () => {
+    const res = await sendWithRetry(() =>
+      fetch(`/api/${collection}/${id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(patch),
-      });
-      ok = res.ok;
-      if (!ok) message = ((await res.json()) as { error?: string }).error ?? "";
-    } catch {
-      // handled below
-    }
+      }),
+    );
+    const ok = res?.ok ?? false;
     if (!ok) {
       writeContainers(collection, (list) => list.map((x) => (x.id === id ? before : x)));
-      toast(`Couldn't save that change — reverted.${message ? ` (${message})` : ""}`);
+      if (opts?.toastOnError !== false) {
+        let message = "";
+        try {
+          message = res ? (((await res.json()) as { error?: string }).error ?? "") : "";
+        } catch {
+          // no JSON body (network failure / non-JSON error) — generic message
+        }
+        toast(`Couldn't save that change — reverted.${message ? ` (${message})` : ""}`);
+      }
     }
+    return ok;
   })();
 }
 
