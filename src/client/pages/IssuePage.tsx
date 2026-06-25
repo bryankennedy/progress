@@ -297,6 +297,13 @@ function TimelineSection({
   const [draft, setDraft] = useState(() => readDraft("comment", meId, issue.id));
   const [sending, setSending] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Always-current mirror of `draft`, so the post-send success handler can tell
+  // whether the field still holds the text it sent vs. a new comment typed while
+  // the (possibly slow/retried) send was in flight.
+  const draftRef = useRef(draft);
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
   const userName = (id: string) => workspace.users.find((u) => u.id === id)?.name ?? id;
 
   // Re-hydrate when navigating between issues (this section is keyed by issue id
@@ -321,9 +328,15 @@ function TimelineSection({
     const ok = await addComment(issue.id, body);
     setSending(false);
     if (ok) {
-      clearTimeout(debounce.current);
-      setDraft("");
-      clearDraft("comment", meId, issue.id);
+      // Only clear if the field still holds the text we sent. If the user typed a
+      // new comment while this (possibly retried) send was in flight, leave it —
+      // clearing here would silently destroy their unsent work, the very loss
+      // PROG-51 exists to prevent.
+      if (draftRef.current.trim() === body) {
+        clearTimeout(debounce.current);
+        setDraft("");
+        clearDraft("comment", meId, issue.id);
+      }
     } else {
       toastAction("Couldn't post that comment — your text is saved here.", {
         label: "Retry",
