@@ -29,8 +29,10 @@ export default function App() {
     <div className="min-h-screen bg-canvas text-ink">
       {workspace && <Header />}
       {/* Wide shell for the board; narrow pages re-constrain themselves.
-          Tighter padding on phones — the board needs the width. */}
-      <main className="mx-auto max-w-screen-2xl px-3 py-5 sm:px-6 sm:py-10">
+          Tighter padding on phones — the board needs the width. Top gap is
+          kept small so content sits just under the sticky header, with roomier
+          bottom padding for scroll breathing room (PROG-69). */}
+      <main className="mx-auto max-w-screen-2xl px-3 pb-5 pt-3 sm:px-6 sm:pb-10 sm:pt-4">
         {/* Initial app load: the only permitted loading state (SPEC §8.2). */}
         {isPending && <p className="text-ink-faint">Loading workspace…</p>}
         {error && <p className="text-danger">{String(error)}</p>}
