@@ -31,10 +31,20 @@ import { prefetchBundle } from "./workOn";
 // duplicate. A 4xx is a real client error that won't change on retry, so it's
 // returned immediately. Returns the final Response, or null when every attempt
 // failed transiently (network error or 5xx).
-const RETRY_BACKOFF_MS = [400, 1200] as const;
+//
+// Two backoff profiles. A failed comment post shows nothing wrong on screen
+// (the optimistic row is correct or gets removed), so it can retry harder to
+// recover transparently. A failed *field* mutation leaves the WRONG value
+// visible until it reverts, so it retries once, quickly — capping that
+// wrong-state window — and falls back to the revert + Retry toast.
+const COMMENT_BACKOFF_MS = [400, 1200] as const;
+const MUTATION_BACKOFF_MS = [300] as const;
 
-async function sendWithRetry(send: () => Promise<Response>): Promise<Response | null> {
-  const attempts = RETRY_BACKOFF_MS.length + 1;
+async function sendWithRetry(
+  send: () => Promise<Response>,
+  backoffs: readonly number[] = COMMENT_BACKOFF_MS,
+): Promise<Response | null> {
+  const attempts = backoffs.length + 1;
   for (let i = 0; i < attempts; i++) {
     try {
       const res = await send();
@@ -42,7 +52,7 @@ async function sendWithRetry(send: () => Promise<Response>): Promise<Response | 
     } catch {
       // Network/transport error — fall through to a retry.
     }
-    const backoff = RETRY_BACKOFF_MS[i];
+    const backoff = backoffs[i];
     if (backoff !== undefined) await new Promise((r) => setTimeout(r, backoff));
   }
   return null;
@@ -168,7 +178,9 @@ async function optimisticIssueMutation(
   if (!before) return false;
   writeIssue(id, (issue) => ({ ...issue, ...patch }));
   // PATCH is idempotent, so transient D1 resets can be retried safely (PROG-51).
-  const res = await sendWithRetry(send);
+  // Fast backoff: the optimistic value is on screen, so revert quickly on a true
+  // failure rather than holding a wrong value through a long retry.
+  const res = await sendWithRetry(send, MUTATION_BACKOFF_MS);
   const ok = res?.ok ?? false;
   if (!ok) {
     writeIssue(id, () => before);
@@ -544,14 +556,17 @@ export function updateContainer(
     list.map((x) => (x.id === id ? ({ ...x, ...optimistic } as WireContainer) : x)),
   );
 
-  // PATCH is idempotent, so retry transient D1 resets (PROG-51).
+  // PATCH is idempotent, so retry transient D1 resets (PROG-51). Fast backoff:
+  // the optimistic value is visible, so revert quickly on a true failure.
   return (async () => {
-    const res = await sendWithRetry(() =>
-      fetch(`/api/${collection}/${id}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(patch),
-      }),
+    const res = await sendWithRetry(
+      () =>
+        fetch(`/api/${collection}/${id}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(patch),
+        }),
+      MUTATION_BACKOFF_MS,
     );
     const ok = res?.ok ?? false;
     if (!ok) {
