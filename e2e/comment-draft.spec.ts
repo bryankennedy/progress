@@ -82,6 +82,25 @@ test("a second comment typed during an in-flight send is not clobbered (PROG-51)
   await expect(box).toHaveValue(stillTyping);
 });
 
+test("repeated comment-save failures don't stack toasts (PROG-51)", async ({ page }) => {
+  await openFirstIssue(page);
+  // Force every comment POST to fail so each submit raises a sticky Retry toast.
+  await page.route("**/comments", (route) =>
+    route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"boom"}' }),
+  );
+
+  const box = page.locator(COMMENT);
+  await box.fill(`will fail ${Date.now()}`);
+  await page.getByRole("button", { name: "Comment" }).click();
+  await expect(page.locator("[data-toast]")).toHaveCount(1);
+
+  // A second failure from the same composer replaces its toast rather than
+  // stacking a duplicate.
+  await box.fill(`will fail again ${Date.now()}`);
+  await page.getByRole("button", { name: "Comment" }).click();
+  await expect(page.locator("[data-toast]")).toHaveCount(1);
+});
+
 test("a container description draft is restored with an indicator (PROG-51)", async ({ page }) => {
   // Reach a container page via the issue breadcrumb's product link.
   await openFirstIssue(page);
