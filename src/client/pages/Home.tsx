@@ -364,15 +364,6 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
           onChange={(v) => setParam("product", v)}
         />
         <FilterSelect
-          label="Repo"
-          value={filters.repo}
-          options={workspace.repos
-            .filter((r) => !r.archivedAt)
-            .filter((r) => !filters.product || r.productId === filters.product)
-            .map((r) => [r.id, r.name])}
-          onChange={(v) => setParam("repo", v)}
-        />
-        <FilterSelect
           label="Arc"
           value={filters.arc}
           options={workspace.arcs
@@ -380,6 +371,15 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
             .filter((a) => !filters.product || a.productId === filters.product)
             .map((a) => [a.id, a.name])}
           onChange={(v) => setParam("arc", v)}
+        />
+        <FilterSelect
+          label="Repo"
+          value={filters.repo}
+          options={workspace.repos
+            .filter((r) => !r.archivedAt)
+            .filter((r) => !filters.product || r.productId === filters.product)
+            .map((r) => [r.id, r.name])}
+          onChange={(v) => setParam("repo", v)}
         />
         <FilterSelect
           label="Tag"
