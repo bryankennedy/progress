@@ -50,6 +50,55 @@ test("posting a comment clears its draft, even across a reload (PROG-51)", async
   await expect(page.locator(COMMENT)).toHaveValue("");
 });
 
+test("a second comment typed during an in-flight send is not clobbered (PROG-51)", async ({
+  page,
+}) => {
+  await openFirstIssue(page);
+
+  // Hold the comment POST open so there's a window to keep typing while the first
+  // send is in flight (the slow/retry path).
+  let release: () => void = () => {};
+  const gate = new Promise<void>((r) => (release = r));
+  await page.route("**/comments", async (route) => {
+    await gate;
+    await route.continue();
+  });
+
+  // Unique per run — the local DB persists comments across test runs.
+  const sent = `first comment ${Date.now()}`;
+  const stillTyping = `second comment still being written ${Date.now()}`;
+
+  const box = page.locator(COMMENT);
+  await box.fill(sent);
+  await page.getByRole("button", { name: "Comment" }).click();
+
+  // While the first POST is held, the user types a brand-new comment.
+  await box.fill(stillTyping);
+  release(); // let the first POST complete
+
+  // The first comment lands, but the in-progress second comment is preserved —
+  // the success handler must not wipe text it didn't send.
+  await expect(page.locator("li", { hasText: sent })).toBeVisible();
+  await expect(box).toHaveValue(stillTyping);
+});
+
+test("a container description draft is restored with an indicator (PROG-51)", async ({ page }) => {
+  // Reach a container page via the issue breadcrumb's product link.
+  await openFirstIssue(page);
+  await page.locator('a[href^="/product/"]').first().click();
+  await page.waitForSelector("section.cursor-text");
+
+  await page.locator("section.cursor-text").first().click();
+  const text = `Container description draft ${Date.now()}`;
+  await page.locator(DESC_EDITOR).fill(text);
+  await page.waitForTimeout(600);
+  await page.reload();
+
+  await page.locator("section.cursor-text").first().click();
+  await expect(page.locator(DESC_EDITOR)).toHaveValue(text);
+  await expect(page.getByText("Unsaved draft restored.")).toBeVisible();
+});
+
 test("an unsaved description edit is restored with an indicator (PROG-51)", async ({ page }) => {
   await openFirstIssue(page);
 
