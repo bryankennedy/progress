@@ -1236,11 +1236,21 @@ app.get("/api/issues/:key/bundle", async (c) => {
 
 app.post("/api/issues/:id/comments", async (c) => {
   const id = c.req.param("id");
-  const body = (await c.req.json()) as { body?: string };
+  const body = (await c.req.json()) as { id?: string; body?: string };
   if (typeof body.body !== "string" || body.body.trim() === "")
     return c.json({ error: "comment body must be a non-empty string" }, 400);
 
+  // Optional client-supplied id = idempotency key (PROG-51). The client already
+  // mints this `cmt_…` id for its optimistic row; sending it lets a client
+  // safely retry a comment whose write may have committed *before* the response
+  // failed (a D1 storage-reset timeout did exactly this in prod). Validate the
+  // shape so it can't be abused to probe arbitrary ids.
+  const clientId = body.id;
+  if (clientId !== undefined && !/^cmt_[0-9a-f]{32}$/.test(clientId))
+    return c.json({ error: "invalid comment id" }, 400);
+
   const db = drizzle(c.env.DB);
+  const userId = c.get("userId");
   const [existing] = await db
     .select({ id: issues.id })
     .from(issues)
@@ -1248,13 +1258,26 @@ app.post("/api/issues/:id/comments", async (c) => {
     .limit(1);
   if (!existing) return c.json({ error: "issue not found" }, 404);
 
+  // Idempotent retry: if this id already exists, treat it as success only when
+  // it belongs to the same author *and* issue — never return another user's row
+  // and never silently re-home it onto a different issue (the user-scoping guard
+  // PROG-51). Anything else is a genuine conflict. Select-before-insert is safe
+  // at single-user, sequential-retry rates.
+  if (clientId) {
+    const [prior] = await db.select().from(comments).where(eq(comments.id, clientId)).limit(1);
+    if (prior) {
+      if (prior.authorId === userId && prior.issueId === id) return c.json({ comment: prior }, 200);
+      return c.json({ error: "comment id already exists" }, 409);
+    }
+  }
+
   const now = new Date();
   const [comment] = await db
     .insert(comments)
     .values({
-      id: newId("cmt"),
+      id: clientId ?? newId("cmt"),
       issueId: id,
-      authorId: c.get("userId"),
+      authorId: userId,
       body: body.body,
       createdAt: now,
       updatedAt: now,
