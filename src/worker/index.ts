@@ -1258,32 +1258,38 @@ app.post("/api/issues/:id/comments", async (c) => {
     .limit(1);
   if (!existing) return c.json({ error: "issue not found" }, 404);
 
-  // Idempotent retry: if this id already exists, treat it as success only when
-  // it belongs to the same author *and* issue — never return another user's row
-  // and never silently re-home it onto a different issue (the user-scoping guard
-  // PROG-51). Anything else is a genuine conflict. Select-before-insert is safe
-  // at single-user, sequential-retry rates.
-  if (clientId) {
-    const [prior] = await db.select().from(comments).where(eq(comments.id, clientId)).limit(1);
-    if (prior) {
-      if (prior.authorId === userId && prior.issueId === id) return c.json({ comment: prior }, 200);
-      return c.json({ error: "comment id already exists" }, 409);
-    }
-  }
-
+  // Insert with the supplied id (or a fresh one), tolerating a pre-existing row
+  // so a retry — or two same-id requests racing — never throws a PK violation
+  // (→ unhandled 500 + Sentry noise). `onConflictDoNothing` returns no row when
+  // the id already exists; that path is the idempotent retry / race loser.
+  const commentId = clientId ?? newId("cmt");
   const now = new Date();
   const [comment] = await db
     .insert(comments)
     .values({
-      id: clientId ?? newId("cmt"),
+      id: commentId,
       issueId: id,
       authorId: userId,
       body: body.body,
       createdAt: now,
       updatedAt: now,
     })
+    .onConflictDoNothing()
     .returning();
-  return c.json({ comment }, 201);
+  if (comment) return c.json({ comment }, 201);
+
+  // Conflict: the id already exists. Treat it as success only when the existing
+  // row belongs to the same author *and* issue — never return another user's row
+  // and never silently re-home it onto a different issue (the user-scoping guard
+  // PROG-51). Anything else is a genuine conflict.
+  const [prior] = await db
+    .select()
+    .from(comments)
+    .where(eq(comments.id, commentId))
+    .limit(1);
+  if (prior && prior.authorId === userId && prior.issueId === id)
+    return c.json({ comment: prior }, 200);
+  return c.json({ error: "comment id already exists" }, 409);
 });
 
 // ---------- GitHub webhook (SPEC §5, D29) ----------
