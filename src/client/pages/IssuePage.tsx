@@ -338,10 +338,11 @@ function TimelineSection({
         clearDraft("comment", meId, issue.id);
       }
     } else {
-      toastAction("Couldn't post that comment — your text is saved here.", {
-        label: "Retry",
-        run: () => void sendComment(body),
-      });
+      toastAction(
+        "Couldn't post that comment — your text is saved here.",
+        { label: "Retry", run: () => void sendComment(body) },
+        `comment:${issue.id}`,
+      );
     }
   }
 

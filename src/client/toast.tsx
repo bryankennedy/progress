@@ -9,7 +9,9 @@
 import { useSyncExternalStore } from "react";
 
 type ToastAction = { label: string; run: () => void };
-type Toast = { id: number; message: string; action?: ToastAction; sticky: boolean };
+// `key` (sticky toasts only) dedupes by source: a repeated failure from the same
+// composer replaces its toast instead of stacking another identical one.
+type Toast = { id: number; message: string; action?: ToastAction; sticky: boolean; key?: string };
 
 let toasts: readonly Toast[] = [];
 const listeners = new Set<() => void>();
@@ -33,8 +35,10 @@ export function toast(message: string, dismissAfterMs = 5000) {
 
 // A persistent toast carrying an action (e.g. Retry). It stays until the user
 // invokes the action or dismisses it — used for failed saves where the work is
-// recoverable. Running the action dismisses the toast.
-export function toastAction(message: string, action: ToastAction) {
+// recoverable. Running the action dismisses the toast. An optional `key` dedupes
+// by source: a fresh failure from the same place replaces its existing toast
+// rather than stacking duplicates on a retry-storm.
+export function toastAction(message: string, action: ToastAction, key?: string) {
   const id = nextId++;
   const wrapped: ToastAction = {
     label: action.label,
@@ -43,7 +47,8 @@ export function toastAction(message: string, action: ToastAction) {
       action.run();
     },
   };
-  toasts = [...toasts, { id, message, action: wrapped, sticky: true }];
+  const rest = key ? toasts.filter((t) => t.key !== key) : toasts;
+  toasts = [...rest, { id, message, action: wrapped, sticky: true, key }];
   emit();
 }
 

@@ -65,10 +65,11 @@ export default function EditableMarkdown({
       clearDraft("description", draftScope.meId, draftScope.targetId);
     } else {
       writeDraft("description", draftScope.meId, draftScope.targetId, next);
-      toastAction("Couldn't save that description — kept here as a draft.", {
-        label: "Retry",
-        run: () => void persist(next),
-      });
+      toastAction(
+        "Couldn't save that description — kept here as a draft.",
+        { label: "Retry", run: () => void persist(next) },
+        `description:${draftScope.targetId}`,
+      );
     }
   }
 
