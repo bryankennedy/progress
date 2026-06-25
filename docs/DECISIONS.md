@@ -925,3 +925,43 @@ name/emails/domains appear, an intentional develop-in-public choice).
 (OAuth callback rejects on signed-state before any work; the webhook is
 HMAC-gated; uploads are authenticated) and Cloudflare provides platform DDoS
 protection, so this is defense-in-depth rather than a live risk.
+
+### PROG-51 — auto-save drafts + write-failure resilience for comments & descriptions
+
+Motivated by a real incident: a transient D1 "storage operation exceeded
+timeout which caused object to be reset" error surfaced on `POST
+/api/issues/:id/comments`, yet the comment had actually **committed** server-side
+before the error returned (confirmed in prod). Two problems exposed: (1) typed
+text is lost on a failed save (the composer cleared the draft before the server
+confirmed), and (2) a naive auto-retry would **duplicate** a comment that
+already landed, because the comment id was generated server-side.
+
+**Decisions:**
+
+- **Comment POST becomes idempotent via a client-supplied id.** The client now
+  generates the `cmt_…` id (it already did for the optimistic row) and sends it
+  in the body; the server validates the shape (`^cmt_[0-9a-f]{32}$`) and, if the
+  id already exists, returns the existing row as success **only when it belongs
+  to the same `authorId` and `issueId`** — otherwise `409`. This is the
+  user-scoping guard (single-tenant trust model notwithstanding, D-security): a
+  retry can never attach to, or reveal, another allowlisted user's comment. No
+  migration — `id` is already the PK; the conflict is handled by a
+  select-before-insert (safe at single-user, sequential-retry rates).
+- **Drafts persist to localStorage, namespaced by the signed-in user.** Key
+  shape `progress:draft:<kind>:<meId>:<targetId>` (kind = `comment` |
+  `description`), written debounced as you type and cleared only on a
+  server-confirmed save. Survives tab close / reload / accidental navigation.
+  User-namespacing keeps drafts from leaking across allowlisted accounts that
+  share a browser profile.
+- **Failed writes auto-retry with backoff, then surface a persistent toast with
+  a Retry action.** Comment sends retry ~2× (idempotent, so safe); on exhaustion
+  the optimistic row is removed, the draft is preserved (and repopulated into the
+  live composer if still mounted), and a non-auto-dismissing toast offers Retry
+  (re-sends the same id → no duplicate). This extends the previously
+  failure-only, auto-dismiss toast with an optional action + sticky variant.
+- **Restored description drafts carry a subtle "unsaved draft" indicator.** A
+  description draft is unsent text shown in place of the saved value, so silent
+  restore could be mistaken for a saved edit; the editor reopens with the draft
+  plus a small "Unsaved draft — discard" affordance. Description PATCH is already
+  idempotent, so it needs no id key — only the draft + retry/Retry-toast
+  treatment.
