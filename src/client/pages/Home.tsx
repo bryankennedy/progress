@@ -44,7 +44,7 @@ import {
 } from "../../shared/constants";
 import { rankBetween } from "../../shared/rank";
 import { reorder, type ColumnMap } from "../boardOrder";
-import { filtersToRestore, loadBoardFilters, saveBoardFilters } from "../boardFilters";
+import { filtersToRestore, loadBoardFilters, saveBoardFilters, sortByName } from "../boardFilters";
 import { recentlyCompleted } from "../boardDone";
 import type { WireIssue, WireTag, WorkspacePayload } from "../../shared/types";
 import { openCreateIssue } from "../commands/controller";
@@ -349,42 +349,46 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
         <FilterSelect
           label="Initiative"
           value={filters.initiative}
-          options={workspace.initiatives
-            .filter((i) => !i.archivedAt)
-            .map((i) => [i.id, i.name])}
+          options={sortByName(workspace.initiatives.filter((i) => !i.archivedAt)).map((i) => [
+            i.id,
+            i.name,
+          ])}
           onChange={(v) => setParam("initiative", v)}
         />
         <FilterSelect
           label="Product"
           value={filters.product}
-          options={workspace.products
-            .filter((p) => !p.archivedAt)
-            .filter((p) => !filters.initiative || p.initiativeId === filters.initiative)
-            .map((p) => [p.id, p.name])}
+          options={sortByName(
+            workspace.products
+              .filter((p) => !p.archivedAt)
+              .filter((p) => !filters.initiative || p.initiativeId === filters.initiative),
+          ).map((p) => [p.id, p.name])}
           onChange={(v) => setParam("product", v)}
         />
         <FilterSelect
           label="Arc"
           value={filters.arc}
-          options={workspace.arcs
-            .filter((a) => !a.archivedAt)
-            .filter((a) => !filters.product || a.productId === filters.product)
-            .map((a) => [a.id, a.name])}
+          options={sortByName(
+            workspace.arcs
+              .filter((a) => !a.archivedAt)
+              .filter((a) => !filters.product || a.productId === filters.product),
+          ).map((a) => [a.id, a.name])}
           onChange={(v) => setParam("arc", v)}
         />
         <FilterSelect
           label="Repo"
           value={filters.repo}
-          options={workspace.repos
-            .filter((r) => !r.archivedAt)
-            .filter((r) => !filters.product || r.productId === filters.product)
-            .map((r) => [r.id, r.name])}
+          options={sortByName(
+            workspace.repos
+              .filter((r) => !r.archivedAt)
+              .filter((r) => !filters.product || r.productId === filters.product),
+          ).map((r) => [r.id, r.name])}
           onChange={(v) => setParam("repo", v)}
         />
         <FilterSelect
           label="Tag"
           value={filters.tag}
-          options={workspace.tags.map((t) => [t.id, t.name])}
+          options={sortByName(workspace.tags).map((t) => [t.id, t.name])}
           onChange={(v) => setParam("tag", v)}
         />
         <FilterSelect

@@ -34,3 +34,12 @@ export function saveBoardFilters(search: string): void {
 export function filtersToRestore(currentSearch: string, saved: string): string | null {
   return !currentSearch && saved ? saved : null;
 }
+
+// Order name-based filter dropdown options alphabetically (PROG-66) so a long
+// Arc / Product / Repo / Initiative / tag list is scannable. Returns a new array
+// (the input may be a live store array, e.g. workspace.tags). Logical
+// vocabularies — status, priority — keep their meaningful order and must NOT use
+// this; their fixed sequence is the order they read in.
+export function sortByName<T extends { name: string }>(items: T[]): T[] {
+  return [...items].sort((a, b) => a.name.localeCompare(b.name));
+}
