@@ -521,9 +521,14 @@ function BoardColumn({
   const { setNodeRef, isOver } = useDroppable({ id: status });
   const hiddenCount = total !== undefined && total > issueIds.length;
   return (
+    // flex-1 min-w-72: columns grow equally to fill the board's container width
+    // (capped + centered by <main>'s max-w-screen-2xl, so they don't sprawl on a
+    // 30" monitor), keeping matching widths and a symmetric right margin. The
+    // 18rem floor is the old fixed width — once columns can't all fit, they stop
+    // shrinking and the row's overflow-x-auto scrolls instead (mobile) (PROG-71).
     <section
       ref={setNodeRef}
-      className={`flex w-72 shrink-0 flex-col rounded-lg p-2 ${isOver ? "bg-adobe-wash/30 ring-1 ring-adobe-light" : "bg-line/40"}`}
+      className={`flex min-w-72 flex-1 flex-col rounded-lg p-2 ${isOver ? "bg-adobe-wash/30 ring-1 ring-adobe-light" : "bg-line/40"}`}
     >
       <h2 className="px-1 pb-2 text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">
         {STATUS_LABELS[status]} · {hiddenCount ? `${issueIds.length} of ${total}` : issueIds.length}
