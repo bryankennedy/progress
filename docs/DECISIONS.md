@@ -965,3 +965,17 @@ already landed, because the comment id was generated server-side.
   plus a small "Unsaved draft — discard" affordance. Description PATCH is already
   idempotent, so it needs no id key — only the draft + retry/Retry-toast
   treatment.
+
+*Review hardening (PROG-51, same session):*
+
+- **The composer clears on success only when the field still holds the sent
+  text.** A second comment typed while the first (slow/retried) send was in
+  flight was being wiped by the success handler — the exact silent loss this
+  issue targets. `sendComment` now compares a live `draftRef` against the sent
+  body and leaves a newly-typed comment untouched.
+- **Container descriptions (product/repo/arc) get the same drafts + retry.** The
+  shared `EditableMarkdown` was built for both issue and container descriptions,
+  but `ContainerPage` hadn't opted in; it now passes `draftScope`, and
+  `updateContainer` mirrors `updateIssue` (retry + returns confirmation +
+  `toastOnError` opt-out) so the editor clears the draft only on a confirmed
+  save.
