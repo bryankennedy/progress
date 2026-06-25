@@ -24,6 +24,30 @@ import type {
 import { toast } from "./toast";
 import { prefetchBundle } from "./workOn";
 
+// Retry transient write failures (PROG-51). A D1 storage-reset timeout throws a
+// 500 (or a network error) even though the operation sometimes committed — so
+// retries must target idempotent requests only: PATCH/DELETE are naturally
+// idempotent, and comment POST carries a client-supplied id so a re-send can't
+// duplicate. A 4xx is a real client error that won't change on retry, so it's
+// returned immediately. Returns the final Response, or null when every attempt
+// failed transiently (network error or 5xx).
+const RETRY_BACKOFF_MS = [400, 1200] as const;
+
+async function sendWithRetry(send: () => Promise<Response>): Promise<Response | null> {
+  const attempts = RETRY_BACKOFF_MS.length + 1;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await send();
+      if (res.ok || (res.status >= 400 && res.status < 500)) return res;
+    } catch {
+      // Network/transport error — fall through to a retry.
+    }
+    const backoff = RETRY_BACKOFF_MS[i];
+    if (backoff !== undefined) await new Promise((r) => setTimeout(r, backoff));
+  }
+  return null;
+}
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     // Nothing goes stale on its own: this client is the only writer
@@ -138,19 +162,19 @@ async function optimisticIssueMutation(
   id: string,
   patch: Partial<WireIssue>,
   send: () => Promise<Response>,
-) {
+  opts?: { toastOnError?: boolean },
+): Promise<boolean> {
   const before = getIssue(id);
-  if (!before) return;
+  if (!before) return false;
   writeIssue(id, (issue) => ({ ...issue, ...patch }));
-  let ok = false;
-  try {
-    ok = (await send()).ok;
-  } catch {
-    ok = false;
-  }
+  // PATCH is idempotent, so transient D1 resets can be retried safely (PROG-51).
+  const res = await sendWithRetry(send);
+  const ok = res?.ok ?? false;
   if (!ok) {
     writeIssue(id, () => before);
-    toast("Couldn't save that change — reverted.");
+    // A caller managing its own draft/Retry affordance (the description editor)
+    // suppresses this generic toast to avoid a double notification.
+    if (opts?.toastOnError !== false) toast("Couldn't save that change — reverted.");
   } else {
     refreshBundle(id);
     if (patch.status !== undefined) {
@@ -159,6 +183,7 @@ async function optimisticIssueMutation(
       void queryClient.invalidateQueries({ queryKey: timelineKey(id) });
     }
   }
+  return ok;
 }
 
 export type IssuePatch = Partial<{
@@ -175,7 +200,15 @@ export type IssuePatch = Partial<{
   rank: string;
 }>;
 
-export function updateIssue(id: string, patch: IssuePatch) {
+// Returns whether the server confirmed the change. Most callers fire-and-forget
+// (the optimistic write + toast-on-failure is enough); the description editor
+// awaits it to clear/keep its draft and offer Retry (PROG-51), passing
+// `toastOnError: false` so it can show its own draft-aware message instead.
+export function updateIssue(
+  id: string,
+  patch: IssuePatch,
+  opts?: { toastOnError?: boolean },
+): Promise<boolean> {
   const now = new Date().toISOString();
   // Mirrors the server's PATCH semantics so the optimistic state matches
   // what a reload would fetch.
@@ -183,12 +216,16 @@ export function updateIssue(id: string, patch: IssuePatch) {
   if (patch.status !== undefined) {
     optimistic.completedAt = patch.status === "done" ? now : null;
   }
-  void optimisticIssueMutation(id, optimistic, () =>
-    fetch(`/api/issues/${id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(patch),
-    }),
+  return optimisticIssueMutation(
+    id,
+    optimistic,
+    () =>
+      fetch(`/api/issues/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(patch),
+      }),
+    opts,
   );
 }
 
@@ -648,43 +685,39 @@ export function useTimeline(issueId: string) {
   });
 }
 
-export function addComment(issueId: string, body: string) {
-  // Same optimistic shape as issue mutations: a temp comment appears
-  // instantly and is replaced by the server row (or removed + toast).
-  const temp: WireComment = {
-    id: `cmt_optimistic_${Date.now()}`,
-    issueId,
-    authorId: "usr_owner",
-    body,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+// Posts a comment optimistically and reports whether the server confirmed it.
+// The `cmt_…` id is minted here and sent to the server as an idempotency key
+// (PROG-51): a transient D1 timeout can return an error *after* the row
+// committed, so `sendWithRetry` re-sends the same id and the server returns the
+// existing row instead of duplicating it. The optimistic row uses that same id,
+// so a successful refetch reconciles without a flicker. On exhausted failure
+// the row is removed and `false` is returned — the caller keeps the draft and
+// offers Retry (re-calling this with the same text is safe).
+export async function addComment(issueId: string, body: string): Promise<boolean> {
+  const id = `cmt_${crypto.randomUUID().replaceAll("-", "")}`;
+  const authorId = queryClient.getQueryData<WorkspacePayload>(WS_KEY)?.me?.id ?? "usr_owner";
+  const now = new Date().toISOString();
+  const temp: WireComment = { id, issueId, authorId, body, createdAt: now, updatedAt: now };
   queryClient.setQueryData<Timeline>(timelineKey(issueId), (t) =>
     t ? { ...t, comments: [...t.comments, temp] } : t,
   );
-  void (async () => {
-    let ok = false;
-    try {
-      ok = (
-        await fetch(`/api/issues/${issueId}/comments`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ body }),
-        })
-      ).ok;
-    } catch {
-      ok = false;
-    }
-    if (ok) {
-      void queryClient.invalidateQueries({ queryKey: timelineKey(issueId) });
-      refreshBundle(issueId);
-    } else {
-      queryClient.setQueryData<Timeline>(timelineKey(issueId), (t) =>
-        t ? { ...t, comments: t.comments.filter((cm) => cm.id !== temp.id) } : t,
-      );
-      toast("Couldn't post that comment — removed.");
-    }
-  })();
+
+  const res = await sendWithRetry(() =>
+    fetch(`/api/issues/${issueId}/comments`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id, body }),
+    }),
+  );
+  if (res?.ok) {
+    void queryClient.invalidateQueries({ queryKey: timelineKey(issueId) });
+    refreshBundle(issueId);
+    return true;
+  }
+  queryClient.setQueryData<Timeline>(timelineKey(issueId), (t) =>
+    t ? { ...t, comments: t.comments.filter((cm) => cm.id !== id) } : t,
+  );
+  return false;
 }
 
 // ---------- admin: sign-in allowlist (D44) ----------

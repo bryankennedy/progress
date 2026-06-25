@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Markdown from "../Markdown";
 import MarkdownTextarea from "../MarkdownTextarea";
 import { Link, useLocation } from "wouter";
@@ -32,6 +32,8 @@ import {
   useTimeline,
 } from "../store";
 import { copyBundleAsPrompt, copyWorkCommand, prefetchBundle } from "../workOn";
+import { clearDraft, readDraft, writeDraft } from "../drafts";
+import { toastAction } from "../toast";
 
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -125,7 +127,10 @@ export default function IssuePage({
           <EditableMarkdown
             value={issue.description}
             placeholder="Add a description…"
-            onSave={(description) => updateIssue(issue.id, { description })}
+            draftScope={{ meId: workspace.me?.id ?? "anon", targetId: issue.id }}
+            onSave={(description) =>
+              updateIssue(issue.id, { description }, { toastOnError: false })
+            }
           />
           <TimelineSection issue={issue} workspace={workspace} />
         </div>
@@ -285,8 +290,53 @@ function TimelineSection({
   workspace: WorkspacePayload;
 }) {
   const { data: timeline, isPending, error } = useTimeline(issue.id);
-  const [draft, setDraft] = useState("");
+  const meId = workspace.me?.id ?? "anon";
+  // Comment draft persists to localStorage as you type (PROG-51), so unsent text
+  // survives a tab close, reload, or a failed/timed-out post. Cleared only once
+  // the server confirms the comment.
+  const [draft, setDraft] = useState(() => readDraft("comment", meId, issue.id));
+  const [sending, setSending] = useState(false);
+  const debounce = useRef<ReturnType<typeof setTimeout>>(undefined);
   const userName = (id: string) => workspace.users.find((u) => u.id === id)?.name ?? id;
+
+  // Re-hydrate when navigating between issues (this section is keyed by issue id
+  // but remounts may reuse state) or once the signed-in user resolves.
+  useEffect(() => {
+    setDraft(readDraft("comment", meId, issue.id));
+  }, [meId, issue.id]);
+  useEffect(() => () => clearTimeout(debounce.current), []);
+
+  function onDraftChange(next: string) {
+    setDraft(next);
+    clearTimeout(debounce.current);
+    debounce.current = setTimeout(() => writeDraft("comment", meId, issue.id, next), 400);
+  }
+
+  // Send an explicit body (not read from state) so a Retry re-sends exactly that
+  // text without a stale-closure read. The text stays in the field and in
+  // localStorage until the server confirms, then both are cleared — so a failed
+  // or in-flight send never loses it.
+  async function sendComment(body: string) {
+    setSending(true);
+    const ok = await addComment(issue.id, body);
+    setSending(false);
+    if (ok) {
+      clearTimeout(debounce.current);
+      setDraft("");
+      clearDraft("comment", meId, issue.id);
+    } else {
+      toastAction("Couldn't post that comment — your text is saved here.", {
+        label: "Retry",
+        run: () => void sendComment(body),
+      });
+    }
+  }
+
+  function submitComment() {
+    const body = draft.trim();
+    if (body === "" || sending) return;
+    void sendComment(body);
+  }
 
   const entries = useMemo(() => {
     if (!timeline) return [];
@@ -350,20 +400,15 @@ function TimelineSection({
       <div className="mt-6">
         <MarkdownTextarea
           value={draft}
-          onChange={setDraft}
+          onChange={onDraftChange}
           rows={3}
           placeholder="Leave a comment… (Markdown)"
           className="w-full rounded border border-line bg-card p-3 text-sm focus:border-ink-faint focus:outline-none"
         />
         <button
-          onClick={() => {
-            const body = draft.trim();
-            if (body === "") return;
-            addComment(issue.id, body);
-            setDraft("");
-          }}
+          onClick={submitComment}
           className="mt-2 rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep disabled:opacity-40"
-          disabled={draft.trim() === ""}
+          disabled={draft.trim() === "" || sending}
         >
           Comment
         </button>
