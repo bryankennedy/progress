@@ -12,6 +12,7 @@
 import { useMemo } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import type { WireIssue, WireTag, WorkspacePayload } from "../../shared/types";
+import { sortByName } from "../boardFilters";
 import { type AgendaBucket, bucketOf, formatDueDate, relativeDue, todayISO } from "../dates";
 import { STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
@@ -102,22 +103,26 @@ export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
         <FilterSelect
           label="Product"
           value={filters.product}
-          options={workspace.products.filter((p) => !p.archivedAt).map((p) => [p.id, p.name])}
+          options={sortByName(workspace.products.filter((p) => !p.archivedAt)).map((p) => [
+            p.id,
+            p.name,
+          ])}
           onChange={(v) => setParam("product", v)}
         />
         <FilterSelect
           label="Arc"
           value={filters.arc}
-          options={workspace.arcs
-            .filter((a) => !a.archivedAt)
-            .filter((a) => !filters.product || a.productId === filters.product)
-            .map((a) => [a.id, a.name])}
+          options={sortByName(
+            workspace.arcs
+              .filter((a) => !a.archivedAt)
+              .filter((a) => !filters.product || a.productId === filters.product),
+          ).map((a) => [a.id, a.name])}
           onChange={(v) => setParam("arc", v)}
         />
         <FilterSelect
           label="Tag"
           value={filters.tag}
-          options={workspace.tags.map((t) => [t.id, t.name])}
+          options={sortByName(workspace.tags).map((t) => [t.id, t.name])}
           onChange={(v) => setParam("tag", v)}
         />
         {filtersActive && (

@@ -392,7 +392,9 @@ canonical key — entirely client-side from the loaded workspace (D22).
   statuses; Backlog hides behind a toggle by default. Filters (initiative,
   product, repo, arc, tag, priority) live in URL query params, so any
   filtered board is bookmarkable — this is how per-container boards are
-  covered without existing (D23). The current filter selection is also
+  covered without existing (D23). Name-based filter dropdowns (initiative,
+  product, repo, arc, tag) list their options alphabetically; priority keeps
+  its logical order (PROG-66). The Agenda filters sort the same way. The current filter selection is also
   mirrored to `localStorage` (`progress:board-filters`) and re-applied when the
   board is reopened with a bare URL, so a choice sticks across navigation;
   "Clear filters" clears the memory too (PROG-58). Drag-and-drop reorders cards
