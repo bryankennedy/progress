@@ -979,3 +979,18 @@ already landed, because the comment id was generated server-side.
   `updateContainer` mirrors `updateIssue` (retry + returns confirmation +
   `toastOnError` opt-out) so the editor clears the draft only on a confirmed
   save.
+- **The comment insert is race-safe via `onConflictDoNothing` + re-SELECT.** The
+  earlier select-before-insert could let two same-id POSTs both pass the check
+  and the loser hit a PK violation → unhandled 500 + Sentry noise. The insert now
+  tolerates the conflict and, on an empty result, re-SELECTs and re-applies the
+  author+issue ownership check to return a clean 200/409. A concurrent same-id
+  race yields one 201 + one 200 and a single row.
+- **Sticky Retry toasts dedupe by source key.** `toastAction` takes an optional
+  `key` (`comment:<issueId>`, `description:<targetId>`); a repeat failure from the
+  same composer replaces its toast rather than stacking duplicates on a
+  retry-storm.
+- **Two retry-backoff profiles.** A failed comment post shows nothing wrong on
+  screen, so it retries harder (`[400, 1200]`) to recover transparently; a failed
+  *field* mutation (status/priority/rename/rank/description) leaves the wrong
+  value visible, so it retries once quickly (`[300]`) to cap that window, then
+  reverts + Retry-toasts. The success path stays instant either way.
