@@ -57,6 +57,13 @@
       "when": 1782242737257,
       "tag": "0007_goofy_moira_mactaggert",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1782504697391,
+      "tag": "0008_grey_gorgon",
+      "breakpoints": true
     }
   ]
 }

@@ -205,6 +205,9 @@ export type IssuePatch = Partial<{
   priority: IssuePriority;
   estimate: number | null;
   arcId: string | null;
+  // Sub-issue reparent (PROG-124): the new parent issue, or null to outdent to
+  // the top of its product. Server enforces same-product + acyclic.
+  parentIssueId: string | null;
   dueDate: string | null;
   // Fractional-index board position (PROG-43). The caller computes the key from
   // the drop site's neighbors via `rankBetween`; a reorder across columns sends
@@ -252,6 +255,7 @@ export type IssueCreateInput = {
   productId: string;
   repoId: string | null;
   arcId: string | null;
+  parentIssueId: string | null;
   status: IssueStatus;
   priority: IssuePriority;
   estimate: number | null;
@@ -281,6 +285,7 @@ export function createIssue(input: IssueCreateInput): string | undefined {
     productId: input.productId,
     repoId: input.repoId,
     arcId: input.arcId,
+    parentIssueId: input.parentIssueId,
     number: product.nextIssueNumber,
     title: input.title,
     description: "",
@@ -380,10 +385,15 @@ export function moveIssue(id: string, target: MoveTarget) {
               productId: target.productId,
               repoId: target.repoId,
               arcId: null,
+              // Cross-product move drops the parent and detaches children
+              // (PROG-124) — mirrors the server's move handler.
+              parentIssueId: null,
               number: targetProduct.nextIssueNumber,
               updatedAt: now,
             }
-          : i,
+          : i.parentIssueId === id
+            ? { ...i, parentIssueId: null, updatedAt: now }
+            : i,
       ),
       products: w.products.map((p) =>
         p.id === target.productId ? { ...p, nextIssueNumber: p.nextIssueNumber + 1 } : p,
