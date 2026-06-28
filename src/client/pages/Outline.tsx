@@ -210,6 +210,95 @@ function IssueRow({
   );
 }
 
+// ---------- product capture (initiative scope only) ----------
+
+// An initiative's first issue needs a product to live on, and a product needs a
+// permanent, unique issue-key prefix (e.g. PROG). So unlike issues/arcs, a
+// product can't be a bare "type a name" bullet — but we keep the Workflowy feel:
+// type the name → the prefix auto-fills (editable) → Enter. The prefix is
+// deduped against every existing product client-side so Enter never hits a 409.
+const suggestPrefix = (name: string) =>
+  name
+    .toUpperCase()
+    .replaceAll(/[^A-Z]/g, "")
+    .slice(0, 4);
+
+function ProductCaptureRow({
+  initiativeId,
+  existingPrefixes,
+  focusToken,
+  onCreated,
+}: {
+  initiativeId: string;
+  existingPrefixes: Set<string>;
+  focusToken: number;
+  onCreated: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [prefix, setPrefix] = useState("");
+  const [prefixTouched, setPrefixTouched] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
+  // Refocus the name field after each create so products capture continuously.
+  useEffect(() => {
+    if (focusToken > 0) nameRef.current?.focus();
+  }, [focusToken]);
+
+  const norm = prefix.toUpperCase();
+  const prefixValid = /^[A-Z]{2,8}$/.test(norm);
+  const clash = prefixValid && existingPrefixes.has(norm);
+  const canSubmit = name.trim() !== "" && prefixValid && !clash;
+
+  const submit = () => {
+    if (!canSubmit) return;
+    createContainer({ kind: "product", name: name.trim(), initiativeId, keyPrefix: norm });
+    setName("");
+    setPrefix("");
+    setPrefixTouched(false);
+    onCreated();
+  };
+
+  return (
+    <div className="flex items-center gap-1.5 py-0.5">
+      <LevelIcon kind="product" />
+      <input
+        ref={nameRef}
+        value={name}
+        onChange={(e) => {
+          setName(e.target.value);
+          if (!prefixTouched) setPrefix(suggestPrefix(e.target.value));
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            submit();
+          }
+        }}
+        placeholder="New product — Enter to add"
+        className="min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-sm text-ink placeholder:text-ink-faint focus:bg-card focus:outline-none focus:ring-1 focus:ring-line"
+      />
+      <input
+        value={prefix}
+        onChange={(e) => {
+          setPrefixTouched(true);
+          setPrefix(e.target.value.toUpperCase().replaceAll(/[^A-Z]/g, "").slice(0, 8));
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            submit();
+          }
+        }}
+        placeholder="KEY"
+        title="Issue-key prefix: 2–8 letters, unique across products"
+        className={`w-16 shrink-0 rounded bg-transparent px-1 py-0.5 text-center font-mono text-[11px] uppercase focus:bg-card focus:outline-none focus:ring-1 ${
+          clash ? "text-adobe-deep ring-1 ring-adobe" : "text-ink-faint focus:ring-line"
+        }`}
+      />
+      {clash && <span className="shrink-0 text-[11px] text-adobe-deep">in use</span>}
+    </div>
+  );
+}
+
 // ---------- the capture (roving new-bullet) input ----------
 
 function CaptureRow({
@@ -482,6 +571,13 @@ export default function Outline({ workspace }: { workspace: WorkspacePayload }) 
   const search = useSearch();
   const [, navigate] = useLocation();
   const params = new URLSearchParams(search);
+  const [productFocus, setProductFocus] = useState(0);
+
+  // Every product's prefix, for client-side dedupe of new-product keys.
+  const existingPrefixes = useMemo(
+    () => new Set(workspace.products.map((p) => p.keyPrefix.toUpperCase())),
+    [workspace.products],
+  );
 
   const products = useMemo(
     () => [...workspace.products].filter((p) => !p.archivedAt).sort((a, b) => a.name.localeCompare(b.name)),
@@ -552,9 +648,7 @@ export default function Outline({ workspace }: { workspace: WorkspacePayload }) 
 
       <div className="mt-5 space-y-4">
         {!root && <p className="text-sm text-ink-faint">No products or initiatives yet.</p>}
-        {scopedProducts.length === 0 && root && (
-          <p className="text-sm text-ink-faint">This initiative has no products yet.</p>
-        )}
+
         {scopedProducts.map((p) => (
           <ProductOutline
             key={p.id}
@@ -563,6 +657,25 @@ export default function Outline({ workspace }: { workspace: WorkspacePayload }) 
             showHeader={root?.kind === "initiative"}
           />
         ))}
+
+        {/* At initiative scope, products are the top ceiling — so offer inline
+            product capture (and seed the empty state). Product scope has no
+            level above the arc/issue ceiling, so it shows nothing here. */}
+        {root?.kind === "initiative" && (
+          <section className="rounded-lg border border-dashed border-line bg-card/40 p-3">
+            {scopedProducts.length === 0 && (
+              <p className="mb-1 text-sm text-ink-faint">
+                No products yet — add the first one to start capturing.
+              </p>
+            )}
+            <ProductCaptureRow
+              initiativeId={root.id}
+              existingPrefixes={existingPrefixes}
+              focusToken={productFocus}
+              onCreated={() => setProductFocus((t) => t + 1)}
+            />
+          </section>
+        )}
       </div>
     </div>
   );
