@@ -71,6 +71,9 @@
    official typography plugin — one more dependency we don't need yet. */
 .prose-lite {
   line-height: 1.6;
+  /* PROG-72: break unbreakable strings (long URLs, tokens) so they wrap inside
+     narrow comment/description boxes instead of overflowing the column. */
+  overflow-wrap: break-word;
 }
 .prose-lite h1,
 .prose-lite h2,
