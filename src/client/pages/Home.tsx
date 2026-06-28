@@ -55,7 +55,7 @@ import { issueKeyOf, loadStats, updateIssue, type IssuePatch } from "../store";
 
 const FILTER_KEYS = ["initiative", "product", "repo", "arc", "tag", "priority"] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
-type Filters = Partial<Record<FilterKey, string>> & { backlog?: boolean };
+type Filters = Partial<Record<FilterKey, string>> & { backlog?: boolean; subissues?: boolean };
 
 // Binary (byte-order) comparison — ranks span digits + letters whose ASCII
 // order is the alphabet order, so `localeCompare` (case-folding, locale-aware)
@@ -70,6 +70,9 @@ function parseFilters(search: string): Filters {
     if (value) filters[key] = value;
   }
   filters.backlog = params.get("backlog") === "1";
+  // Sub-issues (PROG-124) are hidden by default so the board stays one card per
+  // top-level deliverable; the toggle surfaces them with a nested style.
+  filters.subissues = params.get("subissues") === "1";
   return filters;
 }
 
@@ -128,6 +131,8 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
         )
       : null;
     const issues = workspace.issues.filter((issue) => {
+      // Child issues stay off the board unless "show sub-issues" is on (PROG-124).
+      if (!filters.subissues && issue.parentIssueId !== null) return false;
       if (productIdsInInitiative && !productIdsInInitiative.has(issue.productId)) return false;
       if (filters.product && issue.productId !== filters.product) return false;
       if (filters.repo && issue.repoId !== filters.repo) return false;
@@ -407,6 +412,16 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
         >
           {filters.backlog ? "Hide backlog" : "Show backlog"}
         </button>
+        <button
+          onClick={() => setParam("subissues", filters.subissues ? null : "1")}
+          className={`rounded border px-2 py-1 text-xs ${
+            filters.subissues
+              ? "border-ink-faint bg-line text-ink-soft"
+              : "border-line bg-card text-ink-faint hover:border-ink-faint"
+          }`}
+        >
+          {filters.subissues ? "Hide sub-issues" : "Show sub-issues"}
+        </button>
         {filtersActive && (
           <button
             onClick={() => navigate(filters.backlog ? "/?backlog=1" : "/", { replace: true })}
@@ -599,14 +614,29 @@ function CardView({
   dragging?: boolean;
 }) {
   const product = workspace.products.find((p) => p.id === issue.productId);
+  // Sub-issue cards (PROG-124) read as nested-to-parent: indented with a moss
+  // accent rail and a "↳ PARENT-KEY" breadcrumb, so they're distinct from the
+  // top-level deliverables even though the column still sorts everything by rank.
+  const parent = issue.parentIssueId
+    ? workspace.issues.find((i) => i.id === issue.parentIssueId)
+    : undefined;
+  const isChild = issue.parentIssueId !== null;
   return (
     <div
       className={`cursor-pointer rounded-md border border-line bg-card p-2.5 text-sm hover:border-line ${
-        dragging ? "rotate-1 shadow-lg" : "shadow-sm"
-      }`}
+        isChild ? "ml-4 border-l-2" : ""
+      } ${dragging ? "rotate-1 shadow-lg" : "shadow-sm"}`}
+      style={isChild ? { borderLeftColor: "var(--color-moss)" } : undefined}
     >
       <p className="flex items-baseline justify-between gap-2">
         <span className="font-mono text-xs text-ink-faint">
+          {parent && (
+            <span className="text-moss" title="Sub-issue">
+              ↳{" "}
+              {workspace.products.find((p) => p.id === parent.productId)?.keyPrefix ?? "?"}-
+              {parent.number}{" "}
+            </span>
+          )}
           {product?.keyPrefix ?? "?"}-{issue.number}
         </span>
         <span className="text-xs text-ink-faint">{product?.name}</span>

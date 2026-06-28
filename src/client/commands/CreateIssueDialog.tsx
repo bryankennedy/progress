@@ -146,6 +146,7 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
       productId: selectedProductId,
       repoId: container.startsWith("r:") ? container.slice(2) : null,
       arcId: arcId || null,
+      parentIssueId: null,
       status,
       priority,
       estimate: estimate === "" ? null : Number(estimate),
