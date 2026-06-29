@@ -11,6 +11,8 @@ import Archive from "./pages/Archive";
 import ContainerPage, { type ContainerType } from "./pages/ContainerPage";
 import Home from "./pages/Home";
 import IssuePage from "./pages/IssuePage";
+import Outline from "./pages/Outline";
+import Search from "./pages/Search";
 import Structure from "./pages/Structure";
 
 const CONTAINER_ROUTES: { path: string; type: ContainerType }[] = [
@@ -47,6 +49,12 @@ export default function App() {
             </Route>
             <Route path="/agenda">
               <Agenda workspace={workspace} />
+            </Route>
+            <Route path="/search">
+              <Search workspace={workspace} />
+            </Route>
+            <Route path="/outline">
+              <Outline workspace={workspace} />
             </Route>
             <Route path="/structure">
               <Structure workspace={workspace} />

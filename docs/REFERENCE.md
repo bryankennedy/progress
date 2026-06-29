@@ -94,6 +94,7 @@ graph TD
 | Board order | `rank` — a fractional-index key (`src/shared/rank.ts`) giving each card a manual vertical position in its column; drag a card above/below another. Always set; one-row reorder, no renumbering (D44) |
 | Tags | 0..n global tags |
 | Arc | 0..1, same product |
+| Parent issue | 0..1 `parentIssueId`, same product, acyclic — makes this issue a sub-issue, nestable to any depth (PROG-124). API-enforced; a cross-product move clears it and detaches children |
 | Comments + Activity | Markdown thread interleaved with append-only events into one timeline |
 | Timestamps | `createdAt`, `updatedAt`, `completedAt` (set iff status is `done`) |
 | Creator / assignee | user references (one `usr_owner` row in v1; schema is multi-user-ready, D13) |
@@ -217,12 +218,13 @@ mandatory — renew it before it lapses (an expired file is worse than none).
 |---|---|
 | `GET /api/health` | Readiness probe: round-trips D1 (`select 1`). `{ ok: true, db: "ok" }` (200) when reachable, `{ ok: false, db: "error" }` (503) when not — so it reflects database reachability, not just that the Worker booted. The only `/api/*` route never access-logged. |
 | `GET /api/workspace` | The load-everything payload: `me` (the signed-in user, PROG-34), users, initiatives, products, repos, arcs, issues, tags, issueTags, issueKeyAliases — nine independent reads run with `Promise.all` (not a `db.batch`/transaction, which 500'd on production D1; D31). Comments/activity are deliberately excluded (D20). |
-| `POST /api/issues` | `{ title, productId, repoId?, arcId?, description?, status?, priority?, estimate?, dueDate? }` → 201 `{ issue }`. `dueDate` is `YYYY-MM-DD` or null, validated (impossible dates rejected). Number allocated by atomic increment of the product sequence; gaps from failed creates are harmless (D24). A board `rank` is auto-assigned, appended after the current last issue (D44). |
-| `PATCH /api/issues/:id` | Any of `title, description, status, priority, estimate, arcId, dueDate, rank` — validated per field; arc must be same-product; `dueDate` is `YYYY-MM-DD` or null to clear. `rank` is a fractional-index board key the client computes from the drop site's neighbors (D44). A status change atomically appends a `status_changed` activity row and maintains `completedAt`. |
+| `POST /api/issues` | `{ title, productId, repoId?, arcId?, parentIssueId?, description?, status?, priority?, estimate?, dueDate? }` → 201 `{ issue }`. `dueDate` is `YYYY-MM-DD` or null, validated (impossible dates rejected). `parentIssueId` must be an existing issue in the same product (PROG-124). Number allocated by atomic increment of the product sequence; gaps from failed creates are harmless (D24). A board `rank` is auto-assigned, appended after the current last issue (D44). |
+| `PATCH /api/issues/:id` | Any of `title, description, status, priority, estimate, arcId, parentIssueId, dueDate, rank` — validated per field; arc and parent must be same-product; `parentIssueId` reparent is acyclic and not self (PROG-124); `dueDate`/`arcId`/`parentIssueId` accept null to clear. `rank` is a fractional-index board key the client computes from the drop site's neighbors (D44). A status change atomically appends a `status_changed` activity row and maintains `completedAt`. |
 | `POST /api/issues/:id/move` | `{ productId, repoId }` (`repoId: null` = product-level). Within-product keeps key + arc; cross-product re-keys, clears arc, writes the alias, logs `moved`. 400 on no-op. |
 | `GET /api/issues/:id/timeline` | `{ comments, activity, pullRequests, commits }`, each ordered by `createdAt`. |
 | `GET /api/issues/:key/bundle` | Looked up by **key** (alias-aware), not id. Returns `text/markdown` — a deterministic context "work order": issue fields + tags, lineage with descriptions (product → repo incl. `gitUrl` → arc, where the arc description carries the "why"), comments, an **Images** list (absolute URLs of every image referenced in the description/comments, so a bearer-authed agent can fetch them — PROG-42), linked PRs/commits, then a stable report-back preamble — branch/key auto-linking + status flow, plus a **Committing & PRs** block that embeds a local, key-aware copy of the owner's smart-commit conventions (logical chunks, secret-scan, `type(scope): KEY subject`, no AI attribution) so a handed-off agent commits to the owner's rules (PROG-62). A retired key resolves and renders the current canonical key. 400 malformed key, 404 unknown. Rendered by `src/worker/bundle.ts` (`renderBundle`); shared foundation for the agent surfaces (SPEC §11.1, D33). |
 | `POST /api/issues/:id/comments` | `{ body }` → 201 `{ comment }`. |
+| `GET /api/search?q=` | Comment full-text search (PROG-130) — the one searchable text not in the workspace payload (D20), so it needs the server; title/description search runs client-side over the store. Case-insensitive substring via SQLite `LIKE`, AND'd across whitespace terms, wildcards escaped (`ESCAPE '\'`) so `100%` matches literally. Returns `{ hits: [{ commentId, issueId, snippet }], truncated }`, most-recent first, capped at 50 (`truncated` true when more exist). The client resolves `issueId` to the issue it already holds; `snippet` is a body window the client re-highlights. Pure helpers in `src/worker/searchComments.ts`. |
 
 ### Images (PROG-42)
 
@@ -348,9 +350,9 @@ Two ways to hand an issue's bundle to a Claude Code session (SPEC §11.2):
 
 ### Routing & key resolution
 
-Routes: `/` (board), `/agenda` (the due-date view), `/structure` (the
-container tree), `/archive` (completed arcs), `/issue/:key`,
-`/initiative/:id`, `/product/:id`, `/repo/:id`, `/arc/:id`. Issue URLs are key-based; `findIssueByKey` resolves
+Routes: `/` (board), `/outline` (the capture outliner), `/agenda` (the
+due-date view), `/structure` (the container tree), `/archive` (completed arcs),
+`/issue/:key`, `/initiative/:id`, `/product/:id`, `/repo/:id`, `/arc/:id`. Issue URLs are key-based; `findIssueByKey` resolves
 current keys first, then alias keys with a `replaceState` redirect to the
 canonical key — entirely client-side from the loaded workspace (D22).
 
@@ -361,9 +363,31 @@ canonical key — entirely client-side from the loaded workspace (D22).
   a single **Sign in with Google** link to `/api/auth/login`. No header, no store
   access. In local dev the Worker falls back to the owner, so this appears only
   when OAuth is configured (production).
+- **Outline (`/outline`, PROG-124)** — a Workflowy-style outliner for fast
+  keyboard capture of issues as nested bullets (`src/client/pages/Outline.tsx`).
+  A scope picker selects an Initiative or Product (URL `?product=`/`?initiative=`)
+  and sets the ceiling. A fresh bullet is always an Issue; the trailing "+ new
+  bullet" captures continuously (Enter adds a sibling and keeps focus, Tab nests
+  it under the last sibling as a sub-issue, Shift+Tab outdents). Existing rows
+  rename on Enter/blur and reparent in place via Tab/Shift+Tab. Arcs are reached
+  only by the explicit per-row "→ arc" control (pick existing or create new);
+  the `…` opens the full issue. Nothing here deletes or archives. All writes
+  reuse the optimistic `createIssue`/`updateIssue`/`createContainer` paths.
+- **Search (`/` modal + `/search` page, PROG-130)** — two surfaces sharing one
+  two-wave model. Title/description hits come from the in-memory store and paint
+  instantly; comment hits need a server round-trip (`GET /api/search`, D20) and
+  stream into their own section a beat later, ranked below the local hits.
+  Matching is case-insensitive substring; ranking weights title over description
+  (`src/client/search.ts`, unit-tested). The **`/` modal** (`SearchModal.tsx`,
+  separate from the ⌘K palette by design) is for quick jump — Issues, then
+  Containers, then Comments, with matched terms highlighted; Enter opens the
+  selection, and a footer link hands the query to the page. The **`/search`
+  page** (`pages/Search.tsx`) is the deep dive: the same results, filterable by
+  the board dimensions (status · product · arc · repo · tag · priority), with
+  query + filters in the URL so a search is bookmarkable.
 - **App header** — persistent across pages: the "Progress" home link, nav
-  (Board · Agenda · Structure · Archive), a **New** menu (Issue · Initiative ·
-  Product · Repo · Arc) that opens the existing optimistic create flows, and the
+  (Board · Outline · Agenda · Search · Structure · Archive), a **New** menu (Issue ·
+  Initiative · Product · Repo · Arc) that opens the existing optimistic create flows, and the
   signed-in identity avatar. The always-available structure-creation entry point
   (SPEC v2 §4). The avatar dropdown holds the profile + **Sign out**, plus an
   **Admin** link for super-admins (D44) — Admin lives here, not in the top nav,
@@ -413,6 +437,10 @@ canonical key — entirely client-side from the loaded workspace (D22).
   days · Jul 1", overdue in danger red, due-today in the adobe accent), and the
   **priority indicator** floats to the bottom-right corner (PROG-61). Estimate
   and tags sit on their own line above the footer so they don't crowd it.
+  A **"show sub-issues"** toggle (URL `?subissues=1`, off by default) controls
+  whether child issues appear: off keeps one card per top-level deliverable; on
+  surfaces sub-issues with a nested style — indented, a moss accent rail, and a
+  "↳ PARENT-KEY" breadcrumb (PROG-124). Columns still sort everything by `rank`.
 - **Container pages** — description-on-top open page (inline-editable name,
   Markdown description, key prefix / git URL where applicable, archive
   toggle), child-container chips with "+ New" buttons, and a
@@ -439,6 +467,7 @@ canonical key — entirely client-side from the loaded workspace (D22).
 | Key | Action |
 |---|---|
 | `⌘K` / `Ctrl+K` | Command palette |
+| `/` | Search modal (PROG-130) — separate from the palette; title/description hits paint instantly, comment hits stream in |
 | `C` | Create issue |
 | `S` / `P` / `E` | Status / priority / estimate picker for the current issue |
 | `M` / `A` / `T` | Move / arc / tag picker for the current issue |

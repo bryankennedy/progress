@@ -4,10 +4,12 @@
 // unchanged slices reference-stable so re-renders stay scoped. Per-issue
 // timelines (comments + activity) are separate queries (D20).
 
-import { QueryClient, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, QueryClient, useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { tagColor, type IssuePriority, type IssueStatus } from "../shared/constants";
 import { rankAfter } from "../shared/rank";
 import type {
+  CommentSearchResponse,
   WireActivity,
   WireAllowedEmail,
   WireArc,
@@ -205,6 +207,9 @@ export type IssuePatch = Partial<{
   priority: IssuePriority;
   estimate: number | null;
   arcId: string | null;
+  // Sub-issue reparent (PROG-124): the new parent issue, or null to outdent to
+  // the top of its product. Server enforces same-product + acyclic.
+  parentIssueId: string | null;
   dueDate: string | null;
   // Fractional-index board position (PROG-43). The caller computes the key from
   // the drop site's neighbors via `rankBetween`; a reorder across columns sends
@@ -252,6 +257,7 @@ export type IssueCreateInput = {
   productId: string;
   repoId: string | null;
   arcId: string | null;
+  parentIssueId: string | null;
   status: IssueStatus;
   priority: IssuePriority;
   estimate: number | null;
@@ -281,6 +287,7 @@ export function createIssue(input: IssueCreateInput): string | undefined {
     productId: input.productId,
     repoId: input.repoId,
     arcId: input.arcId,
+    parentIssueId: input.parentIssueId,
     number: product.nextIssueNumber,
     title: input.title,
     description: "",
@@ -380,10 +387,15 @@ export function moveIssue(id: string, target: MoveTarget) {
               productId: target.productId,
               repoId: target.repoId,
               arcId: null,
+              // Cross-product move drops the parent and detaches children
+              // (PROG-124) — mirrors the server's move handler.
+              parentIssueId: null,
               number: targetProduct.nextIssueNumber,
               updatedAt: now,
             }
-          : i,
+          : i.parentIssueId === id
+            ? { ...i, parentIssueId: null, updatedAt: now }
+            : i,
       ),
       products: w.products.map((p) =>
         p.id === target.productId ? { ...p, nextIssueNumber: p.nextIssueNumber + 1 } : p,
@@ -689,6 +701,39 @@ export function untagIssue(issueId: string, tagId: string) {
       refreshBundle(issueId);
     }
   })();
+}
+
+// ---------- comment search (PROG-130) ----------
+
+// Debounce a fast-changing value (the search box) so we don't fire a request
+// per keystroke. Returns the latest value once it's been stable for `ms`.
+function useDebounced<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(id);
+  }, [value, ms]);
+  return debounced;
+}
+
+// The server half of search: comments aren't in the store (D20), so this is the
+// one query that hits the network. Debounced, and it keeps the previous results
+// on screen while the next query loads so the comments section doesn't blank
+// between keystrokes. React Query keys by the (debounced) query, so a slow
+// response for an old query can't clobber a newer one; `signal` also aborts the
+// in-flight fetch when the query changes.
+export function useCommentSearch(query: string, debounceMs = 150) {
+  const debounced = useDebounced(query.trim(), debounceMs);
+  return useQuery({
+    queryKey: ["search", "comments", debounced],
+    enabled: debounced.length > 0,
+    placeholderData: keepPreviousData,
+    queryFn: async ({ signal }): Promise<CommentSearchResponse> => {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(debounced)}`, { signal });
+      if (!res.ok) throw new Error(`search failed: HTTP ${res.status}`);
+      return res.json() as Promise<CommentSearchResponse>;
+    },
+  });
 }
 
 // ---------- per-issue timeline ----------

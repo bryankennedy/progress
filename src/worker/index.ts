@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/cloudflare";
 import { Hono, type Context } from "hono";
-import { and, asc, eq, inArray, max, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, max, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import {
   activity,
@@ -28,6 +28,7 @@ import {
 import { tagColor } from "../shared/constants";
 import { isValidRank, rankAfter } from "../shared/rank";
 import { log } from "./log";
+import { commentSnippet, escapeLike, SEARCH_CAP } from "./searchComments";
 import { renderBundle } from "./bundle";
 import { notAuthorizedPage } from "./pages";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
@@ -432,6 +433,44 @@ app.get("/api/workspace", async (c) => {
     issueTags: allIssueTags,
     issueKeyAliases: allKeyAliases,
   });
+});
+
+// Comment search (PROG-130). Comments are the only searchable text excluded
+// from the workspace payload (D20), so they're the one thing the client can't
+// search in memory — this endpoint covers them; title/description search stays
+// client-side. Matching is case-insensitive substring (SQLite LIKE), AND'd
+// across whitespace-separated terms — the same predictable substring semantics
+// the client uses, and a better fit than FTS5, which is token-based and
+// wouldn't match mid-word (e.g. "ozzie" inside a longer token). The owner is a
+// single user over a bounded comment set, so a LIKE scan is plenty; revisit if
+// it ever isn't. Pure helpers (escaping, snippet) live in ./searchComments.
+app.get("/api/search", async (c) => {
+  // Lowercased so terms match the lowercased body comparison; SQLite LIKE is
+  // already case-insensitive for ASCII, but we also build snippets in JS.
+  const raw = (c.req.query("q") ?? "").trim().toLowerCase();
+  const terms = raw.split(/\s+/).filter(Boolean);
+  if (terms.length === 0) return c.json({ hits: [], truncated: false });
+
+  const db = drizzle(c.env.DB);
+  // One LIKE per term, AND'd — a comment matches only if every term appears.
+  const predicate = and(
+    ...terms.map((t) => sql`lower(${comments.body}) LIKE ${`%${escapeLike(t)}%`} ESCAPE '\\'`),
+  );
+  // Most-recent first; pull one extra to detect truncation.
+  const rows = await db
+    .select({ id: comments.id, issueId: comments.issueId, body: comments.body })
+    .from(comments)
+    .where(predicate)
+    .orderBy(desc(comments.createdAt))
+    .limit(SEARCH_CAP + 1);
+
+  const truncated = rows.length > SEARCH_CAP;
+  const hits = rows.slice(0, SEARCH_CAP).map((r) => ({
+    commentId: r.id,
+    issueId: r.issueId,
+    snippet: commentSnippet(r.body, terms),
+  }));
+  return c.json({ hits, truncated });
 });
 
 // ---------- admin: sign-in allowlist CRUD (D44) ----------
@@ -866,6 +905,7 @@ type IssueCreateBody = {
   productId?: unknown;
   repoId?: unknown;
   arcId?: unknown;
+  parentIssueId?: unknown;
   description?: unknown;
   status?: unknown;
   priority?: unknown;
@@ -888,6 +928,9 @@ app.post("/api/issues", async (c) => {
   const arcId = body.arcId ?? null;
   if (arcId !== null && typeof arcId !== "string")
     return c.json({ error: "arcId must be a string or null" }, 400);
+  const parentIssueId = body.parentIssueId ?? null;
+  if (parentIssueId !== null && typeof parentIssueId !== "string")
+    return c.json({ error: "parentIssueId must be a string or null" }, 400);
   const description = body.description ?? "";
   if (typeof description !== "string")
     return c.json({ error: "description must be a string" }, 400);
@@ -923,6 +966,17 @@ app.post("/api/issues", async (c) => {
     if (!arc || arc.productId !== product.id)
       return c.json({ error: "arc not found in that product" }, 400);
   }
+  // Sub-issue parent (PROG-124): must be an existing issue in the same product.
+  // A brand-new issue can't create a cycle, so no chain walk is needed here.
+  if (parentIssueId !== null) {
+    const [parent] = await db
+      .select()
+      .from(issues)
+      .where(eq(issues.id, parentIssueId))
+      .limit(1);
+    if (!parent || parent.productId !== product.id)
+      return c.json({ error: "parent issue not found in that product" }, 400);
+  }
 
   const [seq] = await db
     .update(products)
@@ -944,6 +998,7 @@ app.post("/api/issues", async (c) => {
       productId: product.id,
       repoId,
       arcId,
+      parentIssueId,
       number: seq!.next - 1,
       title: body.title.trim(),
       description,
@@ -1032,10 +1087,17 @@ app.post("/api/issues/:id/move", async (c) => {
   const [updated] = await db.batch([
     db
       .update(issues)
-      .set({ productId: target.id, repoId, arcId: null, number, updatedAt: now })
+      // arcId and parentIssueId reference the old product, so a cross-product
+      // move clears both — the issue lands at the top level of the target
+      // (PROG-124). Any children keep pointing here and are detached below.
+      .set({ productId: target.id, repoId, arcId: null, parentIssueId: null, number, updatedAt: now })
       .where(eq(issues.id, id))
       .returning(),
     db.insert(issueKeyAliases).values({ key: oldKey, issueId: id, createdAt: now }),
+    // Detach any sub-issues of the moved issue: they stay in the old product,
+    // so they can't keep a now-cross-product parent (PROG-124, same-product
+    // invariant). They become top-level issues in their original product.
+    db.update(issues).set({ parentIssueId: null, updatedAt: now }).where(eq(issues.parentIssueId, id)),
     db.insert(activity).values({
       id: newId("act"),
       issueId: id,
@@ -1055,6 +1117,7 @@ type IssuePatchBody = Partial<{
   priority: IssuePriority;
   estimate: number | null;
   arcId: string | null;
+  parentIssueId: string | null;
   dueDate: string | null;
   rank: string;
 }>;
@@ -1116,6 +1179,40 @@ app.patch("/api/issues/:id", async (c) => {
         return c.json({ error: "arc not found in this issue's product" }, 400);
     }
     set.arcId = body.arcId;
+  }
+
+  // Sub-issue reparent (PROG-124): parent must be in the same product, not the
+  // issue itself, and must not introduce a cycle. Walking up from the proposed
+  // parent and stopping if we reach `id` catches cycles at any depth; the chain
+  // is shallow in practice and bounded by a guard against malformed data.
+  if (body.parentIssueId !== undefined) {
+    if (body.parentIssueId !== null) {
+      if (typeof body.parentIssueId !== "string")
+        return c.json({ error: "parentIssueId must be a string or null" }, 400);
+      if (body.parentIssueId === id)
+        return c.json({ error: "an issue cannot be its own parent" }, 400);
+      const [parent] = await db
+        .select()
+        .from(issues)
+        .where(eq(issues.id, body.parentIssueId))
+        .limit(1);
+      if (!parent || parent.productId !== existing.productId)
+        return c.json({ error: "parent issue not found in this issue's product" }, 400);
+      // Cycle check: follow parent pointers upward; reaching `id` means the
+      // proposed parent is a descendant of this issue.
+      let cursor: string | null = parent.parentIssueId;
+      for (let hops = 0; cursor !== null && hops < 1000; hops++) {
+        if (cursor === id)
+          return c.json({ error: "that move would create a cycle" }, 400);
+        const [next]: { parentIssueId: string | null }[] = await db
+          .select({ parentIssueId: issues.parentIssueId })
+          .from(issues)
+          .where(eq(issues.id, cursor))
+          .limit(1);
+        cursor = next?.parentIssueId ?? null;
+      }
+    }
+    set.parentIssueId = body.parentIssueId;
   }
 
   const now = new Date();

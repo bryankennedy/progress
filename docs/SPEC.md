@@ -115,6 +115,10 @@ Renders entirely from the store. See `REFERENCE.md` §5.
 
 ## 8. Beyond this phase (direction, not commitment)
 
+- **Search — shipped** (PROG-130): a `/` quick-jump modal + a filterable
+  `/search` page over titles, descriptions, and comments. See REFERENCE §5
+  (Search) and §3 (`GET /api/search`). Possible follow-ons: typo-tolerant/fuzzy
+  matching and saved searches (both deliberately out of the first cut).
 - **Recurring tasks** — the natural follow-on for household chores; the due-date
   model and Agenda are built not to block it.
 - **Reminders / a daily "what's due" digest.**

@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnySQLiteColumn,
   index,
   integer,
   primaryKey,
@@ -119,6 +120,13 @@ export const issues = sqliteTable(
       .references(() => products.id),
     repoId: text("repo_id").references(() => repos.id),
     arcId: text("arc_id").references(() => arcs.id),
+    // Sub-issue parent (PROG-124): a nullable self-reference making this issue a
+    // child of another issue, nestable to unbounded depth. A sub-issue is just
+    // an issue with a parent — one data type, not a separate entity. The
+    // same-product and acyclic invariants SQLite can't express are API-enforced
+    // (like repoId/arcId above). The Outline view (`/outline`) is the primary
+    // editor; the board hides children unless "show sub-issues" is on.
+    parentIssueId: text("parent_issue_id").references((): AnySQLiteColumn => issues.id),
     // Key = product.keyPrefix + "-" + number, derived, never stored — so a
     // prefix rename can't orphan keys. Unique per product.
     number: integer("number").notNull(),
@@ -150,6 +158,7 @@ export const issues = sqliteTable(
     uniqueIndex("issues_product_number_unique").on(t.productId, t.number),
     index("issues_repo_idx").on(t.repoId),
     index("issues_arc_idx").on(t.arcId),
+    index("issues_parent_idx").on(t.parentIssueId),
     index("issues_status_idx").on(t.status),
   ],
 );

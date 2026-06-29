@@ -77,7 +77,10 @@ ordering** (PROG-43/D43) — each issue carries a fractional-index `rank`, so ca
 have a drag-to-set vertical work order within a column (migration
 `0005_issue_rank`); **CI/CD auto-deploy** (PROG-54/D45) — push to `main` runs
 `.github/workflows/ci.yml` (typecheck + unit-test gate, then remote D1 migrate +
-`wrangler deploy`); see `docs/SETUP.md` §6. Likely next
+`wrangler deploy`); see `docs/SETUP.md` §6; **search** (PROG-130/PROG-130 entry)
+— a `/` quick-jump modal + filterable `/search` page over titles, descriptions,
+and comments (instant client-side title/desc + a streamed `GET /api/search`
+`LIKE` query for comments; REFERENCE §5). Likely next
 step per SPEC §8: **recurring due dates** (chores repeat); the due-date model +
 Agenda were built not to preclude it. Also pending: reminders/digests, start
 dates, date+time.
