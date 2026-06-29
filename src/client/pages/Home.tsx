@@ -44,7 +44,13 @@ import {
 } from "../../shared/constants";
 import { rankBetween } from "../../shared/rank";
 import { reorder, type ColumnMap } from "../boardOrder";
-import { filtersToRestore, loadBoardFilters, saveBoardFilters, sortByName } from "../boardFilters";
+import {
+  filtersToRestore,
+  loadBoardFilters,
+  pruneImpossibleFilters,
+  saveBoardFilters,
+  sortByName,
+} from "../boardFilters";
 import { recentlyCompleted } from "../boardDone";
 import type { WireIssue, WireTag, WorkspacePayload } from "../../shared/types";
 import { openCreateIssue } from "../commands/controller";
@@ -81,6 +87,22 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
   const [, navigate] = useLocation();
   const filters = useMemo(() => parseFilters(search), [search]);
 
+  // Parent lookups for cascading filter validity (PROG-75): a child filter
+  // (product/arc/repo) is only offered — and only kept — when it's consistent
+  // with the chosen ancestors.
+  const productInitiative = useMemo(
+    () => new Map(workspace.products.map((p) => [p.id, p.initiativeId])),
+    [workspace.products],
+  );
+  const arcProduct = useMemo(
+    () => new Map(workspace.arcs.map((a) => [a.id, a.productId])),
+    [workspace.arcs],
+  );
+  const repoProduct = useMemo(
+    () => new Map(workspace.repos.map((r) => [r.id, r.productId])),
+    [workspace.repos],
+  );
+
   // Sticky filters (PROG-58): on a fresh mount with a bare URL, re-apply the
   // saved selection; thereafter mirror the URL into storage on every change.
   // Captured once at mount so a later filter change doesn't re-trigger a
@@ -100,6 +122,10 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
     const params = new URLSearchParams(search);
     if (value) params.set(key, value);
     else params.delete(key);
+    // Changing an ancestor can strand a descendant filter from another branch;
+    // drop the impossible ones in the same URL write so the board never filters
+    // to nothing behind a stale selection (PROG-75).
+    pruneImpossibleFilters(params, { productInitiative, arcProduct, repoProduct });
     const qs = params.toString();
     navigate(qs ? `/?${qs}` : "/", { replace: true });
   };
@@ -376,7 +402,12 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
           options={sortByName(
             workspace.arcs
               .filter((a) => !a.archivedAt)
-              .filter((a) => !filters.product || a.productId === filters.product),
+              .filter((a) => !filters.product || a.productId === filters.product)
+              .filter(
+                (a) =>
+                  !filters.initiative ||
+                  productInitiative.get(a.productId) === filters.initiative,
+              ),
           ).map((a) => [a.id, a.name])}
           onChange={(v) => setParam("arc", v)}
         />
@@ -386,7 +417,12 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
           options={sortByName(
             workspace.repos
               .filter((r) => !r.archivedAt)
-              .filter((r) => !filters.product || r.productId === filters.product),
+              .filter((r) => !filters.product || r.productId === filters.product)
+              .filter(
+                (r) =>
+                  !filters.initiative ||
+                  productInitiative.get(r.productId) === filters.initiative,
+              ),
           ).map((r) => [r.id, r.name])}
           onChange={(v) => setParam("repo", v)}
         />
