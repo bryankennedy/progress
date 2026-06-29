@@ -37,8 +37,14 @@ const BARS = [
     pathStr:`M${r2(xL)},${r2(cy)} C${r2(C1[0])},${r2(C1[1])} ${r2(C2[0])},${r2(C2[1])} ${r2(xR)},${r2(cy)}`};
 });
 
+// The maskable icon renders the mark at 80% so it sits with more padding inside
+// the macOS squircle (the OS crops/zooms maskable icons, which made the bars read
+// too large in the installed dock app). "any" icons keep the mark at full size.
+const MASKABLE_MARK_SCALE = 0.8;
+
 // mode: "full" = opaque full-bleed (maskable); "rounded" = squircle w/ transparent corners (any)
-function renderPng(size, mode){
+// markScale shrinks the mark about the centre (1 = unchanged); stroke scales with it.
+function renderPng(size, mode, markScale = 1){
   const SS=4, big=size*SS, scale=big/100, corner=big*0.225, bg=hex(CREAM);
   const stride=size*4, raw=Buffer.alloc((stride+1)*size);
   for(let y=0;y<size;y++){
@@ -49,7 +55,10 @@ function renderPng(size, mode){
         const px=x*SS+sx+0.5, py=y*SS+sy+0.5;
         const onIcon = mode==="full" ? true : sdRR(px,py,big/2,corner)<=0;
         if(onIcon){
-          let col=bg; const ux=px/scale, uy=py/scale;
+          let col=bg;
+          // inverse-map the sample into unscaled mark space, so the bar + its
+          // stroke shrink together by markScale about the centre (50,50).
+          const ux=50+(px/scale-50)/markScale, uy=50+(py/scale-50)/markScale;
           for(const bar of BARS){const[a,c,d,e]=bar.bb; if(ux<a||ux>d||uy<c||uy>e) continue; if(distPoly(ux,uy,bar.pts)<=RAD) col=bar.col;}
           r+=col[0]; g+=col[1]; b+=col[2]; cov++;
         }
@@ -63,10 +72,12 @@ function renderPng(size, mode){
   const ih=Buffer.alloc(13); ih.writeUInt32BE(size,0); ih.writeUInt32BE(size,4); ih[8]=8; ih[9]=6;
   return Buffer.concat([sig,chunk("IHDR",ih),chunk("IDAT",zlib.deflateSync(raw,{level:9})),chunk("IEND",Buffer.alloc(0))]);
 }
-function svg(rounded){
+function svg(rounded, markScale = 1){
   const paths = BARS.map(b=>`    <path d="${b.pathStr}" stroke="${b.colHex}"></path>`).join("\n");
   const rect = rounded ? `  <rect width="100" height="100" rx="22.5" fill="${CREAM}"></rect>` : `  <rect width="100" height="100" fill="${CREAM}"></rect>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512" role="img" aria-label="Progress">\n${rect}\n  <g fill="none" stroke-linecap="round" stroke-width="${STROKE}">\n${paths}\n  </g>\n</svg>\n`;
+  // scale the mark about the centre; the group transform scales stroke-width too.
+  const xf = markScale === 1 ? "" : ` transform="translate(50 50) scale(${markScale}) translate(-50 -50)"`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512" role="img" aria-label="Progress">\n${rect}\n  <g${xf} fill="none" stroke-linecap="round" stroke-width="${STROKE}">\n${paths}\n  </g>\n</svg>\n`;
 }
 
 for (const out of ["public/brand-assets", "brand-assets"]) {
@@ -75,9 +86,9 @@ for (const out of ["public/brand-assets", "brand-assets"]) {
   writeFileSync(`${out}/favicon-32.png`, renderPng(32, "rounded"));
   writeFileSync(`${out}/favicon-16.png`, renderPng(16, "rounded"));
   writeFileSync(`${out}/progress-icon.svg`, svg(true));
-  writeFileSync(`${out}/icon-1024-maskable.png`, renderPng(1024, "full"));
-  writeFileSync(`${out}/icon-512-maskable.png`,  renderPng(512,  "full"));
-  writeFileSync(`${out}/progress-icon-maskable.svg`, svg(false));
+  writeFileSync(`${out}/icon-1024-maskable.png`, renderPng(1024, "full", MASKABLE_MARK_SCALE));
+  writeFileSync(`${out}/icon-512-maskable.png`,  renderPng(512,  "full", MASKABLE_MARK_SCALE));
+  writeFileSync(`${out}/progress-icon-maskable.svg`, svg(false, MASKABLE_MARK_SCALE));
   writeFileSync(`${out}/apple-touch-icon-180.png`, renderPng(180, "full"));
   console.log(`wrote icon set -> ${out}`);
 }
