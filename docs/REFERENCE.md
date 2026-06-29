@@ -418,7 +418,12 @@ canonical key — entirely client-side from the loaded workspace (D22).
   filtered board is bookmarkable — this is how per-container boards are
   covered without existing (D23). Name-based filter dropdowns (initiative,
   product, repo, arc, tag) list their options alphabetically; priority keeps
-  its logical order (PROG-66). The Agenda filters sort the same way. The current filter selection is also
+  its logical order (PROG-66). The filters are hierarchy-aware (Initiative →
+  Product → Arc/Repo): each dropdown only offers options reachable from the
+  ancestors already chosen, and changing an ancestor prunes any now-stranded
+  descendant from the URL in the same write, so an impossible combination that
+  matches nothing can't be selected (`pruneImpossibleFilters`, PROG-75). The
+  Agenda filters sort the same way. The current filter selection is also
   mirrored to `localStorage` (`progress:board-filters`) and re-applied when the
   board is reopened with a bare URL, so a choice sticks across navigation;
   "Clear filters" clears the memory too (PROG-58). Drag-and-drop reorders cards
