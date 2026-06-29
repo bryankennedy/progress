@@ -12,6 +12,13 @@ export const ISSUE_STATUSES = [
 ] as const;
 export type IssueStatus = (typeof ISSUE_STATUSES)[number];
 
+// "Closed" issues are terminal — done (shipped) or canceled (abandoned). The
+// rest (backlog/todo/in_progress/in_review) are still open / in play. The arc
+// work-order ("copy as prompt" for a whole arc) bundles only the open ones.
+export const CLOSED_ISSUE_STATUSES = ["done", "canceled"] as const satisfies readonly IssueStatus[];
+export const isOpenStatus = (s: IssueStatus): boolean =>
+  !(CLOSED_ISSUE_STATUSES as readonly IssueStatus[]).includes(s);
+
 export const ISSUE_PRIORITIES = ["urgent", "high", "medium", "low", "none"] as const;
 export type IssuePriority = (typeof ISSUE_PRIORITIES)[number];
 

@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/cloudflare";
 import { Hono, type Context } from "hono";
-import { and, asc, eq, inArray, max, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, max, notInArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import {
   activity,
@@ -25,10 +25,10 @@ import {
   type IssueStatus,
   type PrState,
 } from "../db/schema";
-import { tagColor } from "../shared/constants";
+import { CLOSED_ISSUE_STATUSES, tagColor } from "../shared/constants";
 import { isValidRank, rankAfter } from "../shared/rank";
 import { log } from "./log";
-import { renderBundle } from "./bundle";
+import { renderArcBundle, renderBundle, type ArcIssueData } from "./bundle";
 import { notAuthorizedPage } from "./pages";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import {
@@ -1289,6 +1289,81 @@ app.get("/api/issues/:key/bundle", async (c) => {
     commits: commitRows,
     baseUrl: new URL(c.req.url).origin,
   });
+  return c.body(md, 200, { "Content-Type": "text/markdown; charset=utf-8" });
+});
+
+// Arc-level work order (PROG: arc "copy as prompt"): a single deterministic
+// Markdown prompt covering every OPEN issue in an arc (done/canceled dropped),
+// each rendered in the same shape as the per-issue bundle, ending in
+// combined-PR orchestration that fans the issues out to sub-agents and lands
+// them in one PR. Looked up by the arc's internal id (the arc page has it).
+app.get("/api/arcs/:id/bundle", async (c) => {
+  const id = c.req.param("id");
+  const db = drizzle(c.env.DB);
+
+  const [arc] = await db.select().from(arcs).where(eq(arcs.id, id)).limit(1);
+  if (!arc) return c.json({ error: `no arc with id ${id}` }, 404);
+
+  const [product] = await db
+    .select()
+    .from(products)
+    .where(eq(products.id, arc.productId))
+    .limit(1);
+  if (!product) return c.json({ error: `arc ${id} has no product` }, 500);
+
+  // Open issues only — drop terminal (done/canceled). Pre-sort by status order
+  // then number so the render is deterministic (mirrors the arc page's default
+  // "status" sort intent; status enum is stored, so sort in JS below).
+  const openIssues = await db
+    .select()
+    .from(issues)
+    .where(and(eq(issues.arcId, id), notInArray(issues.status, [...CLOSED_ISSUE_STATUSES])));
+  const statusRank = new Map(ISSUE_STATUSES.map((s, i) => [s, i]));
+  openIssues.sort(
+    (a, b) => statusRank.get(a.status)! - statusRank.get(b.status)! || a.number - b.number,
+  );
+
+  const baseUrl = new URL(c.req.url).origin;
+  // Per-issue context (repo, tags, comments, PRs, commits), gathered in
+  // parallel across issues — independent reads, no transaction (D31).
+  const issueData: ArcIssueData[] = await Promise.all(
+    openIssues.map(async (issue): Promise<ArcIssueData> => {
+      const [repo, tagRows, commentRows, prRows, commitRows] = await Promise.all([
+        issue.repoId
+          ? db.select().from(repos).where(eq(repos.id, issue.repoId)).limit(1)
+          : Promise.resolve([]),
+        db
+          .select({ name: tags.name })
+          .from(issueTags)
+          .innerJoin(tags, eq(issueTags.tagId, tags.id))
+          .where(eq(issueTags.issueId, issue.id))
+          .orderBy(asc(tags.name)),
+        db
+          .select({ body: comments.body, createdAt: comments.createdAt, author: users.name })
+          .from(comments)
+          .innerJoin(users, eq(comments.authorId, users.id))
+          .where(eq(comments.issueId, issue.id))
+          .orderBy(asc(comments.createdAt)),
+        db.select().from(prLinks).where(eq(prLinks.issueId, issue.id)).orderBy(asc(prLinks.createdAt)),
+        db
+          .select()
+          .from(commitLinks)
+          .where(eq(commitLinks.issueId, issue.id))
+          .orderBy(asc(commitLinks.createdAt)),
+      ]);
+      return {
+        key: `${product.keyPrefix}-${issue.number}`,
+        issue,
+        repo: repo[0] ?? null,
+        tags: tagRows.map((t) => t.name),
+        comments: commentRows,
+        pullRequests: prRows,
+        commits: commitRows,
+      };
+    }),
+  );
+
+  const md = renderArcBundle({ arc, product, issues: issueData, baseUrl });
   return c.body(md, 200, { "Content-Type": "text/markdown; charset=utf-8" });
 });
 
