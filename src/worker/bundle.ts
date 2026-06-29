@@ -32,15 +32,18 @@ function extractImageUrls(text: string, baseUrl: string): string[] {
   return out;
 }
 
+// Shared, deterministic formatters (no Date.now / locale) so the issue and arc
+// bundles render byte-for-byte identically — see the note on renderBundle.
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+const para = (text: string, fallback = "_None._") => (text.trim() ? text.trim() : fallback);
+
 // Deterministic: every value comes from the row data (no Date.now / locale),
 // and collections arrive pre-sorted, so the same issue always renders byte
 // for byte the same — important for a "copy as prompt" artifact and for
 // diffing what an agent was handed.
 export function renderBundle(b: BundleData): string {
   const { issue } = b;
-  const day = (d: Date) => d.toISOString().slice(0, 10);
-  const para = (text: string, fallback = "_None._") =>
-    text.trim() ? text.trim() : fallback;
+  const day = isoDay;
   const out: string[] = [];
 
   out.push(`# ${b.key} — ${issue.title}`, "");
@@ -147,5 +150,168 @@ export function renderBundle(b: BundleData): string {
     `- If a trailing merge conflict still appears in such a file, it's a "keep both entries" resolution — never renumber or drop the other agent's entry.`,
     "",
   );
+  return out.join("\n");
+}
+
+// ---------- arc-level work order (PROG: arc "copy as prompt") ----------
+//
+// One Markdown prompt covering every OPEN issue in an arc (closed = done /
+// canceled are dropped), so the owner can hand a whole epic to a lead agent
+// that fans the issues out to sub-agents and lands them in ONE combined PR.
+// Built from the same row data and shaped to match the issue bundle, so a
+// reader (and the sub-agents) sees each issue in the familiar format.
+
+export type ArcIssueData = {
+  key: string;
+  issue: typeof issues.$inferSelect;
+  repo: typeof repos.$inferSelect | null;
+  tags: string[];
+  comments: { body: string; createdAt: Date; author: string }[];
+  pullRequests: (typeof prLinks.$inferSelect)[];
+  commits: (typeof commitLinks.$inferSelect)[];
+};
+
+export type ArcBundleData = {
+  arc: typeof arcs.$inferSelect;
+  product: typeof products.$inferSelect;
+  // Pre-filtered to open issues and pre-sorted (status, then number) by the
+  // caller, so the render is deterministic and the caller owns "what's open".
+  issues: ArcIssueData[];
+  baseUrl: string;
+};
+
+// The full per-issue section — the issue bundle's body (fields, description,
+// comments, images, linked PRs/commits) at one heading level deeper, minus the
+// per-issue report-back footer (the arc has a single combined one). Repo is
+// rendered per issue because issues in one arc can target different repos.
+function renderArcIssueSection(b: ArcIssueData, baseUrl: string): string[] {
+  const { issue } = b;
+  const out: string[] = [];
+
+  out.push(`### ${b.key} — ${issue.title}`, "");
+  out.push(`- **Status:** ${issue.status}`);
+  out.push(`- **Priority:** ${issue.priority}`);
+  out.push(
+    `- **Estimate:** ${
+      issue.estimate === null ? "unestimated" : `${issue.estimate} point${issue.estimate === 1 ? "" : "s"}`
+    }`,
+  );
+  if (issue.dueDate) out.push(`- **Due:** ${issue.dueDate}`);
+  if (b.repo) out.push(`- **Repo:** ${b.repo.name}${b.repo.gitUrl ? ` (git: ${b.repo.gitUrl})` : ""}`);
+  if (b.tags.length) out.push(`- **Tags:** ${b.tags.join(", ")}`);
+  out.push("");
+
+  out.push("#### Description", "", para(issue.description, "_No description._"), "");
+
+  out.push(`#### Comments (${b.comments.length})`, "");
+  if (b.comments.length === 0) out.push("_None._", "");
+  else for (const cm of b.comments) out.push(`**${cm.author}** · ${isoDay(cm.createdAt)}`, "", para(cm.body), "");
+
+  const imageUrls = [
+    ...new Set([
+      ...extractImageUrls(issue.description, baseUrl),
+      ...b.comments.flatMap((cm) => extractImageUrls(cm.body, baseUrl)),
+    ]),
+  ];
+  out.push(`#### Images (${imageUrls.length})`, "");
+  if (imageUrls.length === 0) out.push("_None._", "");
+  else {
+    for (const u of imageUrls) out.push(`- ${u}`);
+    out.push("");
+  }
+
+  out.push(`#### Linked pull requests (${b.pullRequests.length})`, "");
+  if (b.pullRequests.length === 0) out.push("_None._");
+  else
+    for (const pr of b.pullRequests)
+      out.push(`- [${pr.state}] **#${pr.prNumber}** ${pr.title} — ${pr.url} (${pr.githubRepo})`);
+  out.push("");
+
+  out.push(`#### Linked commits (${b.commits.length})`, "");
+  if (b.commits.length === 0) out.push("_None._");
+  else
+    for (const cm of b.commits) out.push(`- \`${cm.sha.slice(0, 10)}\` ${cm.message} — ${cm.url} (${cm.githubRepo})`);
+  out.push("");
+
+  return out;
+}
+
+// Deterministic like renderBundle: every value comes from the row data, and the
+// caller pre-sorts the issue list, so the same arc renders byte-for-byte the
+// same.
+export function renderArcBundle(b: ArcBundleData): string {
+  const { arc, product, issues: list } = b;
+  const out: string[] = [];
+  const keys = list.map((i) => i.key);
+
+  out.push(`# Arc — ${arc.name}`, "");
+  out.push(`- **Product:** ${product.name}`);
+  out.push(`- **Open issues:** ${list.length}`);
+  if (keys.length) out.push(`- **Issue keys:** ${keys.join(", ")}`);
+  out.push("");
+
+  // Arc description is the epic-level "why"; product description gives the
+  // surrounding context. Both up top so they're stated once for the whole run.
+  out.push("## Why this arc", "", para(arc.description, "_No description._"), "");
+  out.push("## Product context", "", `**${product.name}**`, "");
+  if (product.description.trim()) out.push(product.description.trim(), "");
+
+  out.push(`## Issues (${list.length})`, "");
+  if (list.length === 0) out.push("_No open issues in this arc._", "");
+  else for (const it of list) out.push(...renderArcIssueSection(it, b.baseUrl));
+
+  // Combined-PR orchestration (the arc analogue of the issue report-back
+  // preamble). Differs from the per-issue flow on purpose: the issues here are
+  // meant to ship together, so it's ONE shared branch and ONE PR naming every
+  // key, not a branch/PR per issue.
+  out.push("---", "", "## How to deliver this work", "");
+  out.push(
+    `You're taking on the whole **${arc.name}** arc — the ${list.length} open issue${
+      list.length === 1 ? "" : "s"
+    } above${keys.length ? ` (${keys.join(", ")})` : ""}. Drive them as one coordinated change that lands in a **single pull request**.`,
+    "",
+    `1. **Plan the split.** Read every issue above and decide a sensible division of labor. Watch for issues that touch the same files or depend on each other — sequence or group those so sub-agents don't fight over the same code.`,
+    `2. **Fan out to sub-agents.** Spin up one sub-agent per issue (or per independent group) and have each implement its issue. Give each sub-agent that issue's section above as its brief, and tell it to fetch more detail from the Progress API / MCP tools (\`get_bundle <KEY>\`) if it needs it.`,
+    `3. **Share one branch.** All sub-agents work toward a single feature branch for this arc (e.g. \`arc/${arc.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")}\`). Mention the relevant issue key in each commit so Progress auto-links the work back to the right issue.`,
+    `4. **Integrate and verify.** Once the sub-agents finish, reconcile their work on the shared branch, resolve any conflicts, and make sure the whole thing builds, type-checks, and passes tests **together** — not just issue-by-issue.`,
+    `5. **Open ONE pull request** for the arc whose title/body names every issue key (${
+      keys.length ? keys.join(", ") : "the keys above"
+    }). Do not open a PR per issue.`,
+    `6. **Update each issue** as you go — post a progress comment and move its status (\`todo\` → \`in_progress\` → \`in_review\` → \`done\`) via the Progress API / MCP tools. Keep each issue the source of truth; if scope changes, comment rather than silently diverging.`,
+    "",
+  );
+
+  // Same smart-commit rules as the issue bundle (PROG-62), but the commit-scope
+  // example is keyed to whichever issue a given commit advances.
+  out.push("### Committing & PRs", "");
+  out.push(
+    "Split the working tree into logical commits, then push the single arc PR — don't stall at a local commit:",
+    "",
+    "1. **Analyze** — `git status` and `git diff` (incl. `--cached`) to see exactly what changed.",
+    "2. **Security check** — scan the diff for secrets, API keys, passwords, tokens, or PII. If you find any, **STOP**, do not commit, and flag it.",
+    "3. **Plan** — one commit per logical unit of work; keep unrelated changes in separate commits, and name the issue key the commit advances.",
+    "4. **Commit** — use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): KEY subject` (types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert), where `KEY` is the issue that commit advances. Subject in imperative mood, no trailing period; the body explains *why* (context), *what* (the change), and any side effects. Do **not** add `Co-Authored-By` or any AI/Claude attribution.",
+    "5. **Verify** — `git status` and `git log` to confirm the history is clean and complete.",
+    `6. **Push the one PR** — once the whole arc is functioning and verified, push the shared branch and open a single pull request (title/body naming ${
+      keys.length ? keys.join(", ") : "every issue key"
+    }) for review. The work isn't handed off until that PR is up. Then move each issue to \`in_review\`.`,
+    "",
+  );
+
+  // Multiple sub-agents now edit the SAME repo and branch at once, so the
+  // append-only-doc race is sharper here than for a lone issue agent.
+  out.push("### Avoiding merge collisions (parallel sub-agents)", "");
+  out.push(
+    `Your sub-agents are editing the same repo and branch simultaneously. In **append-only docs**, never claim the next global running number — that races. Key each entry to the issue it belongs to instead:`,
+    "",
+    "- **`docs/DECISIONS.md`** — head a new decision `### KEY — <title>` (the issue it came from, not the next `D<n>`); a second decision for the same issue gets a letter suffix (`### KEYb — …`). Append at the end of the file.",
+    "- Same rule for any other append-only log keyed by a running counter: derive the id from the issue key, not a shared sequence.",
+    `- If a trailing merge conflict still appears in such a file, it's a "keep both entries" resolution — never renumber or drop another sub-agent's entry.`,
+    "",
+  );
+
   return out.join("\n");
 }

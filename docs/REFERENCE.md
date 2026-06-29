@@ -223,6 +223,7 @@ mandatory — renew it before it lapses (an expired file is worse than none).
 | `POST /api/issues/:id/move` | `{ productId, repoId }` (`repoId: null` = product-level). Within-product keeps key + arc; cross-product re-keys, clears arc, writes the alias, logs `moved`. 400 on no-op. |
 | `GET /api/issues/:id/timeline` | `{ comments, activity, pullRequests, commits }`, each ordered by `createdAt`. |
 | `GET /api/issues/:key/bundle` | Looked up by **key** (alias-aware), not id. Returns `text/markdown` — a deterministic context "work order": issue fields + tags, lineage with descriptions (product → repo incl. `gitUrl` → arc, where the arc description carries the "why"), comments, an **Images** list (absolute URLs of every image referenced in the description/comments, so a bearer-authed agent can fetch them — PROG-42), linked PRs/commits, then a stable report-back preamble — branch/key auto-linking + status flow, plus a **Committing & PRs** block that embeds a local, key-aware copy of the owner's smart-commit conventions (logical chunks, secret-scan, `type(scope): KEY subject`, no AI attribution) so a handed-off agent commits to the owner's rules (PROG-62). A retired key resolves and renders the current canonical key. 400 malformed key, 404 unknown. Rendered by `src/worker/bundle.ts` (`renderBundle`); shared foundation for the agent surfaces (SPEC §11.1, D33). |
+| `GET /api/arcs/:id/bundle` | Looked up by **id** (the arc page has it). Returns `text/markdown` — the **arc** work order: a single prompt covering **every open issue** in the arc (`done`/`canceled` dropped via `isOpenStatus`), each rendered like the issue bundle (fields, description, comments, Images, linked PRs/commits) minus its per-issue footer, with product/arc lineage stated once and repo per-issue. Ends in **combined-PR** orchestration — fan the issues to sub-agents, share one branch, land **one PR naming every key** — plus the same smart-commit block (keyed per-commit). Deterministic (status-then-number sort). 404 unknown arc. Rendered by `renderArcBundle` in `src/worker/bundle.ts`. |
 | `POST /api/issues/:id/comments` | `{ body }` → 201 `{ comment }`. |
 | `GET /api/search?q=` | Comment full-text search (PROG-130) — the one searchable text not in the workspace payload (D20), so it needs the server; title/description search runs client-side over the store. Case-insensitive substring via SQLite `LIKE`, AND'd across whitespace terms, wildcards escaped (`ESCAPE '\'`) so `100%` matches literally. Returns `{ hits: [{ commentId, issueId, snippet }], truncated }`, most-recent first, capped at 50 (`truncated` true when more exist). The client resolves `issueId` to the issue it already holds; `snippet` is a body window the client re-highlights. Pure helpers in `src/worker/searchComments.ts`. |
 
@@ -323,6 +324,12 @@ Two ways to hand an issue's bundle to a Claude Code session (SPEC §11.2):
   bundle as its opening prompt — all in the current directory, so Progress
   never needs to know where repos live. Flags: `--no-branch`, `--print`.
   Registration: SETUP §7.
+
+The **arc page** has a sibling **Copy arc as prompt** action (the Issues
+toolbar) that copies one prompt covering every open issue in the arc, ending in
+combined-PR / sub-agent orchestration — `copyArcBundleAsPrompt` in
+`src/client/workOn.ts`, fetched from `GET /api/arcs/:id/bundle` and prefetched on
+arc-page load. In-app only for now (no CLI/MCP arc kickoff yet).
 
 ## 4. Client architecture
 
