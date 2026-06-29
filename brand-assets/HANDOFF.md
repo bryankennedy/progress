@@ -8,7 +8,9 @@ Drop the contents of this `brand-assets/` folder into your app and wire it up. E
 - `apple-touch-icon-180.png` — iOS home-screen icon
 - `icon-512.png` — PWA / Android, standard
 - `icon-1024.png` — PWA hi-res (gives Chrome a sharper source for the macOS dock `.app` icon)
-- `icon-512-maskable.png` — PWA maskable (has safe-zone padding so OS masks don't clip)
+- `icon-512-maskable.png` — PWA maskable, standard (full-bleed bg; OS applies its own mask)
+- `icon-1024-maskable.png` — PWA maskable, hi-res (Chrome on macOS uses the *maskable* icon for the installed dock icon at Retina 1024px — a 512 source upscales and looks blurry, so ship 1024)
+- `progress-icon-maskable.svg` — maskable master (same mark, square full-bleed bg, no rounded corners)
 - `tokens.css` — all color, type, and radius tokens as CSS custom properties
 
 ## `<head>` snippet
@@ -28,9 +30,10 @@ Drop the contents of this `brand-assets/` folder into your app and wire it up. E
   "background_color": "#f0e9d9",
   "theme_color": "#f5efe0",
   "icons": [
-    { "src": "/brand-assets/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/brand-assets/icon-1024.png", "sizes": "1024x1024", "type": "image/png" },
-    { "src": "/brand-assets/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "/brand-assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/brand-assets/icon-1024.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" },
+    { "src": "/brand-assets/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/brand-assets/icon-1024-maskable.png", "sizes": "1024x1024", "type": "image/png", "purpose": "maskable" }
   ]
 }
 ```
