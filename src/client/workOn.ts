@@ -16,29 +16,34 @@ import { toast } from "./toast";
 // `prefetchBundle` after every mutation (see store.ts). A copy always prefers
 // an in-flight refresh over the cached value, so a copy right after an edit
 // still gets the latest.
+// Cache keys are namespaced by surface (`issue:KEY`, `arc:ID`) so the issue and
+// arc work orders never collide. Each entry remembers the URL it fetches from.
 const bundleCache = new Map<string, string>();
 const inflight = new Map<string, Promise<string>>();
 
-async function fetchBundle(key: string): Promise<string> {
-  const res = await fetch(`/api/issues/${key}/bundle`);
+const issueBundle = (key: string) => ({ cacheKey: `issue:${key}`, url: `/api/issues/${key}/bundle` });
+const arcBundle = (arcId: string) => ({ cacheKey: `arc:${arcId}`, url: `/api/arcs/${arcId}/bundle` });
+
+async function fetchBundle(cacheKey: string, url: string): Promise<string> {
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`bundle fetch failed: HTTP ${res.status}`);
   const text = await res.text();
-  bundleCache.set(key, text);
+  bundleCache.set(cacheKey, text);
   return text;
 }
 
 // `force` skips the cache (used by prefetch to refresh after a change). An
 // in-flight fetch is always preferred — it's the freshest — and is shared so a
 // burst of changes coalesces into one request.
-function loadBundle(key: string, force: boolean): Promise<string> {
-  const pending = inflight.get(key);
+function loadBundle(cacheKey: string, url: string, force: boolean): Promise<string> {
+  const pending = inflight.get(cacheKey);
   if (pending) return pending;
   if (!force) {
-    const cached = bundleCache.get(key);
+    const cached = bundleCache.get(cacheKey);
     if (cached !== undefined) return Promise.resolve(cached);
   }
-  const p = fetchBundle(key).finally(() => inflight.delete(key));
-  inflight.set(key, p);
+  const p = fetchBundle(cacheKey, url).finally(() => inflight.delete(cacheKey));
+  inflight.set(cacheKey, p);
   return p;
 }
 
@@ -47,7 +52,17 @@ function loadBundle(key: string, force: boolean): Promise<string> {
 // the store after any mutation to the issue, so the cached bundle never goes
 // stale.
 export function prefetchBundle(key: string): void {
-  void loadBundle(key, true).catch(() => {
+  const { cacheKey, url } = issueBundle(key);
+  void loadBundle(cacheKey, url, true).catch(() => {
+    /* a failed prefetch just means the copy action fetches on demand */
+  });
+}
+
+// Arc work order spans many issues, so it's heavier to render — prefetch on
+// arc-page mount keeps the copy click instant, same as the issue surface.
+export function prefetchArcBundle(arcId: string): void {
+  const { cacheKey, url } = arcBundle(arcId);
+  void loadBundle(cacheKey, url, true).catch(() => {
     /* a failed prefetch just means the copy action fetches on demand */
   });
 }
@@ -65,16 +80,31 @@ async function copy(text: string, ok: string): Promise<void> {
 export const workCommand = (key: string): string => `progress work ${key}`;
 
 export async function copyBundleAsPrompt(key: string): Promise<void> {
+  const { cacheKey, url } = issueBundle(key);
   let bundle: string;
   try {
     // Prefers an in-flight refresh, so a copy right after an edit/comment gets
     // the latest rather than a stale cached bundle.
-    bundle = await loadBundle(key, false);
+    bundle = await loadBundle(cacheKey, url, false);
   } catch {
     toast("Couldn't fetch the issue bundle.");
     return;
   }
   await copy(bundle, `Copied ${key} as a prompt.`);
+}
+
+// The arc analogue: copy a single prompt covering every open issue in the arc.
+// `label` is the arc name, just for the confirmation toast.
+export async function copyArcBundleAsPrompt(arcId: string, label: string): Promise<void> {
+  const { cacheKey, url } = arcBundle(arcId);
+  let bundle: string;
+  try {
+    bundle = await loadBundle(cacheKey, url, false);
+  } catch {
+    toast("Couldn't fetch the arc bundle.");
+    return;
+  }
+  await copy(bundle, `Copied ${label} as a prompt.`);
 }
 
 export function copyWorkCommand(key: string): void {

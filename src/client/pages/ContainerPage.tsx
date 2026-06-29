@@ -3,7 +3,7 @@
 // status/priority edits. One component covers all four types; they differ
 // only in how their issue scope and child links derive from the workspace.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   ISSUE_PRIORITIES,
@@ -18,6 +18,7 @@ import InlineEdit from "../InlineEdit";
 import { PRIORITY_LABELS as SHARED_PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
 import { issueKeyOf, updateContainer, updateIssue } from "../store";
+import { copyArcBundleAsPrompt, prefetchArcBundle } from "../workOn";
 
 export type ContainerType = "initiative" | "product" | "repo" | "arc";
 
@@ -160,6 +161,12 @@ export default function ContainerPage({
     });
   }, [resolved, sort, statusFilter]);
 
+  // Warm the arc work-order cache on mount and whenever this arc's issues
+  // change, so "Copy arc as prompt" copies instantly with the latest state.
+  useEffect(() => {
+    if (type === "arc") prefetchArcBundle(id);
+  }, [type, id, resolved?.issues]);
+
   if (!resolved) {
     return (
       <p className="text-ink-soft">
@@ -291,6 +298,15 @@ export default function ContainerPage({
           <option value="number">Sort: number</option>
           <option value="updated">Sort: recently updated</option>
         </select>
+        {type === "arc" && (
+          <button
+            onClick={() => void copyArcBundleAsPrompt(id, resolved.name)}
+            title="Copy a single prompt covering every open issue in this arc, for handing to an agent"
+            className="text-xs text-adobe hover:underline"
+          >
+            Copy arc as prompt →
+          </button>
+        )}
         <Link
           href={`/?${resolved.boardParam}&backlog=1`}
           className="text-xs text-adobe hover:underline"
