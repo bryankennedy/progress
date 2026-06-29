@@ -6,6 +6,7 @@ import type { WorkspacePayload } from "../../shared/types";
 import CommandPalette from "./CommandPalette";
 import CreateContainerDialog from "./CreateContainerDialog";
 import CreateIssueDialog from "./CreateIssueDialog";
+import SearchModal from "./SearchModal";
 import { initCurrentIssueTracking } from "./currentIssue";
 import { useGlobalKeys } from "./useGlobalKeys";
 
@@ -15,6 +16,7 @@ export default function CommandLayer({ workspace }: { workspace: WorkspacePayloa
   return (
     <>
       <CommandPalette workspace={workspace} />
+      <SearchModal workspace={workspace} />
       <CreateIssueDialog workspace={workspace} />
       <CreateContainerDialog workspace={workspace} />
     </>

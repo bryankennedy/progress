@@ -9,7 +9,7 @@
 
 export default function SignIn() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-canvas px-6 text-ink">
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-canvas px-6 text-ink">
       <div className="flex w-full max-w-sm flex-col items-center text-center">
         <img
           src="/brand-assets/progress-icon.svg"

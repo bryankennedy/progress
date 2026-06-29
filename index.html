@@ -2,7 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover lets the layout extend under the iPhone notch/home-bar;
+         the safe-area-inset padding in styles.css keeps content clear of them.
+         No maximum-scale/user-scalable lock — pinch-zoom stays available for
+         accessibility; iOS input auto-zoom is prevented via 16px+ inputs instead. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Progress</title>
 
     <!-- Brand mark / app icons (brand-assets/HANDOFF.md) -->
@@ -12,6 +16,18 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/brand-assets/apple-touch-icon-180.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#f5efe0" />
+
+    <!-- iOS standalone PWA: the manifest alone isn't honoured by Safari, so these
+         legacy/Apple-specific tags are required for an installed home-screen app.
+         - mobile-web-app-capable (+ apple- legacy alias): run without browser chrome.
+         - status-bar-style "default": dark text on our light paper status bar
+           (black-translucent would draw content under the clock — wrong for a
+           light UI). theme-color above tints it #f5efe0 to match the header.
+         - apple-mobile-web-app-title: the home-screen label. -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Progress" />
 
     <!-- Fonts: Spectral (headings/body), IBM Plex Mono (labels/meta/code) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

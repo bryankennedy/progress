@@ -36,6 +36,13 @@ const palette = channel<PaletteMode>();
 export const openPalette = palette.emit;
 export const onOpenPalette = palette.on;
 
+// The `/` search modal (PROG-130) — a search-only surface, separate from the
+// ⌘K command palette. Opens with an optional initial query (the search page's
+// box can hand off its text). The void payload just triggers an open.
+const search = channel<string | undefined>();
+export const openSearch = (initialQuery?: string) => search.emit(initialQuery);
+export const onOpenSearch = search.on;
+
 const create = channel<CreateDefaults | undefined>();
 // Defaults omitted → the dialog derives its container from the current route.
 export const openCreateIssue = (defaults?: CreateDefaults) => create.emit(defaults);

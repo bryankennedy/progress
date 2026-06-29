@@ -1,6 +1,7 @@
 import { Link, Route, Switch } from "wouter";
 import CommandLayer from "./commands/CommandLayer";
 import Header from "./Header";
+import InstallPrompt from "./pwa/InstallPrompt";
 import SignIn from "./SignIn";
 import { UnauthenticatedError, useWorkspace } from "./store";
 import { Toasts } from "./toast";
@@ -11,6 +12,7 @@ import ContainerPage, { type ContainerType } from "./pages/ContainerPage";
 import Home from "./pages/Home";
 import IssuePage from "./pages/IssuePage";
 import Outline from "./pages/Outline";
+import Search from "./pages/Search";
 import Structure from "./pages/Structure";
 
 const CONTAINER_ROUTES: { path: string; type: ContainerType }[] = [
@@ -27,7 +29,9 @@ export default function App() {
   if (error instanceof UnauthenticatedError) return <SignIn />;
 
   return (
-    <div className="min-h-screen bg-canvas text-ink">
+    // min-h-dvh (not min-h-screen): tracks the live iOS viewport so the canvas
+    // fills the screen without overflowing under the dynamic Safari toolbar.
+    <div className="min-h-dvh bg-canvas text-ink">
       {workspace && <Header />}
       {/* Wide shell for the board; narrow pages re-constrain themselves.
           Tighter padding on phones — the board needs the width. Top gap is
@@ -45,6 +49,9 @@ export default function App() {
             </Route>
             <Route path="/agenda">
               <Agenda workspace={workspace} />
+            </Route>
+            <Route path="/search">
+              <Search workspace={workspace} />
             </Route>
             <Route path="/outline">
               <Outline workspace={workspace} />
@@ -81,6 +88,7 @@ export default function App() {
         )}
       </main>
       <Toasts />
+      <InstallPrompt />
     </div>
   );
 }

@@ -3,13 +3,33 @@
 Drop the contents of this `brand-assets/` folder into your app and wire it up. Everything here is production-final — don't recreate the icon or re-pick colors, just reference these files.
 
 ## Files
-- `progress-icon.svg` — the master mark (scalable; use anywhere you can use SVG)
+- `progress-icon.svg` — the master mark (rounded; favicon / tab / in-app use)
+- `progress-icon-maskable.svg` — maskable master (same mark, square full-bleed bg, no rounded corners)
 - `favicon-16.png`, `favicon-32.png` — browser tab favicons
-- `apple-touch-icon-180.png` — iOS home-screen icon
-- `icon-512.png` — PWA / Android, standard
-- `icon-1024.png` — PWA hi-res (gives Chrome a sharper source for the macOS dock `.app` icon)
-- `icon-512-maskable.png` — PWA maskable (has safe-zone padding so OS masks don't clip)
+- `apple-touch-icon-180.png` — iOS home-screen icon (opaque full-bleed; iOS rounds it)
+- `icon-512.png`, `icon-1024.png` — PWA app icons, `purpose: "any"` (rounded, transparent corners) for tabs / non-masking surfaces
+- `icon-512-maskable.png`, `icon-1024-maskable.png` — PWA app icons, `purpose: "maskable"` (opaque full-bleed). Chrome on macOS uses the *maskable* icon for the installed dock icon at Retina 1024px — a 512 source upscales and looks blurry, so ship 1024.
 - `tokens.css` — all color, type, and radius tokens as CSS custom properties
+
+## App-icon rules (macOS Tahoe / Chrome PWA) — do not regress
+
+The **maskable** PNGs (`icon-512-maskable`, `icon-1024-maskable`) and
+`apple-touch-icon-180` are **opaque and full-bleed**: the cream background fills
+every pixel to the edge, with the mark kept inside the central ~80% safe zone.
+They are intentionally **not** pre-rounded and have **no transparent corners**.
+
+Why: when Chrome installs a PWA, macOS masks the icon into the system squircle.
+Where it finds **transparent pixels it fills them with white** — producing the
+"white plate / halo" behind the icon. An opaque full-bleed image masks cleanly,
+flat and edge-to-edge, like a native app. Ship the maskable at **1024** too, so
+Chrome doesn't fall back to upscaling the 512 (blurry) for the Retina dock icon.
+macOS still applies its own subtle gloss — that is system-wide and not removable
+for a PWA.
+
+The `purpose: "any"` PNGs (`icon-512`, `icon-1024`) and `progress-icon.svg` are
+**rounded with transparent corners** — they're for browser tabs and other
+surfaces that don't mask. Keep the two purposes separate; don't point a single
+rounded icon at both purposes, or the macOS dock gets the white plate.
 
 ## `<head>` snippet
 ```html
@@ -28,9 +48,10 @@ Drop the contents of this `brand-assets/` folder into your app and wire it up. E
   "background_color": "#f0e9d9",
   "theme_color": "#f5efe0",
   "icons": [
-    { "src": "/brand-assets/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/brand-assets/icon-1024.png", "sizes": "1024x1024", "type": "image/png" },
-    { "src": "/brand-assets/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "/brand-assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/brand-assets/icon-1024.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" },
+    { "src": "/brand-assets/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/brand-assets/icon-1024-maskable.png", "sizes": "1024x1024", "type": "image/png", "purpose": "maskable" }
   ]
 }
 ```

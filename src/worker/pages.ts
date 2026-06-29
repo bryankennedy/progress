@@ -17,7 +17,7 @@ export function notAuthorizedPage(): string {
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Access required · Progress</title>
     <link rel="icon" type="image/svg+xml" href="/brand-assets/progress-icon.svg" />
     <meta name="theme-color" content="#f5efe0" />
@@ -41,6 +41,7 @@ export function notAuthorizedPage(): string {
       body {
         display: flex;
         min-height: 100vh;
+        min-height: 100dvh;
         flex-direction: column;
         align-items: center;
         justify-content: center;

@@ -24,6 +24,7 @@ const NAV: NavItem[] = [
   { href: "/", label: "Board", match: (p) => p === "/" },
   { href: "/outline", label: "Outline", match: (p) => p.startsWith("/outline") },
   { href: "/agenda", label: "Agenda", match: (p) => p.startsWith("/agenda") },
+  { href: "/search", label: "Search", match: (p) => p.startsWith("/search") },
   { href: "/structure", label: "Structure", match: (p) => p.startsWith("/structure") },
   { href: "/archive", label: "Archive", match: (p) => p.startsWith("/archive") },
 ];
@@ -44,7 +45,10 @@ export default function Header() {
   ];
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line bg-paper/90 backdrop-blur">
+    // pwa-safe-top + pwa-safe-x: in an installed iOS app the bar paints up under
+    // the status bar / Dynamic Island and clears the rounded corners, while the
+    // inner row stays tappable below them. Inert (0px) in the browser.
+    <header className="pwa-safe-top pwa-safe-x sticky top-0 z-40 border-b border-line bg-paper/90 backdrop-blur">
       <div className="mx-auto flex max-w-screen-2xl items-center gap-1 px-3 py-2 sm:px-6">
         <Link href="/" className="mr-2 font-semibold tracking-tight text-ink">
           Progress
