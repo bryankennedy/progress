@@ -63,7 +63,46 @@
     background-color: var(--color-canvas);
     color: var(--color-ink);
     font-family: var(--font-serif);
+    /* iOS standalone PWA: stop the whole document rubber-banding (which exposes a
+       bare background behind the fixed header). Inner scroll regions still scroll;
+       this only kills the bounce on the root. */
+    overscroll-behavior-y: none;
   }
+
+  /* iOS Safari auto-zooms when a focused input's font-size is < 16px. Our root is
+     scaled to 120% (≈19.2px) so inherited text clears the bar, but form controls
+     reset to the UA default — pin them to 16px so focusing never triggers the
+     zoom-and-pan. Applies the floor without enlarging anything already larger. */
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+}
+
+/* Safe-area insets (PWA, iOS notch / Dynamic Island / home indicator).
+   viewport-fit=cover (index.html) lets us paint edge-to-edge; these env() pads
+   keep the sticky header and main content out from under the hardware. The
+   values are 0 on every non-notched device, so this is inert elsewhere. */
+@layer base {
+  .pwa-safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .pwa-safe-x {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  .pwa-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Full-height that respects the iOS dynamic toolbar. 100vh measures the *large*
+   viewport (toolbar collapsed) and so overflows when it's expanded; 100dvh
+   tracks the visible area live. Fallback to 100vh where dvh is unsupported. */
+.min-h-dvh {
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 /* Minimal Markdown typography (Tailwind preflight strips element defaults).
