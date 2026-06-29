@@ -61,3 +61,24 @@ export type WorkspacePayload = {
   issueTags: WireIssueTag[];
   issueKeyAliases: WireIssueKeyAlias[];
 };
+
+// GET /api/search?q= — comment full-text search (PROG-130). Comments are the
+// only searchable text NOT in the workspace payload (D20), so they need a
+// server round-trip; title/description search runs client-side over the store.
+// A hit carries just the ids + a snippet — the client already holds the issue,
+// so it resolves the key/title/container itself.
+export type CommentSearchHit = {
+  commentId: string;
+  issueId: string;
+  // A window of the comment body around the first matched term, with leading/
+  // trailing ellipses when truncated. The matched terms are highlighted on the
+  // client (it knows the query); the server only frames the window.
+  snippet: string;
+};
+
+export type CommentSearchResponse = {
+  hits: CommentSearchHit[];
+  // True when the match set hit the server cap, so the UI can say "showing
+  // first N" instead of implying these are all of them.
+  truncated: boolean;
+};

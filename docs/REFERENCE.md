@@ -224,6 +224,7 @@ mandatory — renew it before it lapses (an expired file is worse than none).
 | `GET /api/issues/:id/timeline` | `{ comments, activity, pullRequests, commits }`, each ordered by `createdAt`. |
 | `GET /api/issues/:key/bundle` | Looked up by **key** (alias-aware), not id. Returns `text/markdown` — a deterministic context "work order": issue fields + tags, lineage with descriptions (product → repo incl. `gitUrl` → arc, where the arc description carries the "why"), comments, an **Images** list (absolute URLs of every image referenced in the description/comments, so a bearer-authed agent can fetch them — PROG-42), linked PRs/commits, then a stable report-back preamble — branch/key auto-linking + status flow, plus a **Committing & PRs** block that embeds a local, key-aware copy of the owner's smart-commit conventions (logical chunks, secret-scan, `type(scope): KEY subject`, no AI attribution) so a handed-off agent commits to the owner's rules (PROG-62). A retired key resolves and renders the current canonical key. 400 malformed key, 404 unknown. Rendered by `src/worker/bundle.ts` (`renderBundle`); shared foundation for the agent surfaces (SPEC §11.1, D33). |
 | `POST /api/issues/:id/comments` | `{ body }` → 201 `{ comment }`. |
+| `GET /api/search?q=` | Comment full-text search (PROG-130) — the one searchable text not in the workspace payload (D20), so it needs the server; title/description search runs client-side over the store. Case-insensitive substring via SQLite `LIKE`, AND'd across whitespace terms, wildcards escaped (`ESCAPE '\'`) so `100%` matches literally. Returns `{ hits: [{ commentId, issueId, snippet }], truncated }`, most-recent first, capped at 50 (`truncated` true when more exist). The client resolves `issueId` to the issue it already holds; `snippet` is a body window the client re-highlights. Pure helpers in `src/worker/searchComments.ts`. |
 
 ### Images (PROG-42)
 
@@ -372,8 +373,20 @@ canonical key — entirely client-side from the loaded workspace (D22).
   only by the explicit per-row "→ arc" control (pick existing or create new);
   the `…` opens the full issue. Nothing here deletes or archives. All writes
   reuse the optimistic `createIssue`/`updateIssue`/`createContainer` paths.
+- **Search (`/` modal + `/search` page, PROG-130)** — two surfaces sharing one
+  two-wave model. Title/description hits come from the in-memory store and paint
+  instantly; comment hits need a server round-trip (`GET /api/search`, D20) and
+  stream into their own section a beat later, ranked below the local hits.
+  Matching is case-insensitive substring; ranking weights title over description
+  (`src/client/search.ts`, unit-tested). The **`/` modal** (`SearchModal.tsx`,
+  separate from the ⌘K palette by design) is for quick jump — Issues, then
+  Containers, then Comments, with matched terms highlighted; Enter opens the
+  selection, and a footer link hands the query to the page. The **`/search`
+  page** (`pages/Search.tsx`) is the deep dive: the same results, filterable by
+  the board dimensions (status · product · arc · repo · tag · priority), with
+  query + filters in the URL so a search is bookmarkable.
 - **App header** — persistent across pages: the "Progress" home link, nav
-  (Board · Outline · Agenda · Structure · Archive), a **New** menu (Issue ·
+  (Board · Outline · Agenda · Search · Structure · Archive), a **New** menu (Issue ·
   Initiative · Product · Repo · Arc) that opens the existing optimistic create flows, and the
   signed-in identity avatar. The always-available structure-creation entry point
   (SPEC v2 §4). The avatar dropdown holds the profile + **Sign out**, plus an
@@ -454,6 +467,7 @@ canonical key — entirely client-side from the loaded workspace (D22).
 | Key | Action |
 |---|---|
 | `⌘K` / `Ctrl+K` | Command palette |
+| `/` | Search modal (PROG-130) — separate from the palette; title/description hits paint instantly, comment hits stream in |
 | `C` | Create issue |
 | `S` / `P` / `E` | Status / priority / estimate picker for the current issue |
 | `M` / `A` / `T` | Move / arc / tag picker for the current issue |

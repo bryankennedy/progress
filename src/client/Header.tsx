@@ -24,6 +24,7 @@ const NAV: NavItem[] = [
   { href: "/", label: "Board", match: (p) => p === "/" },
   { href: "/outline", label: "Outline", match: (p) => p.startsWith("/outline") },
   { href: "/agenda", label: "Agenda", match: (p) => p.startsWith("/agenda") },
+  { href: "/search", label: "Search", match: (p) => p.startsWith("/search") },
   { href: "/structure", label: "Structure", match: (p) => p.startsWith("/structure") },
   { href: "/archive", label: "Archive", match: (p) => p.startsWith("/archive") },
 ];

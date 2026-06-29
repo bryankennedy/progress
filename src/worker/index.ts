@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/cloudflare";
 import { Hono, type Context } from "hono";
-import { and, asc, eq, inArray, max, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, max, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import {
   activity,
@@ -28,6 +28,7 @@ import {
 import { tagColor } from "../shared/constants";
 import { isValidRank, rankAfter } from "../shared/rank";
 import { log } from "./log";
+import { commentSnippet, escapeLike, SEARCH_CAP } from "./searchComments";
 import { renderBundle } from "./bundle";
 import { notAuthorizedPage } from "./pages";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
@@ -432,6 +433,44 @@ app.get("/api/workspace", async (c) => {
     issueTags: allIssueTags,
     issueKeyAliases: allKeyAliases,
   });
+});
+
+// Comment search (PROG-130). Comments are the only searchable text excluded
+// from the workspace payload (D20), so they're the one thing the client can't
+// search in memory — this endpoint covers them; title/description search stays
+// client-side. Matching is case-insensitive substring (SQLite LIKE), AND'd
+// across whitespace-separated terms — the same predictable substring semantics
+// the client uses, and a better fit than FTS5, which is token-based and
+// wouldn't match mid-word (e.g. "ozzie" inside a longer token). The owner is a
+// single user over a bounded comment set, so a LIKE scan is plenty; revisit if
+// it ever isn't. Pure helpers (escaping, snippet) live in ./searchComments.
+app.get("/api/search", async (c) => {
+  // Lowercased so terms match the lowercased body comparison; SQLite LIKE is
+  // already case-insensitive for ASCII, but we also build snippets in JS.
+  const raw = (c.req.query("q") ?? "").trim().toLowerCase();
+  const terms = raw.split(/\s+/).filter(Boolean);
+  if (terms.length === 0) return c.json({ hits: [], truncated: false });
+
+  const db = drizzle(c.env.DB);
+  // One LIKE per term, AND'd — a comment matches only if every term appears.
+  const predicate = and(
+    ...terms.map((t) => sql`lower(${comments.body}) LIKE ${`%${escapeLike(t)}%`} ESCAPE '\\'`),
+  );
+  // Most-recent first; pull one extra to detect truncation.
+  const rows = await db
+    .select({ id: comments.id, issueId: comments.issueId, body: comments.body })
+    .from(comments)
+    .where(predicate)
+    .orderBy(desc(comments.createdAt))
+    .limit(SEARCH_CAP + 1);
+
+  const truncated = rows.length > SEARCH_CAP;
+  const hits = rows.slice(0, SEARCH_CAP).map((r) => ({
+    commentId: r.id,
+    issueId: r.issueId,
+    snippet: commentSnippet(r.body, terms),
+  }));
+  return c.json({ hits, truncated });
 });
 
 // ---------- admin: sign-in allowlist CRUD (D44) ----------

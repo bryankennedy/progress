@@ -1,5 +1,6 @@
 // The keyboard map (SPEC §4, exact map decided during build — see D25):
 //   ⌘K / Ctrl+K  command palette
+//   /            search (PROG-130 — title/description instantly, comments stream)
 //   C            create issue (container defaults from the current view)
 //   S / P / E / M / T / A  status / priority / estimate / move / tag / arc
 //   D            due date (quick relative options or a typed YYYY-MM-DD)
@@ -9,7 +10,7 @@
 // Plain keys are ignored while typing in inputs/textareas/selects.
 
 import { useEffect } from "react";
-import { openCreateIssue, openPalette } from "./controller";
+import { openCreateIssue, openPalette, openSearch } from "./controller";
 import { currentIssueId } from "./currentIssue";
 
 const PICKER_KEYS = {
@@ -39,6 +40,11 @@ export function useGlobalKeys() {
       )
         return;
       const key = e.key.toLowerCase();
+      if (key === "/") {
+        e.preventDefault();
+        openSearch();
+        return;
+      }
       if (key === "c") {
         e.preventDefault();
         openCreateIssue();
