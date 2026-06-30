@@ -2,7 +2,13 @@
 // is unit-tested here; the end-to-end persistence (navigate away, come back,
 // filter still applied) is covered by e2e/board-filters.spec.ts. Run `bun test`.
 import { describe, expect, it } from "bun:test";
-import { filtersToRestore, pruneImpossibleFilters, sortByName } from "./boardFilters";
+import {
+  FILTER_NONE,
+  filtersToRestore,
+  matchesNullableId,
+  pruneImpossibleFilters,
+  sortByName,
+} from "./boardFilters";
 
 describe("filtersToRestore", () => {
   it("restores the saved query when the board opens unfiltered", () => {
@@ -93,6 +99,30 @@ describe("pruneImpossibleFilters", () => {
 
   it("is a no-op with no ancestors selected", () => {
     expect(prune("arc=arc_1&repo=repo_3")).toBe("arc=arc_1&repo=repo_3");
+  });
+
+  // "No arc/repo" (PROG-76) belongs to no branch, so it's compatible with any
+  // ancestor and must survive pruning.
+  it("keeps an Arc/Repo 'none' filter under any ancestor selection", () => {
+    expect(prune(`product=prd_3&arc=${FILTER_NONE}&repo=${FILTER_NONE}`)).toBe(
+      `product=prd_3&arc=${FILTER_NONE}&repo=${FILTER_NONE}`,
+    );
+    expect(prune(`initiative=ini_2&arc=${FILTER_NONE}`)).toBe(`initiative=ini_2&arc=${FILTER_NONE}`);
+  });
+});
+
+// The nullable-id filter (Arc / Repo) — the "none" sentinel matches an empty
+// field; everything else is plain id equality (PROG-76).
+describe("matchesNullableId", () => {
+  it("matches only empty fields when the filter is the 'none' sentinel", () => {
+    expect(matchesNullableId(null, FILTER_NONE)).toBe(true);
+    expect(matchesNullableId("arc_1", FILTER_NONE)).toBe(false);
+  });
+
+  it("matches by id equality otherwise (and an empty field never equals an id)", () => {
+    expect(matchesNullableId("arc_1", "arc_1")).toBe(true);
+    expect(matchesNullableId("arc_1", "arc_2")).toBe(false);
+    expect(matchesNullableId(null, "arc_1")).toBe(false);
   });
 });
 
