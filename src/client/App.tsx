@@ -1,6 +1,7 @@
 import { Link, Route, Switch } from "wouter";
 import CommandLayer from "./commands/CommandLayer";
 import Header from "./Header";
+import MobileTabBar from "./MobileTabBar";
 import InstallPrompt from "./pwa/InstallPrompt";
 import SignIn from "./SignIn";
 import { UnauthenticatedError, useWorkspace } from "./store";
@@ -36,8 +37,9 @@ export default function App() {
       {/* Wide shell for the board; narrow pages re-constrain themselves.
           Tighter padding on phones — the board needs the width. Top gap is
           kept small so content sits just under the sticky header, with roomier
-          bottom padding for scroll breathing room (PROG-69). */}
-      <main className="mx-auto max-w-screen-2xl px-3 pb-5 pt-3 sm:px-6 sm:pb-10 sm:pt-4">
+          bottom padding for scroll breathing room (PROG-69). The extra mobile
+          bottom padding (pb-24) clears the fixed bottom tab bar (PROG-79). */}
+      <main className="mx-auto max-w-screen-2xl px-3 pb-24 pt-3 sm:px-6 sm:pb-10 sm:pt-4">
         {/* Initial app load: the only permitted loading state (SPEC §8.2). */}
         {isPending && <p className="text-ink-faint">Loading workspace…</p>}
         {error && <p className="text-danger">{String(error)}</p>}
@@ -87,6 +89,7 @@ export default function App() {
           </Switch>
         )}
       </main>
+      {workspace && <MobileTabBar />}
       <Toasts />
       <InstallPrompt />
     </div>

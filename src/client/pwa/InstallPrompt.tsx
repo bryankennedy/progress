@@ -48,7 +48,7 @@ function PlusSquareIcon({ className }: { className?: string }) {
 // on phones without spanning a desktop window.
 function Card({ children, onDismiss }: { children: React.ReactNode; onDismiss: () => void }) {
   return (
-    <div className="pwa-safe-bottom pwa-safe-x fixed inset-x-0 bottom-0 z-50 flex justify-center px-3 pb-3">
+    <div className="pwa-safe-bottom pwa-safe-x fixed inset-x-0 bottom-16 z-50 flex justify-center px-3 pb-3 sm:bottom-0">
       <div className="relative w-full max-w-md rounded-lg border border-line bg-paper p-4 shadow-xl">
         <button
           onClick={onDismiss}
