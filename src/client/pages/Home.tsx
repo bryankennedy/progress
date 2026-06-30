@@ -611,12 +611,25 @@ function BoardCard({
       {...attributes}
       data-issue-id={issue.id}
       className={hidden || isDragging ? "opacity-30" : ""}
-      // Keeps taps/holds responsive on touch without blocking board scroll
-      // (safe with the hold-delay sensor; touch-action:none would kill
-      // scrolling over cards).
-      style={{ touchAction: "manipulation", transform: CSS.Transform.toString(transform), transition }}
+      // touchAction:manipulation keeps taps/holds responsive without blocking
+      // board scroll (touch-action:none would kill scrolling over cards).
+      // WebkitTouchCallout:none is the fix for PROG-79's drag bug: the card is a
+      // <Link> (an <a>), and iOS Safari fires its native link callout — the
+      // "Open / Copy Link / Share" preview menu — on long-press, which is the
+      // exact press-and-hold gesture that starts a drag. The callout property is
+      // inherited, so setting it here suppresses it for the anchor and its
+      // contents; userSelect:none likewise stops the long-press text-selection
+      // menu. A card is a drag handle / navigation target, not selectable copy.
+      style={{
+        touchAction: "manipulation",
+        WebkitTouchCallout: "none",
+        WebkitUserSelect: "none",
+        userSelect: "none",
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
     >
-      <Link href={`/issue/${issueKeyOf(workspace, issue)}`}>
+      <Link href={`/issue/${issueKeyOf(workspace, issue)}`} draggable={false}>
         <CardView issue={issue} workspace={workspace} tags={tags} />
       </Link>
     </div>
