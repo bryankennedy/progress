@@ -380,6 +380,11 @@ canonical key — entirely client-side from the loaded workspace (D22).
   only by the explicit per-row "→ arc" control (pick existing or create new);
   the `…` opens the full issue. Nothing here deletes or archives. All writes
   reuse the optimistic `createIssue`/`updateIssue`/`createContainer` paths.
+  Completed issues (done/canceled) read as finished — dimmed + struck through —
+  and a page-level **Hide done** toggle drops them (and their subtrees) from the
+  forest entirely. That toggle is a sticky per-user preference, persisted to
+  `localStorage` so it survives leaving and returning to the route
+  (`src/client/outlinePrefs.ts`, PROG-77).
 - **Search (`/` modal + `/search` page, PROG-130)** — two surfaces sharing one
   two-wave model. Title/description hits come from the in-memory store and paint
   instantly; comment hits need a server round-trip (`GET /api/search`, D20) and
