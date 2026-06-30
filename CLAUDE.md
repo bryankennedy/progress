@@ -23,7 +23,10 @@ deliberately — keep it that way as milestones land:
   don't re-litigate them — supersede with a new entry if something changes. New
   entries are **keyed to their issue** (`### KEY — title`), not a running `D<n>`
   number, so parallel agents on different issues don't collide (PROG-62); D1–D48
-  keep their historical numbers.
+  keep their historical numbers. Always append at the **bottom**: the file is
+  `merge=union` (`.gitattributes`), so parallel appends merge as keep-both with
+  no conflict — which only holds while the log stays append-only, so supersede
+  settled entries, never rewrite them (`DECISIONS-union`).
 - `docs/SETUP.md` — how-to: install, run, schema changes, deploy.
 
 When a decision of consequence is made in conversation, record it in
