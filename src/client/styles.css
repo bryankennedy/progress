@@ -125,6 +125,17 @@
   textarea {
     min-height: 44px;
   }
+  /* Keep a native control from overflowing its container on a phone. Some
+     controls — notably iOS's `<input type="date">` — have a wide intrinsic
+     width; as a flex/grid item that `min-width: auto` lets them push past the
+     viewport (the issue page's field column did exactly this). min-width:0 lets
+     them shrink to their box; max-width:100% caps them at the container. */
+  input,
+  select,
+  textarea {
+    min-width: 0;
+    max-width: 100%;
+  }
 }
 
 /* Minimal Markdown typography (Tailwind preflight strips element defaults).

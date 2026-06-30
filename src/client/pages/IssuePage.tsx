@@ -140,7 +140,12 @@ export default function IssuePage({
           />
         </div>
 
-        <aside className="w-full space-y-4 md:col-start-2 md:row-start-1 md:row-span-2">
+        {/* min-w-0: a grid item defaults to min-width:auto, so it won't shrink
+            below its content's intrinsic width. The native date input below has
+            a wide intrinsic width on iOS, which otherwise stretches this whole
+            column (and every w-full field in it) past the viewport — horizontal
+            overflow on a phone. min-w-0 lets the track constrain it. */}
+        <aside className="w-full min-w-0 space-y-4 md:col-start-2 md:row-start-1 md:row-span-2">
           <Field label="Status">
             <FieldSelect
               value={issue.status}
@@ -172,7 +177,10 @@ export default function IssuePage({
               type="date"
               value={issue.dueDate ?? ""}
               onChange={(e) => updateIssue(issue.id, { dueDate: e.target.value || null })}
-              className="w-full rounded border border-line bg-card px-2 py-1 text-sm hover:border-ink-faint"
+              // w-full + min-w-0: pin the native date control to the column
+              // width instead of letting its (wide, on iOS) intrinsic size win,
+              // which would overflow the page on a phone.
+              className="w-full min-w-0 rounded border border-line bg-card px-2 py-1 text-sm hover:border-ink-faint"
             />
           </Field>
           <Field label="Container">
