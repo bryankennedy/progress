@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { openCreateContainer, openCreateIssue, type ContainerDialogRequest } from "./commands/controller";
+import { NAV } from "./nav";
 import { useWorkspaceSlice } from "./store";
 
 // End the session, then reload — an unauthenticated load bounces to sign-in.
@@ -17,17 +18,6 @@ async function signOut() {
     window.location.href = "/";
   }
 }
-
-type NavItem = { href: string; label: string; match: (path: string) => boolean };
-
-const NAV: NavItem[] = [
-  { href: "/", label: "Board", match: (p) => p === "/" },
-  { href: "/outline", label: "Outline", match: (p) => p.startsWith("/outline") },
-  { href: "/agenda", label: "Agenda", match: (p) => p.startsWith("/agenda") },
-  { href: "/search", label: "Search", match: (p) => p.startsWith("/search") },
-  { href: "/structure", label: "Structure", match: (p) => p.startsWith("/structure") },
-  { href: "/archive", label: "Archive", match: (p) => p.startsWith("/archive") },
-];
 
 export default function Header() {
   const [path] = useLocation();
@@ -53,7 +43,10 @@ export default function Header() {
         <Link href="/" className="mr-2 font-semibold tracking-tight text-ink">
           Progress
         </Link>
-        <nav className="flex items-center gap-1 text-sm">
+        {/* Inline nav is desktop-only; on phones the bottom tab bar
+            (MobileTabBar) carries navigation so the header can't overflow and
+            scroll sideways (PROG-79). */}
+        <nav className="hidden items-center gap-1 text-sm sm:flex">
           {NAV.map((item) => (
             <Link
               key={item.href}

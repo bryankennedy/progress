@@ -60,8 +60,10 @@ function subscribe(cb: () => void) {
 export function Toasts() {
   const current = useSyncExternalStore(subscribe, () => toasts);
   if (current.length === 0) return null;
+  // bottom-24 on mobile floats toasts above the fixed bottom tab bar (PROG-79);
+  // back to bottom-4 once the bar is gone at sm+.
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+    <div className="fixed bottom-24 right-4 z-50 flex flex-col gap-2 sm:bottom-4">
       {current.map((t) => (
         <div
           key={t.id}
