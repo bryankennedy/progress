@@ -45,12 +45,15 @@ import {
 import { rankBetween } from "../../shared/rank";
 import { reorder, type ColumnMap } from "../boardOrder";
 import {
+  FILTER_NONE,
   filtersToRestore,
   loadBoardFilters,
+  matchesNullableId,
   pruneImpossibleFilters,
   saveBoardFilters,
   sortByName,
 } from "../boardFilters";
+import FilterSelect from "../FilterSelect";
 import { recentlyCompleted } from "../boardDone";
 import type { WireIssue, WireTag, WorkspacePayload } from "../../shared/types";
 import { openCreateIssue } from "../commands/controller";
@@ -161,11 +164,19 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
       if (!filters.subissues && issue.parentIssueId !== null) return false;
       if (productIdsInInitiative && !productIdsInInitiative.has(issue.productId)) return false;
       if (filters.product && issue.productId !== filters.product) return false;
-      if (filters.repo && issue.repoId !== filters.repo) return false;
-      if (filters.arc && issue.arcId !== filters.arc) return false;
+      // Nullable containers (PROG-76): the "none" sentinel matches issues with
+      // no repo/arc; any other value is plain id equality.
+      if (filters.repo && !matchesNullableId(issue.repoId, filters.repo)) return false;
+      if (filters.arc && !matchesNullableId(issue.arcId, filters.arc)) return false;
       if (filters.priority && issue.priority !== filters.priority) return false;
-      if (filters.tag && !(tagsByIssue.get(issue.id) ?? []).some((t) => t.id === filters.tag))
-        return false;
+      if (filters.tag) {
+        const issueTags = tagsByIssue.get(issue.id) ?? [];
+        const ok =
+          filters.tag === FILTER_NONE
+            ? issueTags.length === 0
+            : issueTags.some((t) => t.id === filters.tag);
+        if (!ok) return false;
+      }
       return true;
     });
     const groups = new Map<IssueStatus, WireIssue[]>(ISSUE_STATUSES.map((s) => [s, []]));
@@ -398,6 +409,7 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
         />
         <FilterSelect
           label="Arc"
+          nullable
           value={filters.arc}
           options={sortByName(
             workspace.arcs
@@ -413,6 +425,7 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
         />
         <FilterSelect
           label="Repo"
+          nullable
           value={filters.repo}
           options={sortByName(
             workspace.repos
@@ -428,6 +441,7 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
         />
         <FilterSelect
           label="Tag"
+          nullable
           value={filters.tag}
           options={sortByName(workspace.tags).map((t) => [t.id, t.name])}
           onChange={(v) => setParam("tag", v)}
@@ -513,35 +527,6 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
         </DragOverlay>
       </DndContext>
     </>
-  );
-}
-
-function FilterSelect({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string | undefined;
-  options: [string, string][];
-  onChange: (value: string | null) => void;
-}) {
-  return (
-    <select
-      value={value ?? ""}
-      onChange={(e) => onChange(e.target.value || null)}
-      className={`rounded border px-2 py-1 text-xs ${
-        value ? "border-ink-faint bg-line text-ink-soft" : "border-line bg-card text-ink-soft"
-      }`}
-    >
-      <option value="">{label}: all</option>
-      {options.map(([v, name]) => (
-        <option key={v} value={v}>
-          {name}
-        </option>
-      ))}
-    </select>
   );
 }
 

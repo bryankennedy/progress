@@ -395,8 +395,10 @@ canonical key — entirely client-side from the loaded workspace (D22).
   Containers, then Comments, with matched terms highlighted; Enter opens the
   selection, and a footer link hands the query to the page. The **`/search`
   page** (`pages/Search.tsx`) is the deep dive: the same results, filterable by
-  the board dimensions (status · product · arc · repo · tag · priority), with
-  query + filters in the URL so a search is bookmarkable.
+  the board dimensions (status · product · arc · repo · tag · priority) — Arc,
+  Repo, and Tag share the board's **"none"** option for issues with no value
+  there (PROG-76) — with query + filters in the URL so a search is bookmarkable.
+  The filter dropdown itself (`FilterSelect.tsx`) is shared with the board.
 - **App header** — persistent across pages: the "Progress" home link, nav
   (Board · Outline · Agenda · Search · Structure · Archive), a **New** menu (Issue ·
   Initiative · Product · Repo · Arc) that opens the existing optimistic create flows, and the
@@ -435,6 +437,10 @@ canonical key — entirely client-side from the loaded workspace (D22).
   ancestors already chosen, and changing an ancestor prunes any now-stranded
   descendant from the URL in the same write, so an impossible combination that
   matches nothing can't be selected (`pruneImpossibleFilters`, PROG-75). The
+  nullable filters — Arc, Repo, Tag — each also offer a **"none"** option
+  (URL sentinel `?arc=none`, `matchesNullableId`) to find issues with no value
+  there; it sits outside the hierarchy, so it's always offered and never pruned
+  (PROG-76). The
   Agenda filters sort the same way. The current filter selection is also
   mirrored to `localStorage` (`progress:board-filters`) and re-applied when the
   board is reopened with a bare URL, so a choice sticks across navigation;
