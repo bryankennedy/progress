@@ -16,12 +16,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import type { WireArc, WireIssue, WireProduct } from "../../shared/types";
 import type { WorkspacePayload } from "../../shared/types";
+import { isOpenStatus } from "../../shared/constants";
 import {
   createContainer,
   createIssue,
   issueKeyOf,
   updateIssue,
 } from "../store";
+import { loadHideDone, saveHideDone } from "../outlinePrefs";
 
 // ---------- tree model ----------
 
@@ -157,6 +159,10 @@ function IssueRow({
   onOutdent: (issue: WireIssue) => void;
 }) {
   const { issue, depth } = node;
+  // Completed (done/canceled) issues stay visible but read as "finished": lower
+  // contrast + strikethrough (PROG-77). The whole-page "hide done" toggle drops
+  // them from the forest entirely; this styling is only reached when they show.
+  const done = !isOpenStatus(issue.status);
   const [draft, setDraft] = useState(issue.title);
   // Keep the input in sync if the title changes elsewhere (e.g. server reconcile)
   // while this row isn't focused.
@@ -193,7 +199,9 @@ function IssueRow({
             onOutdent(issue);
           }
         }}
-        className="min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-sm text-ink focus:bg-card focus:outline-none focus:ring-1 focus:ring-line"
+        className={`min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-sm focus:bg-card focus:outline-none focus:ring-1 focus:ring-line ${
+          done ? "text-ink-faint line-through" : "text-ink"
+        }`}
       />
       {/* Affordances appear on hover/focus to keep the outline clean. */}
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
@@ -359,13 +367,23 @@ function ProductOutline({
   product,
   ws,
   showHeader,
+  hideDone,
 }: {
   product: WireProduct;
   ws: WorkspacePayload;
   showHeader: boolean;
+  hideDone: boolean;
 }) {
   const issues = ws.issues;
   const arcs = ws.arcs;
+  // What the forest renders. When "hide done" is on, completed (done/canceled)
+  // issues — and their subtrees, since a hidden parent never recurses — drop out
+  // entirely (PROG-77). Capture/indent helpers keep working off the full
+  // `issues` list so nesting math is unaffected by what's currently visible.
+  const visibleIssues = useMemo(
+    () => (hideDone ? issues.filter((i) => isOpenStatus(i.status)) : issues),
+    [issues, hideDone],
+  );
   // The roving capture target: which issue the next new bullet nests under
   // (null = product top level, no arc). `captureArc` scopes a top-level new
   // bullet to an arc section. Re-validated against live data each render.
@@ -380,12 +398,12 @@ function ProductOutline({
 
   // Top-level (no-arc) forest, and one forest per arc.
   const looseForest = useMemo(
-    () => buildForest(issues, product.id, null, null, 0),
-    [issues, product.id],
+    () => buildForest(visibleIssues, product.id, null, null, 0),
+    [visibleIssues, product.id],
   );
   const arcForests = useMemo(
-    () => productArcs.map((a) => ({ arc: a, forest: buildForest(issues, product.id, null, a.id, 1) })),
-    [issues, product.id, productArcs],
+    () => productArcs.map((a) => ({ arc: a, forest: buildForest(visibleIssues, product.id, null, a.id, 1) })),
+    [visibleIssues, product.id, productArcs],
   );
 
   const issueById = useMemo(() => {
@@ -573,6 +591,12 @@ export default function Outline({ workspace }: { workspace: WorkspacePayload }) 
   const params = new URLSearchParams(search);
   const [productFocus, setProductFocus] = useState(0);
 
+  // "Hide done" is a sticky per-user view preference (PROG-77): seed from
+  // localStorage on mount, mirror back on every change so it survives navigating
+  // away and returning.
+  const [hideDone, setHideDone] = useState(loadHideDone);
+  useEffect(() => saveHideDone(hideDone), [hideDone]);
+
   // Every product's prefix, for client-side dedupe of new-product keys.
   const existingPrefixes = useMemo(
     () => new Set(workspace.products.map((p) => p.keyPrefix.toUpperCase())),
@@ -621,29 +645,40 @@ export default function Outline({ workspace }: { workspace: WorkspacePayload }) 
             <kbd>Tab</kbd>/<kbd>Shift+Tab</kbd> to nest. The <code>…</code> opens the full issue.
           </p>
         </div>
-        <label className="flex items-center gap-2 text-sm">
-          <span className="text-ink-faint">Scope</span>
-          <select
-            value={root ? `${root.kind}:${root.id}` : ""}
-            onChange={(e) => setRoot(e.target.value)}
-            className="rounded border border-line bg-card px-2 py-1 text-sm text-ink focus:outline-none"
-          >
-            <optgroup label="Products">
-              {products.map((p) => (
-                <option key={p.id} value={`product:${p.id}`}>
-                  {p.name}
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="Initiatives">
-              {initiatives.map((i) => (
-                <option key={i.id} value={`initiative:${i.id}`}>
-                  {i.name}
-                </option>
-              ))}
-            </optgroup>
-          </select>
-        </label>
+        <div className="flex items-center gap-4">
+          <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-ink-soft">
+            <input
+              type="checkbox"
+              checked={hideDone}
+              onChange={(e) => setHideDone(e.target.checked)}
+              className="h-3.5 w-3.5 accent-adobe-deep"
+            />
+            Hide done
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-ink-faint">Scope</span>
+            <select
+              value={root ? `${root.kind}:${root.id}` : ""}
+              onChange={(e) => setRoot(e.target.value)}
+              className="rounded border border-line bg-card px-2 py-1 text-sm text-ink focus:outline-none"
+            >
+              <optgroup label="Products">
+                {products.map((p) => (
+                  <option key={p.id} value={`product:${p.id}`}>
+                    {p.name}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Initiatives">
+                {initiatives.map((i) => (
+                  <option key={i.id} value={`initiative:${i.id}`}>
+                    {i.name}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+          </label>
+        </div>
       </div>
 
       <div className="mt-5 space-y-4">
@@ -655,6 +690,7 @@ export default function Outline({ workspace }: { workspace: WorkspacePayload }) 
             product={p}
             ws={workspace}
             showHeader={root?.kind === "initiative"}
+            hideDone={hideDone}
           />
         ))}
 
