@@ -9,7 +9,8 @@ import { useMemo } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import { ISSUE_PRIORITIES, ISSUE_STATUSES } from "../../shared/constants";
 import type { WireIssue, WorkspacePayload } from "../../shared/types";
-import { sortByName } from "../boardFilters";
+import { FILTER_NONE, matchesNullableId, sortByName } from "../boardFilters";
+import FilterSelect from "../FilterSelect";
 import {
   containerLabel,
   highlight,
@@ -74,11 +75,17 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
         if (!product || product.initiativeId !== filters.initiative) return false;
       }
       if (filters.product && issue.productId !== filters.product) return false;
-      if (filters.repo && issue.repoId !== filters.repo) return false;
-      if (filters.arc && issue.arcId !== filters.arc) return false;
+      // Nullable containers (PROG-76): "none" matches issues with no repo/arc.
+      if (filters.repo && !matchesNullableId(issue.repoId, filters.repo)) return false;
+      if (filters.arc && !matchesNullableId(issue.arcId, filters.arc)) return false;
       if (filters.priority && issue.priority !== filters.priority) return false;
       if (filters.status && issue.status !== filters.status) return false;
-      if (filters.tag && !tagsByIssue.get(issue.id)?.has(filters.tag)) return false;
+      if (filters.tag) {
+        const tags = tagsByIssue.get(issue.id);
+        const ok =
+          filters.tag === FILTER_NONE ? !tags || tags.size === 0 : (tags?.has(filters.tag) ?? false);
+        if (!ok) return false;
+      }
       return true;
     };
   }, [filters, productById, tagsByIssue]);
@@ -130,6 +137,7 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
         />
         <FilterSelect
           label="Arc"
+          nullable
           value={filters.arc}
           options={sortByName(
             workspace.arcs
@@ -140,6 +148,7 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
         />
         <FilterSelect
           label="Repo"
+          nullable
           value={filters.repo}
           options={sortByName(
             workspace.repos
@@ -150,6 +159,7 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
         />
         <FilterSelect
           label="Tag"
+          nullable
           value={filters.tag}
           options={sortByName(workspace.tags).map((t) => [t.id, t.name])}
           onChange={(v) => setParam("tag", v)}
@@ -325,34 +335,5 @@ function Highlighted({ segments }: { segments: Segment[] }) {
         ),
       )}
     </>
-  );
-}
-
-function FilterSelect({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string | undefined;
-  options: [string, string][];
-  onChange: (value: string | null) => void;
-}) {
-  return (
-    <select
-      value={value ?? ""}
-      onChange={(e) => onChange(e.target.value || null)}
-      className={`rounded border px-2 py-1 text-xs ${
-        value ? "border-ink-faint bg-line text-ink-soft" : "border-line bg-card text-ink-soft"
-      }`}
-    >
-      <option value="">{label}: all</option>
-      {options.map(([v, name]) => (
-        <option key={v} value={v}>
-          {name}
-        </option>
-      ))}
-    </select>
   );
 }

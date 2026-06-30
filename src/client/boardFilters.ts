@@ -7,6 +7,20 @@
 
 const STORAGE_KEY = "progress:board-filters";
 
+// Filter sentinel for "this nullable field is empty" (PROG-76): pick the option
+// to find issues with no Arc / Repo / Tag. A reserved value in the URL (e.g.
+// `?arc=none`) that can't collide with a real container id — those are always
+// prefixed (`arc_…`, `repo_…`, `tag_…`). Priority's own "none" value is a
+// different URL key, matched by plain equality and never routed through here, so
+// the two never conflict. Stays as-is through `URLSearchParams` (no %-encoding).
+export const FILTER_NONE = "none";
+
+// Apply a nullable-id filter (Arc / Repo): the sentinel keeps only issues with
+// no value there; any other value is a plain id equality (PROG-76).
+export function matchesNullableId(field: string | null, filter: string): boolean {
+  return filter === FILTER_NONE ? field === null : field === filter;
+}
+
 // localStorage can throw (private mode, storage disabled, quota). Sticky filters
 // are a convenience, never load-bearing, so every access fails soft: a throw
 // just means "not sticky this time" rather than a broken board.
@@ -62,7 +76,9 @@ export function pruneImpossibleFilters(params: URLSearchParams, parents: FilterP
     ["repo", parents.repoProduct],
   ] as const) {
     const id = params.get(key);
-    if (!id) continue;
+    // "No arc/repo" (PROG-76) belongs to no branch, so it's compatible with any
+    // ancestor selection — never prune it.
+    if (!id || id === FILTER_NONE) continue;
     const owningProduct = parentOf.get(id);
     // With a Product chosen, the child must belong to it; otherwise (Initiative
     // only) the child's Product must belong to that Initiative.

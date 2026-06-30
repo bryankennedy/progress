@@ -50,6 +50,26 @@ test("a filter chosen on the board survives navigating away and back (PROG-58)",
   expect(await priorityValue(page)).toBe(value);
 });
 
+test("nullable filters offer a 'none' option that drives the URL (PROG-76)", async ({ page }) => {
+  await page.goto("/");
+  await page.waitForSelector("select");
+
+  // Arc, Repo, and Tag are the nullable board filters; each gains a "none"
+  // option to find issues with no value there. Product (always set) does not.
+  const arc = page.locator("select", { hasText: "Arc: all" });
+  await expect(arc.locator("option", { hasText: "Arc: none" })).toHaveCount(1);
+  await expect(
+    page.locator("select", { hasText: "Product: all" }).locator("option", {
+      hasText: "Product: none",
+    }),
+  ).toHaveCount(0);
+
+  // Selecting it puts the sentinel in the URL (a bookmarkable "no arc" board).
+  await arc.selectOption("none");
+  await expect.poll(() => page.url()).toContain("arc=none");
+  expect(await arc.inputValue()).toBe("none");
+});
+
 test("clearing filters sticks across navigation (PROG-58)", async ({ page }) => {
   await page.goto("/");
   await page.waitForSelector("select");
