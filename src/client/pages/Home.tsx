@@ -485,6 +485,14 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
       <DndContext
         sensors={sensors}
         collisionDetection={collisionDetection}
+        // Tame the edge auto-scroll. dnd-kit's default acceleration (10) scrolls
+        // the board ~2000px/s when a dragged card reaches the left/right edge —
+        // far too fast to land in the intended column on a phone, where only
+        // ~one column is visible (PROG-79 follow-up). Halving acceleration caps
+        // the top speed while keeping the smooth 5ms scroll cadence (lowering it
+        // further is the knob to turn if it's still fast; raising `interval`
+        // instead would make the motion choppy).
+        autoScroll={{ acceleration: 5 }}
         onDragStart={onDragStart}
         onDragOver={onDragOver}
         onDragEnd={onDragEnd}
