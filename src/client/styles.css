@@ -105,6 +105,28 @@
   min-height: 100dvh;
 }
 
+/* iOS Safari auto-zooms when a focused form control has font-size < 16px, then
+   leaves the page zoomed — jarring and constant on a phone. Our dense filter
+   and dialog controls use `text-xs` (14.4px here), so on small screens force
+   every form control to 16px. Desktop keeps the compact sizing (≥sm). Mobile
+   audit. Unlayered on purpose: it must beat Tailwind's `text-xs` utility, and
+   cascade layers lose to unlayered rules regardless of selector specificity. */
+@media (max-width: 639px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+  /* Meet the 44px touch-target floor on phones: the dense filter/sidebar/dialog
+     controls render ~36–40px from their compact `py-1`. min-height never shrinks
+     a taller field (e.g. the comment textarea), so it's safe to apply broadly. */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    min-height: 44px;
+  }
+}
+
 /* Minimal Markdown typography (Tailwind preflight strips element defaults).
    Used for issue descriptions and comments; intentionally lighter than the
    official typography plugin — one more dependency we don't need yet. */

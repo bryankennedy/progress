@@ -122,8 +122,14 @@ export default function IssuePage({
         </h1>
       </header>
 
-      <div className="mt-6 flex flex-col gap-8 md:flex-row">
-        <div className="min-w-0 flex-1">
+      {/* Mobile-first ordering (mobile audit): description → field strip →
+          timeline, so the primary actions (status/priority/due/…) aren't buried
+          under a potentially long activity history on a phone. A grid pins the
+          desktop layout (content in the left column across both rows, fields in
+          the right column) while the single-column mobile flow just follows
+          source order. */}
+      <div className="mt-6 grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,1fr)_14rem]">
+        <div className="min-w-0 md:col-start-1 md:row-start-1">
           <EditableMarkdown
             value={issue.description}
             placeholder="Add a description…"
@@ -132,10 +138,9 @@ export default function IssuePage({
               updateIssue(issue.id, { description }, { toastOnError: false })
             }
           />
-          <TimelineSection issue={issue} workspace={workspace} />
         </div>
 
-        <aside className="w-full shrink-0 space-y-4 md:w-56">
+        <aside className="w-full space-y-4 md:col-start-2 md:row-start-1 md:row-span-2">
           <Field label="Status">
             <FieldSelect
               value={issue.status}
@@ -240,6 +245,10 @@ export default function IssuePage({
             {issue.completedAt && <p>Completed {fmtTime(issue.completedAt)}</p>}
           </div>
         </aside>
+
+        <div className="min-w-0 md:col-start-1 md:row-start-2">
+          <TimelineSection issue={issue} workspace={workspace} />
+        </div>
       </div>
     </div>
   );
