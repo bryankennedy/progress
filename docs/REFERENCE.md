@@ -405,7 +405,13 @@ canonical key — entirely client-side from the loaded workspace (D22).
   signed-in identity avatar. The always-available structure-creation entry point
   (SPEC v2 §4). The avatar dropdown holds the profile + **Sign out**, plus an
   **Admin** link for super-admins (D44) — Admin lives here, not in the top nav,
-  as a rare destination.
+  as a rare destination. The inline nav is **desktop-only**: below `sm` it is
+  hidden and a fixed **bottom tab bar** (`MobileTabBar.tsx`) takes over — Board ·
+  Outline · Agenda · Search as tabs and a **More** tab (sheet) for Structure ·
+  Archive, the active tab lit in the adobe accent (More included when its sheet's
+  page is current), clear of the iOS home indicator. This stops the header from
+  overflowing and scrolling sideways on a phone (PROG-79). Both surfaces read
+  their destinations from one shared `nav.tsx` list so they can't drift.
 - **Agenda (`/agenda`)** — the time-driven cut: every issue with a due date
   that isn't done/canceled, sorted by due date ascending and grouped **Overdue ·
   Today · This week · Later** (computed from the owner's local day; "this week"
