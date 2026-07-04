@@ -452,7 +452,11 @@ canonical key — entirely client-side from the loaded workspace (D22).
   Agenda filters sort the same way. The current filter selection is also
   mirrored to `localStorage` (`progress:board-filters`) and re-applied when the
   board is reopened with a bare URL, so a choice sticks across navigation;
-  "Clear filters" clears the memory too (PROG-58). Drag-and-drop reorders cards
+  "Clear filters" clears the memory too (PROG-58). On phones (`< sm`) the whole
+  filter row collapses behind a **"Filters"** disclosure — collapsed by default,
+  with a badge counting the active filters/toggles — so the board itself sits
+  above the fold instead of a screenful of dropdowns; at `sm` and up the row is
+  always inline (PROG-81). Drag-and-drop reorders cards
   vertically
   within a column (a manual work order) and moves them between columns to set
   status; both persist as one optimistic write via the card's `rank` (D44).

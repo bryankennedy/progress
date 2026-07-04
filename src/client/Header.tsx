@@ -66,9 +66,9 @@ export default function Header() {
           <div className="relative">
             <button
               onClick={() => setMenuOpen((o) => !o)}
-              className="rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep"
+              className="inline-flex min-h-11 items-center rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep sm:min-h-0"
             >
-              New <span className="text-white/70">▾</span>
+              New <span className="ml-1 text-white/70">▾</span>
             </button>
             {menuOpen && (
               <>
@@ -82,7 +82,7 @@ export default function Header() {
                         setMenuOpen(false);
                         item.run();
                       }}
-                      className="block w-full px-3 py-1.5 text-left text-sm text-ink-soft hover:bg-line"
+                      className="flex min-h-11 w-full items-center px-3 py-1.5 text-left text-sm text-ink-soft hover:bg-line sm:min-h-0"
                     >
                       New {item.label.toLowerCase()}
                     </button>
@@ -98,7 +98,7 @@ export default function Header() {
               <button
                 onClick={() => setAcctOpen((o) => !o)}
                 title={me.email}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-adobe-wash/60 text-sm font-medium text-adobe-deep hover:bg-adobe-wash"
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-adobe-wash/60 text-sm font-medium text-adobe-deep hover:bg-adobe-wash sm:h-8 sm:w-8"
               >
                 {me.name.slice(0, 1).toUpperCase()}
               </button>
@@ -116,14 +116,14 @@ export default function Header() {
                       <Link
                         href="/admin"
                         onClick={() => setAcctOpen(false)}
-                        className="block w-full px-3 py-1.5 text-left text-sm text-ink-soft hover:bg-line"
+                        className="flex min-h-11 w-full items-center px-3 py-1.5 text-left text-sm text-ink-soft hover:bg-line sm:min-h-0"
                       >
                         Admin
                       </Link>
                     )}
                     <button
                       onClick={signOut}
-                      className="block w-full px-3 py-1.5 text-left text-sm text-ink-soft hover:bg-line"
+                      className="flex min-h-11 w-full items-center px-3 py-1.5 text-left text-sm text-ink-soft hover:bg-line sm:min-h-0"
                     >
                       Sign out
                     </button>

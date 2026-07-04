@@ -203,6 +203,10 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
 
   const [columns, setColumns] = useState<ColumnMap>(sourceColumns);
   const [activeId, setActiveId] = useState<string | null>(null);
+  // Mobile only: the filter dropdowns collapse behind a "Filters" disclosure so
+  // the board itself sits above the fold instead of a screenful of chrome
+  // (PROG-81). Desktop ignores this — the block is always `sm:flex`.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   // Mirror of activeId for effects/handlers that must read it without depending
   // on it (a ref updates synchronously and doesn't re-trigger effects).
   const activeIdRef = useRef<string | null>(null);
@@ -367,6 +371,12 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
   );
   const shownCount = visibleColumns.reduce((n, s) => n + columns[s].length, 0);
   const filtersActive = FILTER_KEYS.some((k) => filters[k]);
+  // Badge on the mobile "Filters" toggle: how many filters/toggles are narrowing
+  // the board right now, so a collapsed panel still signals it's doing something.
+  const activeFilterCount =
+    FILTER_KEYS.filter((k) => filters[k]).length +
+    (filters.backlog ? 1 : 0) +
+    (filters.subissues ? 1 : 0);
 
   return (
     <>
@@ -379,13 +389,34 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
         </p>
         <button
           onClick={() => openCreateIssue()}
-          className="ml-auto rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep"
+          className="ml-auto inline-flex min-h-11 items-center rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep sm:min-h-0"
         >
-          New issue <span className="text-white/70">(C)</span>
+          New issue <span className="ml-1 text-white/70">(C)</span>
         </button>
       </header>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+      {/* Mobile: a "Filters" disclosure keeps the six dropdowns + two toggles
+          out of the default view so the board is above the fold (PROG-81). The
+          badge shows how many are active while collapsed. Hidden at sm+, where
+          the filter row is always inline. */}
+      <button
+        type="button"
+        onClick={() => setFiltersOpen((o) => !o)}
+        aria-expanded={filtersOpen}
+        className="mt-4 flex min-h-11 w-full items-center gap-2 rounded border border-line bg-card px-3 text-sm text-ink-soft hover:border-ink-faint sm:hidden"
+      >
+        <span className="font-medium">Filters</span>
+        {activeFilterCount > 0 && (
+          <span className="rounded-full bg-adobe px-1.5 py-0.5 text-xs font-medium text-white">
+            {activeFilterCount}
+          </span>
+        )}
+        <span className={`ml-auto transition-transform ${filtersOpen ? "rotate-180" : ""}`}>▾</span>
+      </button>
+
+      <div
+        className={`${filtersOpen ? "flex" : "hidden"} mt-3 flex-wrap items-center gap-2 text-sm sm:mt-4 sm:flex`}
+      >
         {/* Archived containers stay out of the dropdowns (D26); their issues
             still render, so nothing silently disappears from the board. */}
         <FilterSelect
@@ -454,7 +485,7 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
         />
         <button
           onClick={() => setParam("backlog", filters.backlog ? null : "1")}
-          className={`rounded border px-2 py-1 text-xs ${
+          className={`inline-flex min-h-11 items-center rounded border px-3 py-1 text-xs sm:min-h-0 sm:px-2 ${
             filters.backlog
               ? "border-ink-faint bg-line text-ink-soft"
               : "border-line bg-card text-ink-faint hover:border-ink-faint"
@@ -464,7 +495,7 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
         </button>
         <button
           onClick={() => setParam("subissues", filters.subissues ? null : "1")}
-          className={`rounded border px-2 py-1 text-xs ${
+          className={`inline-flex min-h-11 items-center rounded border px-3 py-1 text-xs sm:min-h-0 sm:px-2 ${
             filters.subissues
               ? "border-ink-faint bg-line text-ink-soft"
               : "border-line bg-card text-ink-faint hover:border-ink-faint"
