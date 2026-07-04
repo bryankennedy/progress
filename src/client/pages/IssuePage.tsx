@@ -38,6 +38,14 @@ import { toastAction } from "../toast";
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
+// The field-edit triggers in the aside (Move… / Change… / Edit… / Copy…). They
+// carry keyboard shortcuts on desktop, but on a phone tapping the link is the
+// ONLY way to fire them — so give each a 44px-tall touch row on mobile while
+// keeping the compact one-line-each layout on desktop (PROG-81). `flex` is
+// block-level, so each still sits on its own line as `block` did.
+const FIELD_ACTION_CLS =
+  "flex min-h-11 items-center text-xs text-adobe hover:underline sm:block sm:min-h-0";
+
 export default function IssuePage({
   workspace,
   keyParam,
@@ -196,9 +204,9 @@ export default function IssuePage({
             </p>
             <button
               onClick={() => openPalette({ kind: "move", issueId: issue.id })}
-              className="mt-0.5 text-xs text-adobe hover:underline"
+              className={`mt-0.5 ${FIELD_ACTION_CLS}`}
             >
-              Move… <span className="text-ink-faint">(M)</span>
+              Move… <span className="ml-1 text-ink-faint">(M)</span>
             </button>
           </Field>
           <Field label="Arc">
@@ -211,9 +219,9 @@ export default function IssuePage({
             )}
             <button
               onClick={() => openPalette({ kind: "arc", issueId: issue.id })}
-              className="mt-0.5 block text-xs text-adobe hover:underline"
+              className={`mt-0.5 ${FIELD_ACTION_CLS}`}
             >
-              Change… <span className="text-ink-faint">(A)</span>
+              Change… <span className="ml-1 text-ink-faint">(A)</span>
             </button>
           </Field>
           <Field label="Tags">
@@ -234,21 +242,21 @@ export default function IssuePage({
             )}
             <button
               onClick={() => openPalette({ kind: "tag", issueId: issue.id })}
-              className="mt-0.5 block text-xs text-adobe hover:underline"
+              className={`mt-0.5 ${FIELD_ACTION_CLS}`}
             >
-              Edit… <span className="text-ink-faint">(T)</span>
+              Edit… <span className="ml-1 text-ink-faint">(T)</span>
             </button>
           </Field>
           <Field label="Work on this">
             <button
               onClick={() => void copyBundleAsPrompt(issueKeyOf(workspace, issue))}
-              className="block text-xs text-adobe hover:underline"
+              className={FIELD_ACTION_CLS}
             >
-              Copy as prompt <span className="text-ink-faint">(W)</span>
+              Copy as prompt <span className="ml-1 text-ink-faint">(W)</span>
             </button>
             <button
               onClick={() => copyWorkCommand(issueKeyOf(workspace, issue))}
-              className="mt-0.5 block text-xs text-adobe hover:underline"
+              className={FIELD_ACTION_CLS}
             >
               Copy CLI command
             </button>
