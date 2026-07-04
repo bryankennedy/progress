@@ -86,7 +86,7 @@ export default function IssuePage({
     .filter((t) => t !== undefined);
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-3xl overflow-hidden">
       <nav className="text-sm text-ink-faint">
         <Link href="/" className="hover:text-ink-soft">
           Workspace
@@ -145,7 +145,7 @@ export default function IssuePage({
             a wide intrinsic width on iOS, which otherwise stretches this whole
             column (and every w-full field in it) past the viewport — horizontal
             overflow on a phone. min-w-0 lets the track constrain it. */}
-        <aside className="w-full min-w-0 space-y-4 md:col-start-2 md:row-start-1 md:row-span-2">
+        <aside className="w-full min-w-0 overflow-hidden space-y-4 md:col-start-2 md:row-start-1 md:row-span-2">
           <Field label="Status">
             <FieldSelect
               value={issue.status}
@@ -177,10 +177,16 @@ export default function IssuePage({
               type="date"
               value={issue.dueDate ?? ""}
               onChange={(e) => updateIssue(issue.id, { dueDate: e.target.value || null })}
-              // w-full + min-w-0: pin the native date control to the column
-              // width instead of letting its (wide, on iOS) intrinsic size win,
-              // which would overflow the page on a phone.
-              className="w-full min-w-0 rounded border border-line bg-card px-2 py-1 text-sm hover:border-ink-faint"
+              // w-full + min-w-0 + max-w-full: pin the native date control to
+              // the column width instead of letting its (wide, on iOS Safari)
+              // intrinsic size win. iOS renders a localized label ("Jun 30, 2026")
+              // wider than the Android/Chrome "06/30/2026", and its intrinsic
+              // min-width can push past the viewport even with min-w-0. The
+              // explicit max-w-full + box-border ensures the border-box never
+              // exceeds the parent, and the [&::-webkit-date-and-time-value]
+              // override left-aligns the text (Safari centers it by default,
+              // burning horizontal space on both sides).
+              className="w-full min-w-0 max-w-full box-border rounded border border-line bg-card px-2 py-1 text-sm hover:border-ink-faint [&::-webkit-date-and-time-value]:text-left"
             />
           </Field>
           <Field label="Container">
