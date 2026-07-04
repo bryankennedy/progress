@@ -14,7 +14,24 @@
 // full issue page.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 import { Link, useLocation, useSearch } from "wouter";
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import type { WireArc, WireIssue, WireProduct } from "../../shared/types";
 import type { WorkspacePayload } from "../../shared/types";
 import { isOpenStatus } from "../../shared/constants";
@@ -24,6 +41,7 @@ import {
   issueKeyOf,
   updateIssue,
 } from "../store";
+import { rankForReorder } from "../outlineReorder";
 import { loadHideDone, saveHideDone } from "../outlinePrefs";
 
 // ---------- tree model ----------
@@ -152,12 +170,18 @@ function IssueRow({
   arcs,
   onIndent,
   onOutdent,
+  handleRef,
+  handleProps,
 }: {
   node: Node;
   ws: WorkspacePayload;
   arcs: WireArc[];
   onIndent: (issue: WireIssue) => void;
   onOutdent: (issue: WireIssue) => void;
+  // Drag-to-reorder handle wiring from the enclosing sortable (PROG-86). Lives on
+  // a dedicated grip, not the whole row, so the title input stays fully editable.
+  handleRef: (el: HTMLElement | null) => void;
+  handleProps: HTMLAttributes<HTMLElement>;
 }) {
   const { issue, depth } = node;
   // Completed (done/canceled) issues stay visible but read as "finished": lower
@@ -182,6 +206,26 @@ function IssueRow({
       className="group flex items-center gap-1.5 rounded py-0.5 hover:bg-line/30"
       style={{ paddingLeft: depth * 22 }}
     >
+      {/* Drag handle (PROG-86). touch-none so a drag from the grip reorders
+          instead of scrolling the page; always shown on mobile (no hover), faint
+          until row hover/focus on desktop to keep the outline calm. */}
+      <button
+        ref={handleRef}
+        {...handleProps}
+        type="button"
+        aria-label={`Reorder ${issueKey}`}
+        title="Drag to reorder"
+        className="flex h-6 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-ink-faint/70 hover:bg-line hover:text-ink-soft active:cursor-grabbing sm:opacity-40 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+      >
+        <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden>
+          <circle cx="6" cy="4" r="1.3" />
+          <circle cx="10" cy="4" r="1.3" />
+          <circle cx="6" cy="8" r="1.3" />
+          <circle cx="10" cy="8" r="1.3" />
+          <circle cx="6" cy="12" r="1.3" />
+          <circle cx="10" cy="12" r="1.3" />
+        </svg>
+      </button>
       {/* Jump-to-issue affordance, pinned to the far left so it sits in a
           consistent gutter and — crucially — is reachable on touch, where there
           is no hover to reveal it (PROG-80). Always shown on mobile; on desktop
@@ -228,6 +272,54 @@ function IssueRow({
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
         {depth === 0 && <ArcMenu issue={issue} arcs={arcs} />}
       </div>
+    </div>
+  );
+}
+
+// ---------- sortable subtree block ----------
+
+// One node of the forest as a sortable item (PROG-86). The whole SUBTREE (row +
+// its descendants + the roving capture slot) is the sortable element, so
+// dragging a parent visually carries its children as a block. The activator is
+// the grip inside IssueRow, so only the handle starts a drag — the title input
+// and the ⋯ open-link keep working normally. Reorder is constrained to siblings
+// on drop (see ProductOutline.onDragEnd); reparenting stays on Tab/Shift+Tab.
+function OutlineNode({
+  node,
+  ws,
+  arcs,
+  onIndent,
+  onOutdent,
+  renderForest,
+  renderCapture,
+}: {
+  node: Node;
+  ws: WorkspacePayload;
+  arcs: WireArc[];
+  onIndent: (issue: WireIssue) => void;
+  onOutdent: (issue: WireIssue) => void;
+  renderForest: (forest: Node[]) => ReactNode;
+  renderCapture: (node: Node) => ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
+    useSortable({ id: node.issue.id });
+  const style: CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+  };
+  return (
+    <div ref={setNodeRef} style={style} className={isDragging ? "relative z-10 opacity-80" : undefined}>
+      <IssueRow
+        node={node}
+        ws={ws}
+        arcs={arcs}
+        onIndent={onIndent}
+        onOutdent={onOutdent}
+        handleRef={setActivatorNodeRef}
+        handleProps={{ ...attributes, ...listeners }}
+      />
+      {renderForest(node.children)}
+      {renderCapture(node)}
     </div>
   );
 }
@@ -281,7 +373,9 @@ function ProductCaptureRow({
 
   return (
     <div className="flex items-center gap-1.5 py-0.5">
-      {/* Match IssueRow's far-left open-link gutter so bullets align (PROG-80). */}
+      {/* Match IssueRow's drag-grip + open-link gutters so bullets align
+          (PROG-80/PROG-86). */}
+      <span className="h-6 w-5 shrink-0" aria-hidden />
       <span className="h-6 w-6 shrink-0" aria-hidden />
       <LevelIcon kind="product" />
       <input
@@ -349,8 +443,9 @@ function CaptureRow({
 
   return (
     <div className="flex items-center gap-1.5 py-0.5" style={{ paddingLeft: depth * 22 }}>
-      {/* Empty gutter matching IssueRow's far-left open-link so the ＋ bullet
-          lines up with the issue bullets above it (PROG-80). */}
+      {/* Empty gutters matching IssueRow's drag grip + far-left open-link so the
+          ＋ bullet lines up with the issue bullets above it (PROG-80/PROG-86). */}
+      <span className="h-6 w-5 shrink-0" aria-hidden />
       <span className="h-6 w-6 shrink-0" aria-hidden />
       <span className="text-ink-faint/50">＋</span>
       <input
@@ -458,6 +553,53 @@ function ProductOutline({
     });
   };
 
+  // Drag-to-reorder (PROG-86). One PointerSensor covers mouse + touch from the
+  // grip; the small distance keeps a stray tap on the handle from starting a
+  // phantom drag. KeyboardSensor makes the focused handle arrow-key reorderable.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  // The visible sibling group an issue belongs to, in rendered (rank) order —
+  // exactly the set a drag is allowed to reorder within.
+  const siblingGroup = (issue: WireIssue): WireIssue[] =>
+    visibleIssues
+      .filter(
+        (i) =>
+          i.productId === issue.productId &&
+          i.parentIssueId === issue.parentIssueId &&
+          (issue.parentIssueId === null ? i.arcId === issue.arcId : true),
+      )
+      .sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : a.number - b.number));
+
+  const onReorder = (e: DragEndEvent) => {
+    const activeId = String(e.active.id);
+    const overId = e.over ? String(e.over.id) : null;
+    if (!overId || overId === activeId) return;
+    const active = issueById.get(activeId);
+    const over = issueById.get(overId);
+    if (!active || !over) return;
+    // Reorder only within one sibling group; a drop onto a row in another group
+    // (a different parent/arc) is a no-op — reparenting stays on Tab/Shift+Tab,
+    // matching the board's rank-only semantics (the issue asks for up/down only).
+    const sameGroup =
+      active.productId === over.productId &&
+      active.parentIssueId === over.parentIssueId &&
+      (active.parentIssueId !== null || active.arcId === over.arcId);
+    if (!sameGroup) return;
+    const group = siblingGroup(active);
+    const newRank = rankForReorder(
+      group.map((i) => i.id),
+      (id) => issueById.get(id)!.rank,
+      activeId,
+      overId,
+    );
+    // Same shared `rank` the board writes — so this drag also moves the card on
+    // the board, and a board drag moves the row here (PROG-86).
+    if (newRank) void updateIssue(activeId, { rank: newRank });
+  };
+
   // Capture-input deepen/shallow: move the new-bullet target down/up a level by
   // pointing it at the last issue of the current sibling group.
   const lastSiblingOf = (parentId: string | null, arcId: string | null): WireIssue | undefined => {
@@ -500,25 +642,41 @@ function ProductOutline({
     setFocusToken((t) => t + 1);
   };
 
-  // Render a forest of issue rows, dropping the roving capture input after the
-  // subtree of whichever issue the capture currently targets.
-  const renderForest = (forest: Node[]) =>
-    forest.map((node) => (
-      <div key={node.issue.id}>
-        <IssueRow node={node} ws={ws} arcs={arcs} onIndent={indent} onOutdent={outdent} />
-        {renderForest(node.children)}
-        {captureParent === node.issue.id && (
-          <CaptureRow
-            depth={node.depth + 1}
-            placeholder="New sub-issue — Enter to add, Shift+Tab to outdent"
-            onCreate={(t) => create(t, node.issue.id, node.issue.arcId)}
-            onDeepen={deepen}
-            onShallow={shallow}
-            focusToken={focusToken}
+  // The roving capture input, dropped after the subtree of whichever issue the
+  // capture currently targets.
+  const renderCapture = (node: Node) =>
+    captureParent === node.issue.id ? (
+      <CaptureRow
+        depth={node.depth + 1}
+        placeholder="New sub-issue — Enter to add, Shift+Tab to outdent"
+        onCreate={(t) => create(t, node.issue.id, node.issue.arcId)}
+        onDeepen={deepen}
+        onShallow={shallow}
+        focusToken={focusToken}
+      />
+    ) : null;
+
+  // Render a sibling group as a SortableContext so its rows reorder within it
+  // (PROG-86); recurses through each node's children (their own group/context).
+  const renderForest = (forest: Node[]): ReactNode => {
+    if (forest.length === 0) return null;
+    return (
+      <SortableContext items={forest.map((n) => n.issue.id)} strategy={verticalListSortingStrategy}>
+        {forest.map((node) => (
+          <OutlineNode
+            key={node.issue.id}
+            node={node}
+            ws={ws}
+            arcs={arcs}
+            onIndent={indent}
+            onOutdent={outdent}
+            renderForest={renderForest}
+            renderCapture={renderCapture}
           />
-        )}
-      </div>
-    ));
+        ))}
+      </SortableContext>
+    );
+  };
 
   const captureDepthForArc = captureParent === null;
 
@@ -534,6 +692,7 @@ function ProductOutline({
         </div>
       )}
 
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onReorder}>
       {/* Product-level (no-arc) issues + their roving capture row. */}
       {renderForest(looseForest)}
       {captureParent === null && captureArc === null && (
@@ -596,6 +755,7 @@ function ProductOutline({
           ↥ back to top level
         </button>
       )}
+      </DndContext>
     </section>
   );
 }
