@@ -10,7 +10,8 @@
 // and keeps focus for the next sibling; Tab on that bullet deepens it under the
 // last sibling (→ sub-issue), Shift+Tab pops back up. Existing rows rename on
 // Enter/blur and reparent in place via Tab/Shift+Tab. Nothing here deletes or
-// archives — the `…` opens the full issue page.
+// archives — the far-left `⋯` (a per-row link, tappable on mobile) opens the
+// full issue page.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
@@ -174,11 +175,30 @@ function IssueRow({
     else if (!next) setDraft(issue.title); // never blank a saved issue
   };
 
+  const issueKey = issueKeyOf(ws, issue);
+
   return (
     <div
       className="group flex items-center gap-1.5 rounded py-0.5 hover:bg-line/30"
       style={{ paddingLeft: depth * 22 }}
     >
+      {/* Jump-to-issue affordance, pinned to the far left so it sits in a
+          consistent gutter and — crucially — is reachable on touch, where there
+          is no hover to reveal it (PROG-80). Always shown on mobile; on desktop
+          it rests faint and firms up on row hover/focus to keep the outline
+          calm. Tapping the same three dots that used to hide on the right edge. */}
+      <Link
+        href={`/issue/${issueKey}`}
+        title="Open full issue"
+        aria-label={`Open issue ${issueKey}`}
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-ink-faint hover:bg-line hover:text-ink-soft sm:opacity-40 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 sm:focus-visible:opacity-100"
+      >
+        <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden>
+          <circle cx="3" cy="8" r="1.4" />
+          <circle cx="8" cy="8" r="1.4" />
+          <circle cx="13" cy="8" r="1.4" />
+        </svg>
+      </Link>
       <LevelIcon kind={depth === 0 ? "issue" : "sub"} />
       <input
         value={draft}
@@ -203,16 +223,10 @@ function IssueRow({
           done ? "text-ink-faint line-through" : "text-ink"
         }`}
       />
-      {/* Affordances appear on hover/focus to keep the outline clean. */}
+      {/* Arc assignment stays a hover/focus affordance — desktop-only polish,
+          not a navigation control. */}
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
         {depth === 0 && <ArcMenu issue={issue} arcs={arcs} />}
-        <Link
-          href={`/issue/${issueKeyOf(ws, issue)}`}
-          title="Open full issue"
-          className="rounded px-1 text-ink-faint hover:bg-line hover:text-ink-soft"
-        >
-          …
-        </Link>
       </div>
     </div>
   );
@@ -267,6 +281,8 @@ function ProductCaptureRow({
 
   return (
     <div className="flex items-center gap-1.5 py-0.5">
+      {/* Match IssueRow's far-left open-link gutter so bullets align (PROG-80). */}
+      <span className="h-6 w-6 shrink-0" aria-hidden />
       <LevelIcon kind="product" />
       <input
         ref={nameRef}
@@ -333,6 +349,9 @@ function CaptureRow({
 
   return (
     <div className="flex items-center gap-1.5 py-0.5" style={{ paddingLeft: depth * 22 }}>
+      {/* Empty gutter matching IssueRow's far-left open-link so the ＋ bullet
+          lines up with the issue bullets above it (PROG-80). */}
+      <span className="h-6 w-6 shrink-0" aria-hidden />
       <span className="text-ink-faint/50">＋</span>
       <input
         ref={ref}
@@ -642,7 +661,8 @@ export default function Outline({ workspace }: { workspace: WorkspacePayload }) 
           <h1 className="text-2xl font-semibold tracking-tight">Outline</h1>
           <p className="mt-1 text-xs text-ink-faint">
             Fast capture — type to add issues, <kbd>Enter</kbd> for the next,{" "}
-            <kbd>Tab</kbd>/<kbd>Shift+Tab</kbd> to nest. The <code>…</code> opens the full issue.
+            <kbd>Tab</kbd>/<kbd>Shift+Tab</kbd> to nest. Tap the <code>⋯</code> at the
+            start of a row to open the full issue.
           </p>
         </div>
         <div className="flex items-center gap-4">
