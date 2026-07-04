@@ -378,7 +378,9 @@ canonical key — entirely client-side from the loaded workspace (D22).
   it under the last sibling as a sub-issue, Shift+Tab outdents). Existing rows
   rename on Enter/blur and reparent in place via Tab/Shift+Tab. Arcs are reached
   only by the explicit per-row "→ arc" control (pick existing or create new);
-  the `…` opens the full issue. Nothing here deletes or archives. All writes
+  a per-row three-dot link in a fixed **far-left** gutter opens the full issue —
+  always visible on mobile (tappable, no hover needed) and faint-until-hover on
+  desktop (PROG-80). Nothing here deletes or archives. All writes
   reuse the optimistic `createIssue`/`updateIssue`/`createContainer` paths.
   Completed issues (done/canceled) read as finished — dimmed + struck through —
   and a page-level **Hide done** toggle drops them (and their subtrees) from the
