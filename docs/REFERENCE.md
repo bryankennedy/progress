@@ -376,7 +376,13 @@ canonical key — entirely client-side from the loaded workspace (D22).
   and sets the ceiling. A fresh bullet is always an Issue; the trailing "+ new
   bullet" captures continuously (Enter adds a sibling and keeps focus, Tab nests
   it under the last sibling as a sub-issue, Shift+Tab outdents). Existing rows
-  rename on Enter/blur and reparent in place via Tab/Shift+Tab. Arcs are reached
+  rename on Enter/blur and reparent in place via Tab/Shift+Tab. Rows also
+  **drag to reorder** within their sibling group via a far-left grip handle
+  (`@dnd-kit`): the drop mints a new `rank` between the neighbours
+  (`rankForReorder`, `src/client/outlineReorder.ts`) — the **same** fractional
+  key the board orders by, so a drag here moves the card on the board and
+  vice-versa. Only the grip starts a drag (the title input stays editable);
+  reparenting stays on Tab/Shift+Tab (PROG-86). Arcs are reached
   only by the explicit per-row "→ arc" control (pick existing or create new);
   a per-row three-dot link in a fixed **far-left** gutter opens the full issue —
   always visible on mobile (tappable, no hover needed) and faint-until-hover on
