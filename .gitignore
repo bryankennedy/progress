@@ -34,3 +34,7 @@ scripts/seed-scale.generated.sql
 # Playwright e2e output — reports and traces are regenerated each run
 test-results/
 playwright-report/
+
+# Throwaway agent/dev scratchpad scripts and screenshots (scratchpad-*.mts,
+# scratchpad-audit/, …) — local verification artifacts, never shared
+scratchpad-*
