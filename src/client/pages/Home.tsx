@@ -500,8 +500,24 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
       >
         {/* items-stretch: all columns share the tallest column's height, so a
             card can be dragged straight sideways into any column's drop zone
-            instead of having to travel to its top (PROG-40). */}
-        <div className="mt-5 flex items-stretch gap-3 overflow-x-auto pb-6">
+            instead of having to travel to its top (PROG-40).
+
+            snap-x snap-mandatory (+ snap-start on each column): when the columns
+            overflow — i.e. on a phone, where they hit their min-w-72 floor — a
+            horizontal swipe always settles with a column pinned to the left
+            edge, making each column a "home" for the scroll instead of resting
+            mid-column. It's a no-op on desktop, where flex-1 fits every column
+            and the row never scrolls. Suppressed while a card is being dragged
+            (activeId): the drag edge auto-scroll (PROG-47/48) scrolls this same
+            row programmatically, and mandatory snap fights it — re-snapping
+            after each step, which stutters the auto-scroll toward the target
+            column. On drop, activeId clears and the row re-snaps to the nearest
+            column. */}
+        <div
+          className={`mt-5 flex items-stretch gap-3 overflow-x-auto pb-6 ${
+            activeId ? "" : "snap-x snap-mandatory"
+          }`}
+        >
           {visibleColumns.map((status) => (
             <BoardColumn
               key={status}
@@ -572,7 +588,9 @@ function BoardColumn({
     // shrinking and the row's overflow-x-auto scrolls instead (mobile) (PROG-71).
     <section
       ref={setNodeRef}
-      className={`flex min-w-72 flex-1 flex-col rounded-lg p-2 ${isOver ? "bg-adobe-wash/30 ring-1 ring-adobe-light" : "bg-line/40"}`}
+      // snap-start: this column's left edge is the snap point the row settles on
+      // when scrolled horizontally on a phone (see the row's snap-x/mandatory).
+      className={`flex min-w-72 flex-1 snap-start flex-col rounded-lg p-2 ${isOver ? "bg-adobe-wash/30 ring-1 ring-adobe-light" : "bg-line/40"}`}
     >
       <h2 className="px-1 pb-2 text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">
         {STATUS_LABELS[status]} · {hiddenCount ? `${issueIds.length} of ${total}` : issueIds.length}
