@@ -1425,3 +1425,21 @@ rank only orders pickers/Structure until some view grows an initiative list.
 unit-tested (`containerReorder.test.ts`); the wiring has a real-browser e2e
 spec (`e2e/outline-container-reorder.spec.ts`) covering the alphabetical
 default, both drag surfaces, and reload persistence.
+
+### PROG-87b — container drags adopt the board's DragOverlay; the scope picker goes sticky
+
+Dogfooding the section drag surfaced that the in-place sortable transform reads
+as dead: the grabbed section didn't visibly move until it displaced a
+neighbour, and rows under the pointer kept hover-highlighting mid-drag. Fixed
+by adopting the board's proven pattern (D43/PROG-40) instead of in-place
+translation: a `DragOverlay dropAnimation={null}` carries a floating preview of
+the held grouping from the first pixel — header + up to 6 rows + "… n more",
+shadowed for depth, so a screen-tall section never becomes a screen-tall
+cursor — while the in-list source dims to a ghost (`opacity-30`, no translate;
+only neighbours slide) and everything under the drag goes `pointer-events-none`
+so no other interaction can react until release. Separately, the Outline's
+scope picker is now sticky the same way Hide done is (PROG-77): the resolved
+scope mirrors to `localStorage` and a bare `/outline` reopens it, with URL
+params still winning and stale ids validated against live data. Both covered in
+`e2e/outline-container-reorder.spec.ts` (overlay presence mid-drag + clear on
+drop; scope surviving a navigate-away-and-back).

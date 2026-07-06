@@ -26,3 +26,35 @@ export function saveHideDone(hide: boolean): void {
     /* sticky preference is a nicety — ignore storage failures */
   }
 }
+
+// The Outline's scope picker is sticky the same way (PROG-87 follow-up): leave
+// /outline and come back and it reopens on the scope you were in. The URL
+// params still win when present (links stay shareable); this only fills the
+// bare /outline case. The id is validated against live data on load, so a
+// deleted/archived scope just falls through to the default.
+
+const SCOPE_KEY = "progress:outline-scope";
+
+export type OutlineScope = { kind: "product" | "initiative"; id: string };
+
+export function loadScope(): OutlineScope | null {
+  try {
+    const raw = window.localStorage.getItem(SCOPE_KEY);
+    if (!raw) return null;
+    const sep = raw.indexOf(":");
+    const kind = raw.slice(0, sep);
+    const id = raw.slice(sep + 1);
+    if ((kind === "product" || kind === "initiative") && id) return { kind, id };
+  } catch {
+    /* default this time */
+  }
+  return null;
+}
+
+export function saveScope(scope: OutlineScope): void {
+  try {
+    window.localStorage.setItem(SCOPE_KEY, `${scope.kind}:${scope.id}`);
+  } catch {
+    /* sticky preference is a nicety — ignore storage failures */
+  }
+}

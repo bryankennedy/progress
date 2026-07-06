@@ -392,10 +392,15 @@ canonical key — entirely client-side from the loaded workspace (D22).
   reparenting stays on Tab/Shift+Tab (PROG-86). **Container sections reorder
   the same way** (PROG-87): arc sections within a product, and product sections
   at initiative scope, each drag as a whole block from a grip in their header.
+  A held section is carried by a floating `DragOverlay` preview (capped rows,
+  shadow — the board's pattern) while the in-list source dims and the rest of
+  the outline goes pointer-inert, so nothing hover-highlights under the drag.
   Container ranks sort `(rank, name)` — alphabetical until first reordered; a
   drag in a still-tied group renumbers the group, after which each drag is one
   write (`containerReorderRanks`, `src/client/containerReorder.ts`). The order
-  is global and also drives the Structure page and the scope picker. Arcs are reached
+  is global and also drives the Structure page and the scope picker. The scope
+  picker itself is sticky like Hide done: the last scope persists to
+  `localStorage` and a bare `/outline` reopens it (URL params still win). Arcs are reached
   only by the explicit per-row "→ arc" control (pick existing or create new);
   a per-row three-dot link in a fixed **far-left** gutter opens the full issue —
   always visible on mobile (tappable, no hover needed) and faint-until-hover on
