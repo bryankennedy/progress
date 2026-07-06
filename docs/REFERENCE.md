@@ -462,7 +462,15 @@ canonical key — entirely client-side from the loaded workspace (D22).
   key, title, the due date as a relative phrase ("in 3 days"), product/arc
   and status; overdue rows are visually distinct. Filterable by product/arc/tag
   via URL params (the board pattern), with inline mark-done and bump-due. Renders
-  entirely from the store.
+  entirely from the store. Each non-Overdue grouping ends in a **quick-add**
+  input (PROG-89): Enter creates a `todo` issue pre-dated for that bucket —
+  Today → today, This week → the rolling window's last day (today+6), Later →
+  the first day beyond it (today+7) (`quickAddDueDate`,
+  `src/client/agendaQuickAdd.ts`). The product comes from an inline picker
+  that follows the active Product filter, else the last product quick-added
+  into (localStorage); an active Arc filter is inherited when it belongs to
+  the chosen product. Groups still hide when empty, so the input appears only
+  under populated groups; Overdue never gets one (an issue can't be born late).
 - **Structure (`/structure`)** — the Initiative → Product → (Repo · Arc) tree
   with an inline "+ add" on each node (D40); a dedicated home for curating
   structure that keeps the board uncluttered. Active arcs always show; archived
