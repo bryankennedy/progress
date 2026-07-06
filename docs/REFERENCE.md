@@ -2,8 +2,10 @@
 
 The system **as built** (milestones 1–5, 2026-06-11/12). Information-oriented
 and present tense throughout; if it's described here, it works today. For
-vision and unbuilt work see [`SPEC.md`](./SPEC.md); for rationale see
-[`DECISIONS.md`](./DECISIONS.md) (D-numbers below refer to its entries).
+vision and unbuilt work see [`SPEC.md`](./SPEC.md); for rationale see the
+decision log ([`DECISIONS.md`](./DECISIONS.md) for the convention — D-numbers
+below resolve in [`decisions/D1-D49.md`](./decisions/D1-D49.md), issue keys in
+`decisions/<KEY>.md`).
 
 ## 1. Stack & layout
 
