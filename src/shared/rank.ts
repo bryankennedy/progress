@@ -82,3 +82,12 @@ export function rankBetween(before: string | null, after: string | null): string
 export function rankAfter(last: string | null): string {
   return rankBetween(last, null);
 }
+
+/**
+ * The shared default rank for reorderable containers (PROG-87): the alphabet's
+ * midpoint, i.e. `rankBetween(null, null)`. Every untouched row ties here and
+ * the client's rank-then-name sort falls back to the name, so a group nobody
+ * has reordered reads alphabetically. The first drag in a tied group renumbers
+ * the whole group (`containerReorderRanks`, src/client/containerReorder.ts).
+ */
+export const DEFAULT_RANK = digit(MID);

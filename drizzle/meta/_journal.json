@@ -64,6 +64,13 @@
       "when": 1782504697391,
       "tag": "0008_grey_gorgon",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1783364442234,
+      "tag": "0009_abandoned_amphibian",
+      "breakpoints": true
     }
   ]
 }
