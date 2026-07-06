@@ -8,7 +8,9 @@
 // filters (all of them by default, so the page opens onto the full list),
 // newest first. Long result sets paginate: issues/containers cap the DOM at
 // PAGE rows per "Show more" click (the data is already in memory), and the
-// comments section pulls further pages from the server via ?offset=.
+// comments section pulls further pages from the server via ?offset=. Issues
+// render as a table whose column headers sort (asc → desc → back to the
+// default relevance/recency order); the sort is a URL param like the filters.
 
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
@@ -20,9 +22,13 @@ import {
   browseIssues,
   containerLabel,
   highlight,
+  ISSUE_SORT_KEYS,
   queryTerms,
   searchContainers,
   searchIssues,
+  sortIssueHits,
+  type IssueSort,
+  type IssueSortKey,
   type Segment,
 } from "../search";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
@@ -36,26 +42,62 @@ const FILTER_KEYS = ["initiative", "product", "repo", "arc", "tag", "priority", 
 type FilterKey = (typeof FILTER_KEYS)[number];
 type Filters = Partial<Record<FilterKey, string>>;
 
-function parseFilters(search: string): { q: string; filters: Filters } {
+// The issue table's columns (PROG-78): one per displayed dimension, each
+// header click-sortable. Order here is the column order.
+const COLUMNS: { key: IssueSortKey; label: string }[] = [
+  { key: "key", label: "Key" },
+  { key: "title", label: "Title" },
+  { key: "product", label: "Product" },
+  { key: "status", label: "Status" },
+  { key: "priority", label: "Priority" },
+];
+
+function parseFilters(search: string): { q: string; filters: Filters; sort: IssueSort | null } {
   const params = new URLSearchParams(search);
   const filters: Filters = {};
   for (const key of FILTER_KEYS) {
     const value = params.get(key);
     if (value) filters[key] = value;
   }
-  return { q: params.get("q") ?? "", filters };
+  // Sort lives in the URL like the filters, so a sorted view is bookmarkable.
+  // Unknown sort keys are ignored (malformed bookmark → default order).
+  const sortKey = params.get("sort") as IssueSortKey | null;
+  const sort: IssueSort | null =
+    sortKey && ISSUE_SORT_KEYS.includes(sortKey)
+      ? { key: sortKey, dir: params.get("dir") === "desc" ? "desc" : "asc" }
+      : null;
+  return { q: params.get("q") ?? "", filters, sort };
 }
 
 export default function Search({ workspace }: { workspace: WorkspacePayload }) {
   const search = useSearch();
   const [, navigate] = useLocation();
-  const { q, filters } = useMemo(() => parseFilters(search), [search]);
+  const { q, filters, sort } = useMemo(() => parseFilters(search), [search]);
   const terms = useMemo(() => queryTerms(q), [q]);
 
   const setParam = (key: string, value: string | null) => {
     const params = new URLSearchParams(search);
     if (value) params.set(key, value);
     else params.delete(key);
+    const qs = params.toString();
+    navigate(qs ? `/search?${qs}` : "/search", { replace: true });
+  };
+
+  // Column-header click: new column → ascending, same column → flip, third
+  // click → back to the default order (relevance for a query, recency for
+  // browse). The default is a real state, not just "asc on something", so it
+  // stays reachable.
+  const cycleSort = (key: IssueSortKey) => {
+    const params = new URLSearchParams(search);
+    if (sort?.key !== key) {
+      params.set("sort", key);
+      params.delete("dir");
+    } else if (sort.dir === "asc") {
+      params.set("dir", "desc");
+    } else {
+      params.delete("sort");
+      params.delete("dir");
+    }
     const qs = params.toString();
     navigate(qs ? `/search?${qs}` : "/search", { replace: true });
   };
@@ -106,9 +148,12 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
   const browsing = terms.length === 0;
 
   const issueHits = useMemo(() => {
-    if (terms.length === 0) return browseIssues(workspace).filter((h) => passes(h.issue));
-    return searchIssues(workspace, q, 0).filter((h) => passes(h.issue));
-  }, [workspace, q, terms, passes]);
+    const base =
+      terms.length === 0
+        ? browseIssues(workspace).filter((h) => passes(h.issue))
+        : searchIssues(workspace, q, 0).filter((h) => passes(h.issue));
+    return sortIssueHits(workspace, base, sort);
+  }, [workspace, q, terms, passes, sort]);
   const containerHits = useMemo(() => searchContainers(workspace, q, 0), [workspace, q]);
 
   // Pagination (PROG-78): the full hit lists stay in memory (instant); only the
@@ -234,36 +279,91 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
           {issueHits.length === 0 ? (
             <Empty>No issues match.</Empty>
           ) : (
-            issueHits.slice(0, issueLimit).map((hit) => {
-              const key = issueKeyOf(workspace, hit.issue);
-              const product = workspace.products.find((p) => p.id === hit.issue.productId);
-              return (
-                <Link
-                  key={hit.issue.id}
-                  href={`/issue/${key}`}
-                  className="block rounded-md border border-line bg-card px-3 py-2 text-sm hover:border-ink-faint"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="min-w-0 flex-1 truncate">
-                      <span className="font-mono text-xs text-ink-faint">{key}</span>{" "}
-                      <Highlighted segments={highlight(hit.issue.title, terms)} />
-                    </span>
-                    <span className="flex shrink-0 items-center gap-2 text-xs text-ink-faint">
-                      {product?.name}
-                      <span>· {STATUS_LABELS[hit.issue.status]}</span>
-                      {hit.issue.priority !== "none" && (
-                        <PriorityIndicator priority={hit.issue.priority} />
-                      )}
-                    </span>
-                  </div>
-                  {!hit.inTitle && hit.issue.description && (
-                    <p className="mt-1 truncate text-xs text-ink-soft">
-                      <Highlighted segments={highlight(descSnippet(hit.issue.description, terms), terms)} />
-                    </p>
-                  )}
-                </Link>
-              );
-            })
+            <div className="overflow-x-auto rounded-md border border-line bg-card">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-line">
+                    {COLUMNS.map((col) => (
+                      <th
+                        key={col.key}
+                        aria-sort={
+                          sort?.key === col.key
+                            ? sort.dir === "asc"
+                              ? "ascending"
+                              : "descending"
+                            : undefined
+                        }
+                        className="px-3 py-2 text-left"
+                      >
+                        <button
+                          onClick={() => cycleSort(col.key)}
+                          className={`flex items-center gap-1 text-xs font-medium uppercase tracking-wide hover:text-ink-soft ${
+                            sort?.key === col.key ? "text-ink-soft" : "text-ink-faint"
+                          }`}
+                        >
+                          {col.label}
+                          {sort?.key === col.key && (
+                            <span aria-hidden>{sort.dir === "asc" ? "▲" : "▼"}</span>
+                          )}
+                        </button>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {issueHits.slice(0, issueLimit).map((hit) => {
+                    const key = issueKeyOf(workspace, hit.issue);
+                    const product = workspace.products.find((p) => p.id === hit.issue.productId);
+                    return (
+                      // The whole row navigates (it's the click target the old
+                      // card rows offered); the title stays a real link for
+                      // middle-click / open-in-new-tab.
+                      <tr
+                        key={hit.issue.id}
+                        onClick={() => navigate(`/issue/${key}`)}
+                        className="cursor-pointer border-t border-line first:border-t-0 hover:bg-line/40"
+                      >
+                        <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-ink-faint">
+                          {key}
+                        </td>
+                        <td className="w-full min-w-56 px-3 py-2">
+                          <Link
+                            href={`/issue/${key}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="hover:underline"
+                          >
+                            <Highlighted segments={highlight(hit.issue.title, terms)} />
+                          </Link>
+                          {!hit.inTitle && hit.issue.description && (
+                            <p className="mt-0.5 truncate text-xs text-ink-soft">
+                              <Highlighted
+                                segments={highlight(descSnippet(hit.issue.description, terms), terms)}
+                              />
+                            </p>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-xs text-ink-faint">
+                          {product?.name}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-xs text-ink-faint">
+                          {STATUS_LABELS[hit.issue.status]}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-xs text-ink-faint">
+                          {hit.issue.priority !== "none" ? (
+                            <span className="flex items-center gap-1.5">
+                              <PriorityIndicator priority={hit.issue.priority} />
+                              {PRIORITY_LABELS[hit.issue.priority]}
+                            </span>
+                          ) : (
+                            <span aria-label={PRIORITY_LABELS.none}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
           {issueHits.length > issueLimit && (
             <ShowMore onClick={() => setIssueLimit((n) => n + PAGE)}>
