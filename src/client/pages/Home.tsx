@@ -35,30 +35,17 @@ import {
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useLocation, useSearch } from "wouter";
-import {
-  ISSUE_PRIORITIES,
-  ISSUE_STATUSES,
-  type IssuePriority,
-  type IssueStatus,
-} from "../../shared/constants";
+import { Link } from "wouter";
+import { ISSUE_STATUSES, type IssueStatus } from "../../shared/constants";
 import { rankBetween } from "../../shared/rank";
 import { reorder, type ColumnMap } from "../boardOrder";
-import {
-  FILTER_NONE,
-  filtersToRestore,
-  loadBoardFilters,
-  matchesNullableId,
-  pruneImpossibleFilters,
-  saveBoardFilters,
-  sortByName,
-} from "../boardFilters";
-import FilterSelect from "../FilterSelect";
+import { BOARD_FILTERS_KEY, FILTER_NONE, matchesNullableId } from "../boardFilters";
+import FilterBar, { useStickyFilterUrl } from "../FilterBar";
 import { recentlyCompleted } from "../boardDone";
 import type { WireIssue, WireTag, WorkspacePayload } from "../../shared/types";
 import { openCreateIssue } from "../commands/controller";
 import { dayDiff, formatDueDate, relativeDue, todayISO } from "../dates";
-import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
+import { STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
 import { issueKeyOf, loadStats, updateIssue, type IssuePatch } from "../store";
 
@@ -86,52 +73,14 @@ function parseFilters(search: string): Filters {
 }
 
 export default function Home({ workspace }: { workspace: WorkspacePayload }) {
-  const search = useSearch();
-  const [, navigate] = useLocation();
+  // URL plumbing + sticky restore + ancestor pruning, shared with the search
+  // page (PROG-92, FilterBar.tsx).
+  const { search, navigate, setParam } = useStickyFilterUrl({
+    workspace,
+    basePath: "/",
+    storageKey: BOARD_FILTERS_KEY,
+  });
   const filters = useMemo(() => parseFilters(search), [search]);
-
-  // Parent lookups for cascading filter validity (PROG-75): a child filter
-  // (product/arc/repo) is only offered — and only kept — when it's consistent
-  // with the chosen ancestors.
-  const productInitiative = useMemo(
-    () => new Map(workspace.products.map((p) => [p.id, p.initiativeId])),
-    [workspace.products],
-  );
-  const arcProduct = useMemo(
-    () => new Map(workspace.arcs.map((a) => [a.id, a.productId])),
-    [workspace.arcs],
-  );
-  const repoProduct = useMemo(
-    () => new Map(workspace.repos.map((r) => [r.id, r.productId])),
-    [workspace.repos],
-  );
-
-  // Sticky filters (PROG-58): on a fresh mount with a bare URL, re-apply the
-  // saved selection; thereafter mirror the URL into storage on every change.
-  // Captured once at mount so a later filter change doesn't re-trigger a
-  // restore. A no-op when there's nothing saved or the URL already has filters.
-  const [restoreTarget] = useState(() => filtersToRestore(search, loadBoardFilters()));
-  const restoredRef = useRef(false);
-  useEffect(() => {
-    if (!restoredRef.current && restoreTarget) {
-      restoredRef.current = true;
-      navigate(`/?${restoreTarget}`, { replace: true });
-      return; // don't persist the transient pre-restore (empty) URL
-    }
-    saveBoardFilters(search);
-  }, [search, navigate, restoreTarget]);
-
-  const setParam = (key: string, value: string | null) => {
-    const params = new URLSearchParams(search);
-    if (value) params.set(key, value);
-    else params.delete(key);
-    // Changing an ancestor can strand a descendant filter from another branch;
-    // drop the impossible ones in the same URL write so the board never filters
-    // to nothing behind a stale selection (PROG-75).
-    pruneImpossibleFilters(params, { productInitiative, arcProduct, repoProduct });
-    const qs = params.toString();
-    navigate(qs ? `/?${qs}` : "/", { replace: true });
-  };
 
   const tagsByIssue = useMemo(() => {
     const tagById = new Map(workspace.tags.map((t) => [t.id, t]));
@@ -203,10 +152,6 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
 
   const [columns, setColumns] = useState<ColumnMap>(sourceColumns);
   const [activeId, setActiveId] = useState<string | null>(null);
-  // Mobile only: the filter dropdowns collapse behind a "Filters" disclosure so
-  // the board itself sits above the fold instead of a screenful of chrome
-  // (PROG-81). Desktop ignores this — the block is always `sm:flex`.
-  const [filtersOpen, setFiltersOpen] = useState(false);
   // Mirror of activeId for effects/handlers that must read it without depending
   // on it (a ref updates synchronously and doesn't re-trigger effects).
   const activeIdRef = useRef<string | null>(null);
@@ -395,123 +340,46 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
         </button>
       </header>
 
-      {/* Mobile: a "Filters" disclosure keeps the six dropdowns + two toggles
-          out of the default view so the board is above the fold (PROG-81). The
-          badge shows how many are active while collapsed. Hidden at sm+, where
-          the filter row is always inline. */}
-      <button
-        type="button"
-        onClick={() => setFiltersOpen((o) => !o)}
-        aria-expanded={filtersOpen}
-        className="mt-4 flex min-h-11 w-full items-center gap-2 rounded border border-line bg-card px-3 text-sm text-ink-soft hover:border-ink-faint sm:hidden"
-      >
-        <span className="font-medium">Filters</span>
-        {activeFilterCount > 0 && (
-          <span className="rounded-full bg-adobe px-1.5 py-0.5 text-xs font-medium text-white">
-            {activeFilterCount}
-          </span>
-        )}
-        <span className={`ml-auto transition-transform ${filtersOpen ? "rotate-180" : ""}`}>▾</span>
-      </button>
-
-      <div
-        className={`${filtersOpen ? "flex" : "hidden"} mt-3 flex-wrap items-center gap-2 text-sm sm:mt-4 sm:flex`}
-      >
-        {/* Archived containers stay out of the dropdowns (D26); their issues
-            still render, so nothing silently disappears from the board. */}
-        <FilterSelect
-          label="Initiative"
-          value={filters.initiative}
-          options={sortByName(workspace.initiatives.filter((i) => !i.archivedAt)).map((i) => [
-            i.id,
-            i.name,
-          ])}
-          onChange={(v) => setParam("initiative", v)}
-        />
-        <FilterSelect
-          label="Product"
-          value={filters.product}
-          options={sortByName(
-            workspace.products
-              .filter((p) => !p.archivedAt)
-              .filter((p) => !filters.initiative || p.initiativeId === filters.initiative),
-          ).map((p) => [p.id, p.name])}
-          onChange={(v) => setParam("product", v)}
-        />
-        <FilterSelect
-          label="Arc"
-          nullable
-          value={filters.arc}
-          options={sortByName(
-            workspace.arcs
-              .filter((a) => !a.archivedAt)
-              .filter((a) => !filters.product || a.productId === filters.product)
-              .filter(
-                (a) =>
-                  !filters.initiative ||
-                  productInitiative.get(a.productId) === filters.initiative,
-              ),
-          ).map((a) => [a.id, a.name])}
-          onChange={(v) => setParam("arc", v)}
-        />
-        <FilterSelect
-          label="Repo"
-          nullable
-          value={filters.repo}
-          options={sortByName(
-            workspace.repos
-              .filter((r) => !r.archivedAt)
-              .filter((r) => !filters.product || r.productId === filters.product)
-              .filter(
-                (r) =>
-                  !filters.initiative ||
-                  productInitiative.get(r.productId) === filters.initiative,
-              ),
-          ).map((r) => [r.id, r.name])}
-          onChange={(v) => setParam("repo", v)}
-        />
-        <FilterSelect
-          label="Tag"
-          nullable
-          value={filters.tag}
-          options={sortByName(workspace.tags).map((t) => [t.id, t.name])}
-          onChange={(v) => setParam("tag", v)}
-        />
-        <FilterSelect
-          label="Priority"
-          value={filters.priority}
-          options={ISSUE_PRIORITIES.map((p) => [p, PRIORITY_LABELS[p]])}
-          onChange={(v) => setParam("priority", v)}
-        />
-        <button
-          onClick={() => setParam("backlog", filters.backlog ? null : "1")}
-          className={`inline-flex min-h-11 items-center rounded border px-3 py-1 text-xs sm:min-h-0 sm:px-2 ${
-            filters.backlog
-              ? "border-ink-faint bg-line text-ink-soft"
-              : "border-line bg-card text-ink-faint hover:border-ink-faint"
-          }`}
-        >
-          {filters.backlog ? "Hide backlog" : "Show backlog"}
-        </button>
-        <button
-          onClick={() => setParam("subissues", filters.subissues ? null : "1")}
-          className={`inline-flex min-h-11 items-center rounded border px-3 py-1 text-xs sm:min-h-0 sm:px-2 ${
-            filters.subissues
-              ? "border-ink-faint bg-line text-ink-soft"
-              : "border-line bg-card text-ink-faint hover:border-ink-faint"
-          }`}
-        >
-          {filters.subissues ? "Hide sub-issues" : "Show sub-issues"}
-        </button>
-        {filtersActive && (
-          <button
-            onClick={() => navigate(filters.backlog ? "/?backlog=1" : "/", { replace: true })}
-            className="text-xs text-ink-faint underline hover:text-ink-soft"
-          >
-            Clear filters
-          </button>
-        )}
-      </div>
+      {/* The shared filter bar (PROG-92): six dropdowns + mobile disclosure +
+          Clear, identical to the search page's. The board's toggles ride in the
+          `after` slot; clearing keeps them (they're view modes, not filters). */}
+      <FilterBar
+        workspace={workspace}
+        filters={filters}
+        setParam={setParam}
+        activeCount={activeFilterCount}
+        clearVisible={filtersActive}
+        onClear={() => {
+          const params = new URLSearchParams(search);
+          for (const key of FILTER_KEYS) params.delete(key);
+          const qs = params.toString();
+          navigate(qs ? `/?${qs}` : "/", { replace: true });
+        }}
+        after={
+          <>
+            <button
+              onClick={() => setParam("backlog", filters.backlog ? null : "1")}
+              className={`inline-flex min-h-11 items-center rounded border px-3 py-1 text-xs sm:min-h-0 sm:px-2 ${
+                filters.backlog
+                  ? "border-ink-faint bg-line text-ink-soft"
+                  : "border-line bg-card text-ink-faint hover:border-ink-faint"
+              }`}
+            >
+              {filters.backlog ? "Hide backlog" : "Show backlog"}
+            </button>
+            <button
+              onClick={() => setParam("subissues", filters.subissues ? null : "1")}
+              className={`inline-flex min-h-11 items-center rounded border px-3 py-1 text-xs sm:min-h-0 sm:px-2 ${
+                filters.subissues
+                  ? "border-ink-faint bg-line text-ink-soft"
+                  : "border-line bg-card text-ink-faint hover:border-ink-faint"
+              }`}
+            >
+              {filters.subissues ? "Hide sub-issues" : "Show sub-issues"}
+            </button>
+          </>
+        }
+      />
 
       <DndContext
         sensors={sensors}
