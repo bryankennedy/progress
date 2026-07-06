@@ -137,17 +137,17 @@ export function renderBundle(b: BundleData): string {
     "",
   );
   // Multiple agents often work different issues against this repo in parallel,
-  // so append-only docs with a global running counter (e.g. DECISIONS.md's
-  // `D<n>`) race — two agents grab the same number and conflict (PROG-62). Tell
-  // the agent to key such entries to THIS issue instead, which can't collide
-  // across issues.
+  // so anything shared and appended-to (a log file, a running counter) races.
+  // The decision log is one file per work element (PROG-91), so tell the agent
+  // to write ITS issue's file — different issues touch different files and
+  // can't collide.
   out.push("### Avoiding merge collisions (parallel agents)", "");
   out.push(
-    `Other agents may be editing this repo on other issues at the same time. In **append-only docs**, never claim the next global running number — that races. Key the entry to this issue instead:`,
+    `Other agents may be editing this repo on other issues at the same time. Never append to a shared log or claim the next global running number — both race. Scope shared-doc writes to this issue instead:`,
     "",
-    `- **\`docs/DECISIONS.md\`** — head a new decision \`### ${b.key} — <title>\` (not the next \`D<n>\`); a second decision for the same issue gets a letter suffix (\`### ${b.key}b — …\`). Append at the end of the file.`,
-    `- Same rule for any other append-only log keyed by a running counter: derive the id from **${b.key}**, not a shared sequence.`,
-    `- If a trailing merge conflict still appears in such a file, it's a "keep both entries" resolution — never renumber or drop the other agent's entry.`,
+    `- **Decisions** go in \`docs/decisions/${b.key}.md\` (create it), headed \`### ${b.key} — <title>\`; a second decision for the same issue appends there with a letter suffix (\`### ${b.key}b — …\`). Do not edit \`docs/DECISIONS.md\`, other issues' files, or the frozen \`docs/decisions/D1-D49.md\` — supersede a settled entry by naming it from your own file.`,
+    `- Same rule for any other shared log keyed by a running counter: derive the id from **${b.key}**, not a shared sequence.`,
+    `- If a merge conflict still appears in a shared file, it's a "keep both entries" resolution — never renumber or drop the other agent's entry.`,
     "",
   );
   return out.join("\n");
@@ -302,14 +302,16 @@ export function renderArcBundle(b: ArcBundleData): string {
   );
 
   // Multiple sub-agents now edit the SAME repo and branch at once, so the
-  // append-only-doc race is sharper here than for a lone issue agent.
+  // shared-doc race is sharper here than for a lone issue agent. Decisions are
+  // one file per work element (PROG-91): each sub-agent writes its own issue's
+  // file and the files can't collide.
   out.push("### Avoiding merge collisions (parallel sub-agents)", "");
   out.push(
-    `Your sub-agents are editing the same repo and branch simultaneously. In **append-only docs**, never claim the next global running number — that races. Key each entry to the issue it belongs to instead:`,
+    `Your sub-agents are editing the same repo and branch simultaneously. Never append to a shared log or claim the next global running number — both race. Scope shared-doc writes to the issue they belong to:`,
     "",
-    "- **`docs/DECISIONS.md`** — head a new decision `### KEY — <title>` (the issue it came from, not the next `D<n>`); a second decision for the same issue gets a letter suffix (`### KEYb — …`). Append at the end of the file.",
-    "- Same rule for any other append-only log keyed by a running counter: derive the id from the issue key, not a shared sequence.",
-    `- If a trailing merge conflict still appears in such a file, it's a "keep both entries" resolution — never renumber or drop another sub-agent's entry.`,
+    "- **Decisions** go in `docs/decisions/<KEY>.md` (create it), headed `### KEY — <title>`, where `KEY` is the issue the decision came from; a second decision for the same issue appends there with a letter suffix (`### KEYb — …`). Do not edit `docs/DECISIONS.md`, other issues' files, or the frozen `docs/decisions/D1-D49.md` — supersede a settled entry by naming it from your own file.",
+    "- Same rule for any other shared log keyed by a running counter: derive the id from the issue key, not a shared sequence.",
+    `- If a merge conflict still appears in a shared file, it's a "keep both entries" resolution — never renumber or drop another sub-agent's entry.`,
     "",
   );
 
