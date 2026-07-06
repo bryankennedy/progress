@@ -1416,3 +1416,25 @@ reusing the page's existing filter predicate and row rendering; `inTitle` is
 set so no unmatched description snippet renders. URL stays the state
 (`/search?status=todo` cold-loads into browse), so a filter-only view is
 bookmarkable like any other search.
+
+### PROG-78b — search opens onto everything: default browse + pagination
+
+Owner feedback on the first PROG-78 cut: the page should show data by default,
+not a hint. **Supersedes decision (2) of the PROG-78 entry** — an empty query
+with *no* filters no longer shows the hint; it IS the default search, and
+`/search` opens onto the full issue list under the default filter settings
+(any status, any arc, …), newest first. What makes that viable at scale is
+pagination, added in the same change. *Decisions within:* (1) **"Show more",
+not numbered pages** — the full hit lists stay in the client store (instant-UI
+rule, SPEC §2.1); only the DOM is capped, at 50 rows per click for the Issues
+and Containers sections. The reveal count is ephemeral component state, not a
+URL param: it's a reading position, not search state, so bookmarks stay
+`q`+filters only and the limit resets whenever either changes. (2) **Comments
+paginate server-side** — `GET /api/search` gains `?offset=` (offset-based is
+fine: single owner, recency order, bounded comment set — same rationale as the
+`LIKE` scan, D/PROG-130); the section header reads "50+" while more remain and
+a "Show more matches" control fetches the next page. Malformed offsets clamp
+to 0 (`parseOffset`, unit-tested). (3) **`useCommentSearch` became an infinite
+query** that flattens its pages back to the pre-pagination `{ hits, truncated }`
+shape, so the `/` modal — which only ever wants the first page and its
+"more comment matches there" note — is untouched.

@@ -225,7 +225,7 @@ mandatory — renew it before it lapses (an expired file is worse than none).
 | `GET /api/issues/:key/bundle` | Looked up by **key** (alias-aware), not id. Returns `text/markdown` — a deterministic context "work order": issue fields + tags, lineage with descriptions (product → repo incl. `gitUrl` → arc, where the arc description carries the "why"), comments, an **Images** list (absolute URLs of every image referenced in the description/comments, so a bearer-authed agent can fetch them — PROG-42), linked PRs/commits, then a stable report-back preamble — branch/key auto-linking + status flow, plus a **Committing & PRs** block that embeds a local, key-aware copy of the owner's smart-commit conventions (logical chunks, secret-scan, `type(scope): KEY subject`, no AI attribution) so a handed-off agent commits to the owner's rules (PROG-62). A retired key resolves and renders the current canonical key. 400 malformed key, 404 unknown. Rendered by `src/worker/bundle.ts` (`renderBundle`); shared foundation for the agent surfaces (SPEC §11.1, D33). |
 | `GET /api/arcs/:id/bundle` | Looked up by **id** (the arc page has it). Returns `text/markdown` — the **arc** work order: a single prompt covering **every open issue** in the arc (`done`/`canceled` dropped via `isOpenStatus`), each rendered like the issue bundle (fields, description, comments, Images, linked PRs/commits) minus its per-issue footer, with product/arc lineage stated once and repo per-issue. Ends in **combined-PR** orchestration — fan the issues to sub-agents, share one branch, land **one PR naming every key** — plus the same smart-commit block (keyed per-commit). Deterministic (status-then-number sort). 404 unknown arc. Rendered by `renderArcBundle` in `src/worker/bundle.ts`. |
 | `POST /api/issues/:id/comments` | `{ body }` → 201 `{ comment }`. |
-| `GET /api/search?q=` | Comment full-text search (PROG-130) — the one searchable text not in the workspace payload (D20), so it needs the server; title/description search runs client-side over the store. Case-insensitive substring via SQLite `LIKE`, AND'd across whitespace terms, wildcards escaped (`ESCAPE '\'`) so `100%` matches literally. Returns `{ hits: [{ commentId, issueId, snippet }], truncated }`, most-recent first, capped at 50 (`truncated` true when more exist). The client resolves `issueId` to the issue it already holds; `snippet` is a body window the client re-highlights. Pure helpers in `src/worker/searchComments.ts`. |
+| `GET /api/search?q=&offset=` | Comment full-text search (PROG-130) — the one searchable text not in the workspace payload (D20), so it needs the server; title/description search runs client-side over the store. Case-insensitive substring via SQLite `LIKE`, AND'd across whitespace terms, wildcards escaped (`ESCAPE '\'`) so `100%` matches literally. Returns `{ hits: [{ commentId, issueId, snippet }], truncated }`, most-recent first, one 50-hit page per request; `?offset=` skips past earlier pages (PROG-78 pagination; malformed/negative offsets clamp to 0) and `truncated` is true while more matches remain beyond the returned page. The client resolves `issueId` to the issue it already holds; `snippet` is a body window the client re-highlights. Pure helpers in `src/worker/searchComments.ts`. |
 
 ### Images (PROG-42)
 
@@ -407,10 +407,14 @@ canonical key — entirely client-side from the loaded workspace (D22).
   Repo, and Tag share the board's **"none"** option for issues with no value
   there (PROG-76) — with query + filters in the URL so a search is bookmarkable.
   The filter dropdown itself (`FilterSelect.tsx`) is shared with the board. An
-  **empty query with at least one active filter is itself a valid search**
-  (PROG-78): the page lists every issue passing the filters, newest first — a
-  filter-only browse. Only the Issues section renders in that mode (containers
-  and comments need a term to match), and the empty-state hint advertises it.
+  **empty query is itself a valid search** (PROG-78): the page opens onto every
+  issue passing the filters — all of them by default, so `/search` starts as a
+  browsable full list — newest first. Only the Issues section renders in that
+  mode (containers and comments need a term to match). Long result sets
+  **paginate**: issues and containers render 50 rows at a time behind a "Show
+  more" control (the full hit lists stay in memory — only the DOM is capped),
+  and the comments section pulls further 50-hit pages from the server via
+  `?offset=`, its header reading "50+" while more remain.
 - **App header** — persistent across pages: the "Progress" home link, nav
   (Board · Outline · Agenda · Search · Structure · Archive), a **New** menu (Issue ·
   Initiative · Product · Repo · Arc) that opens the existing optimistic create flows, and the
