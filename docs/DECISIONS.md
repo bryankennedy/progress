@@ -1438,3 +1438,26 @@ to 0 (`parseOffset`, unit-tested). (3) **`useCommentSearch` became an infinite
 query** that flattens its pages back to the pre-pagination `{ hits, truncated }`
 shape, so the `/` modal — which only ever wants the first page and its
 "more comment matches there" note — is untouched.
+
+### PROG-78c — the search results are a sortable table
+
+Third cut on PROG-78 (owner: "make the output more of a table view and
+implement sorting… by each of the dimensions displayed"). The Issues section
+became a real `<table>` — Key · Title · Product · Status · Priority, exactly
+the dimensions the old card rows showed — with click-to-sort headers.
+*Decisions within:* (1) **Sort cycles asc → desc → default** — the default
+order (relevance for a query, recency for browse) is a real state a third
+click restores, not just "asc on some column", so the ranked view is never
+lost. (2) **Semantic sort orders, not alphabetical** — key sorts by product
+prefix then issue *number* (PROG-2 before PROG-10), status by workflow order,
+priority by urgency; title/product are case-insensitive locale compares; every
+tie breaks by recency. Pure `sortIssueHits` in `src/client/search.ts`,
+unit-tested. (3) **Sort lives in the URL** (`?sort=&dir=`) like the filters —
+a sorted view is bookmarkable; unknown values are ignored so a malformed
+bookmark degrades to the default order. Sorting therefore also resets the
+"Show more" reveal (it keys off the URL), which is the right behavior — a
+re-sort should show the top of the new order. (4) **Whole rows navigate**,
+preserving the old card click target, while the title stays a real `<Link>`
+for middle-click/new-tab; the table wraps in `overflow-x-auto` so narrow
+viewports scroll the table, not the page (PROG-81's rule). Containers and
+comments keep their list layout — they don't share the issue dimensions.

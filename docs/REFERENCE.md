@@ -414,7 +414,14 @@ canonical key — entirely client-side from the loaded workspace (D22).
   **paginate**: issues and containers render 50 rows at a time behind a "Show
   more" control (the full hit lists stay in memory — only the DOM is capped),
   and the comments section pulls further 50-hit pages from the server via
-  `?offset=`, its header reading "50+" while more remain.
+  `?offset=`, its header reading "50+" while more remain. Issues render as a
+  **table** (Key · Title · Product · Status · Priority) whose column headers
+  **sort**: click a header for ascending, again for descending, a third time to
+  restore the default order (relevance for a query, recency for browse). Key
+  sorts numerically within a product prefix, status by workflow order, priority
+  by urgency (pure `sortIssueHits`, unit-tested); ties break by recency. The
+  sort is a URL param (`?sort=&dir=`) like the filters, so sorted views are
+  bookmarkable; whole rows navigate, the title stays a real link.
 - **App header** — persistent across pages: the "Progress" home link, nav
   (Board · Outline · Agenda · Search · Structure · Archive), a **New** menu (Issue ·
   Initiative · Product · Repo · Arc) that opens the existing optimistic create flows, and the
