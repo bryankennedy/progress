@@ -39,9 +39,11 @@ import {
   createContainer,
   createIssue,
   issueKeyOf,
+  updateContainer,
   updateIssue,
 } from "../store";
 import { rankForReorder } from "../outlineReorder";
+import { byRankThenName, containerReorderRanks } from "../containerReorder";
 import { loadHideDone, saveHideDone } from "../outlinePrefs";
 
 // ---------- tree model ----------
@@ -98,6 +100,80 @@ function LevelIcon({ kind }: { kind: "product" | "arc" | "issue" | "sub" }) {
     <svg viewBox="0 0 16 16" className={`${cls} text-ink-faint`} fill="currentColor" aria-hidden>
       <circle cx="8" cy="8" r="2.5" />
     </svg>
+  );
+}
+
+// ---------- drag-to-reorder building blocks ----------
+
+// The 6-dot drag grip that starts a sortable drag (PROG-86/PROG-87). touch-none
+// so a drag from the grip reorders instead of scrolling the page; always shown
+// on mobile (no hover), faint until row hover/focus on desktop to keep the
+// outline calm.
+function GripHandle({
+  label,
+  handleRef,
+  handleProps,
+}: {
+  label: string;
+  handleRef: (el: HTMLElement | null) => void;
+  handleProps: HTMLAttributes<HTMLElement>;
+}) {
+  return (
+    <button
+      ref={handleRef}
+      {...handleProps}
+      type="button"
+      aria-label={label}
+      title="Drag to reorder"
+      className="flex h-6 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-ink-faint/70 hover:bg-line hover:text-ink-soft active:cursor-grabbing sm:opacity-40 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+    >
+      <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden>
+        <circle cx="6" cy="4" r="1.3" />
+        <circle cx="10" cy="4" r="1.3" />
+        <circle cx="6" cy="8" r="1.3" />
+        <circle cx="10" cy="8" r="1.3" />
+        <circle cx="6" cy="12" r="1.3" />
+        <circle cx="10" cy="12" r="1.3" />
+      </svg>
+    </button>
+  );
+}
+
+// A container section (an arc's block, or a whole product at initiative scope)
+// as a sortable unit (PROG-87): the section moves as one block, and only the
+// grip handed to `children` starts a drag, so the header's link and everything
+// inside keep working normally.
+function SortableSection({
+  id,
+  label,
+  className,
+  children,
+}: {
+  id: string;
+  label: string;
+  className?: string;
+  children: (grip: ReactNode) => ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
+    useSortable({ id });
+  const style: CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={[className, isDragging ? "relative z-10 opacity-80" : undefined].filter(Boolean).join(" ") || undefined}
+    >
+      {children(
+        <GripHandle
+          label={label}
+          handleRef={setActivatorNodeRef}
+          handleProps={{ ...attributes, ...listeners }}
+        />,
+      )}
+    </div>
   );
 }
 
@@ -206,26 +282,8 @@ function IssueRow({
       className="group flex items-center gap-1.5 rounded py-0.5 hover:bg-line/30"
       style={{ paddingLeft: depth * 22 }}
     >
-      {/* Drag handle (PROG-86). touch-none so a drag from the grip reorders
-          instead of scrolling the page; always shown on mobile (no hover), faint
-          until row hover/focus on desktop to keep the outline calm. */}
-      <button
-        ref={handleRef}
-        {...handleProps}
-        type="button"
-        aria-label={`Reorder ${issueKey}`}
-        title="Drag to reorder"
-        className="flex h-6 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-ink-faint/70 hover:bg-line hover:text-ink-soft active:cursor-grabbing sm:opacity-40 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
-      >
-        <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden>
-          <circle cx="6" cy="4" r="1.3" />
-          <circle cx="10" cy="4" r="1.3" />
-          <circle cx="6" cy="8" r="1.3" />
-          <circle cx="10" cy="8" r="1.3" />
-          <circle cx="6" cy="12" r="1.3" />
-          <circle cx="10" cy="12" r="1.3" />
-        </svg>
-      </button>
+      {/* Drag handle (PROG-86). */}
+      <GripHandle label={`Reorder ${issueKey}`} handleRef={handleRef} handleProps={handleProps} />
       {/* Jump-to-issue affordance, pinned to the far left so it sits in a
           consistent gutter and — crucially — is reachable on touch, where there
           is no hover to reveal it (PROG-80). Always shown on mobile; on desktop
@@ -482,11 +540,15 @@ function ProductOutline({
   ws,
   showHeader,
   hideDone,
+  grip,
 }: {
   product: WireProduct;
   ws: WorkspacePayload;
   showHeader: boolean;
   hideDone: boolean;
+  // At initiative scope the whole section is sortable (PROG-87); the enclosing
+  // SortableSection hands its drag grip down to render in the header.
+  grip?: ReactNode;
 }) {
   const issues = ws.issues;
   const arcs = ws.arcs;
@@ -505,8 +567,10 @@ function ProductOutline({
   const [captureArc, setCaptureArc] = useState<string | null>(null);
   const [focusToken, setFocusToken] = useState(0);
 
+  // Rendered arc order: manual rank first, name tiebreak — so a product whose
+  // arcs nobody has dragged lists them alphabetically (PROG-87).
   const productArcs = useMemo(
-    () => arcs.filter((a) => a.productId === product.id && !a.archivedAt),
+    () => arcs.filter((a) => a.productId === product.id && !a.archivedAt).sort(byRankThenName),
     [arcs, product.id],
   );
 
@@ -577,6 +641,23 @@ function ProductOutline({
     const activeId = String(e.active.id);
     const overId = e.over ? String(e.over.id) : null;
     if (!overId || overId === activeId) return;
+
+    // Arc sections share this DndContext with the issue rows inside them
+    // (PROG-87) — branch on what is actually being dragged.
+    if (productArcs.some((a) => a.id === activeId)) {
+      // Resolve the drop target to an arc: with closestCenter the `over` is
+      // often a row inside a neighbouring arc's section rather than its header.
+      const overArcId = productArcs.some((a) => a.id === overId)
+        ? overId
+        : (issueById.get(overId)?.arcId ?? null);
+      if (!overArcId || overArcId === activeId) return;
+      // One write once ranks are distinct; the first drag in a still-tied
+      // (alphabetical) group renumbers the whole group — see containerReorder.
+      const updates = containerReorderRanks(productArcs, activeId, overArcId);
+      for (const u of updates ?? []) void updateContainer("arc", u.id, { rank: u.rank });
+      return;
+    }
+
     const active = issueById.get(activeId);
     const over = issueById.get(overId);
     if (!active || !over) return;
@@ -683,7 +764,8 @@ function ProductOutline({
   return (
     <section className={showHeader ? "rounded-lg border border-line bg-card p-3" : ""}>
       {showHeader && (
-        <div className="mb-1 flex items-center gap-2">
+        <div className="group mb-1 flex items-center gap-2">
+          {grip}
           <LevelIcon kind="product" />
           <Link href={`/product/${product.id}`} className="font-medium text-ink hover:underline">
             {product.name}
@@ -706,10 +788,16 @@ function ProductOutline({
         />
       )}
 
-      {/* Arc sections. */}
+      {/* Arc sections — themselves drag-to-reorderable as whole blocks via the
+          grip in their header (PROG-87), inside the same DndContext as the
+          issue rows (onReorder branches on what's dragged). */}
+      <SortableContext items={arcForests.map(({ arc }) => arc.id)} strategy={verticalListSortingStrategy}>
       {arcForests.map(({ arc, forest }) => (
-        <div key={arc.id} className="mt-2">
-          <div className="flex items-center gap-1.5" style={{ paddingLeft: 0 }}>
+        <SortableSection key={arc.id} id={arc.id} label={`Reorder ${arc.name}`} className="mt-2">
+          {(arcGrip) => (
+            <>
+          <div className="group flex items-center gap-1.5" style={{ paddingLeft: 0 }}>
+            {arcGrip}
             <LevelIcon kind="arc" />
             <Link href={`/arc/${arc.id}`} className="text-sm font-medium text-moss-deep hover:underline">
               {arc.name}
@@ -739,8 +827,11 @@ function ProductOutline({
               + issue here
             </button>
           )}
-        </div>
+            </>
+          )}
+        </SortableSection>
       ))}
+      </SortableContext>
 
       {/* When capture has roved off the top level, offer a way back. */}
       {!captureDepthForArc && (
@@ -782,12 +873,14 @@ export default function Outline({ workspace }: { workspace: WorkspacePayload }) 
     [workspace.products],
   );
 
+  // Manual rank first, name tiebreak (PROG-87) — alphabetical until the owner
+  // starts dragging sections around, then the dragged order wins everywhere.
   const products = useMemo(
-    () => [...workspace.products].filter((p) => !p.archivedAt).sort((a, b) => a.name.localeCompare(b.name)),
+    () => [...workspace.products].filter((p) => !p.archivedAt).sort(byRankThenName),
     [workspace.products],
   );
   const initiatives = useMemo(
-    () => [...workspace.initiatives].filter((i) => !i.archivedAt).sort((a, b) => a.name.localeCompare(b.name)),
+    () => [...workspace.initiatives].filter((i) => !i.archivedAt).sort(byRankThenName),
     [workspace.initiatives],
   );
 
@@ -813,6 +906,22 @@ export default function Outline({ workspace }: { workspace: WorkspacePayload }) 
       : root?.kind === "initiative"
         ? products.filter((p) => p.initiativeId === root.id)
         : [];
+
+  // At initiative scope the product sections are drag-to-reorderable (PROG-87).
+  // This outer DndContext nests around each ProductOutline's own context; the
+  // product grip is the only activator registered here, so arc/issue drags
+  // inside a section never reach this handler.
+  const productSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const onProductReorder = (e: DragEndEvent) => {
+    const activeId = String(e.active.id);
+    const overId = e.over ? String(e.over.id) : null;
+    if (!overId || overId === activeId) return;
+    const updates = containerReorderRanks(scopedProducts, activeId, overId);
+    for (const u of updates ?? []) void updateContainer("product", u.id, { rank: u.rank });
+  };
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -864,15 +973,29 @@ export default function Outline({ workspace }: { workspace: WorkspacePayload }) 
       <div className="mt-5 space-y-4">
         {!root && <p className="text-sm text-ink-faint">No products or initiatives yet.</p>}
 
-        {scopedProducts.map((p) => (
-          <ProductOutline
-            key={p.id}
-            product={p}
-            ws={workspace}
-            showHeader={root?.kind === "initiative"}
-            hideDone={hideDone}
-          />
-        ))}
+        {root?.kind === "initiative" ? (
+          <DndContext sensors={productSensors} collisionDetection={closestCenter} onDragEnd={onProductReorder}>
+            <SortableContext items={scopedProducts.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+              {scopedProducts.map((p) => (
+                <SortableSection key={p.id} id={p.id} label={`Reorder ${p.name}`}>
+                  {(productGrip) => (
+                    <ProductOutline
+                      product={p}
+                      ws={workspace}
+                      showHeader
+                      hideDone={hideDone}
+                      grip={productGrip}
+                    />
+                  )}
+                </SortableSection>
+              ))}
+            </SortableContext>
+          </DndContext>
+        ) : (
+          scopedProducts.map((p) => (
+            <ProductOutline key={p.id} product={p} ws={workspace} showHeader={false} hideDone={hideDone} />
+          ))
+        )}
 
         {/* At initiative scope, products are the top ceiling — so offer inline
             product capture (and seed the empty state). Product scope has no
