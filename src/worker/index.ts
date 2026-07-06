@@ -635,6 +635,7 @@ type ContainerBody = {
   keyPrefix?: unknown;
   gitUrl?: unknown;
   archived?: unknown;
+  rank?: unknown;
 };
 
 // Letters only: a digit in the prefix would break PREFIX-n key parsing.
@@ -663,7 +664,13 @@ const idOr = (id: unknown, prefix: string) =>
 
 // Shared PATCH fields for all four container types; archive/unarchive is the
 // `archived` boolean mapped onto archivedAt (SPEC §3: no hard deletes).
-function containerPatchSet(body: ContainerBody): { set: Record<string, unknown>; error?: string } {
+// `opts.rank` opts a route into the manual outline order (PROG-87) — the
+// client-computed fractional key, validated like the issue board rank. Repos
+// stay out: nothing reorders them and their table has no rank column.
+function containerPatchSet(
+  body: ContainerBody,
+  opts?: { rank?: boolean },
+): { set: Record<string, unknown>; error?: string } {
   const set: Record<string, unknown> = {};
   if (body.name !== undefined) {
     if (badName(body.name)) return { set, error: "name must be a non-empty string" };
@@ -676,6 +683,10 @@ function containerPatchSet(body: ContainerBody): { set: Record<string, unknown>;
   if (body.archived !== undefined) {
     if (typeof body.archived !== "boolean") return { set, error: "archived must be a boolean" };
     set.archivedAt = body.archived ? new Date() : null;
+  }
+  if (opts?.rank && body.rank !== undefined) {
+    if (!isValidRank(body.rank)) return { set, error: `invalid rank: ${String(body.rank)}` };
+    set.rank = body.rank;
   }
   return { set };
 }
@@ -791,7 +802,7 @@ app.post("/api/arcs", async (c) => {
 
 app.patch("/api/initiatives/:id", async (c) => {
   const body = (await c.req.json()) as ContainerBody;
-  const { set, error } = containerPatchSet(body);
+  const { set, error } = containerPatchSet(body, { rank: true });
   if (error) return c.json({ error }, 400);
   if (Object.keys(set).length === 0) return c.json({ error: "no valid fields in patch" }, 400);
   set.updatedAt = new Date();
@@ -808,7 +819,7 @@ app.patch("/api/initiatives/:id", async (c) => {
 app.patch("/api/products/:id", async (c) => {
   const id = c.req.param("id");
   const body = (await c.req.json()) as ContainerBody;
-  const { set, error } = containerPatchSet(body);
+  const { set, error } = containerPatchSet(body, { rank: true });
   if (error) return c.json({ error }, 400);
   const db = drizzle(c.env.DB);
   if (body.keyPrefix !== undefined) {
@@ -850,7 +861,7 @@ app.patch("/api/repos/:id", async (c) => {
 
 app.patch("/api/arcs/:id", async (c) => {
   const body = (await c.req.json()) as ContainerBody;
-  const { set, error } = containerPatchSet(body);
+  const { set, error } = containerPatchSet(body, { rank: true });
   if (error) return c.json({ error }, 400);
   if (Object.keys(set).length === 0) return c.json({ error: "no valid fields in patch" }, 400);
   set.updatedAt = new Date();

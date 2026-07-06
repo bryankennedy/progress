@@ -7,6 +7,8 @@
 import { Link } from "wouter";
 import type { WorkspacePayload } from "../../shared/types";
 import { openCreateContainer } from "../commands/controller";
+import { byRankThenName } from "../containerReorder";
+import { DEFAULT_RANK } from "../../shared/rank";
 import { capArchived } from "../structureArchive";
 
 function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
@@ -109,11 +111,18 @@ function NodeGroup({
 
 export default function Structure({ workspace }: { workspace: WorkspacePayload }) {
   // Active first, archived last (dimmed), so curating stays focused on live
-  // structure while archived nodes remain reachable to unarchive.
-  const byActive = <T extends { archivedAt: string | null; name: string }>(list: T[]) =>
+  // structure while archived nodes remain reachable to unarchive. Within each
+  // half, the global manual order (PROG-87): rank set by dragging on the
+  // Outline, name tiebreak — alphabetical until someone reorders. Repos have
+  // no rank; the default keeps them purely alphabetical.
+  const byActive = <T extends { archivedAt: string | null; name: string; rank?: string }>(list: T[]) =>
     [...list].sort(
       (a, b) =>
-        Number(!!a.archivedAt) - Number(!!b.archivedAt) || a.name.localeCompare(b.name),
+        Number(!!a.archivedAt) - Number(!!b.archivedAt) ||
+        byRankThenName(
+          { rank: a.rank ?? DEFAULT_RANK, name: a.name },
+          { rank: b.rank ?? DEFAULT_RANK, name: b.name },
+        ),
     );
 
   const initiatives = byActive(workspace.initiatives);

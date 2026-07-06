@@ -17,6 +17,7 @@ import {
 // Fixed vocabularies live in src/shared/constants.ts (shared with the
 // client); re-exported here so DB-adjacent code keeps one import site.
 import { ISSUE_PRIORITIES, ISSUE_STATUSES, PR_STATES } from "../shared/constants";
+import { DEFAULT_RANK } from "../shared/rank";
 
 export { ISSUE_ESTIMATES, ISSUE_PRIORITIES, ISSUE_STATUSES, PR_STATES } from "../shared/constants";
 export type { IssuePriority, IssueStatus, PrState } from "../shared/constants";
@@ -34,6 +35,11 @@ export const initiatives = sqliteTable("initiatives", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description").notNull().default(""),
+  // Manual outline order (PROG-87), same fractional-index keys as issues.rank.
+  // Unlike issues, containers default to the shared midpoint key instead of a
+  // backfilled sequence: lists sort by (rank, name), so an untouched group
+  // reads alphabetically until the first drag renumbers it.
+  rank: text("rank").notNull().default(DEFAULT_RANK),
   // Archive instead of delete for every container type (SPEC §3).
   archivedAt: integer("archived_at", { mode: "timestamp" }),
   creatorId: text("creator_id")
@@ -57,6 +63,8 @@ export const products = sqliteTable(
     // Per-product issue-number sequence; incremented on issue create and on
     // cross-product move (SPEC §3 movement rules).
     nextIssueNumber: integer("next_issue_number").notNull().default(1),
+    // Manual outline order (PROG-87) — see initiatives.rank.
+    rank: text("rank").notNull().default(DEFAULT_RANK),
     archivedAt: integer("archived_at", { mode: "timestamp" }),
     creatorId: text("creator_id")
       .notNull()
@@ -98,6 +106,8 @@ export const arcs = sqliteTable(
       .references(() => products.id),
     name: text("name").notNull(),
     description: text("description").notNull().default(""),
+    // Manual outline order (PROG-87) — see initiatives.rank.
+    rank: text("rank").notNull().default(DEFAULT_RANK),
     archivedAt: integer("archived_at", { mode: "timestamp" }),
     creatorId: text("creator_id")
       .notNull()
