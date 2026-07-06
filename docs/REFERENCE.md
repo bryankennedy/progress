@@ -258,9 +258,16 @@ and `MarkdownTextarea` handles paste + the "+ Image" button in both editors.
 | `POST /api/products` | `{ id?, name, initiativeId, keyPrefix, description? }` — prefix validated `^[A-Z]{2,8}$` (uppercased), 409 if taken |
 | `POST /api/repos` | `{ id?, name, productId, gitUrl?, description? }` |
 | `POST /api/arcs` | `{ id?, name, productId, description? }` |
-| `PATCH /api/<type>/:id` | `{ name?, description?, archived? }` for all four; plus `keyPrefix?` (products), `gitUrl?` (repos). `archived: boolean` maps to `archivedAt`. |
+| `PATCH /api/<type>/:id` | `{ name?, description?, archived? }` for all four; plus `keyPrefix?` (products), `gitUrl?` (repos), `rank?` (initiatives/products/arcs — the manual outline order, PROG-87). `archived: boolean` maps to `archivedAt`. |
 
 All return `{ container }`; creates return 201.
+
+Initiatives, products, and arcs carry a `rank` — the same fractional-index key
+space as the issue board (`src/shared/rank.ts`) — set by dragging sections on
+the Outline (PROG-87). Unlike issues, creates don't append: every container is
+born at the shared midpoint key (`DEFAULT_RANK`), and clients sort by
+`(rank, name)`, so a group nobody has reordered reads alphabetically. The order
+is global (server-stored), not per-user. Repos have no rank.
 
 ### GitHub webhook (D29)
 
@@ -382,7 +389,13 @@ canonical key — entirely client-side from the loaded workspace (D22).
   (`rankForReorder`, `src/client/outlineReorder.ts`) — the **same** fractional
   key the board orders by, so a drag here moves the card on the board and
   vice-versa. Only the grip starts a drag (the title input stays editable);
-  reparenting stays on Tab/Shift+Tab (PROG-86). Arcs are reached
+  reparenting stays on Tab/Shift+Tab (PROG-86). **Container sections reorder
+  the same way** (PROG-87): arc sections within a product, and product sections
+  at initiative scope, each drag as a whole block from a grip in their header.
+  Container ranks sort `(rank, name)` — alphabetical until first reordered; a
+  drag in a still-tied group renumbers the group, after which each drag is one
+  write (`containerReorderRanks`, `src/client/containerReorder.ts`). The order
+  is global and also drives the Structure page and the scope picker. Arcs are reached
   only by the explicit per-row "→ arc" control (pick existing or create new);
   a per-row three-dot link in a fixed **far-left** gutter opens the full issue —
   always visible on mobile (tappable, no hover needed) and faint-until-hover on
