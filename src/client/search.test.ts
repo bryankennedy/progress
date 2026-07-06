@@ -3,7 +3,15 @@
 // comment half is a server LIKE query covered by the worker. Run `bun test`.
 import { describe, expect, it } from "bun:test";
 import type { WorkspacePayload } from "../shared/types";
-import { highlight, queryTerms, searchContainers, searchIssues } from "./search";
+import {
+  browseIssues,
+  highlight,
+  queryTerms,
+  searchContainers,
+  searchIssues,
+  sortIssueHits,
+  type IssueHit,
+} from "./search";
 
 // A minimal workspace — search only reads issues + the four container arrays
 // and their name/title/description/archivedAt fields, so the rest is cast away.
@@ -78,6 +86,93 @@ describe("searchIssues", () => {
   it("returns nothing for an empty query", () => {
     const data = ws({ issues: [issue({ id: "x", title: "ozzie" })] });
     expect(searchIssues(data, "  ")).toEqual([]);
+  });
+});
+
+describe("browseIssues", () => {
+  it("returns every issue, newest first (PROG-78 empty-query browse)", () => {
+    const data = ws({
+      issues: [
+        issue({ id: "old", title: "a", updatedAt: "2026-01-01T00:00:00.000Z" }),
+        issue({ id: "new", title: "b", updatedAt: "2026-06-01T00:00:00.000Z" }),
+      ],
+    });
+    expect(browseIssues(data).map((h) => h.issue.id)).toEqual(["new", "old"]);
+  });
+
+  it("marks hits inTitle so no description snippet renders", () => {
+    const data = ws({ issues: [issue({ id: "x", description: "some body text" })] });
+    expect(browseIssues(data)[0]).toMatchObject({ inTitle: true, score: 0 });
+  });
+});
+
+describe("sortIssueHits", () => {
+  const hitsOf = (issues: Record<string, unknown>[]): IssueHit[] =>
+    issues.map((i) => ({ issue: issue(i), score: 0, inTitle: true }) as unknown as IssueHit);
+
+  const products = [
+    { id: "p1", name: "Alpha", keyPrefix: "ALPH" },
+    { id: "p2", name: "beta", keyPrefix: "BETA" },
+  ] as never;
+
+  it("returns the hits untouched when sort is null (default order preserved)", () => {
+    const hits = hitsOf([{ id: "b" }, { id: "a" }]);
+    expect(sortIssueHits(ws({}), hits, null)).toBe(hits);
+  });
+
+  it("sorts by key numerically within a product (PROG-2 before PROG-10)", () => {
+    const hits = hitsOf([
+      { id: "ten", productId: "p1", number: 10 },
+      { id: "two", productId: "p1", number: 2 },
+      { id: "other", productId: "p2", number: 1 },
+    ]);
+    const sorted = sortIssueHits(ws({ products }), hits, { key: "key", dir: "asc" });
+    expect(sorted.map((h) => h.issue.id)).toEqual(["two", "ten", "other"]);
+  });
+
+  it("sorts title and product case-insensitively, and desc flips the order", () => {
+    const hits = hitsOf([
+      { id: "z", title: "zebra", productId: "p2" },
+      { id: "a", title: "Apple", productId: "p1" },
+    ]);
+    const data = ws({ products });
+    expect(sortIssueHits(data, hits, { key: "title", dir: "asc" }).map((h) => h.issue.id)).toEqual(["a", "z"]);
+    expect(sortIssueHits(data, hits, { key: "title", dir: "desc" }).map((h) => h.issue.id)).toEqual(["z", "a"]);
+    expect(sortIssueHits(data, hits, { key: "product", dir: "asc" }).map((h) => h.issue.id)).toEqual(["a", "z"]);
+  });
+
+  it("sorts status by workflow order and priority by urgency, not alphabetically", () => {
+    const statusHits = hitsOf([
+      { id: "done", status: "done" },
+      { id: "backlog", status: "backlog" },
+      { id: "prog", status: "in_progress" },
+    ]);
+    expect(
+      sortIssueHits(ws({}), statusHits, { key: "status", dir: "asc" }).map((h) => h.issue.id),
+    ).toEqual(["backlog", "prog", "done"]);
+
+    // Alphabetical would put "high" before "urgent"; urgency order must not.
+    const prioHits = hitsOf([
+      { id: "none", priority: "none" },
+      { id: "high", priority: "high" },
+      { id: "urgent", priority: "urgent" },
+    ]);
+    expect(
+      sortIssueHits(ws({}), prioHits, { key: "priority", dir: "asc" }).map((h) => h.issue.id),
+    ).toEqual(["urgent", "high", "none"]);
+  });
+
+  it("breaks ties by recency regardless of direction", () => {
+    const hits = hitsOf([
+      { id: "old", status: "todo", updatedAt: "2026-01-01T00:00:00.000Z" },
+      { id: "new", status: "todo", updatedAt: "2026-06-01T00:00:00.000Z" },
+    ]);
+    for (const dir of ["asc", "desc"] as const) {
+      expect(sortIssueHits(ws({}), hits, { key: "status", dir }).map((h) => h.issue.id)).toEqual([
+        "new",
+        "old",
+      ]);
+    }
   });
 });
 

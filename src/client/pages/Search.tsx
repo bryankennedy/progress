@@ -3,50 +3,101 @@
 // hits stream in from /api/search — but here results are filterable by the same
 // dimensions as the board (status, product/arc/repo, tag, priority) and the
 // query + filters live in the URL so a search is bookmarkable. The `/` modal's
-// "Open the search page" link hands its text here via ?q=.
+// "Open the search page" link hands its text here via ?q=. An empty query is
+// itself a valid search (PROG-78): browse mode — every issue passing the
+// filters (all of them by default, so the page opens onto the full list),
+// newest first. Long result sets paginate: issues/containers cap the DOM at
+// PAGE rows per "Show more" click (the data is already in memory), and the
+// comments section pulls further pages from the server via ?offset=. Issues
+// render as a table whose column headers sort (asc → desc → back to the
+// default relevance/recency order); the sort is a URL param like the filters.
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import { ISSUE_PRIORITIES, ISSUE_STATUSES } from "../../shared/constants";
 import type { WireIssue, WorkspacePayload } from "../../shared/types";
 import { FILTER_NONE, matchesNullableId, sortByName } from "../boardFilters";
 import FilterSelect from "../FilterSelect";
 import {
+  browseIssues,
   containerLabel,
   highlight,
+  ISSUE_SORT_KEYS,
   queryTerms,
   searchContainers,
   searchIssues,
+  sortIssueHits,
+  type IssueSort,
+  type IssueSortKey,
   type Segment,
 } from "../search";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
 import { issueKeyOf, useCommentSearch } from "../store";
 
+// Rows rendered per section before a "Show more" click (PROG-78 pagination).
+const PAGE = 50;
+
 const FILTER_KEYS = ["initiative", "product", "repo", "arc", "tag", "priority", "status"] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
 type Filters = Partial<Record<FilterKey, string>>;
 
-function parseFilters(search: string): { q: string; filters: Filters } {
+// The issue table's columns (PROG-78): one per displayed dimension, each
+// header click-sortable. Order here is the column order.
+const COLUMNS: { key: IssueSortKey; label: string }[] = [
+  { key: "key", label: "Key" },
+  { key: "title", label: "Title" },
+  { key: "product", label: "Product" },
+  { key: "status", label: "Status" },
+  { key: "priority", label: "Priority" },
+];
+
+function parseFilters(search: string): { q: string; filters: Filters; sort: IssueSort | null } {
   const params = new URLSearchParams(search);
   const filters: Filters = {};
   for (const key of FILTER_KEYS) {
     const value = params.get(key);
     if (value) filters[key] = value;
   }
-  return { q: params.get("q") ?? "", filters };
+  // Sort lives in the URL like the filters, so a sorted view is bookmarkable.
+  // Unknown sort keys are ignored (malformed bookmark → default order).
+  const sortKey = params.get("sort") as IssueSortKey | null;
+  const sort: IssueSort | null =
+    sortKey && ISSUE_SORT_KEYS.includes(sortKey)
+      ? { key: sortKey, dir: params.get("dir") === "desc" ? "desc" : "asc" }
+      : null;
+  return { q: params.get("q") ?? "", filters, sort };
 }
 
 export default function Search({ workspace }: { workspace: WorkspacePayload }) {
   const search = useSearch();
   const [, navigate] = useLocation();
-  const { q, filters } = useMemo(() => parseFilters(search), [search]);
+  const { q, filters, sort } = useMemo(() => parseFilters(search), [search]);
   const terms = useMemo(() => queryTerms(q), [q]);
 
   const setParam = (key: string, value: string | null) => {
     const params = new URLSearchParams(search);
     if (value) params.set(key, value);
     else params.delete(key);
+    const qs = params.toString();
+    navigate(qs ? `/search?${qs}` : "/search", { replace: true });
+  };
+
+  // Column-header click: new column → ascending, same column → flip, third
+  // click → back to the default order (relevance for a query, recency for
+  // browse). The default is a real state, not just "asc on something", so it
+  // stays reachable.
+  const cycleSort = (key: IssueSortKey) => {
+    const params = new URLSearchParams(search);
+    if (sort?.key !== key) {
+      params.set("sort", key);
+      params.delete("dir");
+    } else if (sort.dir === "asc") {
+      params.set("dir", "desc");
+    } else {
+      params.delete("sort");
+      params.delete("dir");
+    }
     const qs = params.toString();
     navigate(qs ? `/search?${qs}` : "/search", { replace: true });
   };
@@ -90,13 +141,32 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
     };
   }, [filters, productById, tagsByIssue]);
 
-  const issueHits = useMemo(
-    () => searchIssues(workspace, q, 0).filter((h) => passes(h.issue)),
-    [workspace, q, passes],
-  );
+  const filtersActive = FILTER_KEYS.some((k) => filters[k]);
+  // Empty query = browse mode (PROG-78): the filters — even none, the default
+  // view — are the whole search, so every issue passing them shows, newest
+  // first. Only issues can browse; containers and comments need a term to match.
+  const browsing = terms.length === 0;
+
+  const issueHits = useMemo(() => {
+    const base =
+      terms.length === 0
+        ? browseIssues(workspace).filter((h) => passes(h.issue))
+        : searchIssues(workspace, q, 0).filter((h) => passes(h.issue));
+    return sortIssueHits(workspace, base, sort);
+  }, [workspace, q, terms, passes, sort]);
   const containerHits = useMemo(() => searchContainers(workspace, q, 0), [workspace, q]);
 
-  const { data: comments, isFetching } = useCommentSearch(q);
+  // Pagination (PROG-78): the full hit lists stay in memory (instant); only the
+  // DOM is capped, at PAGE rows per "Show more" click. Limits reset whenever
+  // the query or filters change — `search` is the canonical state for both.
+  const [issueLimit, setIssueLimit] = useState(PAGE);
+  const [containerLimit, setContainerLimit] = useState(PAGE);
+  useEffect(() => {
+    setIssueLimit(PAGE);
+    setContainerLimit(PAGE);
+  }, [search]);
+
+  const { data: comments, isFetching, hasMore, fetchMore, isFetchingMore } = useCommentSearch(q);
   // Resolve comment hits to issues and apply the same filters.
   const commentHits = useMemo(() => {
     return (comments?.hits ?? [])
@@ -106,8 +176,6 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
       })
       .filter((h): h is NonNullable<typeof h> => h !== null && passes(h.issue));
   }, [comments, workspace.issues, passes]);
-
-  const filtersActive = FILTER_KEYS.some((k) => filters[k]);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -183,71 +251,137 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
         )}
       </div>
 
-      {terms.length === 0 ? (
-        <p className="mt-10 text-center text-sm text-ink-faint">
-          Search titles and descriptions instantly; comments stream in from the server.
-        </p>
-      ) : (
-        <div className="mt-6 space-y-6">
-          {containerHits.length > 0 && (
-            <Section title="Containers" count={containerHits.length}>
-              {containerHits.map((hit) => (
-                <Link
-                  key={hit.id}
-                  href={hit.href}
-                  className="flex items-center justify-between gap-3 rounded-md border border-line bg-card px-3 py-2 text-sm hover:border-ink-faint"
-                >
-                  <span className="min-w-0 truncate">
-                    <Highlighted segments={highlight(hit.name, terms)} />
-                  </span>
-                  <span className="shrink-0 text-xs text-ink-faint">{containerLabel(hit.kind)}</span>
-                </Link>
-              ))}
-            </Section>
-          )}
-
-          <Section title="Issues" count={issueHits.length}>
-            {issueHits.length === 0 ? (
-              <Empty>No issues match.</Empty>
-            ) : (
-              issueHits.map((hit) => {
-                const key = issueKeyOf(workspace, hit.issue);
-                const product = workspace.products.find((p) => p.id === hit.issue.productId);
-                return (
-                  <Link
-                    key={hit.issue.id}
-                    href={`/issue/${key}`}
-                    className="block rounded-md border border-line bg-card px-3 py-2 text-sm hover:border-ink-faint"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="min-w-0 flex-1 truncate">
-                        <span className="font-mono text-xs text-ink-faint">{key}</span>{" "}
-                        <Highlighted segments={highlight(hit.issue.title, terms)} />
-                      </span>
-                      <span className="flex shrink-0 items-center gap-2 text-xs text-ink-faint">
-                        {product?.name}
-                        <span>· {STATUS_LABELS[hit.issue.status]}</span>
-                        {hit.issue.priority !== "none" && (
-                          <PriorityIndicator priority={hit.issue.priority} />
-                        )}
-                      </span>
-                    </div>
-                    {!hit.inTitle && hit.issue.description && (
-                      <p className="mt-1 truncate text-xs text-ink-soft">
-                        <Highlighted segments={highlight(descSnippet(hit.issue.description, terms), terms)} />
-                      </p>
-                    )}
-                  </Link>
-                );
-              })
+      <div className="mt-6 space-y-6">
+        {containerHits.length > 0 && (
+          <Section title="Containers" count={containerHits.length}>
+            {containerHits.slice(0, containerLimit).map((hit) => (
+              <Link
+                key={hit.id}
+                href={hit.href}
+                className="flex items-center justify-between gap-3 rounded-md border border-line bg-card px-3 py-2 text-sm hover:border-ink-faint"
+              >
+                <span className="min-w-0 truncate">
+                  <Highlighted segments={highlight(hit.name, terms)} />
+                </span>
+                <span className="shrink-0 text-xs text-ink-faint">{containerLabel(hit.kind)}</span>
+              </Link>
+            ))}
+            {containerHits.length > containerLimit && (
+              <ShowMore onClick={() => setContainerLimit((n) => n + PAGE)}>
+                Show {Math.min(PAGE, containerHits.length - containerLimit)} more ·{" "}
+                {(containerHits.length - containerLimit).toLocaleString()} remaining
+              </ShowMore>
             )}
           </Section>
+        )}
 
+        <Section title="Issues" count={issueHits.length}>
+          {issueHits.length === 0 ? (
+            <Empty>No issues match.</Empty>
+          ) : (
+            <div className="overflow-x-auto rounded-md border border-line bg-card">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-line">
+                    {COLUMNS.map((col) => (
+                      <th
+                        key={col.key}
+                        aria-sort={
+                          sort?.key === col.key
+                            ? sort.dir === "asc"
+                              ? "ascending"
+                              : "descending"
+                            : undefined
+                        }
+                        className="px-3 py-2 text-left"
+                      >
+                        <button
+                          onClick={() => cycleSort(col.key)}
+                          className={`flex items-center gap-1 text-xs font-medium uppercase tracking-wide hover:text-ink-soft ${
+                            sort?.key === col.key ? "text-ink-soft" : "text-ink-faint"
+                          }`}
+                        >
+                          {col.label}
+                          {sort?.key === col.key && (
+                            <span aria-hidden>{sort.dir === "asc" ? "▲" : "▼"}</span>
+                          )}
+                        </button>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {issueHits.slice(0, issueLimit).map((hit) => {
+                    const key = issueKeyOf(workspace, hit.issue);
+                    const product = workspace.products.find((p) => p.id === hit.issue.productId);
+                    return (
+                      // The whole row navigates (it's the click target the old
+                      // card rows offered); the title stays a real link for
+                      // middle-click / open-in-new-tab.
+                      <tr
+                        key={hit.issue.id}
+                        onClick={() => navigate(`/issue/${key}`)}
+                        className="cursor-pointer border-t border-line first:border-t-0 hover:bg-line/40"
+                      >
+                        <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-ink-faint">
+                          {key}
+                        </td>
+                        <td className="w-full min-w-56 px-3 py-2">
+                          <Link
+                            href={`/issue/${key}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="hover:underline"
+                          >
+                            <Highlighted segments={highlight(hit.issue.title, terms)} />
+                          </Link>
+                          {!hit.inTitle && hit.issue.description && (
+                            <p className="mt-0.5 truncate text-xs text-ink-soft">
+                              <Highlighted
+                                segments={highlight(descSnippet(hit.issue.description, terms), terms)}
+                              />
+                            </p>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-xs text-ink-faint">
+                          {product?.name}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-xs text-ink-faint">
+                          {STATUS_LABELS[hit.issue.status]}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-xs text-ink-faint">
+                          {hit.issue.priority !== "none" ? (
+                            <span className="flex items-center gap-1.5">
+                              <PriorityIndicator priority={hit.issue.priority} />
+                              {PRIORITY_LABELS[hit.issue.priority]}
+                            </span>
+                          ) : (
+                            <span aria-label={PRIORITY_LABELS.none}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {issueHits.length > issueLimit && (
+            <ShowMore onClick={() => setIssueLimit((n) => n + PAGE)}>
+              Show {Math.min(PAGE, issueHits.length - issueLimit)} more ·{" "}
+              {(issueHits.length - issueLimit).toLocaleString()} remaining
+            </ShowMore>
+          )}
+        </Section>
+
+        {/* Comment search needs a term (the server LIKE has nothing to match
+            in browse mode), so the section disappears rather than sitting at
+            a misleading zero. */}
+        {!browsing && (
           <Section
             title="Comments"
             count={commentHits.length}
+            countIsPartial={hasMore}
             loading={isFetching}
-            note={comments?.truncated ? "showing the most recent matches" : undefined}
           >
             {commentHits.length === 0 ? (
               <Empty>{isFetching ? "Searching comments…" : "No comments match."}</Empty>
@@ -269,10 +403,28 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
                 );
               })
             )}
+            {hasMore && (
+              <ShowMore onClick={() => fetchMore()}>
+                {isFetchingMore ? "Loading more matches…" : "Show more matches"}
+              </ShowMore>
+            )}
           </Section>
-        </div>
-      )}
+        )}
+      </div>
     </div>
+  );
+}
+
+// The per-section pagination control (PROG-78): dashed like Empty so it reads
+// as "the list continues", not another result row.
+function ShowMore({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full rounded-md border border-dashed border-line px-3 py-2 text-xs text-ink-faint hover:border-ink-faint hover:text-ink-soft"
+    >
+      {children}
+    </button>
   );
 }
 
@@ -294,21 +446,23 @@ function descSnippet(description: string, terms: string[]): string {
 function Section({
   title,
   count,
+  countIsPartial,
   loading,
-  note,
   children,
 }: {
   title: string;
   count: number;
+  // True while more matches exist server-side than are loaded (comments), so
+  // the header reads "50+" instead of implying 50 is the total.
+  countIsPartial?: boolean;
   loading?: boolean;
-  note?: string;
   children: React.ReactNode;
 }) {
   return (
     <section>
       <h2 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-ink-faint">
         {title} · {count}
-        {note && <span className="normal-case tracking-normal text-ink-faint">({note})</span>}
+        {countIsPartial && "+"}
         {loading && (
           <span className="inline-block h-3 w-3 animate-spin rounded-full border border-ink-faint border-t-transparent" />
         )}

@@ -2,7 +2,27 @@
 // escaping is the part most likely to bite (a literal "%" or "_" in a query),
 // so it's pinned here alongside the snippet windowing. Run `bun test`.
 import { describe, expect, it } from "bun:test";
-import { commentSnippet, escapeLike } from "./searchComments";
+import { commentSnippet, escapeLike, parseOffset } from "./searchComments";
+
+describe("parseOffset", () => {
+  it("parses a plain non-negative integer", () => {
+    expect(parseOffset("0")).toBe(0);
+    expect(parseOffset("50")).toBe(50);
+  });
+
+  it("clamps anything malformed to 0 (absent, garbage, negative, fractional)", () => {
+    expect(parseOffset(undefined)).toBe(0);
+    expect(parseOffset("")).toBe(0);
+    expect(parseOffset("abc")).toBe(0);
+    expect(parseOffset("-50")).toBe(0);
+    expect(parseOffset("12.5")).toBe(0);
+    expect(parseOffset("1e999")).toBe(0);
+  });
+
+  it("caps runaway offsets", () => {
+    expect(parseOffset("999999999")).toBe(10_000);
+  });
+});
 
 describe("escapeLike", () => {
   it("leaves ordinary text untouched", () => {

@@ -6,6 +6,7 @@
 // beats description — so "the issue I'm thinking of" sorts above one that merely
 // mentions the word in its body. Pure functions, unit-tested in search.test.ts.
 
+import { ISSUE_PRIORITIES, ISSUE_STATUSES } from "../shared/constants";
 import type { WireIssue, WorkspacePayload } from "../shared/types";
 
 // The slice of a container row that search reads — every container (initiative,
@@ -68,6 +69,68 @@ export function searchIssues(ws: WorkspacePayload, query: string, limit = 8): Is
   }
   hits.sort((a, b) => b.score - a.score || byRecency(a.issue, b.issue));
   return limit > 0 ? hits.slice(0, limit) : hits;
+}
+
+// Empty-query browse (PROG-78): "searching for nothing" is valid on the search
+// page when filters are active — every issue becomes a zero-score hit, newest
+// first, and the caller's filters decide what actually shows. `inTitle` is true
+// so the row renders without a description snippet (there is no matched term
+// for a snippet to explain).
+export function browseIssues(ws: WorkspacePayload): IssueHit[] {
+  return ws.issues
+    .map((issue) => ({ issue, score: 0, inTitle: true }))
+    .sort((a, b) => byRecency(a.issue, b.issue));
+}
+
+// Column sorting for the search page's issue table (PROG-78). The sortable
+// keys are exactly the displayed columns; `null` means "no explicit sort" and
+// leaves the caller's default order (relevance for a query, recency for
+// browse) untouched.
+export type IssueSortKey = "key" | "title" | "product" | "status" | "priority";
+export type IssueSort = { key: IssueSortKey; dir: "asc" | "desc" };
+
+export const ISSUE_SORT_KEYS: readonly IssueSortKey[] = [
+  "key",
+  "title",
+  "product",
+  "status",
+  "priority",
+];
+
+// Sort hits by a column. Semantics per key: `key` orders by product prefix
+// then issue number (numeric, so PROG-2 < PROG-10); `title`/`product` are
+// case-insensitive locale compares; `status` follows the workflow order
+// (ISSUE_STATUSES) and `priority` the urgency order (ISSUE_PRIORITIES), not
+// the alphabet. Ties always break by recency so equal cells stay newest-first.
+export function sortIssueHits(
+  ws: WorkspacePayload,
+  hits: IssueHit[],
+  sort: IssueSort | null,
+): IssueHit[] {
+  if (!sort) return hits;
+  const productById = new Map(ws.products.map((p) => [p.id, p]));
+  const cmp = (a: WireIssue, b: WireIssue): number => {
+    switch (sort.key) {
+      case "key": {
+        const pa = productById.get(a.productId)?.keyPrefix ?? "";
+        const pb = productById.get(b.productId)?.keyPrefix ?? "";
+        return pa.localeCompare(pb) || a.number - b.number;
+      }
+      case "title":
+        return a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
+      case "product": {
+        const na = productById.get(a.productId)?.name ?? "";
+        const nb = productById.get(b.productId)?.name ?? "";
+        return na.localeCompare(nb, undefined, { sensitivity: "base" });
+      }
+      case "status":
+        return ISSUE_STATUSES.indexOf(a.status) - ISSUE_STATUSES.indexOf(b.status);
+      case "priority":
+        return ISSUE_PRIORITIES.indexOf(a.priority) - ISSUE_PRIORITIES.indexOf(b.priority);
+    }
+  };
+  const dir = sort.dir === "desc" ? -1 : 1;
+  return hits.slice().sort((a, b) => dir * cmp(a.issue, b.issue) || byRecency(a.issue, b.issue));
 }
 
 export type ContainerKind = "initiative" | "product" | "repo" | "arc";
