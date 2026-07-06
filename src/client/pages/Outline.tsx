@@ -19,11 +19,13 @@ import { Link, useLocation, useSearch } from "wouter";
 import {
   closestCenter,
   DndContext,
+  DragOverlay,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -39,10 +41,12 @@ import {
   createContainer,
   createIssue,
   issueKeyOf,
+  updateContainer,
   updateIssue,
 } from "../store";
 import { rankForReorder } from "../outlineReorder";
-import { loadHideDone, saveHideDone } from "../outlinePrefs";
+import { byRankThenName, containerReorderRanks } from "../containerReorder";
+import { loadHideDone, loadScope, saveHideDone, saveScope } from "../outlinePrefs";
 
 // ---------- tree model ----------
 
@@ -99,6 +103,145 @@ function LevelIcon({ kind }: { kind: "product" | "arc" | "issue" | "sub" }) {
       <circle cx="8" cy="8" r="2.5" />
     </svg>
   );
+}
+
+// ---------- drag-to-reorder building blocks ----------
+
+// The 6-dot drag grip that starts a sortable drag (PROG-86/PROG-87). touch-none
+// so a drag from the grip reorders instead of scrolling the page; always shown
+// on mobile (no hover), faint until row hover/focus on desktop to keep the
+// outline calm.
+function GripHandle({
+  label,
+  handleRef,
+  handleProps,
+}: {
+  label: string;
+  handleRef: (el: HTMLElement | null) => void;
+  handleProps: HTMLAttributes<HTMLElement>;
+}) {
+  return (
+    <button
+      ref={handleRef}
+      {...handleProps}
+      type="button"
+      aria-label={label}
+      title="Drag to reorder"
+      className="flex h-6 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-ink-faint/70 hover:bg-line hover:text-ink-soft active:cursor-grabbing sm:opacity-40 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+    >
+      <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden>
+        <circle cx="6" cy="4" r="1.3" />
+        <circle cx="10" cy="4" r="1.3" />
+        <circle cx="6" cy="8" r="1.3" />
+        <circle cx="10" cy="8" r="1.3" />
+        <circle cx="6" cy="12" r="1.3" />
+        <circle cx="10" cy="12" r="1.3" />
+      </svg>
+    </button>
+  );
+}
+
+// A container section (an arc's block, or a whole product at initiative scope)
+// as a sortable unit (PROG-87): the section moves as one block, and only the
+// grip handed to `children` starts a drag, so the header's link and everything
+// inside keep working normally.
+function SortableSection({
+  id,
+  label,
+  className,
+  children,
+}: {
+  id: string;
+  label: string;
+  className?: string;
+  children: (grip: ReactNode) => ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
+    useSortable({ id });
+  // The grabbed section is carried by a DragOverlay (the board's pattern), so
+  // the in-list source stays put and dims to a ghost; only its NEIGHBOURS get
+  // the sorting translate, sliding aside to show the drop slot.
+  const style: CSSProperties | undefined = isDragging
+    ? undefined
+    : { transform: CSS.Translate.toString(transform), transition };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={[className, isDragging ? "opacity-30" : undefined].filter(Boolean).join(" ") || undefined}
+    >
+      {children(
+        <GripHandle
+          label={label}
+          handleRef={setActivatorNodeRef}
+          handleProps={{ ...attributes, ...listeners }}
+        />,
+      )}
+    </div>
+  );
+}
+
+// ---------- drag-overlay previews (PROG-87 polish) ----------
+
+// What the DragOverlay carries while a container section is dragged: a floating
+// card that reads as "the whole grouping", capped to a handful of rows so a
+// long section doesn't become a screen-tall cursor. Static text only — nothing
+// in the overlay is interactive.
+const PREVIEW_ROWS = 6;
+
+function SectionPreviewCard({
+  header,
+  rows,
+  more,
+}: {
+  header: ReactNode;
+  rows: { key: string; depth: number; icon: ReactNode; text: string; done?: boolean }[];
+  more: number;
+}) {
+  return (
+    <div
+      data-drag-overlay
+      className="cursor-grabbing rounded-lg border border-line bg-card p-2 shadow-xl ring-1 ring-black/5"
+    >
+      <div className="flex items-center gap-1.5">{header}</div>
+      {rows.slice(0, PREVIEW_ROWS).map((r) => (
+        <div
+          key={r.key}
+          className="flex items-center gap-1.5 py-0.5"
+          style={{ paddingLeft: 8 + r.depth * 22 }}
+        >
+          {r.icon}
+          <span className={`truncate text-sm ${r.done ? "text-ink-faint line-through" : "text-ink"}`}>
+            {r.text}
+          </span>
+        </div>
+      ))}
+      {more > 0 && (
+        <div className="py-0.5 pl-2 text-xs text-ink-faint">… {more} more</div>
+      )}
+    </div>
+  );
+}
+
+// Flatten a forest into preview rows (depth-first, matching rendered order).
+function forestPreviewRows(
+  forest: Node[],
+): { key: string; depth: number; icon: ReactNode; text: string; done?: boolean }[] {
+  const rows: { key: string; depth: number; icon: ReactNode; text: string; done?: boolean }[] = [];
+  const walk = (nodes: Node[]) => {
+    for (const n of nodes) {
+      rows.push({
+        key: n.issue.id,
+        depth: n.depth,
+        icon: <LevelIcon kind={n.depth === 0 ? "issue" : "sub"} />,
+        text: n.issue.title,
+        done: !isOpenStatus(n.issue.status),
+      });
+      walk(n.children);
+    }
+  };
+  walk(forest);
+  return rows;
 }
 
 // ---------- arc promotion control ----------
@@ -206,26 +349,8 @@ function IssueRow({
       className="group flex items-center gap-1.5 rounded py-0.5 hover:bg-line/30"
       style={{ paddingLeft: depth * 22 }}
     >
-      {/* Drag handle (PROG-86). touch-none so a drag from the grip reorders
-          instead of scrolling the page; always shown on mobile (no hover), faint
-          until row hover/focus on desktop to keep the outline calm. */}
-      <button
-        ref={handleRef}
-        {...handleProps}
-        type="button"
-        aria-label={`Reorder ${issueKey}`}
-        title="Drag to reorder"
-        className="flex h-6 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-ink-faint/70 hover:bg-line hover:text-ink-soft active:cursor-grabbing sm:opacity-40 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
-      >
-        <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden>
-          <circle cx="6" cy="4" r="1.3" />
-          <circle cx="10" cy="4" r="1.3" />
-          <circle cx="6" cy="8" r="1.3" />
-          <circle cx="10" cy="8" r="1.3" />
-          <circle cx="6" cy="12" r="1.3" />
-          <circle cx="10" cy="12" r="1.3" />
-        </svg>
-      </button>
+      {/* Drag handle (PROG-86). */}
+      <GripHandle label={`Reorder ${issueKey}`} handleRef={handleRef} handleProps={handleProps} />
       {/* Jump-to-issue affordance, pinned to the far left so it sits in a
           consistent gutter and — crucially — is reachable on touch, where there
           is no hover to reveal it (PROG-80). Always shown on mobile; on desktop
@@ -482,11 +607,15 @@ function ProductOutline({
   ws,
   showHeader,
   hideDone,
+  grip,
 }: {
   product: WireProduct;
   ws: WorkspacePayload;
   showHeader: boolean;
   hideDone: boolean;
+  // At initiative scope the whole section is sortable (PROG-87); the enclosing
+  // SortableSection hands its drag grip down to render in the header.
+  grip?: ReactNode;
 }) {
   const issues = ws.issues;
   const arcs = ws.arcs;
@@ -505,8 +634,10 @@ function ProductOutline({
   const [captureArc, setCaptureArc] = useState<string | null>(null);
   const [focusToken, setFocusToken] = useState(0);
 
+  // Rendered arc order: manual rank first, name tiebreak — so a product whose
+  // arcs nobody has dragged lists them alphabetically (PROG-87).
   const productArcs = useMemo(
-    () => arcs.filter((a) => a.productId === product.id && !a.archivedAt),
+    () => arcs.filter((a) => a.productId === product.id && !a.archivedAt).sort(byRankThenName),
     [arcs, product.id],
   );
 
@@ -561,6 +692,16 @@ function ProductOutline({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
+  // The arc section currently held by a drag (PROG-87 polish). While set, a
+  // DragOverlay carries a floating preview of the grouping and the rest of the
+  // outline goes pointer-inert, so row hover highlights and inputs can't react
+  // under the drag.
+  const [activeArcId, setActiveArcId] = useState<string | null>(null);
+  const onDragStart = (e: DragStartEvent) => {
+    const id = String(e.active.id);
+    if (productArcs.some((a) => a.id === id)) setActiveArcId(id);
+  };
+
   // The visible sibling group an issue belongs to, in rendered (rank) order —
   // exactly the set a drag is allowed to reorder within.
   const siblingGroup = (issue: WireIssue): WireIssue[] =>
@@ -574,9 +715,27 @@ function ProductOutline({
       .sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : a.number - b.number));
 
   const onReorder = (e: DragEndEvent) => {
+    setActiveArcId(null);
     const activeId = String(e.active.id);
     const overId = e.over ? String(e.over.id) : null;
     if (!overId || overId === activeId) return;
+
+    // Arc sections share this DndContext with the issue rows inside them
+    // (PROG-87) — branch on what is actually being dragged.
+    if (productArcs.some((a) => a.id === activeId)) {
+      // Resolve the drop target to an arc: with closestCenter the `over` is
+      // often a row inside a neighbouring arc's section rather than its header.
+      const overArcId = productArcs.some((a) => a.id === overId)
+        ? overId
+        : (issueById.get(overId)?.arcId ?? null);
+      if (!overArcId || overArcId === activeId) return;
+      // One write once ranks are distinct; the first drag in a still-tied
+      // (alphabetical) group renumbers the whole group — see containerReorder.
+      const updates = containerReorderRanks(productArcs, activeId, overArcId);
+      for (const u of updates ?? []) void updateContainer("arc", u.id, { rank: u.rank });
+      return;
+    }
+
     const active = issueById.get(activeId);
     const over = issueById.get(overId);
     if (!active || !over) return;
@@ -683,7 +842,8 @@ function ProductOutline({
   return (
     <section className={showHeader ? "rounded-lg border border-line bg-card p-3" : ""}>
       {showHeader && (
-        <div className="mb-1 flex items-center gap-2">
+        <div className="group mb-1 flex items-center gap-2">
+          {grip}
           <LevelIcon kind="product" />
           <Link href={`/product/${product.id}`} className="font-medium text-ink hover:underline">
             {product.name}
@@ -692,7 +852,17 @@ function ProductOutline({
         </div>
       )}
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onReorder}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={onDragStart}
+        onDragEnd={onReorder}
+        onDragCancel={() => setActiveArcId(null)}
+      >
+      {/* While an arc section is held, everything under it goes pointer-inert:
+          no row hover highlights, no accidental input focus — the only live
+          thing is the drag itself (PROG-87 polish). */}
+      <div className={activeArcId ? "pointer-events-none select-none" : undefined}>
       {/* Product-level (no-arc) issues + their roving capture row. */}
       {renderForest(looseForest)}
       {captureParent === null && captureArc === null && (
@@ -706,10 +876,16 @@ function ProductOutline({
         />
       )}
 
-      {/* Arc sections. */}
+      {/* Arc sections — themselves drag-to-reorderable as whole blocks via the
+          grip in their header (PROG-87), inside the same DndContext as the
+          issue rows (onReorder branches on what's dragged). */}
+      <SortableContext items={arcForests.map(({ arc }) => arc.id)} strategy={verticalListSortingStrategy}>
       {arcForests.map(({ arc, forest }) => (
-        <div key={arc.id} className="mt-2">
-          <div className="flex items-center gap-1.5" style={{ paddingLeft: 0 }}>
+        <SortableSection key={arc.id} id={arc.id} label={`Reorder ${arc.name}`} className="mt-2">
+          {(arcGrip) => (
+            <>
+          <div className="group flex items-center gap-1.5" style={{ paddingLeft: 0 }}>
+            {arcGrip}
             <LevelIcon kind="arc" />
             <Link href={`/arc/${arc.id}`} className="text-sm font-medium text-moss-deep hover:underline">
               {arc.name}
@@ -739,8 +915,11 @@ function ProductOutline({
               + issue here
             </button>
           )}
-        </div>
+            </>
+          )}
+        </SortableSection>
       ))}
+      </SortableContext>
 
       {/* When capture has roved off the top level, offer a way back. */}
       {!captureDepthForArc && (
@@ -755,6 +934,32 @@ function ProductOutline({
           ↥ back to top level
         </button>
       )}
+      </div>
+
+      {/* The floating copy of the held arc section: follows the pointer from
+          the first pixel, lifted above the page (shadow), capped to a few rows.
+          dropAnimation={null} for the same reason as the board (PROG-43): the
+          reorder is committed on drop, so the default tween would fly the card
+          back to its OLD slot before snapping. */}
+      <DragOverlay dropAnimation={null}>
+        {(() => {
+          const held = activeArcId ? arcForests.find(({ arc }) => arc.id === activeArcId) : undefined;
+          if (!held) return null;
+          const rows = forestPreviewRows(held.forest);
+          return (
+            <SectionPreviewCard
+              header={
+                <>
+                  <LevelIcon kind="arc" />
+                  <span className="text-sm font-medium text-moss-deep">{held.arc.name}</span>
+                </>
+              }
+              rows={rows}
+              more={rows.length - PREVIEW_ROWS}
+            />
+          );
+        })()}
+      </DragOverlay>
       </DndContext>
     </section>
   );
@@ -782,25 +987,39 @@ export default function Outline({ workspace }: { workspace: WorkspacePayload }) 
     [workspace.products],
   );
 
+  // Manual rank first, name tiebreak (PROG-87) — alphabetical until the owner
+  // starts dragging sections around, then the dragged order wins everywhere.
   const products = useMemo(
-    () => [...workspace.products].filter((p) => !p.archivedAt).sort((a, b) => a.name.localeCompare(b.name)),
+    () => [...workspace.products].filter((p) => !p.archivedAt).sort(byRankThenName),
     [workspace.products],
   );
   const initiatives = useMemo(
-    () => [...workspace.initiatives].filter((i) => !i.archivedAt).sort((a, b) => a.name.localeCompare(b.name)),
+    () => [...workspace.initiatives].filter((i) => !i.archivedAt).sort(byRankThenName),
     [workspace.initiatives],
   );
 
-  // Resolve the active root from the URL, falling back to the first product.
+  // Resolve the active root: URL params win (links stay shareable), then the
+  // sticky last-used scope (localStorage — so navigating away and back lands on
+  // the same scope), then the first product. Every id is validated against
+  // live data so a stale saved scope falls through instead of blanking the view.
   const root: Root | null = useMemo(() => {
     const prd = params.get("product");
     const ini = params.get("initiative");
     if (prd && products.some((p) => p.id === prd)) return { kind: "product", id: prd };
     if (ini && initiatives.some((i) => i.id === ini)) return { kind: "initiative", id: ini };
+    const saved = loadScope();
+    if (saved?.kind === "product" && products.some((p) => p.id === saved.id)) return saved;
+    if (saved?.kind === "initiative" && initiatives.some((i) => i.id === saved.id)) return saved;
     if (products[0]) return { kind: "product", id: products[0].id };
     if (initiatives[0]) return { kind: "initiative", id: initiatives[0].id };
     return null;
   }, [search, products, initiatives]);
+
+  // Mirror the resolved scope back to storage on every change — picking from
+  // the dropdown, following a scoped link, or the fallback itself.
+  useEffect(() => {
+    if (root) saveScope(root);
+  }, [root?.kind, root?.id]);
 
   const setRoot = (value: string) => {
     const [kind, id] = value.split(":");
@@ -813,6 +1032,39 @@ export default function Outline({ workspace }: { workspace: WorkspacePayload }) 
       : root?.kind === "initiative"
         ? products.filter((p) => p.initiativeId === root.id)
         : [];
+
+  // At initiative scope the product sections are drag-to-reorderable (PROG-87).
+  // This outer DndContext nests around each ProductOutline's own context; the
+  // product grip is the only activator registered here, so arc/issue drags
+  // inside a section never reach this handler.
+  const productSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const [activeProductId, setActiveProductId] = useState<string | null>(null);
+  const onProductReorder = (e: DragEndEvent) => {
+    setActiveProductId(null);
+    const activeId = String(e.active.id);
+    const overId = e.over ? String(e.over.id) : null;
+    if (!overId || overId === activeId) return;
+    const updates = containerReorderRanks(scopedProducts, activeId, overId);
+    for (const u of updates ?? []) void updateContainer("product", u.id, { rank: u.rank });
+  };
+
+  // Overlay preview for a held product section: its arcs as rows (the level a
+  // product grouping is made of), matching the arc previews' capped card.
+  const heldProduct = activeProductId ? scopedProducts.find((p) => p.id === activeProductId) : undefined;
+  const heldProductRows = heldProduct
+    ? [...workspace.arcs]
+        .filter((a) => a.productId === heldProduct.id && !a.archivedAt)
+        .sort(byRankThenName)
+        .map((a) => ({
+          key: a.id,
+          depth: 0,
+          icon: <LevelIcon kind="arc" />,
+          text: a.name,
+        }))
+    : [];
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -864,15 +1116,54 @@ export default function Outline({ workspace }: { workspace: WorkspacePayload }) 
       <div className="mt-5 space-y-4">
         {!root && <p className="text-sm text-ink-faint">No products or initiatives yet.</p>}
 
-        {scopedProducts.map((p) => (
-          <ProductOutline
-            key={p.id}
-            product={p}
-            ws={workspace}
-            showHeader={root?.kind === "initiative"}
-            hideDone={hideDone}
-          />
-        ))}
+        {root?.kind === "initiative" ? (
+          <DndContext
+            sensors={productSensors}
+            collisionDetection={closestCenter}
+            onDragStart={(e: DragStartEvent) => setActiveProductId(String(e.active.id))}
+            onDragEnd={onProductReorder}
+            onDragCancel={() => setActiveProductId(null)}
+          >
+            <SortableContext items={scopedProducts.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+              {/* Pointer-inert while a product section is held — see the arc
+                  drag's identical wrapper (PROG-87 polish). */}
+              <div className={`space-y-4 ${activeProductId ? "pointer-events-none select-none" : ""}`}>
+                {scopedProducts.map((p) => (
+                  <SortableSection key={p.id} id={p.id} label={`Reorder ${p.name}`}>
+                    {(productGrip) => (
+                      <ProductOutline
+                        product={p}
+                        ws={workspace}
+                        showHeader
+                        hideDone={hideDone}
+                        grip={productGrip}
+                      />
+                    )}
+                  </SortableSection>
+                ))}
+              </div>
+            </SortableContext>
+            <DragOverlay dropAnimation={null}>
+              {heldProduct && (
+                <SectionPreviewCard
+                  header={
+                    <>
+                      <LevelIcon kind="product" />
+                      <span className="font-medium text-ink">{heldProduct.name}</span>
+                      <span className="font-mono text-[11px] text-ink-faint">{heldProduct.keyPrefix}</span>
+                    </>
+                  }
+                  rows={heldProductRows}
+                  more={heldProductRows.length - PREVIEW_ROWS}
+                />
+              )}
+            </DragOverlay>
+          </DndContext>
+        ) : (
+          scopedProducts.map((p) => (
+            <ProductOutline key={p.id} product={p} ws={workspace} showHeader={false} hideDone={hideDone} />
+          ))
+        )}
 
         {/* At initiative scope, products are the top ceiling — so offer inline
             product capture (and seed the empty state). Product scope has no

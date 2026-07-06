@@ -7,7 +7,7 @@
 import { keepPreviousData, QueryClient, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { tagColor, type IssuePriority, type IssueStatus } from "../shared/constants";
-import { rankAfter } from "../shared/rank";
+import { DEFAULT_RANK, rankAfter } from "../shared/rank";
 import type {
   CommentSearchResponse,
   WireActivity,
@@ -493,14 +493,16 @@ export function createContainer(input: ContainerCreateInput): string {
     createdAt: now,
     updatedAt: now,
   };
+  // Reorderable containers start at the shared default rank, matching the
+  // server's column default — the "nobody has reordered yet" tie (PROG-87).
   const temp: WireContainer =
     input.kind === "initiative"
-      ? base
+      ? { ...base, rank: DEFAULT_RANK }
       : input.kind === "product"
-        ? { ...base, initiativeId: input.initiativeId, keyPrefix: input.keyPrefix.toUpperCase(), nextIssueNumber: 1 }
+        ? { ...base, initiativeId: input.initiativeId, keyPrefix: input.keyPrefix.toUpperCase(), nextIssueNumber: 1, rank: DEFAULT_RANK }
         : input.kind === "repo"
           ? { ...base, productId: input.productId, gitUrl: input.gitUrl ?? null }
-          : { ...base, productId: input.productId };
+          : { ...base, productId: input.productId, rank: DEFAULT_RANK };
   const collection = CONTAINER_COLLECTIONS[input.kind];
   writeContainers(collection, (list) => [...list, temp]);
 
@@ -539,6 +541,8 @@ export type ContainerPatch = Partial<{
   archived: boolean;
   keyPrefix: string;
   gitUrl: string | null;
+  // Manual outline order (PROG-87); initiatives/products/arcs only, not repos.
+  rank: string;
 }>;
 
 // Returns whether the server confirmed the change. Like updateIssue, most
@@ -564,6 +568,7 @@ export function updateContainer(
   if (patch.archived !== undefined) optimistic.archivedAt = patch.archived ? now : null;
   if (patch.keyPrefix !== undefined) optimistic.keyPrefix = patch.keyPrefix.toUpperCase();
   if (patch.gitUrl !== undefined) optimistic.gitUrl = patch.gitUrl;
+  if (patch.rank !== undefined) optimistic.rank = patch.rank;
   writeContainers(collection, (list) =>
     list.map((x) => (x.id === id ? ({ ...x, ...optimistic } as WireContainer) : x)),
   );
