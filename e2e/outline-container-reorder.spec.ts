@@ -30,7 +30,9 @@ async function yOrder(page: Page, names: string[]): Promise<string[]> {
 }
 
 // Press a grip and clear the 4px drag-activation threshold, glide to the
-// target y in small steps so dnd-kit tracks it, release.
+// target y in small steps so dnd-kit tracks it, release. Mid-drag, the held
+// section must be carried by a floating DragOverlay preview (the board's
+// pattern — instant pickup + depth) and it must clear on release.
 async function dragGrip(page: Page, gripLabel: string, toY: number) {
   const grip = (await page.getByRole("button", { name: gripLabel }).boundingBox())!;
   const cx = grip.x + grip.width / 2;
@@ -38,11 +40,13 @@ async function dragGrip(page: Page, gripLabel: string, toY: number) {
   await page.mouse.move(cx, cy);
   await page.mouse.down();
   await page.mouse.move(cx, cy + 6);
+  await expect(page.locator("[data-drag-overlay]")).toHaveCount(1);
   const steps = 18;
   for (let s = 1; s <= steps; s++) {
     await page.mouse.move(cx, cy + 6 + ((toY - cy - 6) * s) / steps);
   }
   await page.mouse.up();
+  await expect(page.locator("[data-drag-overlay]")).toHaveCount(0, { timeout: 250 });
 }
 
 test.beforeEach(async ({ context }) => {
@@ -155,5 +159,26 @@ test("products drag-reorder at initiative scope (PROG-87)", async ({ page }) => 
 
   for (const p of [cherry, apple])
     await page.request.patch(`/api/products/${p.id}`, { data: { archived: true } });
+  await page.request.patch(`/api/initiatives/${initiative.id}`, { data: { archived: true } });
+});
+
+test("the scope picker is sticky — a bare /outline reopens the last scope", async ({ page }) => {
+  await page.goto("/outline");
+  const initiative = (
+    await (
+      await page.request.post("/api/initiatives", { data: { name: `E2E sticky ${tag()}` } })
+    ).json()
+  ).container as { id: string };
+
+  // Visit the initiative scope via URL (the shareable-link path)…
+  await page.goto(`/outline?initiative=${initiative.id}`);
+  const scope = page.locator("select");
+  await expect(scope).toHaveValue(`initiative:${initiative.id}`);
+
+  // …leave for another view, come back with NO params: the scope must stick.
+  await page.goto("/structure");
+  await page.goto("/outline");
+  await expect(scope).toHaveValue(`initiative:${initiative.id}`);
+
   await page.request.patch(`/api/initiatives/${initiative.id}`, { data: { archived: true } });
 });
