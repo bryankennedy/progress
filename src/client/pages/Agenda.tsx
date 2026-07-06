@@ -9,14 +9,15 @@
 // client store (SPEC v2 §7.1); inline mark-done / bump-due use the optimistic
 // mutation template (no spinner).
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import type { WireIssue, WireTag, WorkspacePayload } from "../../shared/types";
+import { loadQuickAddProduct, quickAddDueDate, saveQuickAddProduct } from "../agendaQuickAdd";
 import { sortByName } from "../boardFilters";
 import { type AgendaBucket, bucketOf, formatDueDate, relativeDue, todayISO } from "../dates";
 import { STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
-import { issueKeyOf, setIssueStatus, updateIssue } from "../store";
+import { createIssue, issueKeyOf, setIssueStatus, updateIssue } from "../store";
 
 const FILTER_KEYS = ["product", "arc", "tag"] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
@@ -156,6 +157,11 @@ export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
                   />
                 ))}
               </ul>
+              {/* Quick-add (PROG-89): capture straight into this date bucket.
+                  Not on Overdue — an issue can't be born already late. */}
+              {bucket.key !== "overdue" && (
+                <QuickAddRow bucket={bucket.key} workspace={workspace} filters={filters} today={today} />
+              )}
             </section>
           );
         })}
@@ -166,6 +172,103 @@ export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+// Quick-add input under a date grouping (PROG-89): type a title, Enter, and
+// the issue is created pre-dated for the bucket it was typed under — Today →
+// today, This week → the window's last day (today+6), Later → just beyond it
+// (today+7). Created as `todo` (a dated capture is committed work, not
+// backlog) with the optimistic createIssue, so the new row appears in the
+// group instantly. The product comes from the inline picker: it follows the
+// active Product filter when one is set, otherwise it remembers the last
+// product quick-added into (localStorage, fail-soft). An active Arc filter is
+// inherited when it belongs to the chosen product, so a filtered agenda
+// captures into what you're looking at.
+function QuickAddRow({
+  bucket,
+  workspace,
+  filters,
+  today,
+}: {
+  bucket: AgendaBucket;
+  workspace: WorkspacePayload;
+  filters: Filters;
+  today: string;
+}) {
+  const [title, setTitle] = useState("");
+  const products = useMemo(
+    () => sortByName(workspace.products.filter((p) => !p.archivedAt)),
+    [workspace.products],
+  );
+  const [productId, setProductId] = useState<string>(() => {
+    const saved = loadQuickAddProduct();
+    if (filters.product) return filters.product;
+    if (saved && products.some((p) => p.id === saved)) return saved;
+    return products[0]?.id ?? "";
+  });
+  // The picker tracks the Product filter while one is active.
+  useEffect(() => {
+    if (filters.product) setProductId(filters.product);
+  }, [filters.product]);
+
+  const due = quickAddDueDate(bucket, today);
+
+  const submit = () => {
+    const t = title.trim();
+    if (!t || !productId || !due) return;
+    const arcId =
+      filters.arc &&
+      workspace.arcs.some((a) => a.id === filters.arc && a.productId === productId)
+        ? filters.arc
+        : null;
+    createIssue({
+      title: t,
+      productId,
+      repoId: null,
+      arcId,
+      parentIssueId: null,
+      status: "todo",
+      priority: "none",
+      estimate: null,
+      dueDate: due,
+    });
+    saveQuickAddProduct(productId);
+    setTitle(""); // input keeps focus — capture the next one immediately
+  };
+
+  return (
+    <div className="mt-2 flex items-center gap-2 pl-1">
+      <span className="text-ink-faint/50" aria-hidden>
+        ＋
+      </span>
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            submit();
+          }
+        }}
+        placeholder={due ? `New issue — due ${bucket === "today" ? "today" : formatDueDate(due)}, Enter to add` : ""}
+        aria-label={`New issue due ${due ?? ""}`}
+        className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1.5 py-1 text-sm text-ink placeholder:text-ink-faint focus:border-line focus:bg-card focus:outline-none"
+      />
+      <select
+        value={productId}
+        onChange={(e) => setProductId(e.target.value)}
+        title="Product for the new issue"
+        aria-label="Product for the new issue"
+        className="max-w-36 shrink-0 truncate rounded border border-line bg-card px-1.5 py-1 text-xs text-ink-faint hover:text-ink-soft focus:outline-none"
+      >
+        {products.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
