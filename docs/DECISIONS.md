@@ -1395,3 +1395,24 @@ one `DndContext` per product. (4) **PointerSensor (distance 4) + KeyboardSensor*
 drag reorders instead of scrolling), and the focused handle is arrow-key
 reorderable for accessibility. Math is unit-tested (`outlineReorder.test.ts`);
 the drag wiring verified in a browser (drag persisted across reload).
+
+### PROG-78 — an empty query with active filters is a valid search (browse mode)
+
+The `/search` page treated an empty query as "nothing to show" — the filters
+were dead until you typed. Now **empty query + at least one active filter runs
+the search anyway**: every issue passing the filters, newest first, so the
+filters alone can answer "show me all my urgent issues" without inventing a
+throwaway term. *Decisions within:* (1) **Setting a filter IS the method** —
+no extra "show all" button; picking any filter with the box empty enters browse
+mode, and the empty-state hint advertises it ("Or skip the text: set a filter…").
+(2) **Empty query + no filters keeps the hint**, not a dump of the whole
+workspace — an unfiltered browse of everything is the Board/Outline's job, and
+rendering ~5k rows (scale seed) as one flat list serves nobody. (3) **Issues
+only in browse mode** — containers and comments need a term to match (the
+comment search is a server `LIKE`; there is nothing to send), so those sections
+disappear rather than sit at a misleading zero. (4) **Newest-first, zero-score
+hits** via a pure `browseIssues()` in `src/client/search.ts` (unit-tested),
+reusing the page's existing filter predicate and row rendering; `inTitle` is
+set so no unmatched description snippet renders. URL stays the state
+(`/search?status=todo` cold-loads into browse), so a filter-only view is
+bookmarkable like any other search.

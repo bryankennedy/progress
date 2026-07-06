@@ -406,7 +406,11 @@ canonical key — entirely client-side from the loaded workspace (D22).
   the board dimensions (status · product · arc · repo · tag · priority) — Arc,
   Repo, and Tag share the board's **"none"** option for issues with no value
   there (PROG-76) — with query + filters in the URL so a search is bookmarkable.
-  The filter dropdown itself (`FilterSelect.tsx`) is shared with the board.
+  The filter dropdown itself (`FilterSelect.tsx`) is shared with the board. An
+  **empty query with at least one active filter is itself a valid search**
+  (PROG-78): the page lists every issue passing the filters, newest first — a
+  filter-only browse. Only the Issues section renders in that mode (containers
+  and comments need a term to match), and the empty-state hint advertises it.
 - **App header** — persistent across pages: the "Progress" home link, nav
   (Board · Outline · Agenda · Search · Structure · Archive), a **New** menu (Issue ·
   Initiative · Product · Repo · Arc) that opens the existing optimistic create flows, and the
