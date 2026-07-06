@@ -70,6 +70,17 @@ export function searchIssues(ws: WorkspacePayload, query: string, limit = 8): Is
   return limit > 0 ? hits.slice(0, limit) : hits;
 }
 
+// Empty-query browse (PROG-78): "searching for nothing" is valid on the search
+// page when filters are active — every issue becomes a zero-score hit, newest
+// first, and the caller's filters decide what actually shows. `inTitle` is true
+// so the row renders without a description snippet (there is no matched term
+// for a snippet to explain).
+export function browseIssues(ws: WorkspacePayload): IssueHit[] {
+  return ws.issues
+    .map((issue) => ({ issue, score: 0, inTitle: true }))
+    .sort((a, b) => byRecency(a.issue, b.issue));
+}
+
 export type ContainerKind = "initiative" | "product" | "repo" | "arc";
 export type ContainerHit = {
   id: string;

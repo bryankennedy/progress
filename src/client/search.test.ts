@@ -3,7 +3,7 @@
 // comment half is a server LIKE query covered by the worker. Run `bun test`.
 import { describe, expect, it } from "bun:test";
 import type { WorkspacePayload } from "../shared/types";
-import { highlight, queryTerms, searchContainers, searchIssues } from "./search";
+import { browseIssues, highlight, queryTerms, searchContainers, searchIssues } from "./search";
 
 // A minimal workspace — search only reads issues + the four container arrays
 // and their name/title/description/archivedAt fields, so the rest is cast away.
@@ -78,6 +78,23 @@ describe("searchIssues", () => {
   it("returns nothing for an empty query", () => {
     const data = ws({ issues: [issue({ id: "x", title: "ozzie" })] });
     expect(searchIssues(data, "  ")).toEqual([]);
+  });
+});
+
+describe("browseIssues", () => {
+  it("returns every issue, newest first (PROG-78 empty-query browse)", () => {
+    const data = ws({
+      issues: [
+        issue({ id: "old", title: "a", updatedAt: "2026-01-01T00:00:00.000Z" }),
+        issue({ id: "new", title: "b", updatedAt: "2026-06-01T00:00:00.000Z" }),
+      ],
+    });
+    expect(browseIssues(data).map((h) => h.issue.id)).toEqual(["new", "old"]);
+  });
+
+  it("marks hits inTitle so no description snippet renders", () => {
+    const data = ws({ issues: [issue({ id: "x", description: "some body text" })] });
+    expect(browseIssues(data)[0]).toMatchObject({ inTitle: true, score: 0 });
   });
 });
 

@@ -3,7 +3,9 @@
 // hits stream in from /api/search — but here results are filterable by the same
 // dimensions as the board (status, product/arc/repo, tag, priority) and the
 // query + filters live in the URL so a search is bookmarkable. The `/` modal's
-// "Open the search page" link hands its text here via ?q=.
+// "Open the search page" link hands its text here via ?q=. An empty query with
+// at least one active filter is itself a valid search (PROG-78): browse mode —
+// every issue passing the filters, newest first.
 
 import { useMemo } from "react";
 import { Link, useLocation, useSearch } from "wouter";
@@ -12,6 +14,7 @@ import type { WireIssue, WorkspacePayload } from "../../shared/types";
 import { FILTER_NONE, matchesNullableId, sortByName } from "../boardFilters";
 import FilterSelect from "../FilterSelect";
 import {
+  browseIssues,
   containerLabel,
   highlight,
   queryTerms,
@@ -90,10 +93,18 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
     };
   }, [filters, productById, tagsByIssue]);
 
-  const issueHits = useMemo(
-    () => searchIssues(workspace, q, 0).filter((h) => passes(h.issue)),
-    [workspace, q, passes],
-  );
+  const filtersActive = FILTER_KEYS.some((k) => filters[k]);
+  // Empty query + at least one filter = browse mode (PROG-78): the filters are
+  // the whole search, so every issue passing them shows, newest first. Only
+  // issues can browse — containers and comments still need a term to match.
+  const browsing = terms.length === 0 && filtersActive;
+
+  const issueHits = useMemo(() => {
+    if (terms.length === 0) {
+      return filtersActive ? browseIssues(workspace).filter((h) => passes(h.issue)) : [];
+    }
+    return searchIssues(workspace, q, 0).filter((h) => passes(h.issue));
+  }, [workspace, q, terms, filtersActive, passes]);
   const containerHits = useMemo(() => searchContainers(workspace, q, 0), [workspace, q]);
 
   const { data: comments, isFetching } = useCommentSearch(q);
@@ -106,8 +117,6 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
       })
       .filter((h): h is NonNullable<typeof h> => h !== null && passes(h.issue));
   }, [comments, workspace.issues, passes]);
-
-  const filtersActive = FILTER_KEYS.some((k) => filters[k]);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -183,9 +192,11 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
         )}
       </div>
 
-      {terms.length === 0 ? (
+      {terms.length === 0 && !filtersActive ? (
         <p className="mt-10 text-center text-sm text-ink-faint">
           Search titles and descriptions instantly; comments stream in from the server.
+          <br />
+          Or skip the text: set a filter to browse every issue that matches it.
         </p>
       ) : (
         <div className="mt-6 space-y-6">
@@ -243,6 +254,10 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
             )}
           </Section>
 
+          {/* Comment search needs a term (the server LIKE has nothing to match
+              in browse mode), so the section disappears rather than sitting at
+              a misleading zero. */}
+          {!browsing && (
           <Section
             title="Comments"
             count={commentHits.length}
@@ -270,6 +285,7 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
               })
             )}
           </Section>
+          )}
         </div>
       )}
     </div>
