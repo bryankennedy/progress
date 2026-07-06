@@ -28,7 +28,7 @@ import {
 import { CLOSED_ISSUE_STATUSES, tagColor } from "../shared/constants";
 import { isValidRank, rankAfter } from "../shared/rank";
 import { log } from "./log";
-import { commentSnippet, escapeLike, SEARCH_CAP } from "./searchComments";
+import { commentSnippet, escapeLike, parseOffset, SEARCH_CAP } from "./searchComments";
 import { renderArcBundle, renderBundle, type ArcIssueData } from "./bundle";
 import { notAuthorizedPage } from "./pages";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
@@ -450,19 +450,25 @@ app.get("/api/search", async (c) => {
   const raw = (c.req.query("q") ?? "").trim().toLowerCase();
   const terms = raw.split(/\s+/).filter(Boolean);
   if (terms.length === 0) return c.json({ hits: [], truncated: false });
+  // Pagination (PROG-78): ?offset= skips past pages. Offset-based is fine here —
+  // single owner, most-recent-first ordering, bounded comment set (see the LIKE
+  // rationale above); a comment posted mid-scroll shifting the window by one is
+  // an acceptable artifact at this scale.
+  const offset = parseOffset(c.req.query("offset"));
 
   const db = drizzle(c.env.DB);
   // One LIKE per term, AND'd — a comment matches only if every term appears.
   const predicate = and(
     ...terms.map((t) => sql`lower(${comments.body}) LIKE ${`%${escapeLike(t)}%`} ESCAPE '\\'`),
   );
-  // Most-recent first; pull one extra to detect truncation.
+  // Most-recent first; pull one extra to detect whether more pages exist.
   const rows = await db
     .select({ id: comments.id, issueId: comments.issueId, body: comments.body })
     .from(comments)
     .where(predicate)
     .orderBy(desc(comments.createdAt))
-    .limit(SEARCH_CAP + 1);
+    .limit(SEARCH_CAP + 1)
+    .offset(offset);
 
   const truncated = rows.length > SEARCH_CAP;
   const hits = rows.slice(0, SEARCH_CAP).map((r) => ({

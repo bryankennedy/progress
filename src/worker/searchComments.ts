@@ -2,8 +2,19 @@
 // route handler; the escaping + snippet logic is here so it's unit-testable
 // (searchComments.test.ts), mirroring bundle.ts / bundle.test.ts.
 
-// Cap on returned matches. The handler pulls one extra row to detect truncation.
+// Page size for returned matches. The handler pulls one extra row to detect
+// whether more pages exist; the client asks for the next page via ?offset=
+// (PROG-78 pagination).
 export const SEARCH_CAP = 50;
+
+// Parse the ?offset= param defensively: anything that isn't a non-negative
+// integer (absent, garbage, negative, fractional, huge) clamps to a safe value
+// rather than erroring — a malformed bookmark should degrade to page one.
+export function parseOffset(raw: string | undefined, max = 10_000): number {
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0) return 0;
+  return Math.min(n, max);
+}
 
 // Escape LIKE wildcards so a query like "100%" or "a_b" matches literally.
 // Backslash is the ESCAPE character (see the route's `ESCAPE '\\'`), so it must

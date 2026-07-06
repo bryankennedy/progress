@@ -78,7 +78,7 @@ export type CommentSearchHit = {
 
 export type CommentSearchResponse = {
   hits: CommentSearchHit[];
-  // True when the match set hit the server cap, so the UI can say "showing
-  // first N" instead of implying these are all of them.
+  // True when more matches exist beyond this page — the client may fetch the
+  // next page with ?offset= (PROG-78) or say "more matches" (the `/` modal).
   truncated: boolean;
 };

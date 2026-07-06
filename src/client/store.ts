@@ -4,8 +4,8 @@
 // unchanged slices reference-stable so re-renders stay scoped. Per-issue
 // timelines (comments + activity) are separate queries (D20).
 
-import { keepPreviousData, QueryClient, useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { keepPreviousData, QueryClient, useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
 import { tagColor, type IssuePriority, type IssueStatus } from "../shared/constants";
 import { rankAfter } from "../shared/rank";
 import type {
@@ -722,18 +722,46 @@ function useDebounced<T>(value: T, ms: number): T {
 // between keystrokes. React Query keys by the (debounced) query, so a slow
 // response for an old query can't clobber a newer one; `signal` also aborts the
 // in-flight fetch when the query changes.
+//
+// Paged (PROG-78): the server returns SEARCH_CAP hits per page with a
+// `truncated` flag; `fetchMore` pulls the next page via ?offset= and the pages
+// accumulate. `data` flattens them into the pre-pagination shape ({ hits,
+// truncated }) so the `/` modal — which only ever wants the first page — is
+// untouched; the search page adds a "show more" control on `hasMore`.
 export function useCommentSearch(query: string, debounceMs = 150) {
   const debounced = useDebounced(query.trim(), debounceMs);
-  return useQuery({
+  const result = useInfiniteQuery({
     queryKey: ["search", "comments", debounced],
     enabled: debounced.length > 0,
     placeholderData: keepPreviousData,
-    queryFn: async ({ signal }): Promise<CommentSearchResponse> => {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(debounced)}`, { signal });
+    initialPageParam: 0,
+    queryFn: async ({ signal, pageParam }): Promise<CommentSearchResponse> => {
+      const res = await fetch(
+        `/api/search?q=${encodeURIComponent(debounced)}&offset=${pageParam}`,
+        { signal },
+      );
       if (!res.ok) throw new Error(`search failed: HTTP ${res.status}`);
       return res.json() as Promise<CommentSearchResponse>;
     },
+    // Next page starts after every hit fetched so far; no next page once the
+    // server says the match set is exhausted.
+    getNextPageParam: (last, pages) =>
+      last.truncated ? pages.reduce((n, p) => n + p.hits.length, 0) : undefined,
   });
+
+  const pages = result.data?.pages;
+  const data = useMemo<CommentSearchResponse | undefined>(() => {
+    if (!pages || pages.length === 0) return undefined;
+    return { hits: pages.flatMap((p) => p.hits), truncated: pages[pages.length - 1]!.truncated };
+  }, [pages]);
+
+  return {
+    data,
+    isFetching: result.isFetching,
+    hasMore: result.hasNextPage,
+    fetchMore: result.fetchNextPage,
+    isFetchingMore: result.isFetchingNextPage,
+  };
 }
 
 // ---------- per-issue timeline ----------
