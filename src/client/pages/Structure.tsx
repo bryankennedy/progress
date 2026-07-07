@@ -35,7 +35,11 @@ function NodeLink({
 }) {
   // `muted` (repos) reads as supporting detail beneath the arc — lower-contrast
   // and italic so the more important arcs stay visually primary.
-  const tone = archived ? "text-ink-faint line-through" : muted ? "text-ink-soft" : "text-ink";
+  const tone = archived
+    ? "text-ink-faint line-through"
+    : muted
+      ? "text-ink-soft"
+      : "text-ink";
   return (
     <Link
       href={href}
@@ -61,7 +65,12 @@ function NodeGroup({
   collapseArchived = false,
 }: {
   label: string;
-  nodes: { id: string; name: string; archivedAt: string | null; gitUrl?: string | null }[];
+  nodes: {
+    id: string;
+    name: string;
+    archivedAt: string | null;
+    gitUrl?: string | null;
+  }[];
   hrefBase: string;
   muted?: boolean;
   collapseArchived?: boolean;
@@ -74,7 +83,9 @@ function NodeGroup({
     : { shown: nodes, hiddenCount: 0 };
   return (
     <div>
-      <span className="text-[10px] uppercase tracking-wide font-mono text-ink-faint">{label}</span>
+      <span className="text-[10px] uppercase tracking-wide font-mono text-ink-faint">
+        {label}
+      </span>
       <div className="mt-1 flex flex-col items-start gap-0.5 border-l border-line pl-3 text-sm">
         {shown.map((n) => (
           <div key={n.id} className="flex flex-wrap items-baseline gap-x-2">
@@ -109,13 +120,21 @@ function NodeGroup({
   );
 }
 
-export default function Structure({ workspace }: { workspace: WorkspacePayload }) {
+export default function Structure({
+  workspace,
+}: {
+  workspace: WorkspacePayload;
+}) {
   // Active first, archived last (dimmed), so curating stays focused on live
   // structure while archived nodes remain reachable to unarchive. Within each
   // half, the global manual order (PROG-87): rank set by dragging on the
   // Outline, name tiebreak — alphabetical until someone reorders. Repos have
   // no rank; the default keeps them purely alphabetical.
-  const byActive = <T extends { archivedAt: string | null; name: string; rank?: string }>(list: T[]) =>
+  const byActive = <
+    T extends { archivedAt: string | null; name: string; rank?: string },
+  >(
+    list: T[],
+  ) =>
     [...list].sort(
       (a, b) =>
         Number(!!a.archivedAt) - Number(!!b.archivedAt) ||
@@ -133,10 +152,15 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Structure</h1>
           <p className="mt-1 text-xs text-ink-faint">
-            The Initiative → Product → Arc tree. Add anywhere; click a node to open it.
+            The Initiative → Product → Arc → Action tree. Add an item anywhere.
+            <br />
+            Click an item to open it.
           </p>
         </div>
-        <AddButton label="New initiative" onClick={() => openCreateContainer({ kind: "initiative" })} />
+        <AddButton
+          label="New initiative"
+          onClick={() => openCreateContainer({ kind: "initiative" })}
+        />
       </div>
 
       <div className="mt-6 space-y-6">
@@ -145,9 +169,14 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
             workspace.products.filter((p) => p.initiativeId === initiative.id),
           );
           return (
-            <section key={initiative.id} className="rounded-lg border border-line bg-card p-4">
+            <section
+              key={initiative.id}
+              className="rounded-lg border border-line bg-card p-4"
+            >
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] uppercase tracking-wide font-mono text-ink-faint">Initiative</span>
+                <span className="text-[10px] uppercase tracking-wide font-mono text-ink-faint">
+                  Initiative
+                </span>
                 <NodeLink
                   href={`/initiative/${initiative.id}`}
                   name={initiative.name}
@@ -155,7 +184,12 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
                 />
                 <AddButton
                   label="Product"
-                  onClick={() => openCreateContainer({ kind: "product", initiativeId: initiative.id })}
+                  onClick={() =>
+                    openCreateContainer({
+                      kind: "product",
+                      initiativeId: initiative.id,
+                    })
+                  }
                 />
               </div>
 
@@ -164,8 +198,12 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
                   <p className="text-xs text-ink-faint">No products yet.</p>
                 )}
                 {products.map((product) => {
-                  const repos = byActive(workspace.repos.filter((r) => r.productId === product.id));
-                  const arcs = byActive(workspace.arcs.filter((a) => a.productId === product.id));
+                  const repos = byActive(
+                    workspace.repos.filter((r) => r.productId === product.id),
+                  );
+                  const arcs = byActive(
+                    workspace.arcs.filter((a) => a.productId === product.id),
+                  );
                   return (
                     <div key={product.id}>
                       <div className="flex flex-wrap items-center gap-2">
@@ -182,11 +220,21 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
                         </span>
                         <AddButton
                           label="Arc"
-                          onClick={() => openCreateContainer({ kind: "arc", productId: product.id })}
+                          onClick={() =>
+                            openCreateContainer({
+                              kind: "arc",
+                              productId: product.id,
+                            })
+                          }
                         />
                         <AddButton
                           label="Repo"
-                          onClick={() => openCreateContainer({ kind: "repo", productId: product.id })}
+                          onClick={() =>
+                            openCreateContainer({
+                              kind: "repo",
+                              productId: product.id,
+                            })
+                          }
                         />
                       </div>
                       {(repos.length > 0 || arcs.length > 0) && (
