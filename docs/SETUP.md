@@ -93,6 +93,9 @@ Prettier's table re-padding would produce whitespace-only diffs (see
 - Zed picks up `.prettierrc` automatically; `.zed/settings.json` (committed)
   pins the formatter and turns format-on-save off for Markdown so the editor
   agrees with CI.
+- The one-time adoption reformat is listed in `.git-blame-ignore-revs`; run
+  `git config blame.ignoreRevsFile .git-blame-ignore-revs` once per clone so
+  local `git blame` skips it too.
 
 ### Schema-change workflow
 
