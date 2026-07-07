@@ -37,6 +37,11 @@ function extractImageUrls(text: string, baseUrl: string): string[] {
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 const para = (text: string, fallback = "_None._") => (text.trim() ? text.trim() : fallback);
 
+// The PROG-95 branch-hygiene rule, phrased once and shared by the issue and
+// arc work orders so the two can't drift into a looser-sounding variant.
+const noFeatureBranchBases =
+  "never branch off another feature branch unless explicitly directed — a PR based on a feature branch can land after its base has already merged, stranding the work off `main` (PROG-95)";
+
 // Deterministic: every value comes from the row data (no Date.now / locale),
 // and collections arrive pre-sorted, so the same issue always renders byte
 // for byte the same — important for a "copy as prompt" artifact and for
@@ -115,8 +120,8 @@ export function renderBundle(b: BundleData): string {
   out.push(
     `You are working on **${b.key}** (${issue.title}).`,
     "",
-    `1. **Branch off fresh \`main\`** — \`git fetch origin && git checkout -b iss/${b.key} origin/main\`. Never branch off another feature branch unless this issue explicitly directs it — a PR based on a feature branch can land after its base has already merged, stranding the work off \`main\` (PROG-95).`,
-    `2. Name your branch with the key — e.g. \`iss/${b.key}\` — and mention **${b.key}** in commit messages and the PR title/body. Progress auto-links branches, commits, and PRs that name the key, so the work appears on this issue with no extra step.`,
+    `1. **Branch off fresh \`main\`** — \`git fetch origin && git checkout -b iss/${b.key} origin/main\`; ${noFeatureBranchBases}.`,
+    `2. Mention **${b.key}** in commit messages and the PR title/body. Progress auto-links branches, commits, and PRs that name the key (the branch from item 1 already does), so the work appears on this issue with no extra step.`,
     `3. Post progress notes as a comment on **${b.key}** and move its status as you go (\`todo\` → \`in_progress\` → \`in_review\` → \`done\`) via the Progress API / MCP tools.`,
     `4. Keep this issue the source of truth — if scope changes, leave a comment rather than silently diverging.`,
     "",
@@ -276,7 +281,7 @@ export function renderArcBundle(b: ArcBundleData): string {
     `3. **Share one branch, created off fresh \`main\`** — \`git fetch origin\` then branch the arc's single feature branch from \`origin/main\` (e.g. \`arc/${arc.name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")}\`); never off another feature branch unless explicitly directed (PROG-95). All sub-agents work toward that one branch. Mention the relevant issue key in each commit so Progress auto-links the work back to the right issue.`,
+      .replace(/^-+|-+$/g, "")}\`); ${noFeatureBranchBases}. All sub-agents work toward that one branch. Mention the relevant issue key in each commit so Progress auto-links the work back to the right issue.`,
     `4. **Integrate and verify.** Once the sub-agents finish, reconcile their work on the shared branch, resolve any conflicts, and make sure the whole thing builds, type-checks, and passes tests **together** — not just issue-by-issue.`,
     `5. **Open ONE pull request** for the arc whose title/body names every issue key (${
       keys.length ? keys.join(", ") : "the keys above"
