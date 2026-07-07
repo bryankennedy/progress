@@ -130,7 +130,13 @@ export default function ActionPage({
           desktop layout (content in the left column across both rows, fields in
           the right column) while the single-column mobile flow just follows
           source order. */}
-      <div className="mt-6 grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,1fr)_14rem]">
+      {/* md:grid-rows-[auto_1fr]: the rail spans both rows, and when it's
+          taller than the content column the grid would otherwise distribute
+          its extra height across BOTH auto rows — inflating the description
+          row and opening dead space above the timeline (PROG-90). Pinning
+          row 1 to auto keeps the description content-sized; the 1fr timeline
+          row absorbs the rail's surplus, leaving only the standard gap-8. */}
+      <div className="mt-6 grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,1fr)_14rem] md:grid-rows-[auto_1fr]">
         <div className="min-w-0 md:col-start-1 md:row-start-1">
           <EditableMarkdown
             value={action.description}
@@ -397,7 +403,10 @@ function TimelineSection({ action, snapshot }: { action: WireAction; snapshot: S
     timeline !== undefined && (timeline.pullRequests.length > 0 || timeline.commits.length > 0);
 
   return (
-    <section className="mt-10 border-t border-line pt-6">
+    // No own top margin: the page grid's gap-8 is the spacing between the
+    // description and this section (PROG-90) — an extra mt here stacked onto
+    // the gap and read as dead space under a short/empty description.
+    <section className="border-t border-line pt-6">
       {hasGitLinks && (
         <div className="mb-8">
           <h2 className="text-sm font-medium uppercase tracking-wide font-mono text-ink-faint">
