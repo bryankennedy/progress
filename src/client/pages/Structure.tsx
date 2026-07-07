@@ -135,7 +135,9 @@ export default function Structure({ snapshot }: { snapshot: SnapshotPayload }) {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Structure</h1>
           <p className="mt-1 text-xs text-ink-faint">
-            The Workspace → Focus → Arc tree. Add anywhere; click a node to open it.
+            The Initiative → Product → Arc → Action tree. Add an item anywhere.
+            <br />
+            Click an item to open it.
           </p>
         </div>
         <AddButton
