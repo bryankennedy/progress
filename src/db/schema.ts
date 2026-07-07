@@ -9,18 +9,18 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
-// All IDs are app-generated text with a type prefix (usr_, ini_, prd_, rep_,
-// arc_, iss_, tag_, cmt_, act_) so any id is identifiable on sight in logs
+// All IDs are app-generated text with a type prefix (usr_, wsp_, foc_, rep_,
+// arc_, acn_, tag_, cmt_, act_) so any id is identifiable on sight in logs
 // and URLs. Timestamps are unix-epoch integers set by the API (seeds use
 // unixepoch()).
 
 // Fixed vocabularies live in src/shared/constants.ts (shared with the
 // client); re-exported here so DB-adjacent code keeps one import site.
-import { ISSUE_PRIORITIES, ISSUE_STATUSES, PR_STATES } from "../shared/constants";
+import { ACTION_PRIORITIES, ACTION_STATUSES, PR_STATES } from "../shared/constants";
 import { DEFAULT_RANK } from "../shared/rank";
 
-export { ISSUE_ESTIMATES, ISSUE_PRIORITIES, ISSUE_STATUSES, PR_STATES } from "../shared/constants";
-export type { IssuePriority, IssueStatus, PrState } from "../shared/constants";
+export { ACTION_ESTIMATES, ACTION_PRIORITIES, ACTION_STATUSES, PR_STATES } from "../shared/constants";
+export type { ActionPriority, ActionStatus, PrState } from "../shared/constants";
 
 // Multi-user-ready from day one (SPEC §8.4, D13): one row in v1, but
 // creator/assignee/author foreign keys point here.
@@ -31,12 +31,12 @@ export const users = sqliteTable("users", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 
-export const initiatives = sqliteTable("initiatives", {
+export const workspaces = sqliteTable("workspaces", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description").notNull().default(""),
-  // Manual outline order (PROG-87), same fractional-index keys as issues.rank.
-  // Unlike issues, containers default to the shared midpoint key instead of a
+  // Manual outline order (PROG-87), same fractional-index keys as actions.rank.
+  // Unlike actions, containers default to the shared midpoint key instead of a
   // backfilled sequence: lists sort by (rank, name), so an untouched group
   // reads alphabetically until the first drag renumbers it.
   rank: text("rank").notNull().default(DEFAULT_RANK),
@@ -49,21 +49,21 @@ export const initiatives = sqliteTable("initiatives", {
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
 
-export const products = sqliteTable(
-  "products",
+export const focuses = sqliteTable(
+  "focuses",
   {
     id: text("id").primaryKey(),
-    initiativeId: text("initiative_id")
+    workspaceId: text("workspace_id")
       .notNull()
-      .references(() => initiatives.id),
+      .references(() => workspaces.id),
     name: text("name").notNull(),
     description: text("description").notNull().default(""),
-    // Issue-key prefix, e.g. "PROG" → PROG-123. Globally unique.
+    // Action-key prefix, e.g. "PROG" → PROG-123. Globally unique.
     keyPrefix: text("key_prefix").notNull(),
-    // Per-product issue-number sequence; incremented on issue create and on
-    // cross-product move (SPEC §3 movement rules).
-    nextIssueNumber: integer("next_issue_number").notNull().default(1),
-    // Manual outline order (PROG-87) — see initiatives.rank.
+    // Per-focus action-number sequence; incremented on action create and on
+    // cross-focus move (SPEC §3 movement rules).
+    nextActionNumber: integer("next_action_number").notNull().default(1),
+    // Manual outline order (PROG-87) — see workspaces.rank.
     rank: text("rank").notNull().default(DEFAULT_RANK),
     archivedAt: integer("archived_at", { mode: "timestamp" }),
     creatorId: text("creator_id")
@@ -72,16 +72,16 @@ export const products = sqliteTable(
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
   },
-  (t) => [uniqueIndex("products_key_prefix_unique").on(t.keyPrefix)],
+  (t) => [uniqueIndex("focuses_key_prefix_unique").on(t.keyPrefix)],
 );
 
 export const repos = sqliteTable(
   "repos",
   {
     id: text("id").primaryKey(),
-    productId: text("product_id")
+    focusId: text("focus_id")
       .notNull()
-      .references(() => products.id),
+      .references(() => focuses.id),
     name: text("name").notNull(),
     description: text("description").notNull().default(""),
     // The real repository this container mirrors (SPEC §3). Optional until
@@ -94,19 +94,19 @@ export const repos = sqliteTable(
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
   },
-  (t) => [index("repos_product_idx").on(t.productId)],
+  (t) => [index("repos_focus_idx").on(t.focusId)],
 );
 
 export const arcs = sqliteTable(
   "arcs",
   {
     id: text("id").primaryKey(),
-    productId: text("product_id")
+    focusId: text("focus_id")
       .notNull()
-      .references(() => products.id),
+      .references(() => focuses.id),
     name: text("name").notNull(),
     description: text("description").notNull().default(""),
-    // Manual outline order (PROG-87) — see initiatives.rank.
+    // Manual outline order (PROG-87) — see workspaces.rank.
     rank: text("rank").notNull().default(DEFAULT_RANK),
     archivedAt: integer("archived_at", { mode: "timestamp" }),
     creatorId: text("creator_id")
@@ -115,43 +115,43 @@ export const arcs = sqliteTable(
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
   },
-  (t) => [index("arcs_product_idx").on(t.productId)],
+  (t) => [index("arcs_focus_idx").on(t.focusId)],
 );
 
-export const issues = sqliteTable(
-  "issues",
+export const actions = sqliteTable(
+  "actions",
   {
     id: text("id").primaryKey(),
-    // Container model (SPEC §3): productId is always set; repoId narrows the
-    // container to one of that product's repos. repoId ∈ product's repos and
-    // arc same-product are API-enforced invariants.
-    productId: text("product_id")
+    // Container model (SPEC §3): focusId is always set; repoId narrows the
+    // container to one of that focus's repos. repoId ∈ focus's repos and
+    // arc same-focus are API-enforced invariants.
+    focusId: text("focus_id")
       .notNull()
-      .references(() => products.id),
+      .references(() => focuses.id),
     repoId: text("repo_id").references(() => repos.id),
     arcId: text("arc_id").references(() => arcs.id),
-    // Sub-issue parent (PROG-124): a nullable self-reference making this issue a
-    // child of another issue, nestable to unbounded depth. A sub-issue is just
-    // an issue with a parent — one data type, not a separate entity. The
-    // same-product and acyclic invariants SQLite can't express are API-enforced
+    // Step parent (PROG-124): a nullable self-reference making this action a
+    // child of another action, nestable to unbounded depth. A step is just
+    // an action with a parent — one data type, not a separate entity. The
+    // same-focus and acyclic invariants SQLite can't express are API-enforced
     // (like repoId/arcId above). The Outline view (`/outline`) is the primary
-    // editor; the board hides children unless "show sub-issues" is on.
-    parentIssueId: text("parent_issue_id").references((): AnySQLiteColumn => issues.id),
-    // Key = product.keyPrefix + "-" + number, derived, never stored — so a
-    // prefix rename can't orphan keys. Unique per product.
+    // editor; the board hides children unless "show steps" is on.
+    parentActionId: text("parent_action_id").references((): AnySQLiteColumn => actions.id),
+    // Key = focus.keyPrefix + "-" + number, derived, never stored — so a
+    // prefix rename can't orphan keys. Unique per focus.
     number: integer("number").notNull(),
     title: text("title").notNull(),
     description: text("description").notNull().default(""),
-    status: text("status", { enum: ISSUE_STATUSES }).notNull().default("backlog"),
-    priority: text("priority", { enum: ISSUE_PRIORITIES }).notNull().default("none"),
-    // Points from ISSUE_ESTIMATES; null = unestimated. API-validated.
+    status: text("status", { enum: ACTION_STATUSES }).notNull().default("backlog"),
+    priority: text("priority", { enum: ACTION_PRIORITIES }).notNull().default("none"),
+    // Points from ACTION_ESTIMATES; null = unestimated. API-validated.
     estimate: integer("estimate"),
     // Optional due date (SPEC v2 §5): a wall-calendar day, identical
     // everywhere — stored as ISO `YYYY-MM-DD` text, NOT an instant (unlike the
     // createdAt/updatedAt timestamps). null = no due date. API-validated.
     dueDate: text("due_date"),
     // Manual board ordering (PROG-43): a fractional-index key — see
-    // `src/shared/rank.ts`. Issues in a column sort by this lexicographically,
+    // `src/shared/rank.ts`. Actions in a column sort by this lexicographically,
     // so dropping one between two others is a single-row write. Always set
     // (server-assigned on create, backfilled by migration 0005); the "" default
     // exists only so the ADD COLUMN is valid before backfill.
@@ -165,22 +165,22 @@ export const issues = sqliteTable(
     completedAt: integer("completed_at", { mode: "timestamp" }),
   },
   (t) => [
-    uniqueIndex("issues_product_number_unique").on(t.productId, t.number),
-    index("issues_repo_idx").on(t.repoId),
-    index("issues_arc_idx").on(t.arcId),
-    index("issues_parent_idx").on(t.parentIssueId),
-    index("issues_status_idx").on(t.status),
+    uniqueIndex("actions_focus_number_unique").on(t.focusId, t.number),
+    index("actions_repo_idx").on(t.repoId),
+    index("actions_arc_idx").on(t.arcId),
+    index("actions_parent_idx").on(t.parentActionId),
+    index("actions_status_idx").on(t.status),
   ],
 );
 
-// Old keys after a cross-product move; permanent redirects so references in
+// Old keys after a cross-focus move; permanent redirects so references in
 // commits and notes never break (SPEC §3, §8.4).
-export const issueKeyAliases = sqliteTable("issue_key_aliases", {
+export const actionKeyAliases = sqliteTable("action_key_aliases", {
   // The full retired key, e.g. "PROG-123".
   key: text("key").primaryKey(),
-  issueId: text("issue_id")
+  actionId: text("action_id")
     .notNull()
-    .references(() => issues.id),
+    .references(() => actions.id),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 
@@ -196,26 +196,26 @@ export const tags = sqliteTable(
   (t) => [uniqueIndex("tags_name_unique").on(t.name)],
 );
 
-export const issueTags = sqliteTable(
-  "issue_tags",
+export const actionTags = sqliteTable(
+  "action_tags",
   {
-    issueId: text("issue_id")
+    actionId: text("action_id")
       .notNull()
-      .references(() => issues.id),
+      .references(() => actions.id),
     tagId: text("tag_id")
       .notNull()
       .references(() => tags.id),
   },
-  (t) => [primaryKey({ columns: [t.issueId, t.tagId] })],
+  (t) => [primaryKey({ columns: [t.actionId, t.tagId] })],
 );
 
 export const comments = sqliteTable(
   "comments",
   {
     id: text("id").primaryKey(),
-    issueId: text("issue_id")
+    actionId: text("action_id")
       .notNull()
-      .references(() => issues.id),
+      .references(() => actions.id),
     authorId: text("author_id")
       .notNull()
       .references(() => users.id),
@@ -223,19 +223,19 @@ export const comments = sqliteTable(
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
   },
-  (t) => [index("comments_issue_idx").on(t.issueId)],
+  (t) => [index("comments_action_idx").on(t.actionId)],
 );
 
 // Append-only event log; comments and activity interleave into one timeline
-// on the issue page (SPEC §8.4). `data` carries the event-type-specific
+// on the action page (SPEC §8.4). `data` carries the event-type-specific
 // payload (old/new status, source/target container, linked PR, …).
 export const activity = sqliteTable(
   "activity",
   {
     id: text("id").primaryKey(),
-    issueId: text("issue_id")
+    actionId: text("action_id")
       .notNull()
-      .references(() => issues.id),
+      .references(() => actions.id),
     actorId: text("actor_id")
       .notNull()
       .references(() => users.id),
@@ -243,21 +243,21 @@ export const activity = sqliteTable(
     data: text("data", { mode: "json" }).notNull().default(sql`'{}'`),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   },
-  (t) => [index("activity_issue_idx").on(t.issueId)],
+  (t) => [index("activity_action_idx").on(t.actionId)],
 );
 
 // Git links (SPEC §5, D29) — the link tables D19 deferred to this milestone.
 // Rows are written only by the GitHub webhook when a commit/PR mentions an
-// issue key ("magic words"). Linking is permanent: a later edit that removes
+// action key ("magic words"). Linking is permanent: a later edit that removes
 // the mention does not unlink. Composite PKs double as the dedupe guard for
 // webhook redeliveries.
 
 export const prLinks = sqliteTable(
   "pr_links",
   {
-    issueId: text("issue_id")
+    actionId: text("action_id")
       .notNull()
-      .references(() => issues.id),
+      .references(() => actions.id),
     // "owner/name" — identifies the PR together with the number. Not an FK
     // to repos: links survive container renames/archives, and webhooks may
     // arrive from repos that aren't (yet) containers here.
@@ -271,15 +271,15 @@ export const prLinks = sqliteTable(
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
   },
-  (t) => [primaryKey({ columns: [t.issueId, t.githubRepo, t.prNumber] })],
+  (t) => [primaryKey({ columns: [t.actionId, t.githubRepo, t.prNumber] })],
 );
 
 export const commitLinks = sqliteTable(
   "commit_links",
   {
-    issueId: text("issue_id")
+    actionId: text("action_id")
       .notNull()
-      .references(() => issues.id),
+      .references(() => actions.id),
     githubRepo: text("github_repo").notNull(),
     sha: text("sha").notNull(),
     // First line of the commit message only — display never needs more.
@@ -287,7 +287,7 @@ export const commitLinks = sqliteTable(
     url: text("url").notNull(),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   },
-  (t) => [primaryKey({ columns: [t.issueId, t.sha] })],
+  (t) => [primaryKey({ columns: [t.actionId, t.sha] })],
 );
 
 // Sign-in allowlist (D44): who may use the app, managed at runtime from the
@@ -311,7 +311,7 @@ export const allowedEmails = sqliteTable(
 // Uploaded/pasted images (PROG-42). The blob lives in R2 (`r2Key`); this row is
 // the D1 record so the worker can authorize and look up an image by id, and
 // attribute it to its uploader. Referenced from description/comment markdown as
-// `/api/images/<id>`; never hard-deleted with its issue (orphans are harmless).
+// `/api/images/<id>`; never hard-deleted with its action (orphans are harmless).
 export const images = sqliteTable("images", {
   id: text("id").primaryKey(),
   r2Key: text("r2_key").notNull(),
@@ -324,14 +324,14 @@ export const images = sqliteTable("images", {
 });
 
 export type User = typeof users.$inferSelect;
-export type Initiative = typeof initiatives.$inferSelect;
-export type Product = typeof products.$inferSelect;
+export type Workspace = typeof workspaces.$inferSelect;
+export type Focus = typeof focuses.$inferSelect;
 export type Repo = typeof repos.$inferSelect;
 export type Arc = typeof arcs.$inferSelect;
-export type Issue = typeof issues.$inferSelect;
-export type IssueKeyAlias = typeof issueKeyAliases.$inferSelect;
+export type Action = typeof actions.$inferSelect;
+export type ActionKeyAlias = typeof actionKeyAliases.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
-export type IssueTag = typeof issueTags.$inferSelect;
+export type ActionTag = typeof actionTags.$inferSelect;
 export type Comment = typeof comments.$inferSelect;
 export type Activity = typeof activity.$inferSelect;
 export type PrLink = typeof prLinks.$inferSelect;

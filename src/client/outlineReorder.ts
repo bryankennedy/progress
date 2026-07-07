@@ -1,13 +1,13 @@
 // Pure outline-reordering math (PROG-86), factored out of the Outline view so it
 // can be unit-tested without a browser — the sibling analogue of boardOrder.ts.
 //
-// The Outline sorts each sibling group (issues sharing a product + parent + arc)
+// The Outline sorts each sibling group (actions sharing a focus + parent + arc)
 // by the SAME fractional-index `rank` the board uses to order a status column
 // (PROG-43). So reordering a row here is just: figure out where it lands among
 // its siblings, then mint a rank strictly between its new neighbours — one
 // optimistic PATCH, no renumbering, and because the key is shared a drag here
 // moves the card on the board too (and vice-versa), which is the whole point of
-// the issue.
+// the action.
 
 import { arrayMove } from "@dnd-kit/sortable";
 import { rankBetween } from "../shared/rank";

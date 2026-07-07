@@ -13,11 +13,11 @@
 //    active card itself — both handled by the from===to branch (PROG-59).
 
 import { arrayMove } from "@dnd-kit/sortable";
-import { ISSUE_STATUSES, type IssueStatus } from "../shared/constants";
+import { ACTION_STATUSES, type ActionStatus } from "../shared/constants";
 
-export type ColumnMap = Record<IssueStatus, string[]>;
+export type ColumnMap = Record<ActionStatus, string[]>;
 
-export type ReorderResult = { columns: ColumnMap; to: IssueStatus };
+export type ReorderResult = { columns: ColumnMap; to: ActionStatus };
 
 /**
  * New column order after dropping `activeId` over `overId`.
@@ -34,11 +34,11 @@ export function reorder(
   overId: string,
   below: boolean,
 ): ReorderResult | null {
-  const from = ISSUE_STATUSES.find((s) => source[s].includes(activeId));
-  const to: IssueStatus | undefined =
+  const from = ACTION_STATUSES.find((s) => source[s].includes(activeId));
+  const to: ActionStatus | undefined =
     overId in source
-      ? (overId as IssueStatus)
-      : ISSUE_STATUSES.find((s) => source[s].includes(overId));
+      ? (overId as ActionStatus)
+      : ACTION_STATUSES.find((s) => source[s].includes(overId));
   if (!from || !to) return null;
 
   let targetItems: string[];

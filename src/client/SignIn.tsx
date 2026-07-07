@@ -1,6 +1,6 @@
-// Unauthenticated landing page (PROG-34). Shown when the workspace load returns
+// Unauthenticated landing page (PROG-34). Shown when the snapshot load returns
 // 401 (no session cookie / bearer). It is the only screen rendered without a
-// workspace, so it carries no Header and reaches for nothing in the store — just
+// snapshot, so it carries no Header and reaches for nothing in the store — just
 // the brand mark and a single CTA that hands off to the Google OAuth flow.
 //
 // The button is a plain link to `/api/auth/login`: a full-page navigation that

@@ -128,7 +128,7 @@
   /* Keep a native control from overflowing its container on a phone. Some
      controls — notably iOS's `<input type="date">` — have a wide intrinsic
      width; as a flex/grid item that `min-width: auto` lets them push past the
-     viewport (the issue page's field column did exactly this). min-width:0 lets
+     viewport (the action page's field column did exactly this). min-width:0 lets
      them shrink to their box; max-width:100% caps them at the container. */
   input,
   select,
@@ -139,7 +139,7 @@
 }
 
 /* Minimal Markdown typography (Tailwind preflight strips element defaults).
-   Used for issue descriptions and comments; intentionally lighter than the
+   Used for action descriptions and comments; intentionally lighter than the
    official typography plugin — one more dependency we don't need yet. */
 .prose-lite {
   line-height: 1.6;

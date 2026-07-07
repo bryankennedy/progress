@@ -1,4 +1,4 @@
-// Click-to-edit single-line text, used for issue titles, container names,
+// Click-to-edit single-line text, used for action titles, container names,
 // key prefixes, and git URLs. Enter commits, Escape or blur cancels — a blur
 // never saves, so a stray click can't half-commit an edit.
 

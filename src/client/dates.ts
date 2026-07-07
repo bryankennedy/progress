@@ -1,6 +1,6 @@
 // Due dates are wall-calendar days (SPEC v2 §5): an ISO `YYYY-MM-DD` string,
 // the same day everywhere, NOT an instant. All the Agenda's bucketing, sorting
-// and relative phrasing run here, client-side, from the workspace payload
+// and relative phrasing run here, client-side, from the snapshot payload
 // (SPEC v2 §7.1 / §10) — there is no server-side date logic.
 //
 // Buckets are computed against the owner's *local* "today" (a due date is a

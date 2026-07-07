@@ -55,12 +55,12 @@ test("nullable filters offer a 'none' option that drives the URL (PROG-76)", asy
   await page.waitForSelector("select");
 
   // Arc, Repo, and Tag are the nullable board filters; each gains a "none"
-  // option to find issues with no value there. Product (always set) does not.
+  // option to find actions with no value there. Focus (always set) does not.
   const arc = page.locator("select", { hasText: "Arc: all" });
   await expect(arc.locator("option", { hasText: "Arc: none" })).toHaveCount(1);
   await expect(
-    page.locator("select", { hasText: "Product: all" }).locator("option", {
-      hasText: "Product: none",
+    page.locator("select", { hasText: "Focus: all" }).locator("option", {
+      hasText: "Focus: none",
     }),
   ).toHaveCount(0);
 

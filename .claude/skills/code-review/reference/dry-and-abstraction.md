@@ -14,17 +14,17 @@ duplicated.
 **Flag as duplication (same concept):**
 
 ```ts
-// pages/Agenda.tsx and pages/Home.tsx each reimplement "is this issue overdue"
-const overdue = issue.dueDate !== null && issue.dueDate < todayStr();
+// pages/Agenda.tsx and pages/Home.tsx each reimplement "is this action overdue"
+const overdue = action.dueDate !== null && action.dueDate < todayStr();
 ```
 
 → One rule of the domain, two copies that must never diverge. Extract to
-`src/shared/` (e.g. `isOverdue(issue, today)`), next to the other date rules.
+`src/shared/` (e.g. `isOverdue(action, today)`), next to the other date rules.
 
 **Do NOT flag (coincidentally similar):**
 
 ```ts
-// Board groups issues by status; Agenda groups by due-date bucket.
+// Board groups actions by status; Agenda groups by due-date bucket.
 // Both are "group an array into a Map" — but the grouping keys, ordering,
 // and empty-group rules differ and will evolve independently.
 ```
@@ -41,7 +41,7 @@ already clearly domain-level (a status rule, a rank invariant).
 **Before (speculative):**
 
 ```ts
-// Only the issue endpoint uses this — the options exist for callers
+// Only the action endpoint uses this — the options exist for callers
 // that don't exist yet.
 async function fetchEntity(kind: string, id: string, opts?: {
   includeArchived?: boolean;
@@ -53,7 +53,7 @@ async function fetchEntity(kind: string, id: string, opts?: {
 **After:**
 
 ```ts
-async function fetchIssue(id: string) { /* exactly what the one caller needs */ }
+async function fetchAction(id: string) { /* exactly what the one caller needs */ }
 ```
 
 **Parameter sprawl** is the late stage of the same disease — one function bent
@@ -61,12 +61,12 @@ to serve unrelated callers:
 
 ```ts
 // Before: a boolean per caller. Each new view added a flag.
-function issueRows(issues: Issue[], forBoard: boolean, forAgenda: boolean,
+function actionRows(actions: Action[], forBoard: boolean, forAgenda: boolean,
                    hideDone: boolean, groupByArc: boolean) { /* ... */ }
 ```
 
 → When flags select disjoint behavior, the callers aren't sharing a concept.
-Split into `boardRows(issues)` / `agendaRows(issues)`, sharing only the genuine
+Split into `boardRows(actions)` / `agendaRows(actions)`, sharing only the genuine
 common core (if any).
 
 ## Wrong-shaped abstractions
@@ -77,9 +77,9 @@ removed.
 
 ```ts
 // Before: "reusable" hook that hard-codes two views' concerns together.
-function useIssueList(view: "board" | "agenda") {
-  const issues = useStore((s) => s.issues);
-  return view === "board" ? orderForBoard(issues) : bucketByDue(issues);
+function useActionList(view: "board" | "agenda") {
+  const actions = useStore((s) => s.actions);
+  return view === "board" ? orderForBoard(actions) : bucketByDue(actions);
 }
 ```
 

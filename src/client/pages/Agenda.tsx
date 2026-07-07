@@ -1,25 +1,25 @@
-// The Agenda view (SPEC v2 §6): the time-driven cut of the workspace. Every
-// issue that has a due date and is still pending, sorted by due date ascending,
+// The Agenda view (SPEC v2 §6): the time-driven cut of the snapshot. Every
+// action that has a due date and is still pending, sorted by due date ascending,
 // grouped Overdue · Today · This week · Later (buckets from the owner's *local*
-// today, since due dates are calendar days). Undated issues live on the board;
-// done/canceled issues are never pending, so neither appears here.
+// today, since due dates are calendar days). Undated actions live on the board;
+// done/canceled actions are never pending, so neither appears here.
 //
-// Filterable by product · arc · tag via URL params — the v1 board pattern — so
+// Filterable by focus · arc · tag via URL params — the v1 board pattern — so
 // "household tasks due this week" is one bookmark. Everything renders from the
 // client store (SPEC v2 §7.1); inline mark-done / bump-due use the optimistic
 // mutation template (no spinner).
 
 import { useMemo, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
-import type { WireIssue, WireTag, WorkspacePayload } from "../../shared/types";
-import { inheritArcId, loadQuickAddProduct, quickAddDueDate, saveQuickAddProduct } from "../agendaQuickAdd";
+import type { WireAction, WireTag, SnapshotPayload } from "../../shared/types";
+import { inheritArcId, loadQuickAddFocus, quickAddDueDate, saveQuickAddFocus } from "../agendaQuickAdd";
 import { sortByName } from "../boardFilters";
 import { type AgendaBucket, bucketOf, formatDueDate, relativeDue, todayISO } from "../dates";
 import { STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
-import { createIssue, issueKeyOf, setIssueStatus, updateIssue } from "../store";
+import { createAction, actionKeyOf, setActionStatus, updateAction } from "../store";
 
-const FILTER_KEYS = ["product", "arc", "tag"] as const;
+const FILTER_KEYS = ["focus", "arc", "tag"] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
 type Filters = Partial<Record<FilterKey, string>>;
 
@@ -41,7 +41,7 @@ const BUCKETS: { key: AgendaBucket; label: string; accent: string }[] = [
   { key: "later", label: "Later", accent: "text-ink-soft" },
 ];
 
-export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
+export default function Agenda({ snapshot }: { snapshot: SnapshotPayload }) {
   const search = useSearch();
   const [, navigate] = useLocation();
   const filters = useMemo(() => parseFilters(search), [search]);
@@ -55,37 +55,37 @@ export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
     navigate(qs ? `/agenda?${qs}` : "/agenda", { replace: true });
   };
 
-  const tagsByIssue = useMemo(() => {
-    const tagById = new Map(workspace.tags.map((t) => [t.id, t]));
+  const tagsByAction = useMemo(() => {
+    const tagById = new Map(snapshot.tags.map((t) => [t.id, t]));
     const map = new Map<string, WireTag[]>();
-    for (const link of workspace.issueTags) {
+    for (const link of snapshot.actionTags) {
       const tag = tagById.get(link.tagId);
       if (!tag) continue;
-      const list = map.get(link.issueId) ?? [];
+      const list = map.get(link.actionId) ?? [];
       list.push(tag);
-      map.set(link.issueId, list);
+      map.set(link.actionId, list);
     }
     return map;
-  }, [workspace.tags, workspace.issueTags]);
+  }, [snapshot.tags, snapshot.actionTags]);
 
-  // Dated, still-pending issues matching the active filters, ascending by due
+  // Dated, still-pending actions matching the active filters, ascending by due
   // date (string compare is correct for YYYY-MM-DD), tiebroken by key.
   const dated = useMemo(() => {
-    const productById = new Map(workspace.products.map((p) => [p.id, p]));
-    const keyOf = (i: WireIssue) =>
-      `${productById.get(i.productId)?.keyPrefix ?? ""}-${String(i.number).padStart(8, "0")}`;
-    return workspace.issues
+    const focusById = new Map(snapshot.focuses.map((p) => [p.id, p]));
+    const keyOf = (i: WireAction) =>
+      `${focusById.get(i.focusId)?.keyPrefix ?? ""}-${String(i.number).padStart(8, "0")}`;
+    return snapshot.actions
       .filter((i) => i.dueDate)
       .filter((i) => i.status !== "done" && i.status !== "canceled")
-      .filter((i) => !filters.product || i.productId === filters.product)
+      .filter((i) => !filters.focus || i.focusId === filters.focus)
       .filter((i) => !filters.arc || i.arcId === filters.arc)
-      .filter((i) => !filters.tag || (tagsByIssue.get(i.id) ?? []).some((t) => t.id === filters.tag))
+      .filter((i) => !filters.tag || (tagsByAction.get(i.id) ?? []).some((t) => t.id === filters.tag))
       .sort((a, b) => a.dueDate!.localeCompare(b.dueDate!) || keyOf(a).localeCompare(keyOf(b)));
-  }, [workspace.issues, workspace.products, filters, tagsByIssue]);
+  }, [snapshot.actions, snapshot.focuses, filters, tagsByAction]);
 
   const grouped = useMemo(() => {
-    const groups = new Map<AgendaBucket, WireIssue[]>(BUCKETS.map((b) => [b.key, []]));
-    for (const issue of dated) groups.get(bucketOf(issue.dueDate!, today))!.push(issue);
+    const groups = new Map<AgendaBucket, WireAction[]>(BUCKETS.map((b) => [b.key, []]));
+    for (const action of dated) groups.get(bucketOf(action.dueDate!, today))!.push(action);
     return groups;
   }, [dated, today]);
 
@@ -96,34 +96,34 @@ export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
       <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Agenda</h1>
         <p className="text-xs text-ink-faint">
-          {dated.length} dated {dated.length === 1 ? "issue" : "issues"} · sorted by due date
+          {dated.length} dated {dated.length === 1 ? "action" : "actions"} · sorted by due date
         </p>
       </header>
 
       <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
         <FilterSelect
-          label="Product"
-          value={filters.product}
-          options={sortByName(workspace.products.filter((p) => !p.archivedAt)).map((p) => [
+          label="Focus"
+          value={filters.focus}
+          options={sortByName(snapshot.focuses.filter((p) => !p.archivedAt)).map((p) => [
             p.id,
             p.name,
           ])}
-          onChange={(v) => setParam("product", v)}
+          onChange={(v) => setParam("focus", v)}
         />
         <FilterSelect
           label="Arc"
           value={filters.arc}
           options={sortByName(
-            workspace.arcs
+            snapshot.arcs
               .filter((a) => !a.archivedAt)
-              .filter((a) => !filters.product || a.productId === filters.product),
+              .filter((a) => !filters.focus || a.focusId === filters.focus),
           ).map((a) => [a.id, a.name])}
           onChange={(v) => setParam("arc", v)}
         />
         <FilterSelect
           label="Tag"
           value={filters.tag}
-          options={sortByName(workspace.tags).map((t) => [t.id, t.name])}
+          options={sortByName(snapshot.tags).map((t) => [t.id, t.name])}
           onChange={(v) => setParam("tag", v)}
         />
         {filtersActive && (
@@ -138,36 +138,36 @@ export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
 
       <div className="mt-6 space-y-8">
         {BUCKETS.map((bucket) => {
-          const issues = grouped.get(bucket.key)!;
-          if (issues.length === 0) return null;
+          const actions = grouped.get(bucket.key)!;
+          if (actions.length === 0) return null;
           return (
             <section key={bucket.key}>
               <h2 className={`text-sm font-medium uppercase tracking-wide font-mono ${bucket.accent}`}>
-                {bucket.label} · {issues.length}
+                {bucket.label} · {actions.length}
               </h2>
               <ul className="mt-3 divide-y divide-line rounded-lg border border-line bg-card">
-                {issues.map((issue) => (
+                {actions.map((action) => (
                   <AgendaRow
-                    key={issue.id}
-                    issue={issue}
-                    workspace={workspace}
-                    tags={tagsByIssue.get(issue.id) ?? []}
+                    key={action.id}
+                    action={action}
+                    snapshot={snapshot}
+                    tags={tagsByAction.get(action.id) ?? []}
                     overdue={bucket.key === "overdue"}
                     today={today}
                   />
                 ))}
               </ul>
               {/* Quick-add (PROG-89): capture straight into this date bucket.
-                  Not on Overdue — an issue can't be born already late. */}
+                  Not on Overdue — an action can't be born already late. */}
               {bucket.key !== "overdue" && (
-                <QuickAddRow bucket={bucket.key} workspace={workspace} filters={filters} today={today} />
+                <QuickAddRow bucket={bucket.key} snapshot={snapshot} filters={filters} today={today} />
               )}
             </section>
           );
         })}
         {dated.length === 0 && (
           <p className="text-sm text-ink-faint">
-            Nothing due{filtersActive ? " for this filter" : ""}. Add a due date to an issue and it
+            Nothing due{filtersActive ? " for this filter" : ""}. Add a due date to an action and it
             shows up here.
           </p>
         )}
@@ -177,58 +177,58 @@ export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
 }
 
 // Quick-add input under a date grouping (PROG-89): type a title, Enter, and
-// the issue is created pre-dated for the bucket it was typed under — Today →
+// the action is created pre-dated for the bucket it was typed under — Today →
 // today, This week → the window's last day (today+6), Later → just beyond it
 // (today+7). Created as `todo` (a dated capture is committed work, not
-// backlog) with the optimistic createIssue, so the new row appears in the
-// group instantly. The product comes from the inline picker: it follows the
-// active Product filter when one is set, otherwise it remembers the last
-// product quick-added into (localStorage, fail-soft). Active Arc (when it
-// belongs to the chosen product) and Tag filters are inherited (PROG-89b), so
+// backlog) with the optimistic createAction, so the new row appears in the
+// group instantly. The focus comes from the inline picker: it follows the
+// active Focus filter when one is set, otherwise it remembers the last
+// focus quick-added into (localStorage, fail-soft). Active Arc (when it
+// belongs to the chosen focus) and Tag filters are inherited (PROG-89b), so
 // a filtered agenda captures into what you're looking at — and the capture
 // stays visible under the filter instead of silently vanishing.
 function QuickAddRow({
   bucket,
-  workspace,
+  snapshot,
   filters,
   today,
 }: {
   bucket: AgendaBucket;
-  workspace: WorkspacePayload;
+  snapshot: SnapshotPayload;
   filters: Filters;
   today: string;
 }) {
   const [title, setTitle] = useState("");
-  const products = useMemo(
-    () => sortByName(workspace.products.filter((p) => !p.archivedAt)),
-    [workspace.products],
+  const focuses = useMemo(
+    () => sortByName(snapshot.focuses.filter((p) => !p.archivedAt)),
+    [snapshot.focuses],
   );
-  const [productId, setProductId] = useState<string>(() => {
-    const saved = loadQuickAddProduct();
-    if (filters.product) return filters.product;
-    if (saved && products.some((p) => p.id === saved)) return saved;
-    return products[0]?.id ?? "";
+  const [focusId, setFocusId] = useState<string>(() => {
+    const saved = loadQuickAddFocus();
+    if (filters.focus) return filters.focus;
+    if (saved && focuses.some((p) => p.id === saved)) return saved;
+    return focuses[0]?.id ?? "";
   });
-  // The picker tracks the Product filter while one is active. Synced during
+  // The picker tracks the Focus filter while one is active. Synced during
   // render (prev-value pattern, like the search page's pagination reset) so
   // there's no post-render setState frame.
-  const [prevFilterProduct, setPrevFilterProduct] = useState(filters.product);
-  if (filters.product !== prevFilterProduct) {
-    setPrevFilterProduct(filters.product);
-    if (filters.product) setProductId(filters.product);
+  const [prevFilterFocus, setPrevFilterFocus] = useState(filters.focus);
+  if (filters.focus !== prevFilterFocus) {
+    setPrevFilterFocus(filters.focus);
+    if (filters.focus) setFocusId(filters.focus);
   }
 
   const due = quickAddDueDate(bucket, today);
 
   const submit = () => {
     const t = title.trim();
-    if (!t || !productId || !due) return;
-    createIssue({
+    if (!t || !focusId || !due) return;
+    createAction({
       title: t,
-      productId,
+      focusId,
       repoId: null,
-      arcId: inheritArcId(filters.arc, productId, workspace.arcs),
-      parentIssueId: null,
+      arcId: inheritArcId(filters.arc, focusId, snapshot.arcs),
+      parentActionId: null,
       status: "todo",
       priority: "none",
       estimate: null,
@@ -237,7 +237,7 @@ function QuickAddRow({
       // capture is filtered out the instant it's created and silently vanishes.
       tagIds: filters.tag ? [filters.tag] : undefined,
     });
-    saveQuickAddProduct(productId);
+    saveQuickAddFocus(focusId);
     setTitle(""); // input keeps focus — capture the next one immediately
   };
 
@@ -255,18 +255,18 @@ function QuickAddRow({
             submit();
           }
         }}
-        placeholder={due ? `New issue — due ${bucket === "today" ? "today" : formatDueDate(due)}, Enter to add` : ""}
-        aria-label={`New issue due ${due ?? ""}`}
+        placeholder={due ? `New action — due ${bucket === "today" ? "today" : formatDueDate(due)}, Enter to add` : ""}
+        aria-label={`New action due ${due ?? ""}`}
         className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1.5 py-1 text-sm text-ink placeholder:text-ink-faint focus:border-line focus:bg-card focus:outline-none"
       />
       <select
-        value={productId}
-        onChange={(e) => setProductId(e.target.value)}
-        title="Product for the new issue"
-        aria-label="Product for the new issue"
+        value={focusId}
+        onChange={(e) => setFocusId(e.target.value)}
+        title="Focus for the new action"
+        aria-label="Focus for the new action"
         className="max-w-36 shrink-0 truncate rounded border border-line bg-card px-1.5 py-1 text-xs text-ink-faint hover:text-ink-soft focus:outline-none"
       >
-        {products.map((p) => (
+        {focuses.map((p) => (
           <option key={p.id} value={p.id}>
             {p.name}
           </option>
@@ -306,51 +306,51 @@ function FilterSelect({
 }
 
 function AgendaRow({
-  issue,
-  workspace,
+  action,
+  snapshot,
   tags,
   overdue,
   today,
 }: {
-  issue: WireIssue;
-  workspace: WorkspacePayload;
+  action: WireAction;
+  snapshot: SnapshotPayload;
   tags: WireTag[];
   overdue: boolean;
   today: string;
 }) {
-  const key = issueKeyOf(workspace, issue);
-  const product = workspace.products.find((p) => p.id === issue.productId);
-  const arc = issue.arcId ? workspace.arcs.find((a) => a.id === issue.arcId) : null;
-  const due = issue.dueDate!;
+  const key = actionKeyOf(snapshot, action);
+  const focus = snapshot.focuses.find((p) => p.id === action.focusId);
+  const arc = action.arcId ? snapshot.arcs.find((a) => a.id === action.arcId) : null;
+  const due = action.dueDate!;
 
   return (
     // Two lines so the title always gets the full row width (the metadata and
     // inline actions used to crowd it down to an ellipsis): line 1 is the
-    // title; line 2 is product/arc · status · due, plus the bump/done actions.
-    <li data-issue-id={issue.id} className={`px-3 py-2.5 text-sm ${overdue ? "bg-danger-bg/50" : ""}`}>
+    // title; line 2 is focus/arc · status · due, plus the bump/done actions.
+    <li data-action-id={action.id} className={`px-3 py-2.5 text-sm ${overdue ? "bg-danger-bg/50" : ""}`}>
       <div className="flex items-center gap-2.5">
-        <PriorityIndicator priority={issue.priority} />
+        <PriorityIndicator priority={action.priority} />
         <Link
-          href={`/issue/${key}`}
+          href={`/action/${key}`}
           className="shrink-0 font-mono text-xs text-ink-faint hover:text-ink-soft"
         >
           {key}
         </Link>
         <Link
-          href={`/issue/${key}`}
+          href={`/action/${key}`}
           className="min-w-0 flex-1 truncate font-medium hover:text-adobe-deep"
         >
-          {issue.title}
+          {action.title}
         </Link>
       </div>
 
       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 pl-[22px] text-xs text-ink-faint">
         <span className="truncate">
-          {product?.name}
+          {focus?.name}
           {arc && <span className="text-ink-faint"> · {arc.name}</span>}
         </span>
         <span className="text-ink-faint">·</span>
-        <span>{STATUS_LABELS[issue.status]}</span>
+        <span>{STATUS_LABELS[action.status]}</span>
         <span className="text-ink-faint">·</span>
         <span className={`font-medium ${overdue ? "text-danger" : "text-ink-soft"}`} title={due}>
           {relativeDue(due, today)} · {formatDueDate(due)}
@@ -360,12 +360,12 @@ function AgendaRow({
           <input
             type="date"
             value={due}
-            onChange={(e) => updateIssue(issue.id, { dueDate: e.target.value || null })}
+            onChange={(e) => updateAction(action.id, { dueDate: e.target.value || null })}
             title="Bump the due date"
             className="rounded border border-line bg-card px-1.5 py-0.5 text-ink-soft hover:border-ink-faint"
           />
           <button
-            onClick={() => setIssueStatus(issue.id, "done")}
+            onClick={() => setActionStatus(action.id, "done")}
             title="Mark done"
             className="rounded border border-line bg-card px-2 py-0.5 text-ink-soft hover:border-moss hover:text-moss-deep"
           >

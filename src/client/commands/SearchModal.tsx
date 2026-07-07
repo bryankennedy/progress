@@ -8,32 +8,32 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import type { WorkspacePayload } from "../../shared/types";
+import type { SnapshotPayload } from "../../shared/types";
 import {
   containerLabel,
   highlight,
   queryTerms,
   searchContainers,
-  searchIssues,
+  searchActions,
   type Segment,
 } from "../search";
 import { STATUS_LABELS } from "../labels";
-import { issueKeyOf, useCommentSearch } from "../store";
+import { actionKeyOf, useCommentSearch } from "../store";
 import { onOpenSearch } from "./controller";
 
 // One flat, navigable result row. `href` is where Enter/click goes.
 type Entry =
-  | { kind: "issue"; id: string; href: string; key: string; title: string; hint: string }
+  | { kind: "action"; id: string; href: string; key: string; title: string; hint: string }
   | { kind: "container"; id: string; href: string; label: string; hint: string }
-  | { kind: "comment"; id: string; href: string; issueKey: string; snippet: string };
+  | { kind: "comment"; id: string; href: string; actionKey: string; snippet: string };
 
 const SECTION_TITLES: Record<Entry["kind"], string> = {
-  issue: "Issues",
+  action: "Actions",
   container: "Containers",
   comment: "Comments",
 };
 
-export default function SearchModal({ workspace }: { workspace: WorkspacePayload }) {
+export default function SearchModal({ snapshot }: { snapshot: SnapshotPayload }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
@@ -56,39 +56,39 @@ export default function SearchModal({ workspace }: { workspace: WorkspacePayload
 
   const entries = useMemo<Entry[]>(() => {
     if (terms.length === 0) return [];
-    const issueEntries: Entry[] = searchIssues(workspace, query).map((hit) => ({
-      kind: "issue",
-      id: hit.issue.id,
-      href: `/issue/${issueKeyOf(workspace, hit.issue)}`,
-      key: issueKeyOf(workspace, hit.issue),
-      title: hit.issue.title,
-      hint: hit.inTitle ? STATUS_LABELS[hit.issue.status] : `${STATUS_LABELS[hit.issue.status]} · in description`,
+    const actionEntries: Entry[] = searchActions(snapshot, query).map((hit) => ({
+      kind: "action",
+      id: hit.action.id,
+      href: `/action/${actionKeyOf(snapshot, hit.action)}`,
+      key: actionKeyOf(snapshot, hit.action),
+      title: hit.action.title,
+      hint: hit.inTitle ? STATUS_LABELS[hit.action.status] : `${STATUS_LABELS[hit.action.status]} · in description`,
     }));
-    const containerEntries: Entry[] = searchContainers(workspace, query).map((hit) => ({
+    const containerEntries: Entry[] = searchContainers(snapshot, query).map((hit) => ({
       kind: "container",
       id: hit.id,
       href: hit.href,
       label: hit.name,
       hint: containerLabel(hit.kind),
     }));
-    // Resolve each comment hit's issue from the store (it's already loaded) to
-    // build the key for navigation; drop any whose issue is somehow missing.
+    // Resolve each comment hit's action from the store (it's already loaded) to
+    // build the key for navigation; drop any whose action is somehow missing.
     const commentEntries: Entry[] = (comments?.hits ?? [])
       .map((hit): Entry | null => {
-        const issue = workspace.issues.find((i) => i.id === hit.issueId);
-        if (!issue) return null;
-        const key = issueKeyOf(workspace, issue);
+        const action = snapshot.actions.find((i) => i.id === hit.actionId);
+        if (!action) return null;
+        const key = actionKeyOf(snapshot, action);
         return {
           kind: "comment",
           id: hit.commentId,
-          href: `/issue/${key}`,
-          issueKey: key,
+          href: `/action/${key}`,
+          actionKey: key,
           snippet: hit.snippet,
         };
       })
       .filter((e): e is Entry => e !== null);
-    return [...issueEntries, ...containerEntries, ...commentEntries];
-  }, [workspace, query, terms, comments]);
+    return [...actionEntries, ...containerEntries, ...commentEntries];
+  }, [snapshot, query, terms, comments]);
 
   const sel = Math.min(selected, Math.max(entries.length - 1, 0));
 
@@ -135,7 +135,7 @@ export default function SearchModal({ workspace }: { workspace: WorkspacePayload
             setQuery(e.target.value);
             setSelected(0);
           }}
-          placeholder="Search issues, descriptions, comments…"
+          placeholder="Search actions, descriptions, comments…"
           className="w-full border-b border-line px-4 py-3 text-sm focus:outline-none"
         />
         <ul ref={listRef} className="max-h-96 overflow-y-auto p-1">
@@ -201,14 +201,14 @@ function ResultLabel({ entry, terms }: { entry: Entry; terms: string[] }) {
   if (entry.kind === "comment") {
     return (
       <span className="min-w-0 flex-1">
-        <span className="font-mono text-xs text-ink-faint">{entry.issueKey}</span>{" "}
+        <span className="font-mono text-xs text-ink-faint">{entry.actionKey}</span>{" "}
         <span className="text-ink-soft">
           <Highlighted segments={highlight(entry.snippet, terms)} />
         </span>
       </span>
     );
   }
-  const text = entry.kind === "issue" ? `${entry.key} — ${entry.title}` : entry.label;
+  const text = entry.kind === "action" ? `${entry.key} — ${entry.title}` : entry.label;
   return (
     <>
       <span className="min-w-0 flex-1 truncate">

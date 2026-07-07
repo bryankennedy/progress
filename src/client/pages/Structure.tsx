@@ -1,11 +1,11 @@
 // Structure overview (SPEC v2 §4, DECISIONS D40): a dedicated destination for
-// curating the Initiative → Product → (Repo · Arc) tree, with an inline
+// curating the Workspace → Focus → (Repo · Arc) tree, with an inline
 // "+ add" on each node. A first-class home for structure work that keeps the
 // board uncluttered. Reuses the existing optimistic container create flow
 // (openCreateContainer → CreateContainerDialog); no new write paths.
 
 import { Link } from "wouter";
-import type { WorkspacePayload } from "../../shared/types";
+import type { SnapshotPayload } from "../../shared/types";
 import { openCreateContainer } from "../commands/controller";
 import { byRankThenName } from "../containerReorder";
 import { DEFAULT_RANK } from "../../shared/rank";
@@ -46,9 +46,9 @@ function NodeLink({
   );
 }
 
-// A labeled list of like-kind nodes (all Repos, or all Arcs) under a Product —
+// A labeled list of like-kind nodes (all Repos, or all Arcs) under a Focus —
 // the type word appears once as a section heading instead of being repeated on
-// every row, mirroring the Initiative/Product tree above. `muted` dims the
+// every row, mirroring the Workspace/Focus tree above. `muted` dims the
 // whole group (used for repos, which sit below the more important arcs). When
 // `collapseArchived` is set, archived nodes beyond the inline limit are hidden
 // behind a "more" link to /archive (PROG-45 — arcs only; repos don't accumulate
@@ -109,7 +109,7 @@ function NodeGroup({
   );
 }
 
-export default function Structure({ workspace }: { workspace: WorkspacePayload }) {
+export default function Structure({ snapshot }: { snapshot: SnapshotPayload }) {
   // Active first, archived last (dimmed), so curating stays focused on live
   // structure while archived nodes remain reachable to unarchive. Within each
   // half, the global manual order (PROG-87): rank set by dragging on the
@@ -125,7 +125,7 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
         ),
     );
 
-  const initiatives = byActive(workspace.initiatives);
+  const workspaces = byActive(snapshot.workspaces);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -133,60 +133,60 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Structure</h1>
           <p className="mt-1 text-xs text-ink-faint">
-            The Initiative → Product → Arc tree. Add anywhere; click a node to open it.
+            The Workspace → Focus → Arc tree. Add anywhere; click a node to open it.
           </p>
         </div>
-        <AddButton label="New initiative" onClick={() => openCreateContainer({ kind: "initiative" })} />
+        <AddButton label="New workspace" onClick={() => openCreateContainer({ kind: "workspace" })} />
       </div>
 
       <div className="mt-6 space-y-6">
-        {initiatives.map((initiative) => {
-          const products = byActive(
-            workspace.products.filter((p) => p.initiativeId === initiative.id),
+        {workspaces.map((workspace) => {
+          const focuses = byActive(
+            snapshot.focuses.filter((p) => p.workspaceId === workspace.id),
           );
           return (
-            <section key={initiative.id} className="rounded-lg border border-line bg-card p-4">
+            <section key={workspace.id} className="rounded-lg border border-line bg-card p-4">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] uppercase tracking-wide font-mono text-ink-faint">Initiative</span>
+                <span className="text-[10px] uppercase tracking-wide font-mono text-ink-faint">Workspace</span>
                 <NodeLink
-                  href={`/initiative/${initiative.id}`}
-                  name={initiative.name}
-                  archived={!!initiative.archivedAt}
+                  href={`/workspace/${workspace.id}`}
+                  name={workspace.name}
+                  archived={!!workspace.archivedAt}
                 />
                 <AddButton
-                  label="Product"
-                  onClick={() => openCreateContainer({ kind: "product", initiativeId: initiative.id })}
+                  label="Focus"
+                  onClick={() => openCreateContainer({ kind: "focus", workspaceId: workspace.id })}
                 />
               </div>
 
               <div className="mt-3 space-y-3 border-l border-line pl-4">
-                {products.length === 0 && (
-                  <p className="text-xs text-ink-faint">No products yet.</p>
+                {focuses.length === 0 && (
+                  <p className="text-xs text-ink-faint">No focuses yet.</p>
                 )}
-                {products.map((product) => {
-                  const repos = byActive(workspace.repos.filter((r) => r.productId === product.id));
-                  const arcs = byActive(workspace.arcs.filter((a) => a.productId === product.id));
+                {focuses.map((focus) => {
+                  const repos = byActive(snapshot.repos.filter((r) => r.focusId === focus.id));
+                  const arcs = byActive(snapshot.arcs.filter((a) => a.focusId === focus.id));
                   return (
-                    <div key={product.id}>
+                    <div key={focus.id}>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-[10px] uppercase tracking-wide font-mono text-ink-faint">
-                          Product
+                          Focus
                         </span>
                         <NodeLink
-                          href={`/product/${product.id}`}
-                          name={product.name}
-                          archived={!!product.archivedAt}
+                          href={`/focus/${focus.id}`}
+                          name={focus.name}
+                          archived={!!focus.archivedAt}
                         />
                         <span className="font-mono text-[11px] text-ink-faint">
-                          {product.keyPrefix}
+                          {focus.keyPrefix}
                         </span>
                         <AddButton
                           label="Arc"
-                          onClick={() => openCreateContainer({ kind: "arc", productId: product.id })}
+                          onClick={() => openCreateContainer({ kind: "arc", focusId: focus.id })}
                         />
                         <AddButton
                           label="Repo"
-                          onClick={() => openCreateContainer({ kind: "repo", productId: product.id })}
+                          onClick={() => openCreateContainer({ kind: "repo", focusId: focus.id })}
                         />
                       </div>
                       {(repos.length > 0 || arcs.length > 0) && (
@@ -212,9 +212,9 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
             </section>
           );
         })}
-        {initiatives.length === 0 && (
+        {workspaces.length === 0 && (
           <p className="text-sm text-ink-faint">
-            No initiatives yet. Create one to start building structure.
+            No workspaces yet. Create one to start building structure.
           </p>
         )}
       </div>

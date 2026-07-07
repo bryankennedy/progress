@@ -24,8 +24,8 @@ const LITERALS = [
   // Hint glyphs that sit *inside* those now-Adobe buttons.
   ['New <span className="text-stone-400">▾</span>', 'New <span className="text-white/70">▾</span>'],
   [
-    'New issue <span className="text-stone-400">(C)</span>',
-    'New issue <span className="text-white/70">(C)</span>',
+    'New action <span className="text-stone-400">(C)</span>',
+    'New action <span className="text-white/70">(C)</span>',
   ],
 
   // ── Overlays / scrims ──

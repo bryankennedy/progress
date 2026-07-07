@@ -1,12 +1,12 @@
-// The client store (D21): the whole workspace lives in one TanStack Query
+// The client store (D21): the whole snapshot lives in one TanStack Query
 // cache entry, loaded once and rendered from memory (SPEC §8.2). Components
-// subscribe to slices via `useWorkspaceSlice`; structural sharing keeps
-// unchanged slices reference-stable so re-renders stay scoped. Per-issue
+// subscribe to slices via `useSnapshotSlice`; structural sharing keeps
+// unchanged slices reference-stable so re-renders stay scoped. Per-action
 // timelines (comments + activity) are separate queries (D20).
 
 import { keepPreviousData, QueryClient, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { tagColor, type IssuePriority, type IssueStatus } from "../shared/constants";
+import { tagColor, type ActionPriority, type ActionStatus } from "../shared/constants";
 import { DEFAULT_RANK, rankAfter } from "../shared/rank";
 import type {
   CommentSearchResponse,
@@ -15,13 +15,13 @@ import type {
   WireArc,
   WireComment,
   WireCommitLink,
-  WireInitiative,
-  WireIssue,
+  WireWorkspace,
+  WireAction,
   WirePrLink,
-  WireProduct,
+  WireFocus,
   WireRepo,
   WireTag,
-  WorkspacePayload,
+  SnapshotPayload,
 } from "../shared/types";
 import { toast } from "./toast";
 import { prefetchBundle } from "./workOn";
@@ -69,13 +69,13 @@ export const queryClient = new QueryClient({
   },
 });
 
-const WS_KEY = ["workspace"] as const;
-const timelineKey = (issueId: string) => ["issue", issueId, "timeline"] as const;
+const WS_KEY = ["snapshot"] as const;
+const timelineKey = (actionId: string) => ["action", actionId, "timeline"] as const;
 
 // Initial app load is the one permitted loading state; surface its cost.
 export const loadStats = { fetchMs: 0 };
 
-// Thrown when the workspace load returns 401 (PROG-34): no session cookie /
+// Thrown when the snapshot load returns 401 (PROG-34): no session cookie /
 // bearer. App.tsx renders the SignIn landing page on this rather than the error
 // banner; the retry guard below stops React Query from re-fetching it.
 export class UnauthenticatedError extends Error {
@@ -85,107 +85,107 @@ export class UnauthenticatedError extends Error {
   }
 }
 
-async function fetchWorkspace(): Promise<WorkspacePayload> {
+async function fetchSnapshot(): Promise<SnapshotPayload> {
   const t0 = performance.now();
-  const res = await fetch("/api/workspace");
+  const res = await fetch("/api/snapshot");
   // Not signed in: surface as a distinct error so App can show the landing page
   // with a "Sign in with Google" CTA instead of silently redirecting.
   if (res.status === 401) throw new UnauthenticatedError();
-  if (!res.ok) throw new Error(`workspace load failed: HTTP ${res.status}`);
-  const ws = (await res.json()) as WorkspacePayload;
+  if (!res.ok) throw new Error(`snapshot load failed: HTTP ${res.status}`);
+  const ws = (await res.json()) as SnapshotPayload;
   loadStats.fetchMs = performance.now() - t0;
   return ws;
 }
 
-const workspaceQuery = {
+const snapshotQuery = {
   queryKey: WS_KEY,
-  queryFn: fetchWorkspace,
+  queryFn: fetchSnapshot,
   // No point retrying an unauthenticated load — the answer won't change until
   // the user signs in. Other failures keep the default retry behavior.
   retry: (failureCount: number, error: Error) =>
     !(error instanceof UnauthenticatedError) && failureCount < 3,
 } as const;
 
-export function useWorkspace() {
-  return useQuery(workspaceQuery);
+export function useSnapshot() {
+  return useQuery(snapshotQuery);
 }
 
-export function useWorkspaceSlice<T>(select: (ws: WorkspacePayload) => T): T | undefined {
-  return useQuery({ ...workspaceQuery, select }).data;
+export function useSnapshotSlice<T>(select: (ws: SnapshotPayload) => T): T | undefined {
+  return useQuery({ ...snapshotQuery, select }).data;
 }
 
-// ---------- issue keys ----------
+// ---------- action keys ----------
 
-export function issueKeyOf(ws: WorkspacePayload, issue: WireIssue): string {
-  const prefix = ws.products.find((p) => p.id === issue.productId)?.keyPrefix ?? "?";
-  return `${prefix}-${issue.number}`;
+export function actionKeyOf(ws: SnapshotPayload, action: WireAction): string {
+  const prefix = ws.focuses.find((p) => p.id === action.focusId)?.keyPrefix ?? "?";
+  return `${prefix}-${action.number}`;
 }
 
-// Resolves "PROG-123" to an issue: current keys first, then the permanent
-// aliases left behind by cross-product moves (SPEC §3). Returns the issue and
+// Resolves "PROG-123" to an action: current keys first, then the permanent
+// aliases left behind by cross-focus moves (SPEC §3). Returns the action and
 // whether it was reached via an alias (callers redirect to the canonical key).
-export function findIssueByKey(
-  ws: WorkspacePayload,
+export function findActionByKey(
+  ws: SnapshotPayload,
   key: string,
-): { issue: WireIssue; viaAlias: boolean } | undefined {
+): { action: WireAction; viaAlias: boolean } | undefined {
   const match = /^([A-Za-z]+)-(\d+)$/.exec(key.trim());
   if (match) {
     const prefix = match[1]!.toUpperCase();
     const number = Number(match[2]!);
-    const product = ws.products.find((p) => p.keyPrefix.toUpperCase() === prefix);
-    const issue =
-      product && ws.issues.find((i) => i.productId === product.id && i.number === number);
-    if (issue) return { issue, viaAlias: false };
+    const focus = ws.focuses.find((p) => p.keyPrefix.toUpperCase() === prefix);
+    const action =
+      focus && ws.actions.find((i) => i.focusId === focus.id && i.number === number);
+    if (action) return { action, viaAlias: false };
   }
-  const alias = ws.issueKeyAliases.find((a) => a.key.toUpperCase() === key.trim().toUpperCase());
-  const aliased = alias && ws.issues.find((i) => i.id === alias.issueId);
-  return aliased ? { issue: aliased, viaAlias: true } : undefined;
+  const alias = ws.actionKeyAliases.find((a) => a.key.toUpperCase() === key.trim().toUpperCase());
+  const aliased = alias && ws.actions.find((i) => i.id === alias.actionId);
+  return aliased ? { action: aliased, viaAlias: true } : undefined;
 }
 
-// ---------- issue mutations ----------
+// ---------- action mutations ----------
 
-function getIssue(id: string): WireIssue | undefined {
-  return queryClient.getQueryData<WorkspacePayload>(WS_KEY)?.issues.find((i) => i.id === id);
+function getAction(id: string): WireAction | undefined {
+  return queryClient.getQueryData<SnapshotPayload>(WS_KEY)?.actions.find((i) => i.id === id);
 }
 
-function writeIssue(id: string, write: (issue: WireIssue) => WireIssue) {
-  queryClient.setQueryData<WorkspacePayload>(WS_KEY, (ws) =>
-    ws ? { ...ws, issues: ws.issues.map((i) => (i.id === id ? write(i) : i)) } : ws,
+function writeAction(id: string, write: (action: WireAction) => WireAction) {
+  queryClient.setQueryData<SnapshotPayload>(WS_KEY, (ws) =>
+    ws ? { ...ws, actions: ws.actions.map((i) => (i.id === id ? write(i) : i)) } : ws,
   );
 }
 
 // Re-warm the cached "Work on this" bundle after a server-confirmed change, so
 // a later copy reflects the edit/comment/tag/move instead of a stale snapshot
-// from page load. Keyed by the issue's current canonical key (a cross-product
-// move re-keys, and the issue is already updated in the store by then).
+// from page load. Keyed by the action's current canonical key (a cross-focus
+// move re-keys, and the action is already updated in the store by then).
 function refreshBundle(id: string) {
-  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
-  const issue = ws?.issues.find((i) => i.id === id);
-  if (ws && issue) prefetchBundle(issueKeyOf(ws, issue));
+  const ws = queryClient.getQueryData<SnapshotPayload>(WS_KEY);
+  const action = ws?.actions.find((i) => i.id === id);
+  if (ws && action) prefetchBundle(actionKeyOf(ws, action));
 }
 
 // The optimistic-mutation template (SPEC §8.2): write the store
 // synchronously, sync to the server in the background, and on failure restore
-// the issue's pre-mutation snapshot and raise a toast. Rollback is per-issue
-// (a failure never clobbers other issues' optimistic writes); overlapping
-// mutations to the SAME issue can over-rollback, acceptable at single-user
+// the action's pre-mutation snapshot and raise a toast. Rollback is per-action
+// (a failure never clobbers other actions' optimistic writes); overlapping
+// mutations to the SAME action can over-rollback, acceptable at single-user
 // rates.
-async function optimisticIssueMutation(
+async function optimisticActionMutation(
   id: string,
-  patch: Partial<WireIssue>,
+  patch: Partial<WireAction>,
   send: () => Promise<Response>,
   opts?: { toastOnError?: boolean },
 ): Promise<boolean> {
-  const before = getIssue(id);
+  const before = getAction(id);
   if (!before) return false;
-  writeIssue(id, (issue) => ({ ...issue, ...patch }));
+  writeAction(id, (action) => ({ ...action, ...patch }));
   // PATCH is idempotent, so transient D1 resets can be retried safely (PROG-51).
   // Fast backoff: the optimistic value is on screen, so revert quickly on a true
   // failure rather than holding a wrong value through a long retry.
   const res = await sendWithRetry(send, MUTATION_BACKOFF_MS);
   const ok = res?.ok ?? false;
   if (!ok) {
-    writeIssue(id, () => before);
+    writeAction(id, () => before);
     // A caller managing its own draft/Retry affordance (the description editor)
     // suppresses this generic toast to avoid a double notification.
     if (opts?.toastOnError !== false) toast("Couldn't save that change — reverted.");
@@ -193,23 +193,23 @@ async function optimisticIssueMutation(
     refreshBundle(id);
     if (patch.status !== undefined) {
       // The server appended a status_changed activity event; refresh the
-      // timeline if this issue's page has loaded it.
+      // timeline if this action's page has loaded it.
       void queryClient.invalidateQueries({ queryKey: timelineKey(id) });
     }
   }
   return ok;
 }
 
-export type IssuePatch = Partial<{
+export type ActionPatch = Partial<{
   title: string;
   description: string;
-  status: IssueStatus;
-  priority: IssuePriority;
+  status: ActionStatus;
+  priority: ActionPriority;
   estimate: number | null;
   arcId: string | null;
-  // Sub-issue reparent (PROG-124): the new parent issue, or null to outdent to
-  // the top of its product. Server enforces same-product + acyclic.
-  parentIssueId: string | null;
+  // Step reparent (PROG-124): the new parent action, or null to outdent to
+  // the top of its focus. Server enforces same-focus + acyclic.
+  parentActionId: string | null;
   dueDate: string | null;
   // Fractional-index board position (PROG-43). The caller computes the key from
   // the drop site's neighbors via `rankBetween`; a reorder across columns sends
@@ -221,23 +221,23 @@ export type IssuePatch = Partial<{
 // (the optimistic write + toast-on-failure is enough); the description editor
 // awaits it to clear/keep its draft and offer Retry (PROG-51), passing
 // `toastOnError: false` so it can show its own draft-aware message instead.
-export function updateIssue(
+export function updateAction(
   id: string,
-  patch: IssuePatch,
+  patch: ActionPatch,
   opts?: { toastOnError?: boolean },
 ): Promise<boolean> {
   const now = new Date().toISOString();
   // Mirrors the server's PATCH semantics so the optimistic state matches
   // what a reload would fetch.
-  const optimistic: Partial<WireIssue> = { ...patch, updatedAt: now };
+  const optimistic: Partial<WireAction> = { ...patch, updatedAt: now };
   if (patch.status !== undefined) {
     optimistic.completedAt = patch.status === "done" ? now : null;
   }
-  return optimisticIssueMutation(
+  return optimisticActionMutation(
     id,
     optimistic,
     () =>
-      fetch(`/api/issues/${id}`, {
+      fetch(`/api/actions/${id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(patch),
@@ -246,20 +246,20 @@ export function updateIssue(
   );
 }
 
-export function setIssueStatus(id: string, status: IssueStatus) {
-  updateIssue(id, { status });
+export function setActionStatus(id: string, status: ActionStatus) {
+  updateAction(id, { status });
 }
 
-// ---------- issue creation ----------
+// ---------- action creation ----------
 
-export type IssueCreateInput = {
+export type ActionCreateInput = {
   title: string;
-  productId: string;
+  focusId: string;
   repoId: string | null;
   arcId: string | null;
-  parentIssueId: string | null;
-  status: IssueStatus;
-  priority: IssuePriority;
+  parentActionId: string | null;
+  status: ActionStatus;
+  priority: ActionPriority;
   estimate: number | null;
   dueDate: string | null;
   // Existing tag ids to link at birth (PROG-89b: the Agenda quick-add inherits
@@ -267,36 +267,36 @@ export type IssueCreateInput = {
   tagIds?: string[];
 };
 
-// Optimistic create: the issue number is allocated locally from the
-// product's nextIssueNumber mirror — safe because this client is the only
+// Optimistic create: the action number is allocated locally from the
+// focus's nextActionNumber mirror — safe because this client is the only
 // writer (single-user v1) — so the new key is correct immediately and
 // callers can navigate to it without waiting. The temp row is replaced by
 // the server row on success (same key, real id) or removed with a toast on
-// failure. Returns the new issue's key, or undefined if the product is gone.
-export function createIssue(input: IssueCreateInput): string | undefined {
-  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
-  const product = ws?.products.find((p) => p.id === input.productId);
-  if (!ws || !product) return undefined;
+// failure. Returns the new action's key, or undefined if the focus is gone.
+export function createAction(input: ActionCreateInput): string | undefined {
+  const ws = queryClient.getQueryData<SnapshotPayload>(WS_KEY);
+  const focus = ws?.focuses.find((p) => p.id === input.focusId);
+  if (!ws || !focus) return undefined;
 
   // Birth tags (PROG-89b): deduped and limited to tags the store knows, so the
   // optimistic links and the request body always agree. Linked under the temp
   // id, remapped to the server id on reconcile.
   const tagIds = [...new Set(input.tagIds ?? [])].filter((tid) => ws.tags.some((t) => t.id === tid));
 
-  const tempId = `iss_optimistic_${Date.now()}`;
+  const tempId = `acn_optimistic_${Date.now()}`;
   const now = new Date().toISOString();
-  // Optimistic board rank: append after the current last issue, mirroring the
+  // Optimistic board rank: append after the current last action, mirroring the
   // server (PROG-43). The single writer means our max matches the DB's, so the
   // server returns the same key; the temp row is replaced on reconcile anyway.
-  const ranks = ws.issues.map((i) => i.rank).filter(Boolean);
+  const ranks = ws.actions.map((i) => i.rank).filter(Boolean);
   const maxRank = ranks.length ? ranks.reduce((a, b) => (a > b ? a : b)) : null;
-  const temp: WireIssue = {
+  const temp: WireAction = {
     id: tempId,
-    productId: input.productId,
+    focusId: input.focusId,
     repoId: input.repoId,
     arcId: input.arcId,
-    parentIssueId: input.parentIssueId,
-    number: product.nextIssueNumber,
+    parentActionId: input.parentActionId,
+    number: focus.nextActionNumber,
     title: input.title,
     description: "",
     status: input.status,
@@ -310,192 +310,192 @@ export function createIssue(input: IssueCreateInput): string | undefined {
     updatedAt: now,
     completedAt: input.status === "done" ? now : null,
   };
-  queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) =>
+  queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) =>
     w
       ? {
           ...w,
-          issues: [...w.issues, temp],
-          issueTags: tagIds.length
-            ? [...w.issueTags, ...tagIds.map((tagId) => ({ issueId: tempId, tagId }))]
-            : w.issueTags,
-          products: w.products.map((p) =>
-            p.id === product.id ? { ...p, nextIssueNumber: p.nextIssueNumber + 1 } : p,
+          actions: [...w.actions, temp],
+          actionTags: tagIds.length
+            ? [...w.actionTags, ...tagIds.map((tagId) => ({ actionId: tempId, tagId }))]
+            : w.actionTags,
+          focuses: w.focuses.map((p) =>
+            p.id === focus.id ? { ...p, nextActionNumber: p.nextActionNumber + 1 } : p,
           ),
         }
       : w,
   );
 
   void (async () => {
-    let serverIssue: WireIssue | undefined;
+    let serverAction: WireAction | undefined;
     try {
-      const res = await fetch("/api/issues", {
+      const res = await fetch("/api/actions", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ ...input, tagIds }),
       });
-      if (res.ok) serverIssue = ((await res.json()) as { issue: WireIssue }).issue;
+      if (res.ok) serverAction = ((await res.json()) as { action: WireAction }).action;
     } catch {
       // handled below
     }
-    queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) => {
+    queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) => {
       if (!w) return w;
-      if (serverIssue) {
-        const real = serverIssue;
+      if (serverAction) {
+        const real = serverAction;
         return {
           ...w,
-          issues: w.issues.map((i) => (i.id === tempId ? real : i)),
-          issueTags: w.issueTags.map((l) =>
-            l.issueId === tempId ? { ...l, issueId: real.id } : l,
+          actions: w.actions.map((i) => (i.id === tempId ? real : i)),
+          actionTags: w.actionTags.map((l) =>
+            l.actionId === tempId ? { ...l, actionId: real.id } : l,
           ),
         };
       }
-      // Failure: remove the temp issue (and its tag links) and put the
+      // Failure: remove the temp action (and its tag links) and put the
       // allocated number back.
       return {
         ...w,
-        issues: w.issues.filter((i) => i.id !== tempId),
-        issueTags: w.issueTags.filter((l) => l.issueId !== tempId),
-        products: w.products.map((p) =>
-          p.id === product.id ? { ...p, nextIssueNumber: p.nextIssueNumber - 1 } : p,
+        actions: w.actions.filter((i) => i.id !== tempId),
+        actionTags: w.actionTags.filter((l) => l.actionId !== tempId),
+        focuses: w.focuses.map((p) =>
+          p.id === focus.id ? { ...p, nextActionNumber: p.nextActionNumber - 1 } : p,
         ),
       };
     });
-    if (!serverIssue) toast("Couldn't create that issue — removed.");
+    if (!serverAction) toast("Couldn't create that action — removed.");
   })();
 
-  return `${product.keyPrefix}-${temp.number}`;
+  return `${focus.keyPrefix}-${temp.number}`;
 }
 
-// ---------- issue movement ----------
+// ---------- action movement ----------
 
-export type MoveTarget = { productId: string; repoId: string | null };
+export type MoveTarget = { focusId: string; repoId: string | null };
 
-// Optimistic move (SPEC §3): within a product it's a one-field container
-// change; across products the issue is re-keyed from the target's sequence,
+// Optimistic move (SPEC §3): within a focus it's a one-field container
+// change; across focuses the action is re-keyed from the target's sequence,
 // its arc is cleared, and the old key is appended to the alias list — all
-// locally first, so the board and any open issue page (which redirects via
+// locally first, so the board and any open action page (which redirects via
 // the alias) update instantly. Rollback restores exactly what this move
 // touched.
-export function moveIssue(id: string, target: MoveTarget) {
-  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
-  const before = ws?.issues.find((i) => i.id === id);
-  const targetProduct = ws?.products.find((p) => p.id === target.productId);
-  if (!ws || !before || !targetProduct) return;
-  if (before.productId === target.productId && before.repoId === target.repoId) return;
+export function moveAction(id: string, target: MoveTarget) {
+  const ws = queryClient.getQueryData<SnapshotPayload>(WS_KEY);
+  const before = ws?.actions.find((i) => i.id === id);
+  const targetFocus = ws?.focuses.find((p) => p.id === target.focusId);
+  if (!ws || !before || !targetFocus) return;
+  if (before.focusId === target.focusId && before.repoId === target.repoId) return;
 
-  const crossProduct = before.productId !== target.productId;
+  const crossFocus = before.focusId !== target.focusId;
   const now = new Date().toISOString();
-  const oldKey = issueKeyOf(ws, before);
+  const oldKey = actionKeyOf(ws, before);
 
-  queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) => {
+  queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) => {
     if (!w) return w;
-    if (!crossProduct) {
+    if (!crossFocus) {
       return {
         ...w,
-        issues: w.issues.map((i) =>
+        actions: w.actions.map((i) =>
           i.id === id ? { ...i, repoId: target.repoId, updatedAt: now } : i,
         ),
       };
     }
     return {
       ...w,
-      issues: w.issues.map((i) =>
+      actions: w.actions.map((i) =>
         i.id === id
           ? {
               ...i,
-              productId: target.productId,
+              focusId: target.focusId,
               repoId: target.repoId,
               arcId: null,
-              // Cross-product move drops the parent and detaches children
+              // Cross-focus move drops the parent and detaches children
               // (PROG-124) — mirrors the server's move handler.
-              parentIssueId: null,
-              number: targetProduct.nextIssueNumber,
+              parentActionId: null,
+              number: targetFocus.nextActionNumber,
               updatedAt: now,
             }
-          : i.parentIssueId === id
-            ? { ...i, parentIssueId: null, updatedAt: now }
+          : i.parentActionId === id
+            ? { ...i, parentActionId: null, updatedAt: now }
             : i,
       ),
-      products: w.products.map((p) =>
-        p.id === target.productId ? { ...p, nextIssueNumber: p.nextIssueNumber + 1 } : p,
+      focuses: w.focuses.map((p) =>
+        p.id === target.focusId ? { ...p, nextActionNumber: p.nextActionNumber + 1 } : p,
       ),
-      issueKeyAliases: [...w.issueKeyAliases, { key: oldKey, issueId: id, createdAt: now }],
+      actionKeyAliases: [...w.actionKeyAliases, { key: oldKey, actionId: id, createdAt: now }],
     };
   });
 
   void (async () => {
-    let serverIssue: WireIssue | undefined;
+    let serverAction: WireAction | undefined;
     try {
-      const res = await fetch(`/api/issues/${id}/move`, {
+      const res = await fetch(`/api/actions/${id}/move`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(target),
       });
-      if (res.ok) serverIssue = ((await res.json()) as { issue: WireIssue }).issue;
+      if (res.ok) serverAction = ((await res.json()) as { action: WireAction }).action;
     } catch {
       // handled below
     }
-    if (serverIssue) {
-      const real = serverIssue;
-      writeIssue(id, () => real);
+    if (serverAction) {
+      const real = serverAction;
+      writeAction(id, () => real);
       // The server appended a "moved" activity event.
       void queryClient.invalidateQueries({ queryKey: timelineKey(id) });
       refreshBundle(id);
       return;
     }
-    queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) => {
+    queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) => {
       if (!w) return w;
-      const restored = { ...w, issues: w.issues.map((i) => (i.id === id ? before : i)) };
-      if (!crossProduct) return restored;
+      const restored = { ...w, actions: w.actions.map((i) => (i.id === id ? before : i)) };
+      if (!crossFocus) return restored;
       return {
         ...restored,
-        products: restored.products.map((p) =>
-          p.id === target.productId ? { ...p, nextIssueNumber: p.nextIssueNumber - 1 } : p,
+        focuses: restored.focuses.map((p) =>
+          p.id === target.focusId ? { ...p, nextActionNumber: p.nextActionNumber - 1 } : p,
         ),
-        issueKeyAliases: restored.issueKeyAliases.filter(
-          (a) => !(a.key === oldKey && a.issueId === id),
+        actionKeyAliases: restored.actionKeyAliases.filter(
+          (a) => !(a.key === oldKey && a.actionId === id),
         ),
       };
     });
-    toast("Couldn't move that issue — reverted.");
+    toast("Couldn't move that action — reverted.");
   })();
 }
 
 // ---------- containers (D26) ----------
 
-export type ContainerKind = "initiative" | "product" | "repo" | "arc";
+export type ContainerKind = "workspace" | "focus" | "repo" | "arc";
 
 export const CONTAINER_COLLECTIONS = {
-  initiative: "initiatives",
-  product: "products",
+  workspace: "workspaces",
+  focus: "focuses",
   repo: "repos",
   arc: "arcs",
 } as const;
 type ContainerCollection = (typeof CONTAINER_COLLECTIONS)[ContainerKind];
 
 const CONTAINER_ID_PREFIXES: Record<ContainerKind, string> = {
-  initiative: "ini",
-  product: "prd",
+  workspace: "ini",
+  focus: "prd",
   repo: "rep",
   arc: "arc",
 };
 
-type WireContainer = WireInitiative | WireProduct | WireRepo | WireArc;
+type WireContainer = WireWorkspace | WireFocus | WireRepo | WireArc;
 
 // The four container collections have distinct element types; TS can't relate
 // a union-typed key to its value type on write, so this helper centralizes
 // the (runtime-safe) casts.
 function writeContainers(key: ContainerCollection, fn: (list: WireContainer[]) => WireContainer[]) {
-  queryClient.setQueryData<WorkspacePayload>(WS_KEY, (ws) =>
-    ws ? ({ ...ws, [key]: fn(ws[key] as WireContainer[]) } as WorkspacePayload) : ws,
+  queryClient.setQueryData<SnapshotPayload>(WS_KEY, (ws) =>
+    ws ? ({ ...ws, [key]: fn(ws[key] as WireContainer[]) } as SnapshotPayload) : ws,
   );
 }
 
 export type ContainerCreateInput =
-  | { kind: "initiative"; name: string }
-  | { kind: "product"; name: string; initiativeId: string; keyPrefix: string }
-  | { kind: "repo"; name: string; productId: string; gitUrl?: string | null }
-  | { kind: "arc"; name: string; productId: string };
+  | { kind: "workspace"; name: string }
+  | { kind: "focus"; name: string; workspaceId: string; keyPrefix: string }
+  | { kind: "repo"; name: string; focusId: string; gitUrl?: string | null }
+  | { kind: "arc"; name: string; focusId: string };
 
 // Optimistic container create. The id is client-generated (container pages
 // are id-addressed, so navigation must not depend on a server round trip);
@@ -515,13 +515,13 @@ export function createContainer(input: ContainerCreateInput): string {
   // Reorderable containers start at the shared default rank, matching the
   // server's column default — the "nobody has reordered yet" tie (PROG-87).
   const temp: WireContainer =
-    input.kind === "initiative"
+    input.kind === "workspace"
       ? { ...base, rank: DEFAULT_RANK }
-      : input.kind === "product"
-        ? { ...base, initiativeId: input.initiativeId, keyPrefix: input.keyPrefix.toUpperCase(), nextIssueNumber: 1, rank: DEFAULT_RANK }
+      : input.kind === "focus"
+        ? { ...base, workspaceId: input.workspaceId, keyPrefix: input.keyPrefix.toUpperCase(), nextActionNumber: 1, rank: DEFAULT_RANK }
         : input.kind === "repo"
-          ? { ...base, productId: input.productId, gitUrl: input.gitUrl ?? null }
-          : { ...base, productId: input.productId, rank: DEFAULT_RANK };
+          ? { ...base, focusId: input.focusId, gitUrl: input.gitUrl ?? null }
+          : { ...base, focusId: input.focusId, rank: DEFAULT_RANK };
   const collection = CONTAINER_COLLECTIONS[input.kind];
   writeContainers(collection, (list) => [...list, temp]);
 
@@ -560,11 +560,11 @@ export type ContainerPatch = Partial<{
   archived: boolean;
   keyPrefix: string;
   gitUrl: string | null;
-  // Manual outline order (PROG-87); initiatives/products/arcs only, not repos.
+  // Manual outline order (PROG-87); workspaces/focuses/arcs only, not repos.
   rank: string;
 }>;
 
-// Returns whether the server confirmed the change. Like updateIssue, most
+// Returns whether the server confirmed the change. Like updateAction, most
 // callers fire-and-forget; the container-description editor awaits it (with
 // `toastOnError: false`) to clear/keep its draft and show its own Retry message
 // (PROG-51).
@@ -575,7 +575,7 @@ export function updateContainer(
   opts?: { toastOnError?: boolean },
 ): Promise<boolean> {
   const collection = CONTAINER_COLLECTIONS[kind];
-  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
+  const ws = queryClient.getQueryData<SnapshotPayload>(WS_KEY);
   const before = (ws?.[collection] as WireContainer[] | undefined)?.find((x) => x.id === id);
   if (!before) return Promise.resolve(false);
 
@@ -625,8 +625,8 @@ export function updateContainer(
 
 // Assign a tag — an existing one by id, or by name (creating it on the fly
 // with the shared auto-color, so the optimistic row matches the server's).
-export function tagIssue(issueId: string, tag: { tagId: string } | { name: string }) {
-  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
+export function tagAction(actionId: string, tag: { tagId: string } | { name: string }) {
+  const ws = queryClient.getQueryData<SnapshotPayload>(WS_KEY);
   if (!ws) return;
 
   let tagId: string;
@@ -644,14 +644,14 @@ export function tagIssue(issueId: string, tag: { tagId: string } | { name: strin
       createdTemp = { id: tagId, name, color: tagColor(name), createdAt: new Date().toISOString() };
     }
   }
-  if (ws.issueTags.some((l) => l.issueId === issueId && l.tagId === tagId)) return;
+  if (ws.actionTags.some((l) => l.actionId === actionId && l.tagId === tagId)) return;
 
-  queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) =>
+  queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) =>
     w
       ? {
           ...w,
           tags: createdTemp ? [...w.tags, createdTemp] : w.tags,
-          issueTags: [...w.issueTags, { issueId, tagId }],
+          actionTags: [...w.actionTags, { actionId, tagId }],
         }
       : w,
   );
@@ -659,7 +659,7 @@ export function tagIssue(issueId: string, tag: { tagId: string } | { name: strin
   void (async () => {
     let serverTag: WireTag | undefined;
     try {
-      const res = await fetch(`/api/issues/${issueId}/tags`, {
+      const res = await fetch(`/api/actions/${actionId}/tags`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify("tagId" in tag ? { tagId } : { name: tag.name.trim(), id: tagId }),
@@ -672,25 +672,25 @@ export function tagIssue(issueId: string, tag: { tagId: string } | { name: strin
       const real = serverTag;
       // The server may resolve a created-by-name tag to a pre-existing row
       // (exact-name match); point the link at the authoritative id.
-      queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) =>
+      queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) =>
         w
           ? {
               ...w,
               tags: [...w.tags.filter((t) => t.id !== tagId && t.id !== real.id), real],
-              issueTags: w.issueTags.map((l) =>
-                l.issueId === issueId && l.tagId === tagId ? { ...l, tagId: real.id } : l,
+              actionTags: w.actionTags.map((l) =>
+                l.actionId === actionId && l.tagId === tagId ? { ...l, tagId: real.id } : l,
               ),
             }
           : w,
       );
-      refreshBundle(issueId);
+      refreshBundle(actionId);
     } else {
-      queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) =>
+      queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) =>
         w
           ? {
               ...w,
               tags: createdTemp ? w.tags.filter((t) => t.id !== tagId) : w.tags,
-              issueTags: w.issueTags.filter((l) => !(l.issueId === issueId && l.tagId === tagId)),
+              actionTags: w.actionTags.filter((l) => !(l.actionId === actionId && l.tagId === tagId)),
             }
           : w,
       );
@@ -699,30 +699,30 @@ export function tagIssue(issueId: string, tag: { tagId: string } | { name: strin
   })();
 }
 
-export function untagIssue(issueId: string, tagId: string) {
-  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
-  if (!ws?.issueTags.some((l) => l.issueId === issueId && l.tagId === tagId)) return;
+export function untagAction(actionId: string, tagId: string) {
+  const ws = queryClient.getQueryData<SnapshotPayload>(WS_KEY);
+  if (!ws?.actionTags.some((l) => l.actionId === actionId && l.tagId === tagId)) return;
 
-  queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) =>
+  queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) =>
     w
-      ? { ...w, issueTags: w.issueTags.filter((l) => !(l.issueId === issueId && l.tagId === tagId)) }
+      ? { ...w, actionTags: w.actionTags.filter((l) => !(l.actionId === actionId && l.tagId === tagId)) }
       : w,
   );
 
   void (async () => {
     let ok = false;
     try {
-      ok = (await fetch(`/api/issues/${issueId}/tags/${tagId}`, { method: "DELETE" })).ok;
+      ok = (await fetch(`/api/actions/${actionId}/tags/${tagId}`, { method: "DELETE" })).ok;
     } catch {
       // handled below
     }
     if (!ok) {
-      queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) =>
-        w ? { ...w, issueTags: [...w.issueTags, { issueId, tagId }] } : w,
+      queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) =>
+        w ? { ...w, actionTags: [...w.actionTags, { actionId, tagId }] } : w,
       );
       toast("Couldn't remove that tag — restored.");
     } else {
-      refreshBundle(issueId);
+      refreshBundle(actionId);
     }
   })();
 }
@@ -788,7 +788,7 @@ export function useCommentSearch(query: string, debounceMs = 150) {
   };
 }
 
-// ---------- per-issue timeline ----------
+// ---------- per-action timeline ----------
 
 export type Timeline = {
   comments: WireComment[];
@@ -797,14 +797,14 @@ export type Timeline = {
   commits: WireCommitLink[];
 };
 
-export function useTimeline(issueId: string) {
+export function useTimeline(actionId: string) {
   return useQuery({
-    queryKey: timelineKey(issueId),
-    // A just-created issue carries its optimistic temp id for a beat; hold
+    queryKey: timelineKey(actionId),
+    // A just-created action carries its optimistic temp id for a beat; hold
     // the fetch until the server row (real id) replaces it.
-    enabled: !issueId.startsWith("iss_optimistic_"),
+    enabled: !actionId.startsWith("acn_optimistic_"),
     queryFn: async (): Promise<Timeline> => {
-      const res = await fetch(`/api/issues/${issueId}/timeline`);
+      const res = await fetch(`/api/actions/${actionId}/timeline`);
       if (!res.ok) throw new Error(`timeline load failed: HTTP ${res.status}`);
       return res.json() as Promise<Timeline>;
     },
@@ -819,28 +819,28 @@ export function useTimeline(issueId: string) {
 // so a successful refetch reconciles without a flicker. On exhausted failure
 // the row is removed and `false` is returned — the caller keeps the draft and
 // offers Retry (re-calling this with the same text is safe).
-export async function addComment(issueId: string, body: string): Promise<boolean> {
+export async function addComment(actionId: string, body: string): Promise<boolean> {
   const id = `cmt_${crypto.randomUUID().replaceAll("-", "")}`;
-  const authorId = queryClient.getQueryData<WorkspacePayload>(WS_KEY)?.me?.id ?? "usr_owner";
+  const authorId = queryClient.getQueryData<SnapshotPayload>(WS_KEY)?.me?.id ?? "usr_owner";
   const now = new Date().toISOString();
-  const temp: WireComment = { id, issueId, authorId, body, createdAt: now, updatedAt: now };
-  queryClient.setQueryData<Timeline>(timelineKey(issueId), (t) =>
+  const temp: WireComment = { id, actionId, authorId, body, createdAt: now, updatedAt: now };
+  queryClient.setQueryData<Timeline>(timelineKey(actionId), (t) =>
     t ? { ...t, comments: [...t.comments, temp] } : t,
   );
 
   const res = await sendWithRetry(() =>
-    fetch(`/api/issues/${issueId}/comments`, {
+    fetch(`/api/actions/${actionId}/comments`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ id, body }),
     }),
   );
   if (res?.ok) {
-    void queryClient.invalidateQueries({ queryKey: timelineKey(issueId) });
-    refreshBundle(issueId);
+    void queryClient.invalidateQueries({ queryKey: timelineKey(actionId) });
+    refreshBundle(actionId);
     return true;
   }
-  queryClient.setQueryData<Timeline>(timelineKey(issueId), (t) =>
+  queryClient.setQueryData<Timeline>(timelineKey(actionId), (t) =>
     t ? { ...t, comments: t.comments.filter((cm) => cm.id !== id) } : t,
   );
   return false;
@@ -856,7 +856,7 @@ export async function addComment(issueId: string, body: string): Promise<boolean
 const byEmail = (a: WireAllowedEmail, b: WireAllowedEmail) => a.email.localeCompare(b.email);
 
 function writeAllowedEmails(write: (list: WireAllowedEmail[]) => WireAllowedEmail[]) {
-  queryClient.setQueryData<WorkspacePayload>(WS_KEY, (ws) =>
+  queryClient.setQueryData<SnapshotPayload>(WS_KEY, (ws) =>
     ws ? { ...ws, allowedEmails: write(ws.allowedEmails) } : ws,
   );
 }
@@ -865,7 +865,7 @@ export function addAllowedEmail(email: string, note: string) {
   const normalized = email.trim().toLowerCase();
   const trimmedNote = note.trim();
   if (normalized === "") return;
-  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
+  const ws = queryClient.getQueryData<SnapshotPayload>(WS_KEY);
   if (!ws) return;
   if (ws.allowedEmails.some((e) => e.email === normalized)) {
     toast("That email is already on the list.");
@@ -908,7 +908,7 @@ export function addAllowedEmail(email: string, note: string) {
 
 export function updateAllowedEmailNote(id: string, note: string) {
   const before = queryClient
-    .getQueryData<WorkspacePayload>(WS_KEY)
+    .getQueryData<SnapshotPayload>(WS_KEY)
     ?.allowedEmails.find((e) => e.id === id);
   if (!before) return;
   const trimmed = note.trim();
@@ -937,7 +937,7 @@ export function updateAllowedEmailNote(id: string, note: string) {
 
 export function removeAllowedEmail(id: string) {
   const before = queryClient
-    .getQueryData<WorkspacePayload>(WS_KEY)
+    .getQueryData<SnapshotPayload>(WS_KEY)
     ?.allowedEmails.find((e) => e.id === id);
   if (!before) return;
   writeAllowedEmails((list) => list.filter((e) => e.id !== id));

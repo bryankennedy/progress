@@ -1,10 +1,10 @@
 // Dogfood status update (SPEC §7): keep production's own backlog honest by
-// moving issues through the same fixed status set agents use — via the LIVE
+// moving actions through the same fixed status set agents use — via the LIVE
 // API, authenticated with the Progress API token (Authorization: Bearer, PROG-34).
 //
 // Run:  bun run scripts/dogfood-status.ts
 // Needs PROGRESS_API_TOKEN / PROD_PROGRESS_API_TOKEN in .env.
-// Idempotent: a PATCH to a status the issue already holds is a no-op.
+// Idempotent: a PATCH to a status the action already holds is a no-op.
 
 const BASE = process.env.PROGRESS_BASE_URL ?? "https://progress.bck.dev";
 
@@ -36,32 +36,32 @@ async function api(method: string, path: string, body?: unknown): Promise<any> {
 
 // Title-addressed so it survives any in-app renumbering. status = desired state.
 const UPDATES: { title: string; status: string }[] = [
-  { title: "Context bundle endpoint — GET /api/issues/:key/bundle", status: "done" }, // PROG-17 shipped (D33)
+  { title: "Context bundle endpoint — GET /api/actions/:key/bundle", status: "done" }, // PROG-17 shipped (D33)
   { title: "Progress MCP server", status: "todo" }, // next brick — on deck
 ];
 
 async function main() {
-  const ws = await api("GET", "/api/workspace");
-  const product = ws.products.find((p: any) => p.keyPrefix === "PROG");
-  if (!product) throw new Error("PROG product not found in production workspace");
+  const ws = await api("GET", "/api/snapshot");
+  const focus = ws.focuses.find((p: any) => p.keyPrefix === "PROG");
+  if (!focus) throw new Error("PROG focus not found in production snapshot");
 
   const byTitle = new Map<string, any>(
-    ws.issues.filter((i: any) => i.productId === product.id).map((i: any) => [i.title, i]),
+    ws.actions.filter((i: any) => i.focusId === focus.id).map((i: any) => [i.title, i]),
   );
 
   for (const u of UPDATES) {
-    const issue = byTitle.get(u.title);
-    if (!issue) {
+    const action = byTitle.get(u.title);
+    if (!action) {
       console.warn(`  ! "${u.title}" not found — skipping`);
       continue;
     }
-    const key = `${product.keyPrefix}-${issue.number}`;
-    if (issue.status === u.status) {
+    const key = `${focus.keyPrefix}-${action.number}`;
+    if (action.status === u.status) {
       console.log(`  = ${key} already ${u.status} — no-op`);
       continue;
     }
-    await api("PATCH", `/api/issues/${issue.id}`, { status: u.status });
-    console.log(`→ ${key} ${issue.status} → ${u.status}  (${u.title})`);
+    await api("PATCH", `/api/actions/${action.id}`, { status: u.status });
+    console.log(`→ ${key} ${action.status} → ${u.status}  (${u.title})`);
   }
 
   console.log("\n✓ Status sync complete — production reflects reality.");

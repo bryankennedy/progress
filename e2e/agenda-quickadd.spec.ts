@@ -2,14 +2,14 @@ import { expect, test, type Page } from "@playwright/test";
 import { signInAsOwner } from "./auth";
 
 // Agenda quick-add (PROG-89), in a real browser: typing under a date grouping
-// creates an issue pre-dated for that bucket. The date math is unit-tested
+// creates an action pre-dated for that bucket. The date math is unit-tested
 // (agendaQuickAdd.test.ts); this proves the wiring — the input renders under a
-// populated group, Enter creates optimistically into the picked product, and
-// the server-confirmed issue carries the bucket's due date.
+// populated group, Enter creates optimistically into the picked focus, and
+// the server-confirmed action carries the bucket's due date.
 //
-// Each test creates its own product + a seed issue via the API (groups are
+// Each test creates its own focus + a seed action via the API (groups are
 // hidden when empty, so the seed makes the target group render), and archives
-// the product at the end.
+// the focus at the end.
 
 const tag = () => Math.random().toString(36).slice(2, 8);
 
@@ -22,18 +22,18 @@ function localISO(plusDays = 0): string {
   return `${d.getFullYear()}-${m}-${day}`;
 }
 
-// Product names must not contain nav-link words ("Agenda", "Board", …): the
-// board card prints the product name inside the card link, so a product named
+// Focus names must not contain nav-link words ("Agenda", "Board", …): the
+// board card prints the focus name inside the card link, so a focus named
 // "… agenda …" makes bare nav-link selectors ambiguous for every later spec
 // sharing the dev DB.
-async function makeProductWithSeed(page: Page, seedDue: string) {
-  const ws = await (await page.request.get("/api/workspace")).json();
-  const product = (
+async function makeFocusWithSeed(page: Page, seedDue: string) {
+  const ws = await (await page.request.get("/api/snapshot")).json();
+  const focus = (
     await (
-      await page.request.post("/api/products", {
+      await page.request.post("/api/focuses", {
         data: {
           name: `E2E quickadd ${tag()}`,
-          initiativeId: ws.initiatives[0].id,
+          workspaceId: ws.workspaces[0].id,
           keyPrefix: `A${tag().toUpperCase().replaceAll(/[^A-Z]/g, "Z").padEnd(4, "Q").slice(0, 4)}`,
         },
       })
@@ -41,43 +41,43 @@ async function makeProductWithSeed(page: Page, seedDue: string) {
   ).container as { id: string };
   const seed = (
     await (
-      await page.request.post("/api/issues", {
-        data: { title: `Seed ${tag()}`, productId: product.id, dueDate: seedDue, status: "todo" },
+      await page.request.post("/api/actions", {
+        data: { title: `Seed ${tag()}`, focusId: focus.id, dueDate: seedDue, status: "todo" },
       })
     ).json()
-  ).issue as { id: string };
-  return { product, seed };
+  ).action as { id: string };
+  return { focus, seed };
 }
 
-// Archiving a product hides it from filters, but its issues stay visible
+// Archiving a focus hides it from filters, but its actions stay visible
 // everywhere (archive semantics) — so also cancel them, or every run leaves
 // live cards on the shared dev board.
-async function cleanupProduct(page: Page, productId: string) {
-  const ws = await (await page.request.get("/api/workspace")).json();
-  for (const i of ws.issues as { id: string; productId: string }[]) {
-    if (i.productId === productId) {
-      await page.request.patch(`/api/issues/${i.id}`, { data: { status: "canceled" } });
+async function cleanupFocus(page: Page, focusId: string) {
+  const ws = await (await page.request.get("/api/snapshot")).json();
+  for (const i of ws.actions as { id: string; focusId: string }[]) {
+    if (i.focusId === focusId) {
+      await page.request.patch(`/api/actions/${i.id}`, { data: { status: "canceled" } });
     }
   }
-  await page.request.patch(`/api/products/${productId}`, { data: { archived: true } });
+  await page.request.patch(`/api/focuses/${focusId}`, { data: { archived: true } });
 }
 
 test.beforeEach(async ({ context }) => {
   await signInAsOwner(context);
 });
 
-test("quick-add under Today creates an issue due today (PROG-89)", async ({ page }) => {
+test("quick-add under Today creates an action due today (PROG-89)", async ({ page }) => {
   const today = localISO();
-  const { product } = await makeProductWithSeed(page, today);
+  const { focus } = await makeFocusWithSeed(page, today);
 
-  // Filter to the fresh product so the seeded issue is the group's only row
+  // Filter to the fresh focus so the seeded action is the group's only row
   // and the quick-add picker follows the filter.
-  await page.goto(`/agenda?product=${product.id}`);
+  await page.goto(`/agenda?focus=${focus.id}`);
   const section = page.locator("section", { has: page.getByRole("heading", { name: /^Today/ }) });
   await expect(section).toBeVisible();
 
   const title = `Quick today ${tag()}`;
-  const input = section.getByLabel(`New issue due ${today}`);
+  const input = section.getByLabel(`New action due ${today}`);
   await input.fill(title);
   await input.press("Enter");
 
@@ -85,38 +85,38 @@ test("quick-add under Today creates an issue due today (PROG-89)", async ({ page
   await expect(section.getByText(title)).toBeVisible();
   await expect(input).toHaveValue("");
 
-  // Server-confirmed: right product, due today, todo.
+  // Server-confirmed: right focus, due today, todo.
   await expect
     .poll(async () => {
-      const ws = await (await page.request.get("/api/workspace")).json();
-      const issue = ws.issues.find(
-        (i: { title: string; productId: string }) => i.title === title && i.productId === product.id,
+      const ws = await (await page.request.get("/api/snapshot")).json();
+      const action = ws.actions.find(
+        (i: { title: string; focusId: string }) => i.title === title && i.focusId === focus.id,
       );
-      return issue && { dueDate: issue.dueDate, status: issue.status };
+      return action && { dueDate: action.dueDate, status: action.status };
     })
     .toEqual({ dueDate: today, status: "todo" });
 
-  await cleanupProduct(page, product.id);
+  await cleanupFocus(page, focus.id);
 });
 
 test("quick-add under an active Tag filter inherits the tag and stays visible (PROG-89b)", async ({
   page,
 }) => {
   const today = localISO();
-  const { product, seed } = await makeProductWithSeed(page, today);
+  const { focus, seed } = await makeFocusWithSeed(page, today);
   // Tag the seed so the tag-filtered agenda has a Today group to type under.
   const tagName = `e2equick-${tag()}`;
   const created = await (
-    await page.request.post(`/api/issues/${seed.id}/tags`, { data: { name: tagName } })
+    await page.request.post(`/api/actions/${seed.id}/tags`, { data: { name: tagName } })
   ).json();
   const tagId = created.tag.id as string;
 
-  await page.goto(`/agenda?product=${product.id}&tag=${tagId}`);
+  await page.goto(`/agenda?focus=${focus.id}&tag=${tagId}`);
   const section = page.locator("section", { has: page.getByRole("heading", { name: /^Today/ }) });
   await expect(section).toBeVisible();
 
   const title = `Quick tagged ${tag()}`;
-  const input = section.getByLabel(`New issue due ${today}`);
+  const input = section.getByLabel(`New action due ${today}`);
   await input.fill(title);
   await input.press("Enter");
 
@@ -124,31 +124,31 @@ test("quick-add under an active Tag filter inherits the tag and stays visible (P
   // of being filtered out the instant it's created.
   await expect(section.getByText(title)).toBeVisible();
 
-  // Server-confirmed: the created issue carries the tag link.
+  // Server-confirmed: the created action carries the tag link.
   await expect
     .poll(async () => {
-      const ws = await (await page.request.get("/api/workspace")).json();
-      const issue = ws.issues.find((i: { title: string }) => i.title === title);
-      if (!issue) return false;
-      return (ws.issueTags as { issueId: string; tagId: string }[]).some(
-        (l) => l.issueId === issue.id && l.tagId === tagId,
+      const ws = await (await page.request.get("/api/snapshot")).json();
+      const action = ws.actions.find((i: { title: string }) => i.title === title);
+      if (!action) return false;
+      return (ws.actionTags as { actionId: string; tagId: string }[]).some(
+        (l) => l.actionId === action.id && l.tagId === tagId,
       );
     })
     .toBe(true);
 
-  await cleanupProduct(page, product.id);
+  await cleanupFocus(page, focus.id);
 });
 
 test("quick-add under This week dates to the window's last day; Overdue has no input (PROG-89)", async ({
   page,
 }) => {
-  const { product } = await makeProductWithSeed(page, localISO(3)); // seeds the This-week group
+  const { focus } = await makeFocusWithSeed(page, localISO(3)); // seeds the This-week group
   // An overdue seed too, to prove the Overdue group renders WITHOUT an input.
-  await page.request.post("/api/issues", {
-    data: { title: `Late seed ${tag()}`, productId: product.id, dueDate: localISO(-2), status: "todo" },
+  await page.request.post("/api/actions", {
+    data: { title: `Late seed ${tag()}`, focusId: focus.id, dueDate: localISO(-2), status: "todo" },
   });
 
-  await page.goto(`/agenda?product=${product.id}`);
+  await page.goto(`/agenda?focus=${focus.id}`);
   const weekSection = page.locator("section", {
     has: page.getByRole("heading", { name: /^This week/ }),
   });
@@ -160,17 +160,17 @@ test("quick-add under This week dates to the window's last day; Overdue has no i
 
   const endOfWindow = localISO(6);
   const title = `Quick week ${tag()}`;
-  const input = weekSection.getByLabel(`New issue due ${endOfWindow}`);
+  const input = weekSection.getByLabel(`New action due ${endOfWindow}`);
   await input.fill(title);
   await input.press("Enter");
   await expect(weekSection.getByText(title)).toBeVisible();
 
   await expect
     .poll(async () => {
-      const ws = await (await page.request.get("/api/workspace")).json();
-      return ws.issues.find((i: { title: string }) => i.title === title)?.dueDate;
+      const ws = await (await page.request.get("/api/snapshot")).json();
+      return ws.actions.find((i: { title: string }) => i.title === title)?.dueDate;
     })
     .toBe(endOfWindow);
 
-  await cleanupProduct(page, product.id);
+  await cleanupFocus(page, focus.id);
 });

@@ -13,20 +13,20 @@ candidate; with D1's per-query latency it's `important` at small n and
 **Before:**
 
 ```ts
-const arcRows = await db.select().from(arcs).where(eq(arcs.productId, productId));
+const arcRows = await db.select().from(arcs).where(eq(arcs.focusId, focusId));
 for (const arc of arcRows) {
-  const issueRows = await db.select().from(issues).where(eq(issues.arcId, arc.id));
-  result.push({ ...arc, issues: issueRows });
+  const actionRows = await db.select().from(actions).where(eq(actions.arcId, arc.id));
+  result.push({ ...arc, actions: actionRows });
 }
 ```
 
 **After (one query per table, join in memory):**
 
 ```ts
-const arcRows = await db.select().from(arcs).where(eq(arcs.productId, productId));
-const issueRows = await db.select().from(issues)
-  .where(inArray(issues.arcId, arcRows.map((a) => a.id)));
-const byArc = Map.groupBy(issueRows, (i) => i.arcId);
+const arcRows = await db.select().from(arcs).where(eq(arcs.focusId, focusId));
+const actionRows = await db.select().from(actions)
+  .where(inArray(actions.arcId, arcRows.map((a) => a.id)));
+const byArc = Map.groupBy(actionRows, (i) => i.arcId);
 ```
 
 Mind `inArray` with an **empty array** — Drizzle renders `IN ()` which SQLite
@@ -37,7 +37,7 @@ rejects; guard `if (ids.length === 0)` before the query.
 D1 has no interactive transactions; the primitive is `db.batch([...])` —
 statements run atomically. Findings:
 
-- Two dependent writes as separate awaits (e.g. insert issue + insert activity
+- Two dependent writes as separate awaits (e.g. insert action + insert activity
   row): a crash between them corrupts history → **important**, use `batch`.
 - A read-modify-write sequence (read max rank → write rank) is racy in
   principle; single-user makes it low stakes, so flag as `suggestion` unless
@@ -51,19 +51,19 @@ request-derived input:
 
 ```ts
 // Before — injection, blocking
-db.all(sql.raw(`SELECT * FROM issues WHERE title LIKE '%${q}%'`));
+db.all(sql.raw(`SELECT * FROM actions WHERE title LIKE '%${q}%'`));
 // After — sql template params are bound, and LIKE wildcards in user input
 // are escaped so % and _ match literally
 const escaped = q.replaceAll(/[\\%_]/g, "\\$&");
-db.select().from(issues).where(sql`${issues.title} LIKE ${"%" + escaped + "%"} ESCAPE '\\'`);
+db.select().from(actions).where(sql`${actions.title} LIKE ${"%" + escaped + "%"} ESCAPE '\\'`);
 ```
 
 ## Index awareness on hot paths
 
-Filters/sorts the app runs constantly (issues by status, by arc, by due date,
+Filters/sorts the app runs constantly (actions by status, by arc, by due date,
 ranked ordering) should be backed by an index in `src/db/schema.ts`. A new
 frequently-run `WHERE`/`ORDER BY` on an unindexed column is a `suggestion` at
-this data scale (5k issues), `important` if it's in the per-request path of
+this data scale (5k actions), `important` if it's in the per-request path of
 every load.
 
 ## Logic in the right layer

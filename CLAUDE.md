@@ -1,10 +1,10 @@
 # Progress
 
 A single-user, web-based tracker (a "personal Linear" with the owner's own
-hierarchy: Initiative → Product → Repo/Arc → Issue). Built for product
+hierarchy: Workspace → Focus → Repo/Arc → Action (→ Step)). Built for product
 development; **v2 broadens it to any area of responsibility** — including
 personal/household work — without changing the nouns (a household area is a
-repo-less Product with Arcs). See `docs/SPEC.md`.
+repo-less Focus with Arcs). See `docs/SPEC.md`.
 
 ## Documents — read before non-trivial work
 
@@ -20,9 +20,9 @@ deliberately — keep it that way as milestones land:
   REFERENCE rather than renumbering. The frozen **v1** roadmap is
   `docs/archive/SPEC-v1.md` — pre-v2 `SPEC §X` citations resolve there.
 - `docs/DECISIONS.md` + `docs/decisions/` — the decision log, **one file per
-  work element** (PROG-91): your issue's decisions go in
+  work element** (PROG-91): your action's decisions go in
   `docs/decisions/<KEY>.md`, headed `### <KEY> — title` (a second decision from
-  the same issue appends there with a letter suffix, `### <KEY>b — …`).
+  the same action appends there with a letter suffix, `### <KEY>b — …`).
   Parallel branches write different files, so there's nothing to collide on.
   Settled questions live in these files; don't re-litigate them — supersede
   with a new entry in *your* file that names the old one, never rewrite one.
@@ -35,10 +35,12 @@ When a decision of consequence is made in conversation, record it in
 
 ## Hard requirements (never trade away)
 
-1. **Instant UI.** Whole workspace loads into a client store; all mutations are
-   optimistic; a spinner on user interaction is a bug. See SPEC §2.1.
-2. **The owner's nouns.** Initiative, Product, Repo, Arc, Issue. Never "epic",
-   never "project" (as an entity name).
+1. **Instant UI.** The whole snapshot loads into a client store; all mutations
+   are optimistic; a spinner on user interaction is a bug. See SPEC §2.1.
+2. **The owner's nouns.** Workspace, Focus, Repo, Arc, Action, Step (plural of
+   Focus is "focuses"). Never "epic", never "project" (as an entity name).
+   PROG-98 renamed the pre-v3 nouns (Initiative/Product/Issue) — docs and
+   decisions written before it use the old names.
 3. **Rigid simplicity.** Fixed status set, no configurable workflows.
 
 ## Stack & conventions
@@ -84,11 +86,17 @@ have a drag-to-set vertical work order within a column (migration
 `wrangler deploy`); see `docs/SETUP.md` §6; **search** (PROG-130/PROG-130 entry)
 — a `/` quick-jump modal + filterable `/search` page over titles, descriptions,
 and comments (instant client-side title/desc + a streamed `GET /api/search`
-`LIKE` query for comments; REFERENCE §5). Likely next
+`LIKE` query for comments; REFERENCE §5); the **hierarchy-noun rename**
+(PROG-98, migration `0010_rename_hierarchy`) — Initiative → **Workspace**,
+Product → **Focus**, Issue → **Action**, sub-issue → **Step** (Arc/Repo
+unchanged), and the old load-everything "workspace" payload is now the
+**snapshot** (`GET /api/snapshot`); legacy API paths and client routes alias,
+action keys and existing row ids are untouched (docs/decisions/PROG-98.md).
+Likely next
 step per SPEC §8: **recurring due dates** (chores repeat); the due-date model +
 Agenda were built not to preclude it. Also pending: reminders/digests, start
 dates, date+time.
 
 `bun run dev` serves everything on :8000 (see `docs/SETUP.md`). Shared wire types
-live in `src/shared/`. Synthetic 5k-issue data: `bun run db:seed:scale`; reset
+live in `src/shared/`. Synthetic 5k-action data: `bun run db:seed:scale`; reset
 via `docs/SETUP.md` §2. Update this section as phases change.

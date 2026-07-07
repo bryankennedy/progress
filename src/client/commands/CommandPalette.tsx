@@ -1,28 +1,28 @@
-// The command palette (SPEC §4): ⌘K jumps to anything (issues by key —
+// The command palette (SPEC §4): ⌘K jumps to anything (actions by key —
 // including retired alias keys — or title, containers by name) and exposes
 // commands. The single-key actions (s/p/e/m) open the same palette directly
-// in a picker mode scoped to the current issue, so there's exactly one
+// in a picker mode scoped to the current action, so there's exactly one
 // keyboard-driven surface to learn.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { ISSUE_ESTIMATES, ISSUE_PRIORITIES, ISSUE_STATUSES } from "../../shared/constants";
-import type { WireIssue, WorkspacePayload } from "../../shared/types";
+import { ACTION_ESTIMATES, ACTION_PRIORITIES, ACTION_STATUSES } from "../../shared/constants";
+import type { WireAction, SnapshotPayload } from "../../shared/types";
 import { addDays, formatDueDate, relativeDue, todayISO } from "../dates";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import {
-  findIssueByKey,
-  issueKeyOf,
-  moveIssue,
-  tagIssue,
-  untagIssue,
-  updateIssue,
+  findActionByKey,
+  actionKeyOf,
+  moveAction,
+  tagAction,
+  untagAction,
+  updateAction,
 } from "../store";
 import { copyBundleAsPrompt, copyWorkCommand, workCommand } from "../workOn";
 import {
   onOpenPalette,
   openCreateContainer,
-  openCreateIssue,
+  openCreateAction,
   type PaletteMode,
 } from "./controller";
 
@@ -41,7 +41,7 @@ const MODE_TITLES: Record<Exclude<PaletteMode["kind"], "root">, string> = {
   workon: "Work on this",
 };
 
-export default function CommandPalette({ workspace }: { workspace: WorkspacePayload }) {
+export default function CommandPalette({ snapshot }: { snapshot: SnapshotPayload }) {
   const [mode, setMode] = useState<PaletteMode | null>(null);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
@@ -57,9 +57,9 @@ export default function CommandPalette({ workspace }: { workspace: WorkspacePayl
   useEffect(() => onOpenPalette(switchMode), []);
 
   const items = useMemo(
-    () => (mode ? buildItems(workspace, mode, query, navigate, switchMode) : []),
+    () => (mode ? buildItems(snapshot, mode, query, navigate, switchMode) : []),
     // eslint-style exhaustiveness doesn't apply: navigate/switchMode are stable enough here.
-    [workspace, mode, query, navigate],
+    [snapshot, mode, query, navigate],
   );
 
   const sel = Math.min(selected, Math.max(items.length - 1, 0));
@@ -91,12 +91,12 @@ export default function CommandPalette({ workspace }: { workspace: WorkspacePayl
       if (item) execute(item);
     } else if (e.key === "Backspace" && query === "" && mode.kind !== "root") {
       e.preventDefault();
-      switchMode({ kind: "root", issueId: mode.issueId });
+      switchMode({ kind: "root", actionId: mode.actionId });
     }
   };
 
-  const ctxIssue =
-    mode.kind !== "root" ? workspace.issues.find((i) => i.id === mode.issueId) : undefined;
+  const ctxAction =
+    mode.kind !== "root" ? snapshot.actions.find((i) => i.id === mode.actionId) : undefined;
 
   return (
     <div className="fixed inset-0 z-50 bg-ink/20 p-4" onMouseDown={close}>
@@ -105,11 +105,11 @@ export default function CommandPalette({ workspace }: { workspace: WorkspacePayl
         onKeyDown={onKeyDown}
         className="mx-auto mt-[12vh] max-w-lg overflow-hidden rounded-xl border border-line bg-card shadow-2xl"
       >
-        {ctxIssue && (
+        {ctxAction && (
           <p className="border-b border-line px-4 pb-2 pt-3 text-xs text-ink-faint">
             {MODE_TITLES[mode.kind as keyof typeof MODE_TITLES]} ·{" "}
-            <span className="font-mono">{issueKeyOf(workspace, ctxIssue)}</span>{" "}
-            <span className="text-ink-soft">{ctxIssue.title}</span>
+            <span className="font-mono">{actionKeyOf(snapshot, ctxAction)}</span>{" "}
+            <span className="text-ink-soft">{ctxAction.title}</span>
           </p>
         )}
         <input
@@ -147,7 +147,7 @@ export default function CommandPalette({ workspace }: { workspace: WorkspacePayl
 }
 
 function buildItems(
-  ws: WorkspacePayload,
+  ws: SnapshotPayload,
   mode: PaletteMode,
   query: string,
   navigate: (to: string) => void,
@@ -156,39 +156,39 @@ function buildItems(
   const q = query.trim().toLowerCase();
   const matches = (label: string) => label.toLowerCase().includes(q);
 
-  if (mode.kind === "root") return rootItems(ws, mode.issueId, q, navigate, switchMode);
+  if (mode.kind === "root") return rootItems(ws, mode.actionId, q, navigate, switchMode);
 
-  const issue = ws.issues.find((i) => i.id === mode.issueId);
-  if (!issue) return [];
+  const action = ws.actions.find((i) => i.id === mode.actionId);
+  if (!action) return [];
 
   switch (mode.kind) {
     case "status":
-      return ISSUE_STATUSES.filter((s) => matches(STATUS_LABELS[s])).map((s) => ({
+      return ACTION_STATUSES.filter((s) => matches(STATUS_LABELS[s])).map((s) => ({
         id: s,
         label: STATUS_LABELS[s],
-        hint: s === issue.status ? "current" : undefined,
-        run: () => void updateIssue(issue.id, { status: s }),
+        hint: s === action.status ? "current" : undefined,
+        run: () => void updateAction(action.id, { status: s }),
       }));
     case "priority":
-      return ISSUE_PRIORITIES.filter((p) => matches(PRIORITY_LABELS[p])).map((p) => ({
+      return ACTION_PRIORITIES.filter((p) => matches(PRIORITY_LABELS[p])).map((p) => ({
         id: p,
         label: PRIORITY_LABELS[p],
-        hint: p === issue.priority ? "current" : undefined,
-        run: () => void updateIssue(issue.id, { priority: p }),
+        hint: p === action.priority ? "current" : undefined,
+        run: () => void updateAction(action.id, { priority: p }),
       }));
     case "estimate":
-      return [null, ...ISSUE_ESTIMATES]
+      return [null, ...ACTION_ESTIMATES]
         .map((e) => ({ value: e, label: e === null ? "No estimate" : String(e) }))
         .filter((e) => matches(e.label))
         .map((e) => ({
           id: String(e.value),
           label: e.label,
-          hint: e.value === issue.estimate ? "current" : undefined,
-          run: () => void updateIssue(issue.id, { estimate: e.value }),
+          hint: e.value === action.estimate ? "current" : undefined,
+          run: () => void updateAction(action.id, { estimate: e.value }),
         }));
     case "tag": {
       const assigned = new Set(
-        ws.issueTags.filter((l) => l.issueId === issue.id).map((l) => l.tagId),
+        ws.actionTags.filter((l) => l.actionId === action.id).map((l) => l.tagId),
       );
       const items: Item[] = ws.tags
         .filter((t) => matches(t.name))
@@ -199,8 +199,8 @@ function buildItems(
           label: t.name,
           hint: assigned.has(t.id) ? "✓ added" : undefined,
           run: () => {
-            if (assigned.has(t.id)) untagIssue(issue.id, t.id);
-            else tagIssue(issue.id, { tagId: t.id });
+            if (assigned.has(t.id)) untagAction(action.id, t.id);
+            else tagAction(action.id, { tagId: t.id });
             return "keep";
           },
         }));
@@ -211,7 +211,7 @@ function buildItems(
           label: `Create tag "${name}"`,
           hint: "new",
           run: () => {
-            tagIssue(issue.id, { name });
+            tagAction(action.id, { name });
             return "keep";
           },
         });
@@ -219,47 +219,47 @@ function buildItems(
       return items;
     }
     case "arc": {
-      const productArcs = ws.arcs.filter((a) => a.productId === issue.productId && !a.archivedAt);
+      const focusArcs = ws.arcs.filter((a) => a.focusId === action.focusId && !a.archivedAt);
       // "No arc" filters like any option, so a typed query can't leave it
       // sitting first and steal the Enter.
       return [
         {
           id: "arc:none",
           label: "No arc",
-          hint: issue.arcId === null ? "current" : undefined,
-          run: () => void updateIssue(issue.id, { arcId: null }),
+          hint: action.arcId === null ? "current" : undefined,
+          run: () => void updateAction(action.id, { arcId: null }),
         },
-        ...productArcs.map((a) => ({
+        ...focusArcs.map((a) => ({
           id: a.id,
           label: a.name,
-          hint: a.id === issue.arcId ? "current" : undefined,
-          run: () => void updateIssue(issue.id, { arcId: a.id }),
+          hint: a.id === action.arcId ? "current" : undefined,
+          run: () => void updateAction(action.id, { arcId: a.id }),
         })),
       ].filter((item) => matches(item.label));
     }
     case "move": {
-      const targets: { productId: string; repoId: string | null; label: string; hint: string }[] =
+      const targets: { focusId: string; repoId: string | null; label: string; hint: string }[] =
         [];
       // Archived containers aren't valid destinations (D26).
-      for (const product of ws.products.filter((p) => !p.archivedAt)) {
-        targets.push({ productId: product.id, repoId: null, label: product.name, hint: "Product" });
-        for (const repo of ws.repos.filter((r) => r.productId === product.id && !r.archivedAt)) {
+      for (const focus of ws.focuses.filter((p) => !p.archivedAt)) {
+        targets.push({ focusId: focus.id, repoId: null, label: focus.name, hint: "Focus" });
+        for (const repo of ws.repos.filter((r) => r.focusId === focus.id && !r.archivedAt)) {
           targets.push({
-            productId: product.id,
+            focusId: focus.id,
             repoId: repo.id,
-            label: `${product.name} / ${repo.name}`,
+            label: `${focus.name} / ${repo.name}`,
             hint: "Repo",
           });
         }
       }
       return targets
-        .filter((t) => !(t.productId === issue.productId && t.repoId === issue.repoId))
+        .filter((t) => !(t.focusId === action.focusId && t.repoId === action.repoId))
         .filter((t) => matches(t.label))
         .map((t) => ({
-          id: `${t.productId}:${t.repoId ?? ""}`,
+          id: `${t.focusId}:${t.repoId ?? ""}`,
           label: t.label,
           hint: t.hint,
-          run: () => moveIssue(issue.id, { productId: t.productId, repoId: t.repoId }),
+          run: () => moveAction(action.id, { focusId: t.focusId, repoId: t.repoId }),
         }));
     }
     case "due": {
@@ -274,28 +274,28 @@ function buildItems(
         { id: "due:1w", label: `In a week (${formatDueDate(addDays(today, 7))})`, value: addDays(today, 7) },
         { id: "due:2w", label: `In 2 weeks (${formatDueDate(addDays(today, 14))})`, value: addDays(today, 14) },
       ];
-      if (issue.dueDate) options.push({ id: "due:clear", label: "Clear due date", value: null });
+      if (action.dueDate) options.push({ id: "due:clear", label: "Clear due date", value: null });
       const items: Item[] = options
         .filter((o) => matches(o.label))
         .map((o) => ({
           id: o.id,
           label: o.label,
-          hint: o.value === issue.dueDate ? "current" : o.value === null ? undefined : relativeDue(o.value, today),
-          run: () => void updateIssue(issue.id, { dueDate: o.value }),
+          hint: o.value === action.dueDate ? "current" : o.value === null ? undefined : relativeDue(o.value, today),
+          run: () => void updateAction(action.id, { dueDate: o.value }),
         }));
       const typed = query.trim();
-      if (/^\d{4}-\d{2}-\d{2}$/.test(typed) && typed !== issue.dueDate) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(typed) && typed !== action.dueDate) {
         items.unshift({
           id: "due:typed",
           label: `Set to ${typed}`,
           hint: relativeDue(typed, today),
-          run: () => void updateIssue(issue.id, { dueDate: typed }),
+          run: () => void updateAction(action.id, { dueDate: typed }),
         });
       }
       return items;
     }
     case "workon": {
-      const key = issueKeyOf(ws, issue);
+      const key = actionKeyOf(ws, action);
       return (
         [
           {
@@ -317,8 +317,8 @@ function buildItems(
 }
 
 function rootItems(
-  ws: WorkspacePayload,
-  issueId: string | null,
+  ws: SnapshotPayload,
+  actionId: string | null,
   q: string,
   navigate: (to: string) => void,
   switchMode: (m: PaletteMode) => void,
@@ -326,18 +326,18 @@ function rootItems(
   const matches = (label: string) => label.toLowerCase().includes(q);
   const items: Item[] = [];
 
-  const issue = issueId ? ws.issues.find((i) => i.id === issueId) : undefined;
+  const action = actionId ? ws.actions.find((i) => i.id === actionId) : undefined;
   const commands: Item[] = [
-    { id: "cmd:create", label: "Create issue…", hint: "C", run: () => openCreateIssue() },
+    { id: "cmd:create", label: "Create action…", hint: "C", run: () => openCreateAction() },
   ];
-  if (issue) {
-    const key = issueKeyOf(ws, issue);
+  if (action) {
+    const key = actionKeyOf(ws, action);
     const picker = (kind: Exclude<PaletteMode["kind"], "root">, hint: string): Item => ({
       id: `cmd:${kind}`,
       label: `${MODE_TITLES[kind]}… · ${key}`,
       hint,
       run: () => {
-        switchMode({ kind, issueId: issue.id });
+        switchMode({ kind, actionId: action.id });
         return "keep";
       },
     });
@@ -352,7 +352,7 @@ function rootItems(
       picker("workon", "W"),
     );
   }
-  for (const kind of ["initiative", "product", "repo", "arc"] as const) {
+  for (const kind of ["workspace", "focus", "repo", "arc"] as const) {
     commands.push({
       id: `cmd:new-${kind}`,
       label: `Create ${kind}…`,
@@ -363,36 +363,36 @@ function rootItems(
 
   if (q === "") return items;
 
-  const productById = new Map(ws.products.map((p) => [p.id, p]));
-  const keyOf = (i: WireIssue) => `${productById.get(i.productId)?.keyPrefix ?? "?"}-${i.number}`;
-  const issueItem = (i: WireIssue): Item => ({
+  const focusById = new Map(ws.focuses.map((p) => [p.id, p]));
+  const keyOf = (i: WireAction) => `${focusById.get(i.focusId)?.keyPrefix ?? "?"}-${i.number}`;
+  const actionItem = (i: WireAction): Item => ({
     id: i.id,
     label: `${keyOf(i)} — ${i.title}`,
     hint: STATUS_LABELS[i.status],
-    run: () => navigate(`/issue/${keyOf(i)}`),
+    run: () => navigate(`/action/${keyOf(i)}`),
   });
 
   // Exact key lookup first — it also catches retired alias keys (SPEC §3),
   // which a substring scan over current keys would miss.
-  const byKey = findIssueByKey(ws, q);
-  if (byKey) items.push(issueItem(byKey.issue));
-  const ranked = ws.issues
-    .filter((i) => i.id !== byKey?.issue.id)
+  const byKey = findActionByKey(ws, q);
+  if (byKey) items.push(actionItem(byKey.action));
+  const ranked = ws.actions
+    .filter((i) => i.id !== byKey?.action.id)
     .map((i) => {
       const key = keyOf(i).toLowerCase();
       const score = key.startsWith(q) ? 0 : matches(i.title) ? 1 : key.includes(q) ? 2 : -1;
-      return { issue: i, key, score };
+      return { action: i, key, score };
     })
     .filter((r) => r.score >= 0)
     .sort((a, b) => a.score - b.score || a.key.localeCompare(b.key))
     .slice(0, byKey ? 7 : 8);
-  items.push(...ranked.map((r) => issueItem(r.issue)));
+  items.push(...ranked.map((r) => actionItem(r.action)));
 
   // Archived containers stay out of search (reachable from their parent's
   // page, which lists them dimmed — D26).
   const containers = [
-    ...ws.initiatives.map((x) => ({ ...x, hint: "Initiative", href: `/initiative/${x.id}` })),
-    ...ws.products.map((x) => ({ ...x, hint: "Product", href: `/product/${x.id}` })),
+    ...ws.workspaces.map((x) => ({ ...x, hint: "Workspace", href: `/workspace/${x.id}` })),
+    ...ws.focuses.map((x) => ({ ...x, hint: "Focus", href: `/focus/${x.id}` })),
     ...ws.repos.map((x) => ({ ...x, hint: "Repo", href: `/repo/${x.id}` })),
     ...ws.arcs.map((x) => ({ ...x, hint: "Arc", href: `/arc/${x.id}` })),
   ]

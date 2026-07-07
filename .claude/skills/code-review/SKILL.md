@@ -34,27 +34,27 @@ security pre-flight (secrets, injection, XSS).
   acknowledge that reasoning before proposing an alternative.
 
 Repo hard requirements are review criteria (see `CLAUDE.md`): instant UI —
-optimistic mutations, no user-facing spinners; the owner's nouns (Initiative /
-Product / Repo / Arc / Issue — never "epic"/"project"); rigid simplicity.
+optimistic mutations, no user-facing spinners; the owner's nouns (Workspace /
+Focus / Repo / Arc / Action — never "epic"/"project"); rigid simplicity.
 
 ## Detect the review target
 
 - Argument names a PR/branch, or the working tree is dirty → **diff review**:
   read the diff (`git diff`, `gh pr diff`) plus enough surrounding code to
-  judge it in context. Read the intent from the PR/issue/commit messages.
+  judge it in context. Read the intent from the PR/action/commit messages.
 - Argument names a file or directory → **module review**: read the module
   whole, plus its direct importers/imports to judge its boundary.
 
 ## Process
 
-Work the phases in order. **Surface any blocking issue the moment you find
+Work the phases in order. **Surface any blocking action the moment you find
 it** — state it immediately in output, then continue; never hold a blocker
 back for the final report.
 
 ### 1. Scope
 
 What is under review and what problem does it solve? For a diff, state the
-intent in one or two lines (from the PR/issue). For a module, state its single
+intent in one or two lines (from the PR/action). For a module, state its single
 responsibility in one line — if you can't, that is itself a finding.
 
 ### 2. Structure
@@ -110,7 +110,7 @@ higher one was considered.
 Every finding, as you go and in the report, on one line:
 
 ```
-[severity] path:line — one-line issue — concrete suggested fix.
+[severity] path:line — one-line action — concrete suggested fix.
 ```
 
 - `path:line` relative to the repo root; use `path:line-line` for ranges and

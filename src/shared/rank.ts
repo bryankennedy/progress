@@ -1,6 +1,6 @@
 // Fractional index keys for board ordering (PROG-43). A rank is a string over a
 // fixed, ASCII-ordered alphabet that sorts lexicographically. Because there is
-// always a key strictly *between* any two distinct keys, an issue can be placed
+// always a key strictly *between* any two distinct keys, an action can be placed
 // at an exact position on the kanban board with a SINGLE write — no renumbering
 // of its neighbors — which is what keeps reordering optimistic and instant
 // (Hard requirement #1). Shared verbatim by the server (assign on create /

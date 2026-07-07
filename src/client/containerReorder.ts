@@ -1,6 +1,6 @@
-// Container ordering on the Outline (PROG-87): arcs within a product and
-// products within an initiative sort by a fractional-index `rank` — the same
-// key space the issue board uses (PROG-43) — with the NAME as tiebreak. Every
+// Container ordering on the Outline (PROG-87): arcs within a focus and
+// focuses within a workspace sort by a fractional-index `rank` — the same
+// key space the action board uses (PROG-43) — with the NAME as tiebreak. Every
 // container starts at the shared DEFAULT_RANK, so a group nobody has reordered
 // ties everywhere and reads alphabetically; ranks only diverge once someone
 // drags.

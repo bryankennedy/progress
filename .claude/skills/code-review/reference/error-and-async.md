@@ -12,12 +12,12 @@ in an unknown state.
 ```ts
 // Before — the save failed and nobody will ever know
 try {
-  await api.updateIssue(id, patch);
+  await api.updateAction(id, patch);
 } catch {}
 
 // After — client: revert the optimistic change and tell the user
 try {
-  await api.updateIssue(id, patch);
+  await api.updateAction(id, patch);
 } catch (err) {
   store.revert(snapshot);
   toast.error(`Save failed: ${message(err)}`);
@@ -51,11 +51,11 @@ worse: the runtime may kill the request before the promise settles.
 
 ```ts
 // Before — may never run to completion after the response is returned
-logActivity(db, issueId, "status", from, to);
+logActivity(db, actionId, "status", from, to);
 return c.json(updated);
 
 // After — either await it, or explicitly hand it to the runtime:
-c.executionCtx.waitUntil(logActivity(db, issueId, "status", from, to));
+c.executionCtx.waitUntil(logActivity(db, actionId, "status", from, to));
 ```
 
 On the client, a floating promise in an event handler needs a `.catch` (toast

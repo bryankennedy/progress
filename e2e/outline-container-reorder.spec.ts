@@ -53,33 +53,33 @@ test.beforeEach(async ({ context }) => {
   await signInAsOwner(context);
 });
 
-test("arcs list alphabetically by default and drag-reorder within a product (PROG-87)", async ({
+test("arcs list alphabetically by default and drag-reorder within a focus (PROG-87)", async ({
   page,
 }) => {
-  // A fresh product with three arcs, created in non-alphabetical order — the
+  // A fresh focus with three arcs, created in non-alphabetical order — the
   // outline must still show them alphabetically (all ranks tie at the default).
   await page.goto("/outline");
-  const initiatives = (await apiJson<{ initiatives: { id: string }[] }>(page, "/api/workspace"))
-    .initiatives;
+  const workspaces = (await apiJson<{ workspaces: { id: string }[] }>(page, "/api/snapshot"))
+    .workspaces;
   const prefix = `Q${tag().toUpperCase().replaceAll(/[^A-Z]/g, "Z").padEnd(4, "X").slice(0, 4)}`;
-  const product = (
+  const focus = (
     await (
-      await page.request.post("/api/products", {
-        data: { name: `E2E arcs ${tag()}`, keyPrefix: prefix, initiativeId: initiatives[0]!.id },
+      await page.request.post("/api/focuses", {
+        data: { name: `E2E arcs ${tag()}`, keyPrefix: prefix, workspaceId: workspaces[0]!.id },
       })
     ).json()
   ).container as { id: string };
   const mk = async (name: string) =>
     (
       await (
-        await page.request.post("/api/arcs", { data: { name, productId: product.id } })
+        await page.request.post("/api/arcs", { data: { name, focusId: focus.id } })
       ).json()
     ).container as { id: string };
   const gamma = await mk("Gamma e2e");
   const alpha = await mk("Alpha e2e");
   const beta = await mk("Beta e2e");
 
-  await page.goto(`/outline?product=${product.id}`);
+  await page.goto(`/outline?focus=${focus.id}`);
   await page.getByRole("link", { name: "Gamma e2e", exact: true }).waitFor();
 
   // Default order: alphabetical, not creation order.
@@ -107,30 +107,30 @@ test("arcs list alphabetically by default and drag-reorder within a product (PRO
   ]);
 
   // The first drag in a tied group renumbers it: ranks are now distinct.
-  const ws = await apiJson<{ arcs: { id: string; rank: string }[] }>(page, "/api/workspace");
+  const ws = await apiJson<{ arcs: { id: string; rank: string }[] }>(page, "/api/snapshot");
   const ranks = [gamma.id, alpha.id, beta.id].map(
     (id) => ws.arcs.find((a) => a.id === id)!.rank,
   );
   expect(new Set(ranks).size).toBe(3);
   expect(ranks[0]! < ranks[1]! && ranks[1]! < ranks[2]!).toBe(true);
 
-  await page.request.patch(`/api/products/${product.id}`, { data: { archived: true } });
+  await page.request.patch(`/api/focuses/${focus.id}`, { data: { archived: true } });
 });
 
-test("products drag-reorder at initiative scope (PROG-87)", async ({ page }) => {
+test("focuses drag-reorder at workspace scope (PROG-87)", async ({ page }) => {
   await page.goto("/outline");
-  const initiative = (
+  const workspace = (
     await (
-      await page.request.post("/api/initiatives", { data: { name: `E2E initiative ${tag()}` } })
+      await page.request.post("/api/workspaces", { data: { name: `E2E workspace ${tag()}` } })
     ).json()
   ).container as { id: string };
   const mk = async (name: string) =>
     (
       await (
-        await page.request.post("/api/products", {
+        await page.request.post("/api/focuses", {
           data: {
             name,
-            initiativeId: initiative.id,
+            workspaceId: workspace.id,
             keyPrefix: `P${tag().toUpperCase().replaceAll(/[^A-Z]/g, "Z").padEnd(4, "Y").slice(0, 4)}`,
           },
         })
@@ -139,7 +139,7 @@ test("products drag-reorder at initiative scope (PROG-87)", async ({ page }) => 
   const cherry = await mk("Cherry e2e");
   const apple = await mk("Apple e2e");
 
-  await page.goto(`/outline?initiative=${initiative.id}`);
+  await page.goto(`/outline?workspace=${workspace.id}`);
   await page.getByRole("link", { name: "Cherry e2e", exact: true }).waitFor();
 
   // Alphabetical while ranks tie.
@@ -158,27 +158,27 @@ test("products drag-reorder at initiative scope (PROG-87)", async ({ page }) => 
   expect(await yOrder(page, ["Apple e2e", "Cherry e2e"])).toEqual(["Cherry e2e", "Apple e2e"]);
 
   for (const p of [cherry, apple])
-    await page.request.patch(`/api/products/${p.id}`, { data: { archived: true } });
-  await page.request.patch(`/api/initiatives/${initiative.id}`, { data: { archived: true } });
+    await page.request.patch(`/api/focuses/${p.id}`, { data: { archived: true } });
+  await page.request.patch(`/api/workspaces/${workspace.id}`, { data: { archived: true } });
 });
 
 test("the scope picker is sticky — a bare /outline reopens the last scope", async ({ page }) => {
   await page.goto("/outline");
-  const initiative = (
+  const workspace = (
     await (
-      await page.request.post("/api/initiatives", { data: { name: `E2E sticky ${tag()}` } })
+      await page.request.post("/api/workspaces", { data: { name: `E2E sticky ${tag()}` } })
     ).json()
   ).container as { id: string };
 
-  // Visit the initiative scope via URL (the shareable-link path)…
-  await page.goto(`/outline?initiative=${initiative.id}`);
+  // Visit the workspace scope via URL (the shareable-link path)…
+  await page.goto(`/outline?workspace=${workspace.id}`);
   const scope = page.locator("select");
-  await expect(scope).toHaveValue(`initiative:${initiative.id}`);
+  await expect(scope).toHaveValue(`workspace:${workspace.id}`);
 
   // …leave for another view, come back with NO params: the scope must stick.
   await page.goto("/structure");
   await page.goto("/outline");
-  await expect(scope).toHaveValue(`initiative:${initiative.id}`);
+  await expect(scope).toHaveValue(`workspace:${workspace.id}`);
 
-  await page.request.patch(`/api/initiatives/${initiative.id}`, { data: { archived: true } });
+  await page.request.patch(`/api/workspaces/${workspace.id}`, { data: { archived: true } });
 });

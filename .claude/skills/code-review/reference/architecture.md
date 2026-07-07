@@ -23,16 +23,16 @@ common inversions to catch:
 
 ```ts
 // src/shared/agenda.ts
-import { issues } from "../db/schema"; // shared now depends on Drizzle
-export function bucketDue(rows: (typeof issues.$inferSelect)[]) { /* ... */ }
+import { actions } from "../db/schema"; // shared now depends on Drizzle
+export function bucketDue(rows: (typeof actions.$inferSelect)[]) { /* ... */ }
 ```
 
 **After:**
 
 ```ts
 // src/shared/agenda.ts — depends only on the wire type it already owns
-import type { Issue } from "./types";
-export function bucketDue(rows: Issue[]) { /* ... */ }
+import type { Action } from "./types";
+export function bucketDue(rows: Action[]) { /* ... */ }
 ```
 
 **Before (client importing worker detail):**
@@ -69,13 +69,13 @@ imports.
 An abstraction leaks when callers must know its internals to use it safely.
 
 ```ts
-// Before: caller must know the store keeps issues unsorted and must re-sort
-const issues = store.issuesByArc(arcId);
-const sorted = [...issues].sort(byRank); // every caller repeats this
+// Before: caller must know the store keeps actions unsorted and must re-sort
+const actions = store.actionsByArc(arcId);
+const sorted = [...actions].sort(byRank); // every caller repeats this
 ```
 
 → If every caller sorts, ordering is part of the contract: sort inside
-`issuesByArc` and document it, or expose `issuesByArcRanked`.
+`actionsByArc` and document it, or expose `actionsByArcRanked`.
 
 ## Circular dependencies
 
@@ -88,6 +88,6 @@ concept is missing or misplaced. Fix by extracting the shared piece downward
 This is a single-user app with rigid simplicity as a hard requirement. Apply
 SOLID as a diagnostic, not a target: interface-segregation and dependency
 direction catch real problems here; don't demand strategy patterns, DI
-containers, or plugin seams the product will never need. A concrete `switch`
+containers, or plugin seams the focus will never need. A concrete `switch`
 over the five fixed statuses is correct — the status set is deliberately
 closed (see `CLAUDE.md`).

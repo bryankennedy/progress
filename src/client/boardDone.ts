@@ -1,11 +1,11 @@
 // PROG-40: the Done column grows without bound and dominates the board. Show
-// only the most recently completed issues there; older ones stay reachable via
+// only the most recently completed actions there; older ones stay reachable via
 // search, the Agenda, and container pages. "Recent" is by `completedAt` — the
-// instant the issue was marked done — newest kept.
+// instant the action was marked done — newest kept.
 
 export const DONE_VISIBLE_LIMIT = 10;
 
-// The `limit` most-recently-completed issues, returned in the SAME order they
+// The `limit` most-recently-completed actions, returned in the SAME order they
 // came in (the board's rank order) so the display and drag-reorder stay
 // consistent with every other column. Selection is purely by `completedAt`:
 // newest kept; a null completedAt (shouldn't happen for done, but be safe) sorts
@@ -20,5 +20,5 @@ export function recentlyCompleted<T extends { completedAt: string | null }>(
       .sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""))
       .slice(0, limit),
   );
-  return done.filter((issue) => keep.has(issue));
+  return done.filter((action) => keep.has(action));
 }

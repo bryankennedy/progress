@@ -3,7 +3,7 @@
 // pick), it inserts an `![uploading…]()` placeholder at the caret, uploads to
 // R2 via /api/images, then swaps the placeholder for `![alt](/api/images/<id>)`
 // — or removes it and toasts on failure. Shared by the description editor
-// (EditableMarkdown) and the comment composer (IssuePage).
+// (EditableMarkdown) and the comment composer (ActionPage).
 
 import { useRef } from "react";
 import { toast } from "./toast";
