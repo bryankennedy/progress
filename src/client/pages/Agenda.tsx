@@ -9,10 +9,10 @@
 // client store (SPEC v2 §7.1); inline mark-done / bump-due use the optimistic
 // mutation template (no spinner).
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import type { WireIssue, WireTag, WorkspacePayload } from "../../shared/types";
-import { loadQuickAddProduct, quickAddDueDate, saveQuickAddProduct } from "../agendaQuickAdd";
+import { inheritArcId, loadQuickAddProduct, quickAddDueDate, saveQuickAddProduct } from "../agendaQuickAdd";
 import { sortByName } from "../boardFilters";
 import { type AgendaBucket, bucketOf, formatDueDate, relativeDue, todayISO } from "../dates";
 import { STATUS_LABELS } from "../labels";
@@ -183,9 +183,10 @@ export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
 // backlog) with the optimistic createIssue, so the new row appears in the
 // group instantly. The product comes from the inline picker: it follows the
 // active Product filter when one is set, otherwise it remembers the last
-// product quick-added into (localStorage, fail-soft). An active Arc filter is
-// inherited when it belongs to the chosen product, so a filtered agenda
-// captures into what you're looking at.
+// product quick-added into (localStorage, fail-soft). Active Arc (when it
+// belongs to the chosen product) and Tag filters are inherited (PROG-89b), so
+// a filtered agenda captures into what you're looking at — and the capture
+// stays visible under the filter instead of silently vanishing.
 function QuickAddRow({
   bucket,
   workspace,
@@ -208,31 +209,33 @@ function QuickAddRow({
     if (saved && products.some((p) => p.id === saved)) return saved;
     return products[0]?.id ?? "";
   });
-  // The picker tracks the Product filter while one is active.
-  useEffect(() => {
+  // The picker tracks the Product filter while one is active. Synced during
+  // render (prev-value pattern, like the search page's pagination reset) so
+  // there's no post-render setState frame.
+  const [prevFilterProduct, setPrevFilterProduct] = useState(filters.product);
+  if (filters.product !== prevFilterProduct) {
+    setPrevFilterProduct(filters.product);
     if (filters.product) setProductId(filters.product);
-  }, [filters.product]);
+  }
 
   const due = quickAddDueDate(bucket, today);
 
   const submit = () => {
     const t = title.trim();
     if (!t || !productId || !due) return;
-    const arcId =
-      filters.arc &&
-      workspace.arcs.some((a) => a.id === filters.arc && a.productId === productId)
-        ? filters.arc
-        : null;
     createIssue({
       title: t,
       productId,
       repoId: null,
-      arcId,
+      arcId: inheritArcId(filters.arc, productId, workspace.arcs),
       parentIssueId: null,
       status: "todo",
       priority: "none",
       estimate: null,
       dueDate: due,
+      // Inherit the active Tag filter too (PROG-89b) — otherwise the untagged
+      // capture is filtered out the instant it's created and silently vanishes.
+      tagIds: filters.tag ? [filters.tag] : undefined,
     });
     saveQuickAddProduct(productId);
     setTitle(""); // input keeps focus — capture the next one immediately

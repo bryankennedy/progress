@@ -220,7 +220,7 @@ mandatory — renew it before it lapses (an expired file is worse than none).
 |---|---|
 | `GET /api/health` | Readiness probe: round-trips D1 (`select 1`). `{ ok: true, db: "ok" }` (200) when reachable, `{ ok: false, db: "error" }` (503) when not — so it reflects database reachability, not just that the Worker booted. The only `/api/*` route never access-logged. |
 | `GET /api/workspace` | The load-everything payload: `me` (the signed-in user, PROG-34), users, initiatives, products, repos, arcs, issues, tags, issueTags, issueKeyAliases — nine independent reads run with `Promise.all` (not a `db.batch`/transaction, which 500'd on production D1; D31). Comments/activity are deliberately excluded (D20). |
-| `POST /api/issues` | `{ title, productId, repoId?, arcId?, parentIssueId?, description?, status?, priority?, estimate?, dueDate? }` → 201 `{ issue }`. `dueDate` is `YYYY-MM-DD` or null, validated (impossible dates rejected). `parentIssueId` must be an existing issue in the same product (PROG-124). Number allocated by atomic increment of the product sequence; gaps from failed creates are harmless (D24). A board `rank` is auto-assigned, appended after the current last issue (D44). |
+| `POST /api/issues` | `{ title, productId, repoId?, arcId?, parentIssueId?, description?, status?, priority?, estimate?, dueDate?, tagIds? }` → 201 `{ issue }`. `dueDate` is `YYYY-MM-DD` or null, validated (impossible dates rejected). `parentIssueId` must be an existing issue in the same product (PROG-124). `tagIds` (PROG-89b) links existing tags at birth — every id must exist or the whole create 400s. Number allocated by atomic increment of the product sequence; gaps from failed creates are harmless (D24). A board `rank` is auto-assigned, appended after the current last issue (D44). |
 | `PATCH /api/issues/:id` | Any of `title, description, status, priority, estimate, arcId, parentIssueId, dueDate, rank` — validated per field; arc and parent must be same-product; `parentIssueId` reparent is acyclic and not self (PROG-124); `dueDate`/`arcId`/`parentIssueId` accept null to clear. `rank` is a fractional-index board key the client computes from the drop site's neighbors (D44). A status change atomically appends a `status_changed` activity row and maintains `completedAt`. |
 | `POST /api/issues/:id/move` | `{ productId, repoId }` (`repoId: null` = product-level). Within-product keeps key + arc; cross-product re-keys, clears arc, writes the alias, logs `moved`. 400 on no-op. |
 | `GET /api/issues/:id/timeline` | `{ comments, activity, pullRequests, commits }`, each ordered by `createdAt`. |
@@ -477,9 +477,11 @@ canonical key — entirely client-side from the loaded workspace (D22).
   the first day beyond it (today+7) (`quickAddDueDate`,
   `src/client/agendaQuickAdd.ts`). The product comes from an inline picker
   that follows the active Product filter, else the last product quick-added
-  into (localStorage); an active Arc filter is inherited when it belongs to
-  the chosen product. Groups still hide when empty, so the input appears only
-  under populated groups; Overdue never gets one (an issue can't be born late).
+  into (localStorage); active Arc (when it belongs to the chosen product) and
+  Tag filters are inherited (PROG-89b), so the capture stays visible under the
+  filters it was typed into. Groups still hide when empty, so the input appears
+  only under populated groups; Overdue never gets one (an issue can't be born
+  late).
 - **Structure (`/structure`)** — the Initiative → Product → (Repo · Arc) tree
   with an inline "+ add" on each node (D40); a dedicated home for curating
   structure that keeps the board uncluttered. Active arcs always show; archived

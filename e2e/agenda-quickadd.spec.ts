@@ -99,6 +99,46 @@ test("quick-add under Today creates an issue due today (PROG-89)", async ({ page
   await cleanupProduct(page, product.id);
 });
 
+test("quick-add under an active Tag filter inherits the tag and stays visible (PROG-89b)", async ({
+  page,
+}) => {
+  const today = localISO();
+  const { product, seed } = await makeProductWithSeed(page, today);
+  // Tag the seed so the tag-filtered agenda has a Today group to type under.
+  const tagName = `e2equick-${tag()}`;
+  const created = await (
+    await page.request.post(`/api/issues/${seed.id}/tags`, { data: { name: tagName } })
+  ).json();
+  const tagId = created.tag.id as string;
+
+  await page.goto(`/agenda?product=${product.id}&tag=${tagId}`);
+  const section = page.locator("section", { has: page.getByRole("heading", { name: /^Today/ }) });
+  await expect(section).toBeVisible();
+
+  const title = `Quick tagged ${tag()}`;
+  const input = section.getByLabel(`New issue due ${today}`);
+  await input.fill(title);
+  await input.press("Enter");
+
+  // The capture stays visible under the tag filter (optimistic link) instead
+  // of being filtered out the instant it's created.
+  await expect(section.getByText(title)).toBeVisible();
+
+  // Server-confirmed: the created issue carries the tag link.
+  await expect
+    .poll(async () => {
+      const ws = await (await page.request.get("/api/workspace")).json();
+      const issue = ws.issues.find((i: { title: string }) => i.title === title);
+      if (!issue) return false;
+      return (ws.issueTags as { issueId: string; tagId: string }[]).some(
+        (l) => l.issueId === issue.id && l.tagId === tagId,
+      );
+    })
+    .toBe(true);
+
+  await cleanupProduct(page, product.id);
+});
+
 test("quick-add under This week dates to the window's last day; Overdue has no input (PROG-89)", async ({
   page,
 }) => {
