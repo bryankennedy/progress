@@ -955,6 +955,7 @@ type ActionCreateBody = {
   priority?: unknown;
   estimate?: unknown;
   dueDate?: unknown;
+  tagIds?: unknown;
 };
 
 // Action creation (SPEC §3): the action number comes from the focus's
@@ -990,6 +991,13 @@ app.post("/api/actions", async (c) => {
   const dueDate = (body.dueDate ?? null) as string | null;
   if (dueDate !== null && (typeof dueDate !== "string" || !isValidDueDate(dueDate)))
     return c.json({ error: `invalid dueDate: ${String(body.dueDate)} (expected YYYY-MM-DD)` }, 400);
+  // Tag links may ride the create (PROG-89b: the Agenda quick-add inherits the
+  // active Tag filter). Optional; existence is checked below with the other
+  // db-backed validations.
+  const rawTagIds = body.tagIds ?? [];
+  if (!Array.isArray(rawTagIds) || rawTagIds.some((t) => typeof t !== "string"))
+    return c.json({ error: "tagIds must be an array of tag ids" }, 400);
+  const tagIds = [...new Set(rawTagIds as string[])];
 
   const db = drizzle(c.env.DB);
   const [focus] = await db
@@ -1020,6 +1028,12 @@ app.post("/api/actions", async (c) => {
       .limit(1);
     if (!parent || parent.focusId !== focus.id)
       return c.json({ error: "parent action not found in that focus" }, 400);
+  }
+  // Every inherited tag must exist — rejected before the number is allocated,
+  // so the client's all-or-nothing rollback stays simple (PROG-89b).
+  if (tagIds.length > 0) {
+    const found = await db.select({ id: tags.id }).from(tags).where(inArray(tags.id, tagIds));
+    if (found.length !== tagIds.length) return c.json({ error: "tag not found" }, 400);
   }
 
   const [seq] = await db
@@ -1058,6 +1072,8 @@ app.post("/api/actions", async (c) => {
       completedAt: status === "done" ? now : null,
     })
     .returning();
+  if (tagIds.length > 0)
+    await db.insert(actionTags).values(tagIds.map((tagId) => ({ actionId: action!.id, tagId })));
   return c.json({ action }, 201);
 });
 

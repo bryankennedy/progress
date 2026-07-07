@@ -1,7 +1,7 @@
 // Unit tests for the Agenda quick-add date math (PROG-89). Deterministic — no
 // browser, no clock: `today` is always passed in.
 import { describe, expect, it } from "bun:test";
-import { quickAddDueDate } from "./agendaQuickAdd";
+import { inheritArcId, quickAddDueDate } from "./agendaQuickAdd";
 import { bucketOf } from "./dates";
 
 const TODAY = "2026-07-06";
@@ -33,5 +33,25 @@ describe("quickAddDueDate", () => {
       const due = quickAddDueDate(bucket, TODAY)!;
       expect(bucketOf(due, TODAY)).toBe(bucket);
     }
+  });
+});
+
+describe("inheritArcId", () => {
+  const arcs = [
+    { id: "arc_a", focusId: "foc_1" },
+    { id: "arc_b", focusId: "foc_2" },
+  ];
+
+  it("inherits the Arc filter when it belongs to the chosen focus", () => {
+    expect(inheritArcId("arc_a", "foc_1", arcs)).toBe("arc_a");
+  });
+
+  it("drops the Arc filter when it belongs to another focus", () => {
+    expect(inheritArcId("arc_b", "foc_1", arcs)).toBeNull();
+  });
+
+  it("is null with no Arc filter or an unknown arc", () => {
+    expect(inheritArcId(undefined, "foc_1", arcs)).toBeNull();
+    expect(inheritArcId("arc_gone", "foc_1", arcs)).toBeNull();
   });
 });

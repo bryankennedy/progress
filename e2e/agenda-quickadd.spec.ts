@@ -99,6 +99,46 @@ test("quick-add under Today creates an action due today (PROG-89)", async ({ pag
   await cleanupFocus(page, focus.id);
 });
 
+test("quick-add under an active Tag filter inherits the tag and stays visible (PROG-89b)", async ({
+  page,
+}) => {
+  const today = localISO();
+  const { focus, seed } = await makeFocusWithSeed(page, today);
+  // Tag the seed so the tag-filtered agenda has a Today group to type under.
+  const tagName = `e2equick-${tag()}`;
+  const created = await (
+    await page.request.post(`/api/actions/${seed.id}/tags`, { data: { name: tagName } })
+  ).json();
+  const tagId = created.tag.id as string;
+
+  await page.goto(`/agenda?focus=${focus.id}&tag=${tagId}`);
+  const section = page.locator("section", { has: page.getByRole("heading", { name: /^Today/ }) });
+  await expect(section).toBeVisible();
+
+  const title = `Quick tagged ${tag()}`;
+  const input = section.getByLabel(`New action due ${today}`);
+  await input.fill(title);
+  await input.press("Enter");
+
+  // The capture stays visible under the tag filter (optimistic link) instead
+  // of being filtered out the instant it's created.
+  await expect(section.getByText(title)).toBeVisible();
+
+  // Server-confirmed: the created action carries the tag link.
+  await expect
+    .poll(async () => {
+      const ws = await (await page.request.get("/api/snapshot")).json();
+      const action = ws.actions.find((i: { title: string }) => i.title === title);
+      if (!action) return false;
+      return (ws.actionTags as { actionId: string; tagId: string }[]).some(
+        (l) => l.actionId === action.id && l.tagId === tagId,
+      );
+    })
+    .toBe(true);
+
+  await cleanupFocus(page, focus.id);
+});
+
 test("quick-add under This week dates to the window's last day; Overdue has no input (PROG-89)", async ({
   page,
 }) => {

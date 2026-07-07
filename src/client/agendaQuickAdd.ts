@@ -28,6 +28,22 @@ export function quickAddDueDate(bucket: AgendaBucket, today: string): string | n
   }
 }
 
+/**
+ * The arc a quick-added action inherits: the active Arc filter, but only when
+ * it belongs to the chosen focus — the API enforces same-focus arcs (D17),
+ * and an arc from another focus would leave the capture invisible under the
+ * filter that spawned it.
+ */
+export function inheritArcId(
+  filterArc: string | undefined,
+  focusId: string,
+  arcs: readonly { id: string; focusId: string }[],
+): string | null {
+  return filterArc && arcs.some((a) => a.id === filterArc && a.focusId === focusId)
+    ? filterArc
+    : null;
+}
+
 const FOCUS_KEY = "progress:agenda-quickadd-focus";
 
 export function loadQuickAddFocus(): string | null {

@@ -262,6 +262,9 @@ export type ActionCreateInput = {
   priority: ActionPriority;
   estimate: number | null;
   dueDate: string | null;
+  // Existing tag ids to link at birth (PROG-89b: the Agenda quick-add inherits
+  // the active Tag filter so the capture stays visible under it).
+  tagIds?: string[];
 };
 
 // Optimistic create: the action number is allocated locally from the
@@ -274,6 +277,11 @@ export function createAction(input: ActionCreateInput): string | undefined {
   const ws = queryClient.getQueryData<SnapshotPayload>(WS_KEY);
   const focus = ws?.focuses.find((p) => p.id === input.focusId);
   if (!ws || !focus) return undefined;
+
+  // Birth tags (PROG-89b): deduped and limited to tags the store knows, so the
+  // optimistic links and the request body always agree. Linked under the temp
+  // id, remapped to the server id on reconcile.
+  const tagIds = [...new Set(input.tagIds ?? [])].filter((tid) => ws.tags.some((t) => t.id === tid));
 
   const tempId = `acn_optimistic_${Date.now()}`;
   const now = new Date().toISOString();
@@ -307,6 +315,9 @@ export function createAction(input: ActionCreateInput): string | undefined {
       ? {
           ...w,
           actions: [...w.actions, temp],
+          actionTags: tagIds.length
+            ? [...w.actionTags, ...tagIds.map((tagId) => ({ actionId: tempId, tagId }))]
+            : w.actionTags,
           focuses: w.focuses.map((p) =>
             p.id === focus.id ? { ...p, nextActionNumber: p.nextActionNumber + 1 } : p,
           ),
@@ -320,7 +331,7 @@ export function createAction(input: ActionCreateInput): string | undefined {
       const res = await fetch("/api/actions", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(input),
+        body: JSON.stringify({ ...input, tagIds }),
       });
       if (res.ok) serverAction = ((await res.json()) as { action: WireAction }).action;
     } catch {
@@ -330,12 +341,20 @@ export function createAction(input: ActionCreateInput): string | undefined {
       if (!w) return w;
       if (serverAction) {
         const real = serverAction;
-        return { ...w, actions: w.actions.map((i) => (i.id === tempId ? real : i)) };
+        return {
+          ...w,
+          actions: w.actions.map((i) => (i.id === tempId ? real : i)),
+          actionTags: w.actionTags.map((l) =>
+            l.actionId === tempId ? { ...l, actionId: real.id } : l,
+          ),
+        };
       }
-      // Failure: remove the temp action and put the allocated number back.
+      // Failure: remove the temp action (and its tag links) and put the
+      // allocated number back.
       return {
         ...w,
         actions: w.actions.filter((i) => i.id !== tempId),
+        actionTags: w.actionTags.filter((l) => l.actionId !== tempId),
         focuses: w.focuses.map((p) =>
           p.id === focus.id ? { ...p, nextActionNumber: p.nextActionNumber - 1 } : p,
         ),

@@ -9,10 +9,10 @@
 // client store (SPEC v2 §7.1); inline mark-done / bump-due use the optimistic
 // mutation template (no spinner).
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import type { WireAction, WireTag, SnapshotPayload } from "../../shared/types";
-import { loadQuickAddFocus, quickAddDueDate, saveQuickAddFocus } from "../agendaQuickAdd";
+import { inheritArcId, loadQuickAddFocus, quickAddDueDate, saveQuickAddFocus } from "../agendaQuickAdd";
 import { sortByName } from "../boardFilters";
 import { type AgendaBucket, bucketOf, formatDueDate, relativeDue, todayISO } from "../dates";
 import { STATUS_LABELS } from "../labels";
@@ -183,9 +183,10 @@ export default function Agenda({ snapshot }: { snapshot: SnapshotPayload }) {
 // backlog) with the optimistic createAction, so the new row appears in the
 // group instantly. The focus comes from the inline picker: it follows the
 // active Focus filter when one is set, otherwise it remembers the last
-// focus quick-added into (localStorage, fail-soft). An active Arc filter is
-// inherited when it belongs to the chosen focus, so a filtered agenda
-// captures into what you're looking at.
+// focus quick-added into (localStorage, fail-soft). Active Arc (when it
+// belongs to the chosen focus) and Tag filters are inherited (PROG-89b), so
+// a filtered agenda captures into what you're looking at — and the capture
+// stays visible under the filter instead of silently vanishing.
 function QuickAddRow({
   bucket,
   snapshot,
@@ -208,31 +209,33 @@ function QuickAddRow({
     if (saved && focuses.some((p) => p.id === saved)) return saved;
     return focuses[0]?.id ?? "";
   });
-  // The picker tracks the Focus filter while one is active.
-  useEffect(() => {
+  // The picker tracks the Focus filter while one is active. Synced during
+  // render (prev-value pattern, like the search page's pagination reset) so
+  // there's no post-render setState frame.
+  const [prevFilterFocus, setPrevFilterFocus] = useState(filters.focus);
+  if (filters.focus !== prevFilterFocus) {
+    setPrevFilterFocus(filters.focus);
     if (filters.focus) setFocusId(filters.focus);
-  }, [filters.focus]);
+  }
 
   const due = quickAddDueDate(bucket, today);
 
   const submit = () => {
     const t = title.trim();
     if (!t || !focusId || !due) return;
-    const arcId =
-      filters.arc &&
-      snapshot.arcs.some((a) => a.id === filters.arc && a.focusId === focusId)
-        ? filters.arc
-        : null;
     createAction({
       title: t,
       focusId,
       repoId: null,
-      arcId,
+      arcId: inheritArcId(filters.arc, focusId, snapshot.arcs),
       parentActionId: null,
       status: "todo",
       priority: "none",
       estimate: null,
       dueDate: due,
+      // Inherit the active Tag filter too (PROG-89b) — otherwise the untagged
+      // capture is filtered out the instant it's created and silently vanishes.
+      tagIds: filters.tag ? [filters.tag] : undefined,
     });
     saveQuickAddFocus(focusId);
     setTitle(""); // input keeps focus — capture the next one immediately
