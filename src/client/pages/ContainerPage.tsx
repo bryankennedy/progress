@@ -1,7 +1,7 @@
 // Container pages (SPEC §4): every initiative, product, repo, and arc gets a
 // page — description on top (open-page feel), issue list below with inline
 // status/priority edits. One component covers all four types; they differ
-// only in how their issue scope and child links derive from the workspace.
+// only in how their issue scope and child links derive from the snapshot.
 
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
@@ -11,7 +11,7 @@ import {
   type IssuePriority,
   type IssueStatus,
 } from "../../shared/constants";
-import type { WireIssue, WorkspacePayload } from "../../shared/types";
+import type { WireIssue, SnapshotPayload } from "../../shared/types";
 import { openCreateContainer } from "../commands/controller";
 import EditableMarkdown from "../EditableMarkdown";
 import InlineEdit from "../InlineEdit";
@@ -51,7 +51,7 @@ type Resolved = {
   boardParam: string;
 };
 
-function resolve(ws: WorkspacePayload, type: ContainerType, id: string): Resolved | undefined {
+function resolve(ws: SnapshotPayload, type: ContainerType, id: string): Resolved | undefined {
   switch (type) {
     case "initiative": {
       const initiative = ws.initiatives.find((i) => i.id === id);
@@ -135,18 +135,18 @@ type SortMode = "status" | "number" | "updated";
 const STATUS_ORDER = new Map(ISSUE_STATUSES.map((s, i) => [s, i]));
 
 export default function ContainerPage({
-  workspace,
+  snapshot,
   type,
   id,
 }: {
-  workspace: WorkspacePayload;
+  snapshot: SnapshotPayload;
   type: ContainerType;
   id: string;
 }) {
   const [sort, setSort] = useState<SortMode>("status");
   const [statusFilter, setStatusFilter] = useState<IssueStatus | "">("");
 
-  const resolved = useMemo(() => resolve(workspace, type, id), [workspace, type, id]);
+  const resolved = useMemo(() => resolve(snapshot, type, id), [snapshot, type, id]);
 
   const issues = useMemo(() => {
     if (!resolved) return [];
@@ -182,7 +182,7 @@ export default function ContainerPage({
     <div className="mx-auto max-w-3xl">
       <nav className="text-sm text-ink-faint">
         <Link href="/" className="hover:text-ink-soft">
-          Workspace
+          Snapshot
         </Link>{" "}
         / {TYPE_LABELS[type]}
       </nav>
@@ -236,7 +236,7 @@ export default function ContainerPage({
           <EditableMarkdown
             value={resolved.description}
             placeholder="Add a description…"
-            draftScope={{ meId: workspace.me?.id ?? "anon", targetId: id }}
+            draftScope={{ meId: snapshot.me?.id ?? "anon", targetId: id }}
             onSave={(description) =>
               updateContainer(type, id, { description }, { toastOnError: false })
             }
@@ -317,7 +317,7 @@ export default function ContainerPage({
 
       <ul className="mt-3 divide-y divide-line rounded-lg border border-line bg-card">
         {issues.map((issue) => (
-          <IssueRow key={issue.id} issue={issue} workspace={workspace} />
+          <IssueRow key={issue.id} issue={issue} snapshot={snapshot} />
         ))}
         {issues.length === 0 && (
           <li className="p-4 text-sm text-ink-faint">No issues here.</li>
@@ -327,17 +327,17 @@ export default function ContainerPage({
   );
 }
 
-function IssueRow({ issue, workspace }: { issue: WireIssue; workspace: WorkspacePayload }) {
+function IssueRow({ issue, snapshot }: { issue: WireIssue; snapshot: SnapshotPayload }) {
   return (
     <li data-issue-id={issue.id} className="flex items-center gap-3 px-3 py-2 text-sm">
       <Link
-        href={`/issue/${issueKeyOf(workspace, issue)}`}
+        href={`/issue/${issueKeyOf(snapshot, issue)}`}
         className="w-20 shrink-0 font-mono text-xs text-ink-faint hover:text-ink-soft"
       >
-        {issueKeyOf(workspace, issue)}
+        {issueKeyOf(snapshot, issue)}
       </Link>
       <Link
-        href={`/issue/${issueKeyOf(workspace, issue)}`}
+        href={`/issue/${issueKeyOf(snapshot, issue)}`}
         className="min-w-0 flex-1 truncate font-medium hover:text-adobe-deep"
       >
         {issue.title}

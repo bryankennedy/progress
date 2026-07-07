@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import type { WorkspacePayload } from "../../shared/types";
+import type { SnapshotPayload } from "../../shared/types";
 import {
   containerLabel,
   highlight,
@@ -33,7 +33,7 @@ const SECTION_TITLES: Record<Entry["kind"], string> = {
   comment: "Comments",
 };
 
-export default function SearchModal({ workspace }: { workspace: WorkspacePayload }) {
+export default function SearchModal({ snapshot }: { snapshot: SnapshotPayload }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
@@ -56,15 +56,15 @@ export default function SearchModal({ workspace }: { workspace: WorkspacePayload
 
   const entries = useMemo<Entry[]>(() => {
     if (terms.length === 0) return [];
-    const issueEntries: Entry[] = searchIssues(workspace, query).map((hit) => ({
+    const issueEntries: Entry[] = searchIssues(snapshot, query).map((hit) => ({
       kind: "issue",
       id: hit.issue.id,
-      href: `/issue/${issueKeyOf(workspace, hit.issue)}`,
-      key: issueKeyOf(workspace, hit.issue),
+      href: `/issue/${issueKeyOf(snapshot, hit.issue)}`,
+      key: issueKeyOf(snapshot, hit.issue),
       title: hit.issue.title,
       hint: hit.inTitle ? STATUS_LABELS[hit.issue.status] : `${STATUS_LABELS[hit.issue.status]} · in description`,
     }));
-    const containerEntries: Entry[] = searchContainers(workspace, query).map((hit) => ({
+    const containerEntries: Entry[] = searchContainers(snapshot, query).map((hit) => ({
       kind: "container",
       id: hit.id,
       href: hit.href,
@@ -75,9 +75,9 @@ export default function SearchModal({ workspace }: { workspace: WorkspacePayload
     // build the key for navigation; drop any whose issue is somehow missing.
     const commentEntries: Entry[] = (comments?.hits ?? [])
       .map((hit): Entry | null => {
-        const issue = workspace.issues.find((i) => i.id === hit.issueId);
+        const issue = snapshot.issues.find((i) => i.id === hit.issueId);
         if (!issue) return null;
-        const key = issueKeyOf(workspace, issue);
+        const key = issueKeyOf(snapshot, issue);
         return {
           kind: "comment",
           id: hit.commentId,
@@ -88,7 +88,7 @@ export default function SearchModal({ workspace }: { workspace: WorkspacePayload
       })
       .filter((e): e is Entry => e !== null);
     return [...issueEntries, ...containerEntries, ...commentEntries];
-  }, [workspace, query, terms, comments]);
+  }, [snapshot, query, terms, comments]);
 
   const sel = Math.min(selected, Math.max(entries.length - 1, 0));
 

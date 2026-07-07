@@ -11,14 +11,14 @@ import { signInAsOwner } from "./auth";
 let touched: { id: string; status: string }[] = [];
 
 async function markDone(page: Page, n: number): Promise<number> {
-  const ws = await (await page.request.get("/api/workspace")).json();
+  const ws = await (await page.request.get("/api/snapshot")).json();
   const subset = ws.issues.slice(0, n) as { id: string; status: string }[];
   touched = subset.map((i) => ({ id: i.id, status: i.status }));
   // Sequential so completedAt timestamps differ (the API sets it to "now").
   for (const { id } of touched) {
     await page.request.patch(`/api/issues/${id}`, { data: { status: "done" } });
   }
-  const after = await (await page.request.get("/api/workspace")).json();
+  const after = await (await page.request.get("/api/snapshot")).json();
   return after.issues.filter((i: { status: string }) => i.status === "done").length;
 }
 

@@ -170,7 +170,7 @@ app.use("*", async (c, next) => {
 });
 
 // Without this, an uncaught throw became a bare "Internal Server Error" with
-// nothing in the logs — which is exactly why a production /api/workspace 500
+// nothing in the logs — which is exactly why a production /api/snapshot 500
 // was undiagnosable. Log the full error server-side (visible in Workers Logs /
 // `wrangler tail`, correlatable by requestId); keep the response body generic so
 // the webhook path can't be used to read internals.
@@ -377,11 +377,11 @@ app.get("/api/health", async (c) => {
 });
 
 // The single "load everything" endpoint that feeds the client store
-// (SPEC §8.2: fetch the full workspace up front, render from memory after).
+// (SPEC §8.2: fetch the full snapshot up front, render from memory after).
 // Comments and activity are deliberately excluded — they're the only
 // unbounded-growth data and aren't needed to render boards/lists; the issue
 // page loads them per issue.
-app.get("/api/workspace", async (c) => {
+app.get("/api/snapshot", async (c) => {
   const db = drizzle(c.env.DB);
   const [
     allUsers,
@@ -436,7 +436,7 @@ app.get("/api/workspace", async (c) => {
 });
 
 // Comment search (PROG-130). Comments are the only searchable text excluded
-// from the workspace payload (D20), so they're the one thing the client can't
+// from the snapshot payload (D20), so they're the one thing the client can't
 // search in memory — this endpoint covers them; title/description search stays
 // client-side. Matching is case-insensitive substring (SQLite LIKE), AND'd
 // across whitespace-separated terms — the same predictable substring semantics
@@ -1260,7 +1260,7 @@ app.patch("/api/issues/:id", async (c) => {
   return c.json({ issue: updated });
 });
 
-// Per-issue timeline (D20: not part of the workspace payload). Carries the
+// Per-issue timeline (D20: not part of the snapshot payload). Carries the
 // issue's git links too — same load moment, same growth profile.
 app.get("/api/issues/:id/timeline", async (c) => {
   const id = c.req.param("id");

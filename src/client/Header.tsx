@@ -8,7 +8,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { openCreateContainer, openCreateIssue, type ContainerDialogRequest } from "./commands/controller";
 import { NAV } from "./nav";
-import { useWorkspaceSlice } from "./store";
+import { useSnapshotSlice } from "./store";
 
 // End the session, then reload — an unauthenticated load bounces to sign-in.
 async function signOut() {
@@ -23,8 +23,8 @@ export default function Header() {
   const [path] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [acctOpen, setAcctOpen] = useState(false);
-  const me = useWorkspaceSlice((ws) => ws.me);
-  const isSuperAdmin = useWorkspaceSlice((ws) => ws.isSuperAdmin);
+  const me = useSnapshotSlice((ws) => ws.me);
+  const isSuperAdmin = useSnapshotSlice((ws) => ws.isSuperAdmin);
 
   const newItems: { label: string; run: () => void }[] = [
     { label: "Issue", run: () => openCreateIssue() },

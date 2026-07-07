@@ -12,7 +12,7 @@ import {
   type IssuePriority,
   type IssueStatus,
 } from "../../shared/constants";
-import type { WorkspacePayload } from "../../shared/types";
+import type { SnapshotPayload } from "../../shared/types";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import { createContainer, createIssue, findIssueByKey } from "../store";
 import { onOpenCreateIssue, type CreateDefaults } from "./controller";
@@ -25,7 +25,7 @@ const suggestPrefix = (name: string) =>
 const containerValue = (d: CreateDefaults) =>
   d.repoId ? `r:${d.repoId}` : d.productId ? `p:${d.productId}` : "";
 
-function deriveDefaults(ws: WorkspacePayload, path: string, search: string): CreateDefaults {
+function deriveDefaults(ws: SnapshotPayload, path: string, search: string): CreateDefaults {
   let m = /^\/product\/([^/]+)/.exec(path);
   if (m) return { productId: m[1] };
   m = /^\/repo\/([^/]+)/.exec(path);
@@ -54,7 +54,7 @@ function deriveDefaults(ws: WorkspacePayload, path: string, search: string): Cre
   return {};
 }
 
-export default function CreateIssueDialog({ workspace }: { workspace: WorkspacePayload }) {
+export default function CreateIssueDialog({ snapshot }: { snapshot: SnapshotPayload }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [container, setContainer] = useState("");
@@ -74,9 +74,9 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
   useEffect(
     () =>
       onOpenCreateIssue((given) => {
-        const defaults = { ...deriveDefaults(workspace, path, search), ...given };
+        const defaults = { ...deriveDefaults(snapshot, path, search), ...given };
         if (!defaults.productId)
-          defaults.productId = workspace.products.find((p) => !p.archivedAt)?.id;
+          defaults.productId = snapshot.products.find((p) => !p.archivedAt)?.id;
         setContainer(containerValue(defaults));
         setArcId(defaults.arcId ?? "");
         setTitle("");
@@ -88,20 +88,20 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
         setNewArc(null);
         setOpen(true);
       }),
-    [workspace, path, search],
+    [snapshot, path, search],
   );
 
   const selectedProductId = useMemo(() => {
     if (container.startsWith("p:")) return container.slice(2);
     if (container.startsWith("r:"))
-      return workspace.repos.find((r) => r.id === container.slice(2))?.productId;
+      return snapshot.repos.find((r) => r.id === container.slice(2))?.productId;
     return undefined;
-  }, [container, workspace.repos]);
+  }, [container, snapshot.repos]);
 
   // Archived containers aren't valid creation targets (D26).
-  const activeProducts = workspace.products.filter((p) => !p.archivedAt);
-  const activeInitiatives = workspace.initiatives.filter((i) => !i.archivedAt);
-  const productArcs = workspace.arcs.filter(
+  const activeProducts = snapshot.products.filter((p) => !p.archivedAt);
+  const activeInitiatives = snapshot.initiatives.filter((i) => !i.archivedAt);
+  const productArcs = snapshot.arcs.filter(
     (a) => a.productId === selectedProductId && !a.archivedAt,
   );
 
@@ -133,9 +133,9 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
     setContainer(value);
     const productId = value.startsWith("p:")
       ? value.slice(2)
-      : workspace.repos.find((r) => r.id === value.slice(2))?.productId;
+      : snapshot.repos.find((r) => r.id === value.slice(2))?.productId;
     // Arc must stay within the issue's product (SPEC §3).
-    setArcId((a) => (workspace.arcs.find((x) => x.id === a)?.productId === productId ? a : ""));
+    setArcId((a) => (snapshot.arcs.find((x) => x.id === a)?.productId === productId ? a : ""));
   };
 
   const submit = () => {
@@ -183,7 +183,7 @@ export default function CreateIssueDialog({ workspace }: { workspace: WorkspaceP
         <div className="mt-3 flex flex-wrap gap-2">
           <select value={container} onChange={(e) => onContainerChange(e.target.value)} className={selectClass}>
             {activeProducts.map((p) => {
-              const productRepos = workspace.repos.filter(
+              const productRepos = snapshot.repos.filter(
                 (r) => r.productId === p.id && !r.archivedAt,
               );
               return (

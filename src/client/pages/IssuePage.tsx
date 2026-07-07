@@ -16,7 +16,7 @@ import type {
   WireCommitLink,
   WireIssue,
   WirePrLink,
-  WorkspacePayload,
+  SnapshotPayload,
 } from "../../shared/types";
 import { openPalette } from "../commands/controller";
 import { useRegisterPageIssue } from "../commands/currentIssue";
@@ -47,13 +47,13 @@ const FIELD_ACTION_CLS =
   "flex min-h-11 items-center text-xs text-adobe hover:underline sm:block sm:min-h-0";
 
 export default function IssuePage({
-  workspace,
+  snapshot,
   keyParam,
 }: {
-  workspace: WorkspacePayload;
+  snapshot: SnapshotPayload;
   keyParam: string;
 }) {
-  const resolved = findIssueByKey(workspace, keyParam);
+  const resolved = findIssueByKey(snapshot, keyParam);
   const [, navigate] = useLocation();
 
   // Makes this issue the target of the single-key actions (S/P/E/M).
@@ -61,7 +61,7 @@ export default function IssuePage({
 
   // Alias hit (old key from a cross-product move): permanent redirect to the
   // canonical key (SPEC §3).
-  const canonicalKey = resolved ? issueKeyOf(workspace, resolved.issue) : null;
+  const canonicalKey = resolved ? issueKeyOf(snapshot, resolved.issue) : null;
   useEffect(() => {
     if (resolved?.viaAlias && canonicalKey) {
       navigate(`/issue/${canonicalKey}`, { replace: true });
@@ -78,26 +78,26 @@ export default function IssuePage({
       <p className="text-ink-soft">
         No issue with key <span className="font-mono">{keyParam}</span>.{" "}
         <Link href="/" className="text-adobe hover:underline">
-          Back to the workspace
+          Back to the board
         </Link>
       </p>
     );
   }
   const { issue } = resolved;
 
-  const product = workspace.products.find((p) => p.id === issue.productId);
-  const repo = issue.repoId ? workspace.repos.find((r) => r.id === issue.repoId) : null;
-  const arc = issue.arcId ? workspace.arcs.find((a) => a.id === issue.arcId) : null;
-  const issueTags = workspace.issueTags
+  const product = snapshot.products.find((p) => p.id === issue.productId);
+  const repo = issue.repoId ? snapshot.repos.find((r) => r.id === issue.repoId) : null;
+  const arc = issue.arcId ? snapshot.arcs.find((a) => a.id === issue.arcId) : null;
+  const issueTags = snapshot.issueTags
     .filter((link) => link.issueId === issue.id)
-    .map((link) => workspace.tags.find((t) => t.id === link.tagId))
+    .map((link) => snapshot.tags.find((t) => t.id === link.tagId))
     .filter((t) => t !== undefined);
 
   return (
     <div className="mx-auto max-w-3xl overflow-hidden">
       <nav className="text-sm text-ink-faint">
         <Link href="/" className="hover:text-ink-soft">
-          Workspace
+          Snapshot
         </Link>{" "}
         /{" "}
         {product ? (
@@ -141,7 +141,7 @@ export default function IssuePage({
           <EditableMarkdown
             value={issue.description}
             placeholder="Add a description…"
-            draftScope={{ meId: workspace.me?.id ?? "anon", targetId: issue.id }}
+            draftScope={{ meId: snapshot.me?.id ?? "anon", targetId: issue.id }}
             onSave={(description) =>
               updateIssue(issue.id, { description }, { toastOnError: false })
             }
@@ -249,13 +249,13 @@ export default function IssuePage({
           </Field>
           <Field label="Work on this">
             <button
-              onClick={() => void copyBundleAsPrompt(issueKeyOf(workspace, issue))}
+              onClick={() => void copyBundleAsPrompt(issueKeyOf(snapshot, issue))}
               className={FIELD_ACTION_CLS}
             >
               Copy as prompt <span className="ml-1 text-ink-faint">(W)</span>
             </button>
             <button
-              onClick={() => copyWorkCommand(issueKeyOf(workspace, issue))}
+              onClick={() => copyWorkCommand(issueKeyOf(snapshot, issue))}
               className={FIELD_ACTION_CLS}
             >
               Copy CLI command
@@ -269,7 +269,7 @@ export default function IssuePage({
         </aside>
 
         <div className="min-w-0 md:col-start-1 md:row-start-2">
-          <TimelineSection issue={issue} workspace={workspace} />
+          <TimelineSection issue={issue} snapshot={snapshot} />
         </div>
       </div>
     </div>
@@ -315,13 +315,13 @@ type TimelineEntry =
 
 function TimelineSection({
   issue,
-  workspace,
+  snapshot,
 }: {
   issue: WireIssue;
-  workspace: WorkspacePayload;
+  snapshot: SnapshotPayload;
 }) {
   const { data: timeline, isPending, error } = useTimeline(issue.id);
-  const meId = workspace.me?.id ?? "anon";
+  const meId = snapshot.me?.id ?? "anon";
   // Comment draft persists to localStorage as you type (PROG-51), so unsent text
   // survives a tab close, reload, or a failed/timed-out post. Cleared only once
   // the server confirms the comment.
@@ -335,7 +335,7 @@ function TimelineSection({
   useEffect(() => {
     draftRef.current = draft;
   }, [draft]);
-  const userName = (id: string) => workspace.users.find((u) => u.id === id)?.name ?? id;
+  const userName = (id: string) => snapshot.users.find((u) => u.id === id)?.name ?? id;
 
   // Re-hydrate when navigating between issues (this section is keyed by issue id
   // but remounts may reuse state) or once the signed-in user resolves.
@@ -436,7 +436,7 @@ function TimelineSection({
             </li>
           ) : (
             <li key={entry.event.id} className="px-3 text-xs text-ink-faint">
-              {describeActivity(entry.event, workspace)} · {fmtTime(entry.event.createdAt)}
+              {describeActivity(entry.event, snapshot)} · {fmtTime(entry.event.createdAt)}
             </li>
           ),
         )}
@@ -504,7 +504,7 @@ function CommitRow({ commit }: { commit: WireCommitLink }) {
   );
 }
 
-function describeActivity(event: WireActivity, workspace: WorkspacePayload): string {
+function describeActivity(event: WireActivity, snapshot: SnapshotPayload): string {
   if (event.type === "status_changed") {
     const data = event.data as { from?: IssueStatus; to?: IssueStatus };
     const label = (s: IssueStatus | undefined) => (s ? (STATUS_LABELS[s] ?? s) : "?");
@@ -520,8 +520,8 @@ function describeActivity(event: WireActivity, workspace: WorkspacePayload): str
       toKey?: string;
     };
     const containerName = (productId?: string, repoId?: string | null) => {
-      const product = workspace.products.find((p) => p.id === productId);
-      const repo = repoId ? workspace.repos.find((r) => r.id === repoId) : undefined;
+      const product = snapshot.products.find((p) => p.id === productId);
+      const repo = repoId ? snapshot.repos.find((r) => r.id === repoId) : undefined;
       return `${product?.name ?? "?"}${repo ? ` / ${repo.name}` : ""}`;
     };
     const rekeyed = data.fromKey ? ` (was ${data.fromKey})` : "";

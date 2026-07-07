@@ -1,6 +1,6 @@
-// The client store (D21): the whole workspace lives in one TanStack Query
+// The client store (D21): the whole snapshot lives in one TanStack Query
 // cache entry, loaded once and rendered from memory (SPEC §8.2). Components
-// subscribe to slices via `useWorkspaceSlice`; structural sharing keeps
+// subscribe to slices via `useSnapshotSlice`; structural sharing keeps
 // unchanged slices reference-stable so re-renders stay scoped. Per-issue
 // timelines (comments + activity) are separate queries (D20).
 
@@ -21,7 +21,7 @@ import type {
   WireProduct,
   WireRepo,
   WireTag,
-  WorkspacePayload,
+  SnapshotPayload,
 } from "../shared/types";
 import { toast } from "./toast";
 import { prefetchBundle } from "./workOn";
@@ -69,13 +69,13 @@ export const queryClient = new QueryClient({
   },
 });
 
-const WS_KEY = ["workspace"] as const;
+const WS_KEY = ["snapshot"] as const;
 const timelineKey = (issueId: string) => ["issue", issueId, "timeline"] as const;
 
 // Initial app load is the one permitted loading state; surface its cost.
 export const loadStats = { fetchMs: 0 };
 
-// Thrown when the workspace load returns 401 (PROG-34): no session cookie /
+// Thrown when the snapshot load returns 401 (PROG-34): no session cookie /
 // bearer. App.tsx renders the SignIn landing page on this rather than the error
 // banner; the retry guard below stops React Query from re-fetching it.
 export class UnauthenticatedError extends Error {
@@ -85,38 +85,38 @@ export class UnauthenticatedError extends Error {
   }
 }
 
-async function fetchWorkspace(): Promise<WorkspacePayload> {
+async function fetchSnapshot(): Promise<SnapshotPayload> {
   const t0 = performance.now();
-  const res = await fetch("/api/workspace");
+  const res = await fetch("/api/snapshot");
   // Not signed in: surface as a distinct error so App can show the landing page
   // with a "Sign in with Google" CTA instead of silently redirecting.
   if (res.status === 401) throw new UnauthenticatedError();
-  if (!res.ok) throw new Error(`workspace load failed: HTTP ${res.status}`);
-  const ws = (await res.json()) as WorkspacePayload;
+  if (!res.ok) throw new Error(`snapshot load failed: HTTP ${res.status}`);
+  const ws = (await res.json()) as SnapshotPayload;
   loadStats.fetchMs = performance.now() - t0;
   return ws;
 }
 
-const workspaceQuery = {
+const snapshotQuery = {
   queryKey: WS_KEY,
-  queryFn: fetchWorkspace,
+  queryFn: fetchSnapshot,
   // No point retrying an unauthenticated load — the answer won't change until
   // the user signs in. Other failures keep the default retry behavior.
   retry: (failureCount: number, error: Error) =>
     !(error instanceof UnauthenticatedError) && failureCount < 3,
 } as const;
 
-export function useWorkspace() {
-  return useQuery(workspaceQuery);
+export function useSnapshot() {
+  return useQuery(snapshotQuery);
 }
 
-export function useWorkspaceSlice<T>(select: (ws: WorkspacePayload) => T): T | undefined {
-  return useQuery({ ...workspaceQuery, select }).data;
+export function useSnapshotSlice<T>(select: (ws: SnapshotPayload) => T): T | undefined {
+  return useQuery({ ...snapshotQuery, select }).data;
 }
 
 // ---------- issue keys ----------
 
-export function issueKeyOf(ws: WorkspacePayload, issue: WireIssue): string {
+export function issueKeyOf(ws: SnapshotPayload, issue: WireIssue): string {
   const prefix = ws.products.find((p) => p.id === issue.productId)?.keyPrefix ?? "?";
   return `${prefix}-${issue.number}`;
 }
@@ -125,7 +125,7 @@ export function issueKeyOf(ws: WorkspacePayload, issue: WireIssue): string {
 // aliases left behind by cross-product moves (SPEC §3). Returns the issue and
 // whether it was reached via an alias (callers redirect to the canonical key).
 export function findIssueByKey(
-  ws: WorkspacePayload,
+  ws: SnapshotPayload,
   key: string,
 ): { issue: WireIssue; viaAlias: boolean } | undefined {
   const match = /^([A-Za-z]+)-(\d+)$/.exec(key.trim());
@@ -145,11 +145,11 @@ export function findIssueByKey(
 // ---------- issue mutations ----------
 
 function getIssue(id: string): WireIssue | undefined {
-  return queryClient.getQueryData<WorkspacePayload>(WS_KEY)?.issues.find((i) => i.id === id);
+  return queryClient.getQueryData<SnapshotPayload>(WS_KEY)?.issues.find((i) => i.id === id);
 }
 
 function writeIssue(id: string, write: (issue: WireIssue) => WireIssue) {
-  queryClient.setQueryData<WorkspacePayload>(WS_KEY, (ws) =>
+  queryClient.setQueryData<SnapshotPayload>(WS_KEY, (ws) =>
     ws ? { ...ws, issues: ws.issues.map((i) => (i.id === id ? write(i) : i)) } : ws,
   );
 }
@@ -159,7 +159,7 @@ function writeIssue(id: string, write: (issue: WireIssue) => WireIssue) {
 // from page load. Keyed by the issue's current canonical key (a cross-product
 // move re-keys, and the issue is already updated in the store by then).
 function refreshBundle(id: string) {
-  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
+  const ws = queryClient.getQueryData<SnapshotPayload>(WS_KEY);
   const issue = ws?.issues.find((i) => i.id === id);
   if (ws && issue) prefetchBundle(issueKeyOf(ws, issue));
 }
@@ -271,7 +271,7 @@ export type IssueCreateInput = {
 // the server row on success (same key, real id) or removed with a toast on
 // failure. Returns the new issue's key, or undefined if the product is gone.
 export function createIssue(input: IssueCreateInput): string | undefined {
-  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
+  const ws = queryClient.getQueryData<SnapshotPayload>(WS_KEY);
   const product = ws?.products.find((p) => p.id === input.productId);
   if (!ws || !product) return undefined;
 
@@ -302,7 +302,7 @@ export function createIssue(input: IssueCreateInput): string | undefined {
     updatedAt: now,
     completedAt: input.status === "done" ? now : null,
   };
-  queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) =>
+  queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) =>
     w
       ? {
           ...w,
@@ -326,7 +326,7 @@ export function createIssue(input: IssueCreateInput): string | undefined {
     } catch {
       // handled below
     }
-    queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) => {
+    queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) => {
       if (!w) return w;
       if (serverIssue) {
         const real = serverIssue;
@@ -358,7 +358,7 @@ export type MoveTarget = { productId: string; repoId: string | null };
 // the alias) update instantly. Rollback restores exactly what this move
 // touched.
 export function moveIssue(id: string, target: MoveTarget) {
-  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
+  const ws = queryClient.getQueryData<SnapshotPayload>(WS_KEY);
   const before = ws?.issues.find((i) => i.id === id);
   const targetProduct = ws?.products.find((p) => p.id === target.productId);
   if (!ws || !before || !targetProduct) return;
@@ -368,7 +368,7 @@ export function moveIssue(id: string, target: MoveTarget) {
   const now = new Date().toISOString();
   const oldKey = issueKeyOf(ws, before);
 
-  queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) => {
+  queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) => {
     if (!w) return w;
     if (!crossProduct) {
       return {
@@ -424,7 +424,7 @@ export function moveIssue(id: string, target: MoveTarget) {
       refreshBundle(id);
       return;
     }
-    queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) => {
+    queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) => {
       if (!w) return w;
       const restored = { ...w, issues: w.issues.map((i) => (i.id === id ? before : i)) };
       if (!crossProduct) return restored;
@@ -467,8 +467,8 @@ type WireContainer = WireInitiative | WireProduct | WireRepo | WireArc;
 // a union-typed key to its value type on write, so this helper centralizes
 // the (runtime-safe) casts.
 function writeContainers(key: ContainerCollection, fn: (list: WireContainer[]) => WireContainer[]) {
-  queryClient.setQueryData<WorkspacePayload>(WS_KEY, (ws) =>
-    ws ? ({ ...ws, [key]: fn(ws[key] as WireContainer[]) } as WorkspacePayload) : ws,
+  queryClient.setQueryData<SnapshotPayload>(WS_KEY, (ws) =>
+    ws ? ({ ...ws, [key]: fn(ws[key] as WireContainer[]) } as SnapshotPayload) : ws,
   );
 }
 
@@ -556,7 +556,7 @@ export function updateContainer(
   opts?: { toastOnError?: boolean },
 ): Promise<boolean> {
   const collection = CONTAINER_COLLECTIONS[kind];
-  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
+  const ws = queryClient.getQueryData<SnapshotPayload>(WS_KEY);
   const before = (ws?.[collection] as WireContainer[] | undefined)?.find((x) => x.id === id);
   if (!before) return Promise.resolve(false);
 
@@ -607,7 +607,7 @@ export function updateContainer(
 // Assign a tag — an existing one by id, or by name (creating it on the fly
 // with the shared auto-color, so the optimistic row matches the server's).
 export function tagIssue(issueId: string, tag: { tagId: string } | { name: string }) {
-  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
+  const ws = queryClient.getQueryData<SnapshotPayload>(WS_KEY);
   if (!ws) return;
 
   let tagId: string;
@@ -627,7 +627,7 @@ export function tagIssue(issueId: string, tag: { tagId: string } | { name: strin
   }
   if (ws.issueTags.some((l) => l.issueId === issueId && l.tagId === tagId)) return;
 
-  queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) =>
+  queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) =>
     w
       ? {
           ...w,
@@ -653,7 +653,7 @@ export function tagIssue(issueId: string, tag: { tagId: string } | { name: strin
       const real = serverTag;
       // The server may resolve a created-by-name tag to a pre-existing row
       // (exact-name match); point the link at the authoritative id.
-      queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) =>
+      queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) =>
         w
           ? {
               ...w,
@@ -666,7 +666,7 @@ export function tagIssue(issueId: string, tag: { tagId: string } | { name: strin
       );
       refreshBundle(issueId);
     } else {
-      queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) =>
+      queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) =>
         w
           ? {
               ...w,
@@ -681,10 +681,10 @@ export function tagIssue(issueId: string, tag: { tagId: string } | { name: strin
 }
 
 export function untagIssue(issueId: string, tagId: string) {
-  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
+  const ws = queryClient.getQueryData<SnapshotPayload>(WS_KEY);
   if (!ws?.issueTags.some((l) => l.issueId === issueId && l.tagId === tagId)) return;
 
-  queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) =>
+  queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) =>
     w
       ? { ...w, issueTags: w.issueTags.filter((l) => !(l.issueId === issueId && l.tagId === tagId)) }
       : w,
@@ -698,7 +698,7 @@ export function untagIssue(issueId: string, tagId: string) {
       // handled below
     }
     if (!ok) {
-      queryClient.setQueryData<WorkspacePayload>(WS_KEY, (w) =>
+      queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) =>
         w ? { ...w, issueTags: [...w.issueTags, { issueId, tagId }] } : w,
       );
       toast("Couldn't remove that tag — restored.");
@@ -802,7 +802,7 @@ export function useTimeline(issueId: string) {
 // offers Retry (re-calling this with the same text is safe).
 export async function addComment(issueId: string, body: string): Promise<boolean> {
   const id = `cmt_${crypto.randomUUID().replaceAll("-", "")}`;
-  const authorId = queryClient.getQueryData<WorkspacePayload>(WS_KEY)?.me?.id ?? "usr_owner";
+  const authorId = queryClient.getQueryData<SnapshotPayload>(WS_KEY)?.me?.id ?? "usr_owner";
   const now = new Date().toISOString();
   const temp: WireComment = { id, issueId, authorId, body, createdAt: now, updatedAt: now };
   queryClient.setQueryData<Timeline>(timelineKey(issueId), (t) =>
@@ -837,7 +837,7 @@ export async function addComment(issueId: string, body: string): Promise<boolean
 const byEmail = (a: WireAllowedEmail, b: WireAllowedEmail) => a.email.localeCompare(b.email);
 
 function writeAllowedEmails(write: (list: WireAllowedEmail[]) => WireAllowedEmail[]) {
-  queryClient.setQueryData<WorkspacePayload>(WS_KEY, (ws) =>
+  queryClient.setQueryData<SnapshotPayload>(WS_KEY, (ws) =>
     ws ? { ...ws, allowedEmails: write(ws.allowedEmails) } : ws,
   );
 }
@@ -846,7 +846,7 @@ export function addAllowedEmail(email: string, note: string) {
   const normalized = email.trim().toLowerCase();
   const trimmedNote = note.trim();
   if (normalized === "") return;
-  const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
+  const ws = queryClient.getQueryData<SnapshotPayload>(WS_KEY);
   if (!ws) return;
   if (ws.allowedEmails.some((e) => e.email === normalized)) {
     toast("That email is already on the list.");
@@ -889,7 +889,7 @@ export function addAllowedEmail(email: string, note: string) {
 
 export function updateAllowedEmailNote(id: string, note: string) {
   const before = queryClient
-    .getQueryData<WorkspacePayload>(WS_KEY)
+    .getQueryData<SnapshotPayload>(WS_KEY)
     ?.allowedEmails.find((e) => e.id === id);
   if (!before) return;
   const trimmed = note.trim();
@@ -918,7 +918,7 @@ export function updateAllowedEmailNote(id: string, note: string) {
 
 export function removeAllowedEmail(id: string) {
   const before = queryClient
-    .getQueryData<WorkspacePayload>(WS_KEY)
+    .getQueryData<SnapshotPayload>(WS_KEY)
     ?.allowedEmails.find((e) => e.id === id);
   if (!before) return;
   writeAllowedEmails((list) => list.filter((e) => e.id !== id));

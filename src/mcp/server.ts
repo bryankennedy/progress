@@ -80,13 +80,13 @@ async function apiJson(method: string, path: string, body?: unknown): Promise<an
 }
 
 // ---------------------------------------------------------------------------
-// Workspace + alias-aware key resolution
+// Snapshot + alias-aware key resolution
 // ---------------------------------------------------------------------------
 // Issue keys are derived (PREFIX-number), never stored, and a cross-product move
 // retires the old key into issueKeyAliases as a permanent redirect (D18). We
-// resolve both forms off one workspace snapshot, the same way the Worker does.
+// resolve both forms off one snapshot snapshot, the same way the Worker does.
 
-type Workspace = {
+type Snapshot = {
   products: any[];
   repos: any[];
   arcs: any[];
@@ -97,7 +97,7 @@ type Workspace = {
 };
 
 type Resolved = {
-  ws: Workspace;
+  ws: Snapshot;
   issue: any;
   product: any;
   repo: any | null;
@@ -105,15 +105,15 @@ type Resolved = {
   key: string;
 };
 
-async function workspace(): Promise<Workspace> {
-  return (await apiJson("GET", "/api/workspace")) as Workspace;
+async function snapshot(): Promise<Snapshot> {
+  return (await apiJson("GET", "/api/snapshot")) as Snapshot;
 }
 
-function prefixOf(ws: Workspace, productId: string): string {
+function prefixOf(ws: Snapshot, productId: string): string {
   return ws.products.find((p) => p.id === productId)?.keyPrefix ?? "???";
 }
 
-function liveKey(ws: Workspace, issue: any): string {
+function liveKey(ws: Snapshot, issue: any): string {
   return `${prefixOf(ws, issue.productId)}-${issue.number}`;
 }
 
@@ -122,7 +122,7 @@ function normalizeKey(raw: string): string {
 }
 
 // key → issue, honoring current keys first then retired aliases.
-function findIssueByKey(ws: Workspace, rawKey: string): any | null {
+function findIssueByKey(ws: Snapshot, rawKey: string): any | null {
   const key = normalizeKey(rawKey);
   const live = ws.issues.find((i) => liveKey(ws, i) === key);
   if (live) return live;
@@ -132,7 +132,7 @@ function findIssueByKey(ws: Workspace, rawKey: string): any | null {
 }
 
 async function resolve(rawKey: string): Promise<Resolved> {
-  const ws = await workspace();
+  const ws = await snapshot();
   const issue = findIssueByKey(ws, rawKey);
   if (!issue) throw new Error(`No issue found for key ${normalizeKey(rawKey)}.`);
   const product = ws.products.find((p) => p.id === issue.productId) ?? null;
@@ -141,7 +141,7 @@ async function resolve(rawKey: string): Promise<Resolved> {
   return { ws, issue, product, repo, arc, key: liveKey(ws, issue) };
 }
 
-function tagNamesFor(ws: Workspace, issueId: string): string[] {
+function tagNamesFor(ws: Snapshot, issueId: string): string[] {
   const ids = new Set(ws.issueTags.filter((t) => t.issueId === issueId).map((t) => t.tagId));
   return ws.tags
     .filter((t) => ids.has(t.id))
@@ -150,7 +150,7 @@ function tagNamesFor(ws: Workspace, issueId: string): string[] {
 }
 
 // Compact, agent-friendly view of an issue (keys, not opaque ids).
-function summarize(ws: Workspace, issue: any) {
+function summarize(ws: Snapshot, issue: any) {
   return {
     key: liveKey(ws, issue),
     title: issue.title,
@@ -235,7 +235,7 @@ server.registerTool(
     },
   },
   async ({ status, productKey, repo, arc, tag, query, limit }) => {
-    const ws = await workspace();
+    const ws = await snapshot();
     const productId = productKey
       ? ws.products.find((p) => p.keyPrefix.toUpperCase() === productKey.toUpperCase())?.id
       : undefined;
@@ -292,7 +292,7 @@ server.registerTool(
     },
   },
   async ({ productKey, title, description, status, priority, estimate, arc, repo, dueDate }) => {
-    const ws = await workspace();
+    const ws = await snapshot();
     const product = ws.products.find((p) => p.keyPrefix.toUpperCase() === productKey.toUpperCase());
     if (!product) throw new Error(`No product with key prefix ${productKey}.`);
     let arcId: string | null = null;

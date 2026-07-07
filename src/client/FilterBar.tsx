@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import { ISSUE_PRIORITIES } from "../shared/constants";
-import type { WorkspacePayload } from "../shared/types";
+import type { SnapshotPayload } from "../shared/types";
 import {
   filtersToRestore,
   loadStickyFilters,
@@ -44,12 +44,12 @@ export type SharedFilters = Partial<Record<SharedFilterKey, string>>;
 // change back to storage. `volatileKeys` (e.g. search's `q`) are stripped
 // before saving — they're content, not a selection, so they never stick.
 export function useStickyFilterUrl({
-  workspace,
+  snapshot,
   basePath,
   storageKey,
   volatileKeys = [],
 }: {
-  workspace: WorkspacePayload;
+  snapshot: SnapshotPayload;
   basePath: string;
   storageKey: string;
   volatileKeys?: readonly string[];
@@ -60,11 +60,11 @@ export function useStickyFilterUrl({
   // Parent lookups for cascading filter validity (PROG-75).
   const parents = useMemo(
     () => ({
-      productInitiative: new Map(workspace.products.map((p) => [p.id, p.initiativeId])),
-      arcProduct: new Map(workspace.arcs.map((a) => [a.id, a.productId])),
-      repoProduct: new Map(workspace.repos.map((r) => [r.id, r.productId])),
+      productInitiative: new Map(snapshot.products.map((p) => [p.id, p.initiativeId])),
+      arcProduct: new Map(snapshot.arcs.map((a) => [a.id, a.productId])),
+      repoProduct: new Map(snapshot.repos.map((r) => [r.id, r.productId])),
     }),
-    [workspace.products, workspace.arcs, workspace.repos],
+    [snapshot.products, snapshot.arcs, snapshot.repos],
   );
 
   // Sticky restore (PROG-58): on a fresh mount with a bare URL, re-apply the
@@ -103,7 +103,7 @@ export function useStickyFilterUrl({
 }
 
 export default function FilterBar({
-  workspace,
+  snapshot,
   filters,
   setParam,
   activeCount,
@@ -112,7 +112,7 @@ export default function FilterBar({
   before,
   after,
 }: {
-  workspace: WorkspacePayload;
+  snapshot: SnapshotPayload;
   filters: SharedFilters;
   setParam: (key: string, value: string | null) => void;
   // How many filters/toggles are narrowing the view — badges the collapsed
@@ -133,8 +133,8 @@ export default function FilterBar({
   const [open, setOpen] = useState(false);
 
   const productInitiative = useMemo(
-    () => new Map(workspace.products.map((p) => [p.id, p.initiativeId])),
-    [workspace.products],
+    () => new Map(snapshot.products.map((p) => [p.id, p.initiativeId])),
+    [snapshot.products],
   );
 
   return (
@@ -163,7 +163,7 @@ export default function FilterBar({
         <FilterSelect
           label="Initiative"
           value={filters.initiative}
-          options={sortByName(workspace.initiatives.filter((i) => !i.archivedAt)).map((i) => [
+          options={sortByName(snapshot.initiatives.filter((i) => !i.archivedAt)).map((i) => [
             i.id,
             i.name,
           ])}
@@ -173,7 +173,7 @@ export default function FilterBar({
           label="Product"
           value={filters.product}
           options={sortByName(
-            workspace.products
+            snapshot.products
               .filter((p) => !p.archivedAt)
               .filter((p) => !filters.initiative || p.initiativeId === filters.initiative),
           ).map((p) => [p.id, p.name])}
@@ -184,7 +184,7 @@ export default function FilterBar({
           nullable
           value={filters.arc}
           options={sortByName(
-            workspace.arcs
+            snapshot.arcs
               .filter((a) => !a.archivedAt)
               .filter((a) => !filters.product || a.productId === filters.product)
               .filter(
@@ -199,7 +199,7 @@ export default function FilterBar({
           nullable
           value={filters.repo}
           options={sortByName(
-            workspace.repos
+            snapshot.repos
               .filter((r) => !r.archivedAt)
               .filter((r) => !filters.product || r.productId === filters.product)
               .filter(
@@ -213,7 +213,7 @@ export default function FilterBar({
           label="Tag"
           nullable
           value={filters.tag}
-          options={sortByName(workspace.tags).map((t) => [t.id, t.name])}
+          options={sortByName(snapshot.tags).map((t) => [t.id, t.name])}
           onChange={(v) => setParam("tag", v)}
         />
         <FilterSelect

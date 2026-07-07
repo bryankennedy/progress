@@ -59,7 +59,7 @@ test("arcs list alphabetically by default and drag-reorder within a product (PRO
   // A fresh product with three arcs, created in non-alphabetical order — the
   // outline must still show them alphabetically (all ranks tie at the default).
   await page.goto("/outline");
-  const initiatives = (await apiJson<{ initiatives: { id: string }[] }>(page, "/api/workspace"))
+  const initiatives = (await apiJson<{ initiatives: { id: string }[] }>(page, "/api/snapshot"))
     .initiatives;
   const prefix = `Q${tag().toUpperCase().replaceAll(/[^A-Z]/g, "Z").padEnd(4, "X").slice(0, 4)}`;
   const product = (
@@ -107,7 +107,7 @@ test("arcs list alphabetically by default and drag-reorder within a product (PRO
   ]);
 
   // The first drag in a tied group renumbers it: ranks are now distinct.
-  const ws = await apiJson<{ arcs: { id: string; rank: string }[] }>(page, "/api/workspace");
+  const ws = await apiJson<{ arcs: { id: string; rank: string }[] }>(page, "/api/snapshot");
   const ranks = [gamma.id, alpha.id, beta.id].map(
     (id) => ws.arcs.find((a) => a.id === id)!.rank,
   );

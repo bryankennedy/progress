@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import { Link } from "wouter";
-import type { WireAllowedEmail, WorkspacePayload } from "../../shared/types";
+import type { WireAllowedEmail, SnapshotPayload } from "../../shared/types";
 import { addAllowedEmail, removeAllowedEmail, updateAllowedEmailNote } from "../store";
 
 function formatDate(iso: string): string {
@@ -18,22 +18,22 @@ function formatDate(iso: string): string {
   });
 }
 
-export default function Admin({ workspace }: { workspace: WorkspacePayload }) {
-  if (!workspace.isSuperAdmin) {
+export default function Admin({ snapshot }: { snapshot: SnapshotPayload }) {
+  if (!snapshot.isSuperAdmin) {
     return (
       <div className="mx-auto max-w-3xl">
         <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
         <p className="mt-2 text-sm text-ink-soft">
           This page is for administrators only.{" "}
           <Link href="/" className="text-adobe hover:underline">
-            Back to the workspace
+            Back to the board
           </Link>
         </p>
       </div>
     );
   }
 
-  const list = workspace.allowedEmails;
+  const list = snapshot.allowedEmails;
 
   return (
     <div className="mx-auto max-w-3xl">

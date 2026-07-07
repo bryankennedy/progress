@@ -68,7 +68,7 @@ const SEEDS: Seed[] = [
     description:
       "SPEC v2 §5. Optional calendar-day due date, timezone-safe ISO YYYY-MM-DD text (not an " +
       "instant). Nullable due_date column + migration; POST/PATCH validation; issue-page sidebar " +
-      "field; new-issue dialog input; command-palette D picker. Rides the workspace payload " +
+      "field; new-issue dialog input; command-palette D picker. Rides the snapshot payload " +
       "(D37).",
     status: "done",
     priority: "high",
@@ -148,7 +148,7 @@ const SEEDS: Seed[] = [
 ];
 
 async function main() {
-  const ws = await api("GET", "/api/workspace");
+  const ws = await api("GET", "/api/snapshot");
   const product = ws.products.find((p: any) => p.id === PRODUCT_ID);
   if (!product) throw new Error(`Product ${PRODUCT_ID} not found in production.`);
 
@@ -197,7 +197,7 @@ async function main() {
   }
 
   // Report the Agenda as production now computes its inputs.
-  const after = await api("GET", "/api/workspace");
+  const after = await api("GET", "/api/snapshot");
   const dated = after.issues
     .filter((i: any) => i.dueDate && i.status !== "done" && i.status !== "canceled")
     .sort((a: any, b: any) => a.dueDate.localeCompare(b.dueDate));

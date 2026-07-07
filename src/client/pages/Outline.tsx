@@ -35,7 +35,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { WireArc, WireIssue, WireProduct } from "../../shared/types";
-import type { WorkspacePayload } from "../../shared/types";
+import type { SnapshotPayload } from "../../shared/types";
 import { isOpenStatus } from "../../shared/constants";
 import {
   createContainer,
@@ -317,7 +317,7 @@ function IssueRow({
   handleProps,
 }: {
   node: Node;
-  ws: WorkspacePayload;
+  ws: SnapshotPayload;
   arcs: WireArc[];
   onIndent: (issue: WireIssue) => void;
   onOutdent: (issue: WireIssue) => void;
@@ -419,7 +419,7 @@ function OutlineNode({
   renderCapture,
 }: {
   node: Node;
-  ws: WorkspacePayload;
+  ws: SnapshotPayload;
   arcs: WireArc[];
   onIndent: (issue: WireIssue) => void;
   onOutdent: (issue: WireIssue) => void;
@@ -610,7 +610,7 @@ function ProductOutline({
   grip,
 }: {
   product: WireProduct;
-  ws: WorkspacePayload;
+  ws: SnapshotPayload;
   showHeader: boolean;
   hideDone: boolean;
   // At initiative scope the whole section is sortable (PROG-87); the enclosing
@@ -969,7 +969,7 @@ function ProductOutline({
 
 type Root = { kind: "product"; id: string } | { kind: "initiative"; id: string };
 
-export default function Outline({ workspace }: { workspace: WorkspacePayload }) {
+export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
   const search = useSearch();
   const [, navigate] = useLocation();
   const params = new URLSearchParams(search);
@@ -983,19 +983,19 @@ export default function Outline({ workspace }: { workspace: WorkspacePayload }) 
 
   // Every product's prefix, for client-side dedupe of new-product keys.
   const existingPrefixes = useMemo(
-    () => new Set(workspace.products.map((p) => p.keyPrefix.toUpperCase())),
-    [workspace.products],
+    () => new Set(snapshot.products.map((p) => p.keyPrefix.toUpperCase())),
+    [snapshot.products],
   );
 
   // Manual rank first, name tiebreak (PROG-87) — alphabetical until the owner
   // starts dragging sections around, then the dragged order wins everywhere.
   const products = useMemo(
-    () => [...workspace.products].filter((p) => !p.archivedAt).sort(byRankThenName),
-    [workspace.products],
+    () => [...snapshot.products].filter((p) => !p.archivedAt).sort(byRankThenName),
+    [snapshot.products],
   );
   const initiatives = useMemo(
-    () => [...workspace.initiatives].filter((i) => !i.archivedAt).sort(byRankThenName),
-    [workspace.initiatives],
+    () => [...snapshot.initiatives].filter((i) => !i.archivedAt).sort(byRankThenName),
+    [snapshot.initiatives],
   );
 
   // Resolve the active root: URL params win (links stay shareable), then the
@@ -1055,7 +1055,7 @@ export default function Outline({ workspace }: { workspace: WorkspacePayload }) 
   // product grouping is made of), matching the arc previews' capped card.
   const heldProduct = activeProductId ? scopedProducts.find((p) => p.id === activeProductId) : undefined;
   const heldProductRows = heldProduct
-    ? [...workspace.arcs]
+    ? [...snapshot.arcs]
         .filter((a) => a.productId === heldProduct.id && !a.archivedAt)
         .sort(byRankThenName)
         .map((a) => ({
@@ -1133,7 +1133,7 @@ export default function Outline({ workspace }: { workspace: WorkspacePayload }) 
                     {(productGrip) => (
                       <ProductOutline
                         product={p}
-                        ws={workspace}
+                        ws={snapshot}
                         showHeader
                         hideDone={hideDone}
                         grip={productGrip}
@@ -1161,7 +1161,7 @@ export default function Outline({ workspace }: { workspace: WorkspacePayload }) 
           </DndContext>
         ) : (
           scopedProducts.map((p) => (
-            <ProductOutline key={p.id} product={p} ws={workspace} showHeader={false} hideDone={hideDone} />
+            <ProductOutline key={p.id} product={p} ws={snapshot} showHeader={false} hideDone={hideDone} />
           ))
         )}
 

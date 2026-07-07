@@ -12,7 +12,7 @@ type Box = { id: string; x: number; y: number; w: number; h: number; cx: number;
 // page.request shares the page's cookie jar (the standalone `request` fixture
 // has its own and would 401 once auth is configured).
 async function issueOf(page: Page, id: string): Promise<{ rank: string; status: string } | undefined> {
-  const ws = await (await page.request.get("/api/workspace")).json();
+  const ws = await (await page.request.get("/api/snapshot")).json();
   return ws.issues.find((i: { id: string }) => i.id === id);
 }
 async function rankOf(page: Page, id: string): Promise<string | undefined> {
@@ -35,7 +35,7 @@ async function boxesIn(page: Page, ids: string[]): Promise<Box[]> {
 // ambient board and of the other specs that share the dev DB. `backlog` and
 // `todo` are the two leftmost columns, so they stay on-screen at this viewport.
 async function isolateColumn(page: Page, status: string, ids: string[]): Promise<void> {
-  const ws = await (await page.request.get("/api/workspace")).json();
+  const ws = await (await page.request.get("/api/snapshot")).json();
   const dump = status === "backlog" ? "todo" : "backlog";
   for (const i of ws.issues as { id: string; status: string }[]) {
     if (i.status === status && !ids.includes(i.id)) {
@@ -86,7 +86,7 @@ test.beforeEach(async ({ page, context }) => {
 // Three known cards in `backlog` (leftmost column, always on-screen), in a
 // deterministic rank order — independent of ambient data and other specs.
 async function threeInBacklog(page: Page): Promise<[Box, Box, Box]> {
-  const ws = await (await page.request.get("/api/workspace")).json();
+  const ws = await (await page.request.get("/api/snapshot")).json();
   const ids: string[] = ws.issues.map((i: { id: string }) => i.id).slice(0, 3);
   await isolateColumn(page, "backlog", ids);
   await page.goto("/?backlog=1");
@@ -142,7 +142,7 @@ test("dragging a card to the TOP of a populated column moves it there (PROG-59)"
   // The issue's exact scenario, arranged via the API for determinism: a lone
   // card in `todo` and a populated `backlog` (the two leftmost, on-screen
   // columns — a far-right column like in_review would scroll out of view).
-  const ws = await (await page.request.get("/api/workspace")).json();
+  const ws = await (await page.request.get("/api/snapshot")).json();
   const ids: string[] = ws.issues.map((i: { id: string }) => i.id);
   const mover = ids[0]!;
   const fillers = ids.slice(1, 4);
@@ -188,7 +188,7 @@ test("dragging a card into an EMPTY column drops it there (PROG-40)", async ({ p
   // A lone card in `todo`, an empty `in_progress` — both on-screen (cols 2 & 3).
   // Empty columns are now full-height; the regression was that closestCorners
   // measured to their far corners and handed the drop to a neighbour's card.
-  const ws = await (await page.request.get("/api/workspace")).json();
+  const ws = await (await page.request.get("/api/snapshot")).json();
   const mover = ws.issues.map((i: { id: string }) => i.id)[0]!;
   await isolateColumn(page, "in_progress", []); // empty the target column
   await isolateColumn(page, "todo", [mover]);
@@ -228,7 +228,7 @@ test("a card dropped in a new column doesn't flash back to its old one (PROG-40)
   page,
 }) => {
   // Cross-column drop: lone card in `todo` → top of a populated `backlog`.
-  const ws = await (await page.request.get("/api/workspace")).json();
+  const ws = await (await page.request.get("/api/snapshot")).json();
   const ids: string[] = ws.issues.map((i: { id: string }) => i.id);
   const mover = ids[0]!;
   const fillers = ids.slice(1, 4);

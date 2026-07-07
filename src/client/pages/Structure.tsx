@@ -5,7 +5,7 @@
 // (openCreateContainer → CreateContainerDialog); no new write paths.
 
 import { Link } from "wouter";
-import type { WorkspacePayload } from "../../shared/types";
+import type { SnapshotPayload } from "../../shared/types";
 import { openCreateContainer } from "../commands/controller";
 import { byRankThenName } from "../containerReorder";
 import { DEFAULT_RANK } from "../../shared/rank";
@@ -109,7 +109,7 @@ function NodeGroup({
   );
 }
 
-export default function Structure({ workspace }: { workspace: WorkspacePayload }) {
+export default function Structure({ snapshot }: { snapshot: SnapshotPayload }) {
   // Active first, archived last (dimmed), so curating stays focused on live
   // structure while archived nodes remain reachable to unarchive. Within each
   // half, the global manual order (PROG-87): rank set by dragging on the
@@ -125,7 +125,7 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
         ),
     );
 
-  const initiatives = byActive(workspace.initiatives);
+  const initiatives = byActive(snapshot.initiatives);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -142,7 +142,7 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
       <div className="mt-6 space-y-6">
         {initiatives.map((initiative) => {
           const products = byActive(
-            workspace.products.filter((p) => p.initiativeId === initiative.id),
+            snapshot.products.filter((p) => p.initiativeId === initiative.id),
           );
           return (
             <section key={initiative.id} className="rounded-lg border border-line bg-card p-4">
@@ -164,8 +164,8 @@ export default function Structure({ workspace }: { workspace: WorkspacePayload }
                   <p className="text-xs text-ink-faint">No products yet.</p>
                 )}
                 {products.map((product) => {
-                  const repos = byActive(workspace.repos.filter((r) => r.productId === product.id));
-                  const arcs = byActive(workspace.arcs.filter((a) => a.productId === product.id));
+                  const repos = byActive(snapshot.repos.filter((r) => r.productId === product.id));
+                  const arcs = byActive(snapshot.arcs.filter((a) => a.productId === product.id));
                   return (
                     <div key={product.id}>
                       <div className="flex flex-wrap items-center gap-2">

@@ -18,7 +18,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { ISSUE_STATUSES } from "../../shared/constants";
-import type { WireIssue, WorkspacePayload } from "../../shared/types";
+import type { WireIssue, SnapshotPayload } from "../../shared/types";
 import { FILTER_NONE, matchesNullableId, SEARCH_FILTERS_KEY } from "../boardFilters";
 import FilterBar, { useStickyFilterUrl } from "../FilterBar";
 import FilterSelect from "../FilterSelect";
@@ -77,12 +77,12 @@ function parseFilters(search: string): { q: string; filters: Filters; sort: Issu
   return { q: params.get("q") ?? "", filters, sort };
 }
 
-export default function Search({ workspace }: { workspace: WorkspacePayload }) {
+export default function Search({ snapshot }: { snapshot: SnapshotPayload }) {
   // URL plumbing + sticky filters + ancestor pruning, shared with the board
   // (PROG-92, FilterBar.tsx). `q` is volatile: the filters and sort stick
   // across visits, the query text doesn't.
   const { search, navigate, setParam } = useStickyFilterUrl({
-    workspace,
+    snapshot,
     basePath: "/search",
     storageKey: SEARCH_FILTERS_KEY,
     volatileKeys: VOLATILE_KEYS,
@@ -112,24 +112,24 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
   // tag → issue lookup for the tag filter (mirrors the board).
   const tagsByIssue = useMemo(() => {
     const map = new Map<string, Set<string>>();
-    for (const link of workspace.issueTags) {
+    for (const link of snapshot.issueTags) {
       const set = map.get(link.issueId) ?? new Set<string>();
       set.add(link.tagId);
       map.set(link.issueId, set);
     }
     return map;
-  }, [workspace.issueTags]);
+  }, [snapshot.issueTags]);
 
   const productById = useMemo(
-    () => new Map(workspace.products.map((p) => [p.id, p])),
-    [workspace.products],
+    () => new Map(snapshot.products.map((p) => [p.id, p])),
+    [snapshot.products],
   );
 
   // Comment hits arrive as issue ids; a Map resolves them without a per-hit
-  // linear scan over the (up to 5k-issue) workspace.
+  // linear scan over the (up to 5k-issue) snapshot.
   const issueById = useMemo(
-    () => new Map(workspace.issues.map((i) => [i.id, i])),
-    [workspace.issues],
+    () => new Map(snapshot.issues.map((i) => [i.id, i])),
+    [snapshot.issues],
   );
 
   // Does an issue pass the active filters? Used for both issue and comment hits.
@@ -164,11 +164,11 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
   const issueHits = useMemo(() => {
     const base =
       terms.length === 0
-        ? browseIssues(workspace).filter((h) => passes(h.issue))
-        : searchIssues(workspace, q, 0).filter((h) => passes(h.issue));
-    return sortIssueHits(workspace, base, sort);
-  }, [workspace, q, terms, passes, sort]);
-  const containerHits = useMemo(() => searchContainers(workspace, q, 0), [workspace, q]);
+        ? browseIssues(snapshot).filter((h) => passes(h.issue))
+        : searchIssues(snapshot, q, 0).filter((h) => passes(h.issue));
+    return sortIssueHits(snapshot, base, sort);
+  }, [snapshot, q, terms, passes, sort]);
+  const containerHits = useMemo(() => searchContainers(snapshot, q, 0), [snapshot, q]);
 
   // Pagination (PROG-78): the full hit lists stay in memory (instant); only the
   // DOM is capped, at PAGE rows per "Show more" click. Limits reset whenever
@@ -212,7 +212,7 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
           board's columns ARE the statuses), so it rides in the `before` slot.
           Clearing keeps the query and the sort — they're not filters. */}
       <FilterBar
-        workspace={workspace}
+        snapshot={snapshot}
         filters={filters}
         setParam={setParam}
         activeCount={FILTER_KEYS.filter((k) => filters[k]).length}
@@ -294,7 +294,7 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
                 </thead>
                 <tbody>
                   {issueHits.slice(0, issueLimit).map((hit) => {
-                    const key = issueKeyOf(workspace, hit.issue);
+                    const key = issueKeyOf(snapshot, hit.issue);
                     const product = productById.get(hit.issue.productId);
                     return (
                       // The whole row navigates (it's the click target the old
@@ -369,7 +369,7 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
               <Empty>{isFetching ? "Searching comments…" : "No comments match."}</Empty>
             ) : (
               commentHits.map((hit) => {
-                const key = issueKeyOf(workspace, hit.issue);
+                const key = issueKeyOf(snapshot, hit.issue);
                 return (
                   <Link
                     key={hit.commentId}

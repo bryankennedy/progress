@@ -156,11 +156,11 @@ const NEW_ISSUES: NewIssue[] = [
 
 async function main() {
   console.log("→ Connecting to production through the Access service token…");
-  const ws = await api("GET", "/api/workspace");
+  const ws = await api("GET", "/api/snapshot");
   console.log(`  ✓ authenticated — ${ws.issues.length} issues, ${ws.products.length} products`);
 
   const product = ws.products.find((p: any) => p.keyPrefix === "PROG");
-  if (!product) throw new Error("PROG product not found in production workspace");
+  if (!product) throw new Error("PROG product not found in production snapshot");
 
   // --- Step 1: milestone history. PROG-1..14 are all shipped + deployed. ---
   const byNumber = new Map<number, any>(
@@ -221,7 +221,7 @@ async function main() {
     console.log(`→ Created ${product.keyPrefix}-${issue.number}: ${spec.title}`);
   }
 
-  const after = await api("GET", "/api/workspace");
+  const after = await api("GET", "/api/snapshot");
   console.log(
     `\n✓ Cutover complete. Production now holds ${after.issues.length} issues ` +
       `across ${after.arcs.length} arcs. v1 is dogfooded.`,

@@ -38,9 +38,9 @@ export type WirePrLink = Serialized<PrLink>;
 export type WireCommitLink = Serialized<CommitLink>;
 export type WireAllowedEmail = Serialized<AllowedEmail>;
 
-// GET /api/workspace — the load-everything payload (SPEC §8.2, D20: comments
+// GET /api/snapshot — the load-everything payload (SPEC §8.2, D20: comments
 // and activity are excluded and load per issue page).
-export type WorkspacePayload = {
+export type SnapshotPayload = {
   // The signed-in user (PROG-34). Null only in the unconfigured local-dev
   // path where the owner row may not be loaded; the client treats null as the
   // dev owner.
@@ -63,7 +63,7 @@ export type WorkspacePayload = {
 };
 
 // GET /api/search?q= — comment full-text search (PROG-130). Comments are the
-// only searchable text NOT in the workspace payload (D20), so they need a
+// only searchable text NOT in the snapshot payload (D20), so they need a
 // server round-trip; title/description search runs client-side over the store.
 // A hit carries just the ids + a snippet — the client already holds the issue,
 // so it resolves the key/title/container itself.

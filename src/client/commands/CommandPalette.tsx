@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { ISSUE_ESTIMATES, ISSUE_PRIORITIES, ISSUE_STATUSES } from "../../shared/constants";
-import type { WireIssue, WorkspacePayload } from "../../shared/types";
+import type { WireIssue, SnapshotPayload } from "../../shared/types";
 import { addDays, formatDueDate, relativeDue, todayISO } from "../dates";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import {
@@ -41,7 +41,7 @@ const MODE_TITLES: Record<Exclude<PaletteMode["kind"], "root">, string> = {
   workon: "Work on this",
 };
 
-export default function CommandPalette({ workspace }: { workspace: WorkspacePayload }) {
+export default function CommandPalette({ snapshot }: { snapshot: SnapshotPayload }) {
   const [mode, setMode] = useState<PaletteMode | null>(null);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
@@ -57,9 +57,9 @@ export default function CommandPalette({ workspace }: { workspace: WorkspacePayl
   useEffect(() => onOpenPalette(switchMode), []);
 
   const items = useMemo(
-    () => (mode ? buildItems(workspace, mode, query, navigate, switchMode) : []),
+    () => (mode ? buildItems(snapshot, mode, query, navigate, switchMode) : []),
     // eslint-style exhaustiveness doesn't apply: navigate/switchMode are stable enough here.
-    [workspace, mode, query, navigate],
+    [snapshot, mode, query, navigate],
   );
 
   const sel = Math.min(selected, Math.max(items.length - 1, 0));
@@ -96,7 +96,7 @@ export default function CommandPalette({ workspace }: { workspace: WorkspacePayl
   };
 
   const ctxIssue =
-    mode.kind !== "root" ? workspace.issues.find((i) => i.id === mode.issueId) : undefined;
+    mode.kind !== "root" ? snapshot.issues.find((i) => i.id === mode.issueId) : undefined;
 
   return (
     <div className="fixed inset-0 z-50 bg-ink/20 p-4" onMouseDown={close}>
@@ -108,7 +108,7 @@ export default function CommandPalette({ workspace }: { workspace: WorkspacePayl
         {ctxIssue && (
           <p className="border-b border-line px-4 pb-2 pt-3 text-xs text-ink-faint">
             {MODE_TITLES[mode.kind as keyof typeof MODE_TITLES]} ·{" "}
-            <span className="font-mono">{issueKeyOf(workspace, ctxIssue)}</span>{" "}
+            <span className="font-mono">{issueKeyOf(snapshot, ctxIssue)}</span>{" "}
             <span className="text-ink-soft">{ctxIssue.title}</span>
           </p>
         )}
@@ -147,7 +147,7 @@ export default function CommandPalette({ workspace }: { workspace: WorkspacePayl
 }
 
 function buildItems(
-  ws: WorkspacePayload,
+  ws: SnapshotPayload,
   mode: PaletteMode,
   query: string,
   navigate: (to: string) => void,
@@ -317,7 +317,7 @@ function buildItems(
 }
 
 function rootItems(
-  ws: WorkspacePayload,
+  ws: SnapshotPayload,
   issueId: string | null,
   q: string,
   navigate: (to: string) => void,

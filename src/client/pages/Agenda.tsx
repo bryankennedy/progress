@@ -1,4 +1,4 @@
-// The Agenda view (SPEC v2 §6): the time-driven cut of the workspace. Every
+// The Agenda view (SPEC v2 §6): the time-driven cut of the snapshot. Every
 // issue that has a due date and is still pending, sorted by due date ascending,
 // grouped Overdue · Today · This week · Later (buckets from the owner's *local*
 // today, since due dates are calendar days). Undated issues live on the board;
@@ -11,7 +11,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
-import type { WireIssue, WireTag, WorkspacePayload } from "../../shared/types";
+import type { WireIssue, WireTag, SnapshotPayload } from "../../shared/types";
 import { loadQuickAddProduct, quickAddDueDate, saveQuickAddProduct } from "../agendaQuickAdd";
 import { sortByName } from "../boardFilters";
 import { type AgendaBucket, bucketOf, formatDueDate, relativeDue, todayISO } from "../dates";
@@ -41,7 +41,7 @@ const BUCKETS: { key: AgendaBucket; label: string; accent: string }[] = [
   { key: "later", label: "Later", accent: "text-ink-soft" },
 ];
 
-export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
+export default function Agenda({ snapshot }: { snapshot: SnapshotPayload }) {
   const search = useSearch();
   const [, navigate] = useLocation();
   const filters = useMemo(() => parseFilters(search), [search]);
@@ -56,9 +56,9 @@ export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
   };
 
   const tagsByIssue = useMemo(() => {
-    const tagById = new Map(workspace.tags.map((t) => [t.id, t]));
+    const tagById = new Map(snapshot.tags.map((t) => [t.id, t]));
     const map = new Map<string, WireTag[]>();
-    for (const link of workspace.issueTags) {
+    for (const link of snapshot.issueTags) {
       const tag = tagById.get(link.tagId);
       if (!tag) continue;
       const list = map.get(link.issueId) ?? [];
@@ -66,22 +66,22 @@ export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
       map.set(link.issueId, list);
     }
     return map;
-  }, [workspace.tags, workspace.issueTags]);
+  }, [snapshot.tags, snapshot.issueTags]);
 
   // Dated, still-pending issues matching the active filters, ascending by due
   // date (string compare is correct for YYYY-MM-DD), tiebroken by key.
   const dated = useMemo(() => {
-    const productById = new Map(workspace.products.map((p) => [p.id, p]));
+    const productById = new Map(snapshot.products.map((p) => [p.id, p]));
     const keyOf = (i: WireIssue) =>
       `${productById.get(i.productId)?.keyPrefix ?? ""}-${String(i.number).padStart(8, "0")}`;
-    return workspace.issues
+    return snapshot.issues
       .filter((i) => i.dueDate)
       .filter((i) => i.status !== "done" && i.status !== "canceled")
       .filter((i) => !filters.product || i.productId === filters.product)
       .filter((i) => !filters.arc || i.arcId === filters.arc)
       .filter((i) => !filters.tag || (tagsByIssue.get(i.id) ?? []).some((t) => t.id === filters.tag))
       .sort((a, b) => a.dueDate!.localeCompare(b.dueDate!) || keyOf(a).localeCompare(keyOf(b)));
-  }, [workspace.issues, workspace.products, filters, tagsByIssue]);
+  }, [snapshot.issues, snapshot.products, filters, tagsByIssue]);
 
   const grouped = useMemo(() => {
     const groups = new Map<AgendaBucket, WireIssue[]>(BUCKETS.map((b) => [b.key, []]));
@@ -104,7 +104,7 @@ export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
         <FilterSelect
           label="Product"
           value={filters.product}
-          options={sortByName(workspace.products.filter((p) => !p.archivedAt)).map((p) => [
+          options={sortByName(snapshot.products.filter((p) => !p.archivedAt)).map((p) => [
             p.id,
             p.name,
           ])}
@@ -114,7 +114,7 @@ export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
           label="Arc"
           value={filters.arc}
           options={sortByName(
-            workspace.arcs
+            snapshot.arcs
               .filter((a) => !a.archivedAt)
               .filter((a) => !filters.product || a.productId === filters.product),
           ).map((a) => [a.id, a.name])}
@@ -123,7 +123,7 @@ export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
         <FilterSelect
           label="Tag"
           value={filters.tag}
-          options={sortByName(workspace.tags).map((t) => [t.id, t.name])}
+          options={sortByName(snapshot.tags).map((t) => [t.id, t.name])}
           onChange={(v) => setParam("tag", v)}
         />
         {filtersActive && (
@@ -150,7 +150,7 @@ export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
                   <AgendaRow
                     key={issue.id}
                     issue={issue}
-                    workspace={workspace}
+                    snapshot={snapshot}
                     tags={tagsByIssue.get(issue.id) ?? []}
                     overdue={bucket.key === "overdue"}
                     today={today}
@@ -160,7 +160,7 @@ export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
               {/* Quick-add (PROG-89): capture straight into this date bucket.
                   Not on Overdue — an issue can't be born already late. */}
               {bucket.key !== "overdue" && (
-                <QuickAddRow bucket={bucket.key} workspace={workspace} filters={filters} today={today} />
+                <QuickAddRow bucket={bucket.key} snapshot={snapshot} filters={filters} today={today} />
               )}
             </section>
           );
@@ -188,19 +188,19 @@ export default function Agenda({ workspace }: { workspace: WorkspacePayload }) {
 // captures into what you're looking at.
 function QuickAddRow({
   bucket,
-  workspace,
+  snapshot,
   filters,
   today,
 }: {
   bucket: AgendaBucket;
-  workspace: WorkspacePayload;
+  snapshot: SnapshotPayload;
   filters: Filters;
   today: string;
 }) {
   const [title, setTitle] = useState("");
   const products = useMemo(
-    () => sortByName(workspace.products.filter((p) => !p.archivedAt)),
-    [workspace.products],
+    () => sortByName(snapshot.products.filter((p) => !p.archivedAt)),
+    [snapshot.products],
   );
   const [productId, setProductId] = useState<string>(() => {
     const saved = loadQuickAddProduct();
@@ -220,7 +220,7 @@ function QuickAddRow({
     if (!t || !productId || !due) return;
     const arcId =
       filters.arc &&
-      workspace.arcs.some((a) => a.id === filters.arc && a.productId === productId)
+      snapshot.arcs.some((a) => a.id === filters.arc && a.productId === productId)
         ? filters.arc
         : null;
     createIssue({
@@ -304,20 +304,20 @@ function FilterSelect({
 
 function AgendaRow({
   issue,
-  workspace,
+  snapshot,
   tags,
   overdue,
   today,
 }: {
   issue: WireIssue;
-  workspace: WorkspacePayload;
+  snapshot: SnapshotPayload;
   tags: WireTag[];
   overdue: boolean;
   today: string;
 }) {
-  const key = issueKeyOf(workspace, issue);
-  const product = workspace.products.find((p) => p.id === issue.productId);
-  const arc = issue.arcId ? workspace.arcs.find((a) => a.id === issue.arcId) : null;
+  const key = issueKeyOf(snapshot, issue);
+  const product = snapshot.products.find((p) => p.id === issue.productId);
+  const arc = issue.arcId ? snapshot.arcs.find((a) => a.id === issue.arcId) : null;
   const due = issue.dueDate!;
 
   return (

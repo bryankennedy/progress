@@ -27,7 +27,7 @@ function localISO(plusDays = 0): string {
 // "… agenda …" makes bare nav-link selectors ambiguous for every later spec
 // sharing the dev DB.
 async function makeProductWithSeed(page: Page, seedDue: string) {
-  const ws = await (await page.request.get("/api/workspace")).json();
+  const ws = await (await page.request.get("/api/snapshot")).json();
   const product = (
     await (
       await page.request.post("/api/products", {
@@ -53,7 +53,7 @@ async function makeProductWithSeed(page: Page, seedDue: string) {
 // everywhere (archive semantics) — so also cancel them, or every run leaves
 // live cards on the shared dev board.
 async function cleanupProduct(page: Page, productId: string) {
-  const ws = await (await page.request.get("/api/workspace")).json();
+  const ws = await (await page.request.get("/api/snapshot")).json();
   for (const i of ws.issues as { id: string; productId: string }[]) {
     if (i.productId === productId) {
       await page.request.patch(`/api/issues/${i.id}`, { data: { status: "canceled" } });
@@ -88,7 +88,7 @@ test("quick-add under Today creates an issue due today (PROG-89)", async ({ page
   // Server-confirmed: right product, due today, todo.
   await expect
     .poll(async () => {
-      const ws = await (await page.request.get("/api/workspace")).json();
+      const ws = await (await page.request.get("/api/snapshot")).json();
       const issue = ws.issues.find(
         (i: { title: string; productId: string }) => i.title === title && i.productId === product.id,
       );
@@ -127,7 +127,7 @@ test("quick-add under This week dates to the window's last day; Overdue has no i
 
   await expect
     .poll(async () => {
-      const ws = await (await page.request.get("/api/workspace")).json();
+      const ws = await (await page.request.get("/api/snapshot")).json();
       return ws.issues.find((i: { title: string }) => i.title === title)?.dueDate;
     })
     .toBe(endOfWindow);

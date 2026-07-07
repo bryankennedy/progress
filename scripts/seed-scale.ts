@@ -1,4 +1,4 @@
-// Synthetic workspace at SPEC §8.2 upper-bound scale, for the client-store
+// Synthetic snapshot at SPEC §8.2 upper-bound scale, for the client-store
 // latency spike (DECISIONS.md, open question #4). Generates SQL into
 // scripts/seed-scale.generated.sql (gitignored) and applies it to the local
 // D1 via wrangler. Idempotent (INSERT OR IGNORE, deterministic PRNG → stable

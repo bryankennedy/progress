@@ -41,9 +41,9 @@ const UPDATES: { title: string; status: string }[] = [
 ];
 
 async function main() {
-  const ws = await api("GET", "/api/workspace");
+  const ws = await api("GET", "/api/snapshot");
   const product = ws.products.find((p: any) => p.keyPrefix === "PROG");
-  if (!product) throw new Error("PROG product not found in production workspace");
+  if (!product) throw new Error("PROG product not found in production snapshot");
 
   const byTitle = new Map<string, any>(
     ws.issues.filter((i: any) => i.productId === product.id).map((i: any) => [i.title, i]),

@@ -42,7 +42,7 @@ import { reorder, type ColumnMap } from "../boardOrder";
 import { BOARD_FILTERS_KEY, FILTER_NONE, matchesNullableId } from "../boardFilters";
 import FilterBar, { useStickyFilterUrl } from "../FilterBar";
 import { recentlyCompleted } from "../boardDone";
-import type { WireIssue, WireTag, WorkspacePayload } from "../../shared/types";
+import type { WireIssue, WireTag, SnapshotPayload } from "../../shared/types";
 import { openCreateIssue } from "../commands/controller";
 import { dayDiff, formatDueDate, relativeDue, todayISO } from "../dates";
 import { STATUS_LABELS } from "../labels";
@@ -72,20 +72,20 @@ function parseFilters(search: string): Filters {
   return filters;
 }
 
-export default function Home({ workspace }: { workspace: WorkspacePayload }) {
+export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
   // URL plumbing + sticky restore + ancestor pruning, shared with the search
   // page (PROG-92, FilterBar.tsx).
   const { search, navigate, setParam } = useStickyFilterUrl({
-    workspace,
+    snapshot,
     basePath: "/",
     storageKey: BOARD_FILTERS_KEY,
   });
   const filters = useMemo(() => parseFilters(search), [search]);
 
   const tagsByIssue = useMemo(() => {
-    const tagById = new Map(workspace.tags.map((t) => [t.id, t]));
+    const tagById = new Map(snapshot.tags.map((t) => [t.id, t]));
     const map = new Map<string, WireTag[]>();
-    for (const link of workspace.issueTags) {
+    for (const link of snapshot.issueTags) {
       const tag = tagById.get(link.tagId);
       if (!tag) continue;
       const list = map.get(link.issueId) ?? [];
@@ -93,22 +93,22 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
       map.set(link.issueId, list);
     }
     return map;
-  }, [workspace.tags, workspace.issueTags]);
+  }, [snapshot.tags, snapshot.issueTags]);
 
   const issuesById = useMemo(
-    () => new Map(workspace.issues.map((i) => [i.id, i])),
-    [workspace.issues],
+    () => new Map(snapshot.issues.map((i) => [i.id, i])),
+    [snapshot.issues],
   );
 
   const visibleByStatus = useMemo(() => {
     const productIdsInInitiative = filters.initiative
       ? new Set(
-          workspace.products
+          snapshot.products
             .filter((p) => p.initiativeId === filters.initiative)
             .map((p) => p.id),
         )
       : null;
-    const issues = workspace.issues.filter((issue) => {
+    const issues = snapshot.issues.filter((issue) => {
       // Child issues stay off the board unless "show sub-issues" is on (PROG-124).
       if (!filters.subissues && issue.parentIssueId !== null) return false;
       if (productIdsInInitiative && !productIdsInInitiative.has(issue.productId)) return false;
@@ -138,7 +138,7 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
     const doneTotal = groups.get("done")!.length;
     groups.set("done", recentlyCompleted(groups.get("done")!));
     return { groups, doneTotal };
-  }, [workspace.issues, workspace.products, filters, tagsByIssue]);
+  }, [snapshot.issues, snapshot.products, filters, tagsByIssue]);
 
   // The drag model works on ordered id-lists per column. `sourceColumns` is the
   // store's truth (rank order); `columns` is a working copy mutated live during
@@ -329,7 +329,7 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
           app name (PROG-53 — drop the redundant heading). */}
       <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <p className="text-xs text-ink-faint">
-          {shownCount} issues on board · {workspace.issues.length} total · loaded in{" "}
+          {shownCount} issues on board · {snapshot.issues.length} total · loaded in{" "}
           {Math.round(loadStats.fetchMs)} ms · ⌘K for commands
         </p>
         <button
@@ -344,7 +344,7 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
           Clear, identical to the search page's. The board's toggles ride in the
           `after` slot; clearing keeps them (they're view modes, not filters). */}
       <FilterBar
-        workspace={workspace}
+        snapshot={snapshot}
         filters={filters}
         setParam={setParam}
         activeCount={activeFilterCount}
@@ -424,7 +424,7 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
               issueIds={columns[status]}
               total={status === "done" ? visibleByStatus.doneTotal : undefined}
               issuesById={issuesById}
-              workspace={workspace}
+              snapshot={snapshot}
               tagsByIssue={tagsByIssue}
               activeId={activeId}
             />
@@ -441,7 +441,7 @@ export default function Home({ workspace }: { workspace: WorkspacePayload }) {
             <div data-drag-overlay>
               <CardView
                 issue={draggingIssue}
-                workspace={workspace}
+                snapshot={snapshot}
                 tags={tagsByIssue.get(draggingIssue.id) ?? []}
                 dragging
               />
@@ -458,7 +458,7 @@ function BoardColumn({
   issueIds,
   total,
   issuesById,
-  workspace,
+  snapshot,
   tagsByIssue,
   activeId,
 }: {
@@ -468,7 +468,7 @@ function BoardColumn({
   // so the header can show "shown of total". Undefined ⇒ nothing is hidden.
   total?: number;
   issuesById: Map<string, WireIssue>;
-  workspace: WorkspacePayload;
+  snapshot: SnapshotPayload;
   tagsByIssue: Map<string, WireTag[]>;
   activeId: string | null;
 }) {
@@ -503,7 +503,7 @@ function BoardColumn({
               <BoardCard
                 key={id}
                 issue={issue}
-                workspace={workspace}
+                snapshot={snapshot}
                 tags={tagsByIssue.get(id) ?? []}
                 hidden={activeId === id}
               />
@@ -517,12 +517,12 @@ function BoardColumn({
 
 function BoardCard({
   issue,
-  workspace,
+  snapshot,
   tags,
   hidden,
 }: {
   issue: WireIssue;
-  workspace: WorkspacePayload;
+  snapshot: SnapshotPayload;
   tags: WireTag[];
   hidden: boolean;
 }) {
@@ -554,8 +554,8 @@ function BoardCard({
         transition,
       }}
     >
-      <Link href={`/issue/${issueKeyOf(workspace, issue)}`} draggable={false}>
-        <CardView issue={issue} workspace={workspace} tags={tags} />
+      <Link href={`/issue/${issueKeyOf(snapshot, issue)}`} draggable={false}>
+        <CardView issue={issue} snapshot={snapshot} tags={tags} />
       </Link>
     </div>
   );
@@ -563,21 +563,21 @@ function BoardCard({
 
 function CardView({
   issue,
-  workspace,
+  snapshot,
   tags,
   dragging = false,
 }: {
   issue: WireIssue;
-  workspace: WorkspacePayload;
+  snapshot: SnapshotPayload;
   tags: WireTag[];
   dragging?: boolean;
 }) {
-  const product = workspace.products.find((p) => p.id === issue.productId);
+  const product = snapshot.products.find((p) => p.id === issue.productId);
   // Sub-issue cards (PROG-124) read as nested-to-parent: indented with a moss
   // accent rail and a "↳ PARENT-KEY" breadcrumb, so they're distinct from the
   // top-level deliverables even though the column still sorts everything by rank.
   const parent = issue.parentIssueId
-    ? workspace.issues.find((i) => i.id === issue.parentIssueId)
+    ? snapshot.issues.find((i) => i.id === issue.parentIssueId)
     : undefined;
   const isChild = issue.parentIssueId !== null;
   return (
@@ -592,7 +592,7 @@ function CardView({
           {parent && (
             <span className="text-moss" title="Sub-issue">
               ↳{" "}
-              {workspace.products.find((p) => p.id === parent.productId)?.keyPrefix ?? "?"}-
+              {snapshot.products.find((p) => p.id === parent.productId)?.keyPrefix ?? "?"}-
               {parent.number}{" "}
             </span>
           )}

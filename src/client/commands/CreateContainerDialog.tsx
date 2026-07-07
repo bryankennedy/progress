@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import type { WorkspacePayload } from "../../shared/types";
+import type { SnapshotPayload } from "../../shared/types";
 import { createContainer, findIssueByKey, type ContainerCreateInput } from "../store";
 import { onOpenCreateContainer, type ContainerDialogRequest } from "./controller";
 
@@ -19,7 +19,7 @@ const suggestPrefix = (name: string) =>
     .slice(0, 4);
 
 // Parent product for repo/arc creation, from wherever the user is.
-function deriveProductId(ws: WorkspacePayload, path: string): string | undefined {
+function deriveProductId(ws: SnapshotPayload, path: string): string | undefined {
   let m = /^\/(?:product|repo|arc)\/([^/]+)/.exec(path);
   if (m) {
     const id = m[1]!;
@@ -34,7 +34,7 @@ function deriveProductId(ws: WorkspacePayload, path: string): string | undefined
   return undefined;
 }
 
-export default function CreateContainerDialog({ workspace }: { workspace: WorkspacePayload }) {
+export default function CreateContainerDialog({ snapshot }: { snapshot: SnapshotPayload }) {
   const [request, setRequest] = useState<ContainerDialogRequest | null>(null);
   const [name, setName] = useState("");
   const [parentId, setParentId] = useState("");
@@ -43,8 +43,8 @@ export default function CreateContainerDialog({ workspace }: { workspace: Worksp
   const [gitUrl, setGitUrl] = useState("");
   const [path, navigate] = useLocation();
 
-  const activeProducts = workspace.products.filter((p) => !p.archivedAt);
-  const activeInitiatives = workspace.initiatives.filter((i) => !i.archivedAt);
+  const activeProducts = snapshot.products.filter((p) => !p.archivedAt);
+  const activeInitiatives = snapshot.initiatives.filter((i) => !i.archivedAt);
 
   useEffect(
     () =>
@@ -61,7 +61,7 @@ export default function CreateContainerDialog({ workspace }: { workspace: Worksp
         } else if (req.kind === "repo" || req.kind === "arc") {
           setParentId(
             ("productId" in req ? req.productId : undefined) ??
-              deriveProductId(workspace, path) ??
+              deriveProductId(snapshot, path) ??
               activeProducts[0]?.id ??
               "",
           );
@@ -69,8 +69,8 @@ export default function CreateContainerDialog({ workspace }: { workspace: Worksp
           setParentId("");
         }
       }),
-    // Lists derive from workspace; path feeds the parent default.
-    [workspace, path],
+    // Lists derive from snapshot; path feeds the parent default.
+    [snapshot, path],
   );
 
   if (!request) return null;

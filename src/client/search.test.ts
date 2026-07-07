@@ -1,8 +1,8 @@
-// Tests for client-side workspace search ranking (PROG-130). The instant
+// Tests for client-side snapshot search ranking (PROG-130). The instant
 // title/description half is pure, so its weighting + matching live here; the
 // comment half is a server LIKE query covered by the worker. Run `bun test`.
 import { describe, expect, it } from "bun:test";
-import type { WorkspacePayload } from "../shared/types";
+import type { SnapshotPayload } from "../shared/types";
 import {
   browseIssues,
   highlight,
@@ -13,9 +13,9 @@ import {
   type IssueHit,
 } from "./search";
 
-// A minimal workspace — search only reads issues + the four container arrays
+// A minimal snapshot — search only reads issues + the four container arrays
 // and their name/title/description/archivedAt fields, so the rest is cast away.
-function ws(over: Partial<WorkspacePayload>): WorkspacePayload {
+function ws(over: Partial<SnapshotPayload>): SnapshotPayload {
   return {
     initiatives: [],
     products: [],
@@ -23,7 +23,7 @@ function ws(over: Partial<WorkspacePayload>): WorkspacePayload {
     arcs: [],
     issues: [],
     ...over,
-  } as unknown as WorkspacePayload;
+  } as unknown as SnapshotPayload;
 }
 
 function issue(over: Record<string, unknown>) {

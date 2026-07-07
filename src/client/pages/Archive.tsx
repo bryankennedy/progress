@@ -6,15 +6,15 @@
 // Structure's "more" link. Unarchiving still happens on the arc page itself.
 
 import { Link } from "wouter";
-import type { WorkspacePayload } from "../../shared/types";
+import type { SnapshotPayload } from "../../shared/types";
 
-export default function Archive({ workspace }: { workspace: WorkspacePayload }) {
-  const archivedArcs = workspace.arcs
+export default function Archive({ snapshot }: { snapshot: SnapshotPayload }) {
+  const archivedArcs = snapshot.arcs
     .filter((a) => a.archivedAt)
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const productsById = new Map(workspace.products.map((p) => [p.id, p]));
-  const initiativesById = new Map(workspace.initiatives.map((i) => [i.id, i]));
+  const productsById = new Map(snapshot.products.map((p) => [p.id, p]));
+  const initiativesById = new Map(snapshot.initiatives.map((i) => [i.id, i]));
 
   // Group archived arcs under their product, and products under their
   // initiative, so the page mirrors the Structure tree's shape.

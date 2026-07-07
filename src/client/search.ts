@@ -1,4 +1,4 @@
-// Client-side workspace search (PROG-130). Title and description are already in
+// Client-side snapshot search (PROG-130). Title and description are already in
 // the store (D20), so this runs in memory with no round-trip — it's the instant
 // half of the two-wave search; comments stream in separately via /api/search.
 // Matching is case-insensitive substring, AND'd across whitespace terms (every
@@ -7,7 +7,7 @@
 // mentions the word in its body. Pure functions, unit-tested in search.test.ts.
 
 import { ISSUE_PRIORITIES, ISSUE_STATUSES } from "../shared/constants";
-import type { WireIssue, WorkspacePayload } from "../shared/types";
+import type { WireIssue, SnapshotPayload } from "../shared/types";
 
 // The slice of a container row that search reads — every container (initiative,
 // product, repo, arc) carries these, so one shape covers all four.
@@ -59,7 +59,7 @@ function byRecency(a: { updatedAt: string }, b: { updatedAt: string }): number {
 
 export type IssueHit = { issue: WireIssue; score: number; inTitle: boolean };
 
-export function searchIssues(ws: WorkspacePayload, query: string, limit = 8): IssueHit[] {
+export function searchIssues(ws: SnapshotPayload, query: string, limit = 8): IssueHit[] {
   const terms = queryTerms(query);
   if (terms.length === 0) return [];
   const hits: IssueHit[] = [];
@@ -76,7 +76,7 @@ export function searchIssues(ws: WorkspacePayload, query: string, limit = 8): Is
 // first, and the caller's filters decide what actually shows. `inTitle` is true
 // so the row renders without a description snippet (there is no matched term
 // for a snippet to explain).
-export function browseIssues(ws: WorkspacePayload): IssueHit[] {
+export function browseIssues(ws: SnapshotPayload): IssueHit[] {
   return ws.issues
     .map((issue) => ({ issue, score: 0, inTitle: true }))
     .sort((a, b) => byRecency(a.issue, b.issue));
@@ -103,7 +103,7 @@ export const ISSUE_SORT_KEYS: readonly IssueSortKey[] = [
 // (ISSUE_STATUSES) and `priority` the urgency order (ISSUE_PRIORITIES), not
 // the alphabet. Ties always break by recency so equal cells stay newest-first.
 export function sortIssueHits(
-  ws: WorkspacePayload,
+  ws: SnapshotPayload,
   hits: IssueHit[],
   sort: IssueSort | null,
 ): IssueHit[] {
@@ -156,7 +156,7 @@ export function containerLabel(kind: ContainerKind): string {
 // Containers carry a name + description like issues do, so they score the same
 // way (name plays the role of title). Archived ones stay out of search — they're
 // reachable from their parent's page, which lists them dimmed (D26).
-export function searchContainers(ws: WorkspacePayload, query: string, limit = 6): ContainerHit[] {
+export function searchContainers(ws: SnapshotPayload, query: string, limit = 6): ContainerHit[] {
   const terms = queryTerms(query);
   if (terms.length === 0) return [];
   const sources: { kind: ContainerKind; rows: SearchableContainer[] }[] = [
