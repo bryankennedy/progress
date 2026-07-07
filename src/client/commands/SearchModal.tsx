@@ -62,7 +62,9 @@ export default function SearchModal({ snapshot }: { snapshot: SnapshotPayload })
       href: `/action/${actionKeyOf(snapshot, hit.action)}`,
       key: actionKeyOf(snapshot, hit.action),
       title: hit.action.title,
-      hint: hit.inTitle ? STATUS_LABELS[hit.action.status] : `${STATUS_LABELS[hit.action.status]} · in description`,
+      hint: hit.inTitle
+        ? STATUS_LABELS[hit.action.status]
+        : `${STATUS_LABELS[hit.action.status]} · in description`,
     }));
     const containerEntries: Entry[] = searchContainers(snapshot, query).map((hit) => ({
       kind: "container",

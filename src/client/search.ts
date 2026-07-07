@@ -130,7 +130,9 @@ export function sortActionHits(
     }
   };
   const dir = sort.dir === "desc" ? -1 : 1;
-  return hits.slice().sort((a, b) => dir * cmp(a.action, b.action) || byRecency(a.action, b.action));
+  return hits
+    .slice()
+    .sort((a, b) => dir * cmp(a.action, b.action) || byRecency(a.action, b.action));
 }
 
 export type ContainerKind = "workspace" | "focus" | "repo" | "arc";
@@ -171,7 +173,13 @@ export function searchContainers(ws: SnapshotPayload, query: string, limit = 6):
       if (row.archivedAt) continue;
       const scored = scoreFields(terms, row.name, row.description);
       if (scored) {
-        hits.push({ id: row.id, kind, name: row.name, href: `/${kind}/${row.id}`, score: scored.score });
+        hits.push({
+          id: row.id,
+          kind,
+          name: row.name,
+          href: `/${kind}/${row.id}`,
+          score: scored.score,
+        });
       }
     }
   }

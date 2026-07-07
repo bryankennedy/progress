@@ -48,6 +48,10 @@ When a decision of consequence is made in conversation, record it in
 - Cloudflare Workers + D1 (Drizzle), Hono API, React + Vite + Tailwind.
 - Bun for packages and scripts (`bun`/`bunx`, never npm/npx). Node LTS.
 - TypeScript strict, ESM (`import`/`export`) everywhere.
+- **Prettier owns formatting** (root `.prettierrc`, printWidth 100). Run
+  `bun run format` before committing; CI gates on `bun run format:check`.
+  Markdown and `drizzle/` are deliberately excluded (`.prettierignore`) —
+  don't reformat docs tables (see `docs/decisions/prettier-adoption.md`).
 - Secrets only via env (`.env` locally — gitignored, `wrangler secret` in
   prod). Keep `.env.example` updated when adding a key.
 - One root `.gitignore`; every entry gets a `#` rationale comment.

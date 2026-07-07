@@ -1,7 +1,8 @@
 # CI/CD for Progress (PROG-54).
 #
 # Two jobs in one file:
-#   test   — typecheck + unit suite. Runs on every PR and on pushes to main.
+#   test   — format check + typecheck + unit suite. Runs on every PR and on
+#            pushes to main.
 #            This is the gate; make it the required status check on `main`.
 #   deploy — only on push to main, only if `test` is green. Applies any pending
 #            D1 migrations to the remote prod DB, then builds + deploys the Worker.
@@ -35,6 +36,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
+      - run: bun run format:check # prettier gate — unformatted code fails fast
       - run: bun run check # tsc -b
       - run: bun test src # unit suite
 

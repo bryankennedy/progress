@@ -130,9 +130,25 @@ const arcAction = (over: Partial<ArcActionData> = {}): ArcActionData => ({
 });
 
 const arcBundle = (over: Partial<ArcBundleData> = {}): ArcBundleData => ({
-  arc: { name: "Broaden & Due dates", description: "Why this epic exists." } as ArcBundleData["arc"],
+  arc: {
+    name: "Broaden & Due dates",
+    description: "Why this epic exists.",
+  } as ArcBundleData["arc"],
   focus: { name: "Progress", description: "A personal tracker." } as ArcBundleData["focus"],
-  actions: [arcAction(), arcAction({ key: "PROG-2", action: { title: "Second action", status: "in_progress", priority: "medium", estimate: null, dueDate: null, description: "Do the second thing." } as ArcActionData["action"] })],
+  actions: [
+    arcAction(),
+    arcAction({
+      key: "PROG-2",
+      action: {
+        title: "Second action",
+        status: "in_progress",
+        priority: "medium",
+        estimate: null,
+        dueDate: null,
+        description: "Do the second thing.",
+      } as ArcActionData["action"],
+    }),
+  ],
   baseUrl: "https://example.test",
   ...over,
 });

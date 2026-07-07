@@ -133,8 +133,7 @@ export function findActionByKey(
     const prefix = match[1]!.toUpperCase();
     const number = Number(match[2]!);
     const focus = ws.focuses.find((p) => p.keyPrefix.toUpperCase() === prefix);
-    const action =
-      focus && ws.actions.find((i) => i.focusId === focus.id && i.number === number);
+    const action = focus && ws.actions.find((i) => i.focusId === focus.id && i.number === number);
     if (action) return { action, viaAlias: false };
   }
   const alias = ws.actionKeyAliases.find((a) => a.key.toUpperCase() === key.trim().toUpperCase());
@@ -281,7 +280,9 @@ export function createAction(input: ActionCreateInput): string | undefined {
   // Birth tags (PROG-89b): deduped and limited to tags the store knows, so the
   // optimistic links and the request body always agree. Linked under the temp
   // id, remapped to the server id on reconcile.
-  const tagIds = [...new Set(input.tagIds ?? [])].filter((tid) => ws.tags.some((t) => t.id === tid));
+  const tagIds = [...new Set(input.tagIds ?? [])].filter((tid) =>
+    ws.tags.some((t) => t.id === tid),
+  );
 
   const tempId = `acn_optimistic_${Date.now()}`;
   const now = new Date().toISOString();
@@ -518,7 +519,13 @@ export function createContainer(input: ContainerCreateInput): string {
     input.kind === "workspace"
       ? { ...base, rank: DEFAULT_RANK }
       : input.kind === "focus"
-        ? { ...base, workspaceId: input.workspaceId, keyPrefix: input.keyPrefix.toUpperCase(), nextActionNumber: 1, rank: DEFAULT_RANK }
+        ? {
+            ...base,
+            workspaceId: input.workspaceId,
+            keyPrefix: input.keyPrefix.toUpperCase(),
+            nextActionNumber: 1,
+            rank: DEFAULT_RANK,
+          }
         : input.kind === "repo"
           ? { ...base, focusId: input.focusId, gitUrl: input.gitUrl ?? null }
           : { ...base, focusId: input.focusId, rank: DEFAULT_RANK };
@@ -690,7 +697,9 @@ export function tagAction(actionId: string, tag: { tagId: string } | { name: str
           ? {
               ...w,
               tags: createdTemp ? w.tags.filter((t) => t.id !== tagId) : w.tags,
-              actionTags: w.actionTags.filter((l) => !(l.actionId === actionId && l.tagId === tagId)),
+              actionTags: w.actionTags.filter(
+                (l) => !(l.actionId === actionId && l.tagId === tagId),
+              ),
             }
           : w,
       );
@@ -705,7 +714,10 @@ export function untagAction(actionId: string, tagId: string) {
 
   queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) =>
     w
-      ? { ...w, actionTags: w.actionTags.filter((l) => !(l.actionId === actionId && l.tagId === tagId)) }
+      ? {
+          ...w,
+          actionTags: w.actionTags.filter((l) => !(l.actionId === actionId && l.tagId === tagId)),
+        }
       : w,
   );
 

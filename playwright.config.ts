@@ -11,7 +11,10 @@ export default defineConfig({
   use: { baseURL: "http://localhost:8000", trace: "on-first-retry" },
   // A tall viewport keeps a column's top cards comfortably on-screen for drags.
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 1200 } } },
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 1200 } },
+    },
   ],
   // Boots `bun run dev` if nothing is already serving :8000.
   webServer: {

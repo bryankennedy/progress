@@ -122,7 +122,10 @@ export default function EditableMarkdown({
           >
             Save
           </button>
-          <button onClick={cancel} className="rounded px-3 py-1 text-sm text-ink-soft hover:bg-line">
+          <button
+            onClick={cancel}
+            className="rounded px-3 py-1 text-sm text-ink-soft hover:bg-line"
+          >
             Cancel
           </button>
         </div>
@@ -131,10 +134,7 @@ export default function EditableMarkdown({
   }
 
   return (
-    <section
-      onClick={beginEdit}
-      className="group -m-1 cursor-text rounded p-1 hover:bg-card"
-    >
+    <section onClick={beginEdit} className="group -m-1 cursor-text rounded p-1 hover:bg-card">
       {value === "" ? (
         <p className="text-ink-faint">{placeholder}</p>
       ) : (

@@ -238,8 +238,7 @@ function buildItems(
       ].filter((item) => matches(item.label));
     }
     case "move": {
-      const targets: { focusId: string; repoId: string | null; label: string; hint: string }[] =
-        [];
+      const targets: { focusId: string; repoId: string | null; label: string; hint: string }[] = [];
       // Archived containers aren't valid destinations (D26).
       for (const focus of ws.focuses.filter((p) => !p.archivedAt)) {
         targets.push({ focusId: focus.id, repoId: null, label: focus.name, hint: "Focus" });
@@ -269,10 +268,26 @@ function buildItems(
       // calendar day too).
       const options: { id: string; label: string; value: string | null }[] = [
         { id: "due:today", label: `Today (${formatDueDate(today)})`, value: today },
-        { id: "due:tomorrow", label: `Tomorrow (${formatDueDate(addDays(today, 1))})`, value: addDays(today, 1) },
-        { id: "due:3d", label: `In 3 days (${formatDueDate(addDays(today, 3))})`, value: addDays(today, 3) },
-        { id: "due:1w", label: `In a week (${formatDueDate(addDays(today, 7))})`, value: addDays(today, 7) },
-        { id: "due:2w", label: `In 2 weeks (${formatDueDate(addDays(today, 14))})`, value: addDays(today, 14) },
+        {
+          id: "due:tomorrow",
+          label: `Tomorrow (${formatDueDate(addDays(today, 1))})`,
+          value: addDays(today, 1),
+        },
+        {
+          id: "due:3d",
+          label: `In 3 days (${formatDueDate(addDays(today, 3))})`,
+          value: addDays(today, 3),
+        },
+        {
+          id: "due:1w",
+          label: `In a week (${formatDueDate(addDays(today, 7))})`,
+          value: addDays(today, 7),
+        },
+        {
+          id: "due:2w",
+          label: `In 2 weeks (${formatDueDate(addDays(today, 14))})`,
+          value: addDays(today, 14),
+        },
       ];
       if (action.dueDate) options.push({ id: "due:clear", label: "Clear due date", value: null });
       const items: Item[] = options
@@ -280,7 +295,12 @@ function buildItems(
         .map((o) => ({
           id: o.id,
           label: o.label,
-          hint: o.value === action.dueDate ? "current" : o.value === null ? undefined : relativeDue(o.value, today),
+          hint:
+            o.value === action.dueDate
+              ? "current"
+              : o.value === null
+                ? undefined
+                : relativeDue(o.value, today),
           run: () => void updateAction(action.id, { dueDate: o.value }),
         }));
       const typed = query.trim();
@@ -399,7 +419,12 @@ function rootItems(
     .filter((c) => !c.archivedAt && matches(c.name))
     .slice(0, 6);
   items.push(
-    ...containers.map((c) => ({ id: c.id, label: c.name, hint: c.hint, run: () => navigate(c.href) })),
+    ...containers.map((c) => ({
+      id: c.id,
+      label: c.name,
+      hint: c.hint,
+      run: () => navigate(c.href),
+    })),
   );
 
   return items;

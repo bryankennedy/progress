@@ -129,7 +129,11 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {kind === "focus" && (
             <>
-              <select value={parentId} onChange={(e) => setParentId(e.target.value)} className={selectClass}>
+              <select
+                value={parentId}
+                onChange={(e) => setParentId(e.target.value)}
+                className={selectClass}
+              >
                 {activeWorkspaces.map((i) => (
                   <option key={i.id} value={i.id}>
                     {i.name}
@@ -139,7 +143,12 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
               <input
                 value={keyPrefix}
                 onChange={(e) => {
-                  setKeyPrefix(e.target.value.toUpperCase().replaceAll(/[^A-Z]/g, "").slice(0, 8));
+                  setKeyPrefix(
+                    e.target.value
+                      .toUpperCase()
+                      .replaceAll(/[^A-Z]/g, "")
+                      .slice(0, 8),
+                  );
                   setPrefixTouched(true);
                 }}
                 placeholder="KEY"
@@ -149,7 +158,11 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
             </>
           )}
           {(kind === "repo" || kind === "arc") && (
-            <select value={parentId} onChange={(e) => setParentId(e.target.value)} className={selectClass}>
+            <select
+              value={parentId}
+              onChange={(e) => setParentId(e.target.value)}
+              className={selectClass}
+            >
               {activeFocuses.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}

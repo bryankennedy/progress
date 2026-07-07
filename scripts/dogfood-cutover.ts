@@ -208,8 +208,8 @@ async function main() {
     const { action } = await api("POST", "/api/actions", {
       title: spec.title,
       focusId: focus.id,
-      repoId: spec.repo ? ws.repos.find((r: any) => r.focusId === focus.id)?.id ?? null : null,
-      arcId: spec.arc ? arcByName.get(spec.arc) ?? null : null,
+      repoId: spec.repo ? (ws.repos.find((r: any) => r.focusId === focus.id)?.id ?? null) : null,
+      arcId: spec.arc ? (arcByName.get(spec.arc) ?? null) : null,
       description: spec.description,
       status: spec.status,
       priority: spec.priority,

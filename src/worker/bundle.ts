@@ -56,7 +56,9 @@ export function renderBundle(b: BundleData): string {
   out.push(`- **Priority:** ${action.priority}`);
   out.push(
     `- **Estimate:** ${
-      action.estimate === null ? "unestimated" : `${action.estimate} point${action.estimate === 1 ? "" : "s"}`
+      action.estimate === null
+        ? "unestimated"
+        : `${action.estimate} point${action.estimate === 1 ? "" : "s"}`
     }`,
   );
   if (action.dueDate) out.push(`- **Due:** ${action.dueDate}`);
@@ -82,7 +84,8 @@ export function renderBundle(b: BundleData): string {
   out.push(`## Comments (${b.comments.length})`, "");
   if (b.comments.length === 0) out.push("_None._", "");
   else
-    for (const cm of b.comments) out.push(`**${cm.author}** · ${day(cm.createdAt)}`, "", para(cm.body), "");
+    for (const cm of b.comments)
+      out.push(`**${cm.author}** · ${day(cm.createdAt)}`, "", para(cm.body), "");
 
   // Images embedded in the description/comments, as absolute URLs (PROG-42) — a
   // vision-capable agent (bearer-authed via MCP/CLI) can fetch these for context.
@@ -199,11 +202,14 @@ function renderArcActionSection(b: ArcActionData, baseUrl: string): string[] {
   out.push(`- **Priority:** ${action.priority}`);
   out.push(
     `- **Estimate:** ${
-      action.estimate === null ? "unestimated" : `${action.estimate} point${action.estimate === 1 ? "" : "s"}`
+      action.estimate === null
+        ? "unestimated"
+        : `${action.estimate} point${action.estimate === 1 ? "" : "s"}`
     }`,
   );
   if (action.dueDate) out.push(`- **Due:** ${action.dueDate}`);
-  if (b.repo) out.push(`- **Repo:** ${b.repo.name}${b.repo.gitUrl ? ` (git: ${b.repo.gitUrl})` : ""}`);
+  if (b.repo)
+    out.push(`- **Repo:** ${b.repo.name}${b.repo.gitUrl ? ` (git: ${b.repo.gitUrl})` : ""}`);
   if (b.tags.length) out.push(`- **Tags:** ${b.tags.join(", ")}`);
   out.push("");
 
@@ -211,7 +217,9 @@ function renderArcActionSection(b: ArcActionData, baseUrl: string): string[] {
 
   out.push(`#### Comments (${b.comments.length})`, "");
   if (b.comments.length === 0) out.push("_None._", "");
-  else for (const cm of b.comments) out.push(`**${cm.author}** · ${isoDay(cm.createdAt)}`, "", para(cm.body), "");
+  else
+    for (const cm of b.comments)
+      out.push(`**${cm.author}** · ${isoDay(cm.createdAt)}`, "", para(cm.body), "");
 
   const imageUrls = [
     ...new Set([
@@ -236,7 +244,8 @@ function renderArcActionSection(b: ArcActionData, baseUrl: string): string[] {
   out.push(`#### Linked commits (${b.commits.length})`, "");
   if (b.commits.length === 0) out.push("_None._");
   else
-    for (const cm of b.commits) out.push(`- \`${cm.sha.slice(0, 10)}\` ${cm.message} — ${cm.url} (${cm.githubRepo})`);
+    for (const cm of b.commits)
+      out.push(`- \`${cm.sha.slice(0, 10)}\` ${cm.message} — ${cm.url} (${cm.githubRepo})`);
   out.push("");
 
   return out;
@@ -281,7 +290,10 @@ export function renderArcBundle(b: ArcBundleData): string {
     `3. **Share one branch, created off fresh \`main\`** — \`git fetch origin\` then branch the arc's single feature branch from \`origin/main\` (e.g. \`arc/${arc.name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")}\`); ${noFeatureBranchBases}. All sub-agents work toward that one branch. Mention the relevant action key in each commit so Progress auto-links the work back to the right action.`,
+      .replace(
+        /^-+|-+$/g,
+        "",
+      )}\`); ${noFeatureBranchBases}. All sub-agents work toward that one branch. Mention the relevant action key in each commit so Progress auto-links the work back to the right action.`,
     `4. **Integrate and verify.** Once the sub-agents finish, reconcile their work on the shared branch, resolve any conflicts, and make sure the whole thing builds, type-checks, and passes tests **together** — not just action-by-action.`,
     `5. **Open ONE pull request** for the arc whose title/body names every action key (${
       keys.length ? keys.join(", ") : "the keys above"

@@ -89,7 +89,11 @@ const MANAGED_FIELDS = [
   "push",
 ] as const;
 
-const hostOf = (u: string) => u.replace(/^https?:\/\//, "").split("/")[0].toLowerCase();
+const hostOf = (u: string) =>
+  u
+    .replace(/^https?:\/\//, "")
+    .split("/")[0]
+    .toLowerCase();
 const sameValue = (a: unknown, b: unknown) =>
   Array.isArray(a) || Array.isArray(b)
     ? JSON.stringify([...(a as unknown[])].sort()) === JSON.stringify([...(b as unknown[])].sort())
@@ -121,7 +125,9 @@ async function main() {
   console.log(`Better Stack: ${existing.length} existing monitor(s).${DRY ? "  [dry run]" : ""}`);
 
   for (const want of MONITORS) {
-    const byName = existing.find((m) => m.attributes?.pronounceable_name === want.pronounceable_name);
+    const byName = existing.find(
+      (m) => m.attributes?.pronounceable_name === want.pronounceable_name,
+    );
     // One-time adoption: no name match, but exactly one monitor already lives on
     // this host (e.g. the onboarding sample) — repoint it rather than duplicate.
     const sameHost = existing.filter((m) => hostOf(m.attributes?.url ?? "") === hostOf(want.url));
@@ -141,7 +147,9 @@ async function main() {
       console.log(`= OK      "${want.pronounceable_name}"  (id ${target.id}, already in sync)`);
     } else {
       const verb = byName ? "UPDATE" : "ADOPT ";
-      console.log(`~ ${verb}  "${want.pronounceable_name}"  (id ${target.id})  ${JSON.stringify(patch)}`);
+      console.log(
+        `~ ${verb}  "${want.pronounceable_name}"  (id ${target.id})  ${JSON.stringify(patch)}`,
+      );
       if (!DRY) await api("PATCH", `/monitors/${target.id}`, patch);
     }
   }
@@ -151,7 +159,9 @@ async function main() {
     console.log("\nMonitors now in Better Stack:");
     for (const m of after) {
       const a = m.attributes ?? {};
-      console.log(`  - ${JSON.stringify(a.pronounceable_name)}  ${a.url}  [${a.status}]  every ${a.check_frequency}s`);
+      console.log(
+        `  - ${JSON.stringify(a.pronounceable_name)}  ${a.url}  [${a.status}]  every ${a.check_frequency}s`,
+      );
     }
   }
 }
