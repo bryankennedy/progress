@@ -23,7 +23,8 @@
 ## 1. Where v1 left off, and why v2
 
 v1 made Progress a "personal Linear" for **building products**: the hierarchy
-Initiative → Product → Repo/Arc → Issue, an instant load-everything client, a
+Initiative → Product → Repo/Arc → Issue (renamed by PROG-98 to Workspace →
+Focus → Repo/Arc → Action), an instant load-everything client, a
 command palette, GitHub linking, and a Claude Code agent surface (context
 bundle, MCP server, work kickoff). It runs in production and manages its own
 backlog.
@@ -40,25 +41,29 @@ is **"what's due and when."** So v2 is two moves:
 
 ## 2. Product principles (carried forward, unchanged)
 
-1. **Speed is a feature.** Whole workspace in the client store; every mutation
-   optimistic; no spinner on any interaction. Everything v2 adds renders from
-   memory (§7.1).
+1. **Speed is a feature.** The whole snapshot in the client store; every
+   mutation optimistic; no spinner on any interaction. Everything v2 adds
+   renders from memory (§7.1).
 2. **Rigid simplicity over configurability.** One fixed status set, one way to
    do things. v2 adds fields and views, **not** knobs.
-3. **The owner's nouns, exactly.** Initiative → Product → Repo/Arc → Issue —
-   **unchanged in v2** (§3). "Epic" and "project" remain banned words.
+3. **The owner's nouns, exactly.** Workspace → Focus → Repo/Arc → Action
+   (→ Step) — the hierarchy was **unchanged in v2** (§3) and renamed once, by
+   PROG-98 (from Initiative → Product → Repo/Arc → Issue). "Epic" and
+   "project" remain banned words.
 4. **Paper-y, calm UI.** Light, typography-led, mobile-friendly.
 
 ## 3. The broadened domain (same nouns, wider meaning) — **shipped**
 
 **Intent:** the existing nouns stretch to *any area of responsibility* without a
-vocabulary change — a **Product** is a software product *or* "Household" /
+vocabulary change — a **Focus** is a software product *or* "Household" /
 "Finances" / "Health"; **Repo** stays dev-specific and **optional**, so
-repo-less products are first-class; an **Arc** is a sub-area/theme; an **Issue**
-is a task (now with a due date, §5). Reusing "Product" for a life-area costs one
-small mental stretch and keeps rigid simplicity / settled schema.
+repo-less focuses are first-class; an **Arc** is a sub-area/theme; an **Action**
+is a task (now with a due date, §5). v2 shipped this by reusing "Product" for a
+life-area — one small mental stretch that kept rigid simplicity / settled
+schema; PROG-98 later removed the stretch by renaming the nouns
+(Workspace/Focus/Action/Step) without changing the shape.
 
-Shipped: no schema-vocabulary change; repo-less products carry no repo-only
+Shipped: no schema-shape change; repo-less focuses carry no repo-only
 affordances. See `REFERENCE.md` §2 (domain model) and DECISIONS **D36**.
 
 ## 4. Frictionless structure creation — **shipped**
@@ -67,10 +72,10 @@ affordances. See `REFERENCE.md` §2 (domain model) and DECISIONS **D36**.
 on their own from the dashboard"*): make structure creation discoverable and
 inline, not a palette-only power move.
 
-Shipped — a persistent **New** menu in the app header (Issue · Initiative ·
-Product · Repo · Arc), inline **"+ New product / + New arc"** in the
-create-issue dialog (folding in the deferred "add arc from the New Issue
-modal"), and a dedicated **`/structure`** route (the Initiative → Product →
+Shipped — a persistent **New** menu in the app header (Action · Workspace ·
+Focus · Repo · Arc), inline **"+ New focus / + New arc"** in the
+create-action dialog (folding in the deferred "add arc from the New Issue
+modal"), and a dedicated **`/structure`** route (the Workspace → Focus →
 Repo · Arc tree with inline "+ add"). All reuse the v1 optimistic container
 write paths (D26) — surfaces only, no new endpoints. See `REFERENCE.md` §5 and
 DECISIONS **D40**.
@@ -81,10 +86,11 @@ DECISIONS **D40**.
 date-only, timezone-safe due date — a wall-calendar day identical everywhere,
 not an instant.
 
-Shipped — nullable `issues.due_date`, stored as ISO `YYYY-MM-DD` text (D37);
-validated in POST/PATCH; editable from the issue-page sidebar, the new-issue
-dialog, the command-palette `D` picker (relative quick-picks or a typed date),
-and inline in Agenda rows. Rides the workspace payload, so every view computes
+Shipped — a nullable `due_date` (on `issues`, now the `actions` table after
+PROG-98), stored as ISO `YYYY-MM-DD` text (D37); validated in POST/PATCH;
+editable from the action-page sidebar, the new-action dialog, the
+command-palette `D` picker (relative quick-picks or a typed date),
+and inline in Agenda rows. Rides the snapshot payload, so every view computes
 from memory. See `REFERENCE.md` §2–§3, §5.
 
 **Still out of scope** (the genuinely forward-looking part): recurring due
@@ -96,16 +102,16 @@ next step; the field and Agenda were built not to preclude it.
 **Intent** (*"a list of issues ordered by due date, each with a visual priority
 indicator"*): the time-driven cut that answers "what's due."
 
-Shipped at **`/agenda`** — every dated, pending issue (done/canceled excluded),
+Shipped at **`/agenda`** — every dated, pending action (done/canceled excluded),
 sorted by due date ascending and grouped **Overdue · Today · This week · Later**
 (local day; "this week" = rolling 7 days, D38). Each row: priority indicator,
-key, title, relative due phrase, product/arc, status; overdue rows distinct.
-Filterable by product/arc/tag via URL params; inline mark-done and bump-due.
+key, title, relative due phrase, focus/arc, status; overdue rows distinct.
+Filterable by focus/arc/tag via URL params; inline mark-done and bump-due.
 Renders entirely from the store. See `REFERENCE.md` §5.
 
 ## 7. Supporting pieces — **shipped**
 
-- **7.1 It stays instant.** Due dates ride the workspace payload; the Agenda,
+- **7.1 It stays instant.** Due dates ride the snapshot payload; the Agenda,
   the priority indicator, and inline structure creation all render/mutate from
   the store via the optimistic template (D21). A spinner is a bug (§2.1).
 - **7.2 Priority, made visible.** A single reusable **priority indicator** — a
@@ -141,9 +147,9 @@ Settled at build time and recorded in `DECISIONS.md`:
 
 ## 10. Architecture & data notes
 
-- **One schema change:** add a nullable `due_date` (calendar date) to `issues`,
-  via the standard Drizzle migration flow (SETUP §2). It then flows into the
-  workspace payload automatically.
+- **One schema change:** add a nullable `due_date` (calendar date) to `issues`
+  (now `actions`, PROG-98), via the standard Drizzle migration flow (SETUP §2).
+  It then flows into the snapshot payload automatically.
 - **No new write endpoints** for structure creation — v2 reuses the v1 container
   routes (D26); the work is client surfaces + inline creation.
 - **Everything else is client-side:** Agenda bucketing/sorting, the priority
@@ -152,10 +158,10 @@ Settled at build time and recorded in `DECISIONS.md`:
 
 ## 11. Suggested sequence — **built in this order**
 
-1. ✅ **Repo-less products first-class** + inline / dashboard creation surfaces
+1. ✅ **Repo-less focuses first-class** + inline / dashboard creation surfaces
    (§3–§4).
-2. ✅ **Due-date field** end-to-end (§5): schema → workspace payload → issue
-   page → new-issue → palette picker.
+2. ✅ **Due-date field** end-to-end (§5): schema → snapshot payload → action
+   page → new-action → palette picker.
 3. ✅ **Agenda view** + **priority indicator** (§6–§7.2) — the headline of v2.
 
 Recorded in production as the **v2 — Broaden & Due dates** arc

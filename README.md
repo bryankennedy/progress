@@ -9,30 +9,30 @@ and the constant translation is friction. Progress fixes that by modeling the
 hierarchy directly:
 
 ```
-Initiative
-└── Product
-    ├── Issues
-    ├── Arcs        (groupings of related issues)
+Workspace
+└── Focus
+    ├── Actions
+    ├── Arcs        (groupings of related actions)
     └── Repos       (git-backed sub-containers)
-        └── Issues
+        └── Actions
 ```
 
 ## What it does
 
-- **Issues** with fixed Linear-style statuses, priority, estimates, tags,
+- **Actions** with fixed Linear-style statuses, priority, estimates, tags,
   comments, and an activity feed — movable between containers as work evolves
-- **Per-product issue keys** (`PROG-123`) that survive moves
+- **Per-focus action keys** (`PROG-123`) that survive moves
 - **A global kanban board** as the daily landing page, filterable by any level
   of the hierarchy
-- **Fast by architecture** — the whole workspace loads into a client-side
+- **Fast by architecture** — the whole snapshot loads into a client-side
   store, every mutation is optimistic, and a spinner on interaction is treated
   as a bug
 - **Keyboard-first** — a ⌘K command palette plus Linear-style single-key
-  actions (status, priority, move, tags…) on whatever issue you're on
-- **Git integration** *(next up)* — mention an issue key in a branch, commit,
+  actions (status, priority, move, tags…) on whatever action you're on
+- **Git integration** *(next up)* — mention an action key in a branch, commit,
   or PR and it links automatically via webhook
-- **Claude Code integration** *(planned v1.x)* — issues as executable work
-  orders: hand an issue's full context to an agent, or interrogate and update
+- **Claude Code integration** *(planned v1.x)* — actions as executable work
+  orders: hand an action's full context to an agent, or interrogate and update
   the tracker from inside a coding session
 
 ## What it deliberately isn't
@@ -49,8 +49,8 @@ Tailwind on the front. TypeScript, ESM, Bun.
 
 🚧 **Built and working locally; not yet deployed.** The core app is complete
 (milestones 1–5, June 2026): full domain model and API, the instant client
-store, the board, container and issue pages, the command palette, and full
-CRUD including issue movement with key-alias redirects. Remaining for v1:
+store, the board, container and action pages, the command palette, and full
+CRUD including action movement with key-alias redirects. Remaining for v1:
 the GitHub webhook, a mobile pass, production deploy, and moving this
 project's own backlog into it.
 

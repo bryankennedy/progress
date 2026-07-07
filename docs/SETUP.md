@@ -73,7 +73,7 @@ the dev server is served directly at the VM's main URL — no nginx in between.
 | `bun run db:generate` | Generate a SQL migration from `src/db/schema.ts` changes |
 | `bun run db:migrate` | Apply pending migrations to local D1 |
 | `bun run db:seed` | Seed baseline data (idempotent) |
-| `bun run db:seed:scale` | Add a deterministic 5k-issue synthetic workspace (perf testing) |
+| `bun run db:seed:scale` | Add a deterministic 5k-action synthetic dataset (perf testing) |
 
 ### Schema-change workflow
 
@@ -93,7 +93,7 @@ the dev server is served directly at the VM's main URL — no nginx in between.
 | `src/mcp/server.ts` | Progress MCP server (`bun run mcp`) — stdio client of the API (§7) |
 | `bin/progress.ts` | `progress work <KEY>` kickoff CLI (§7) |
 | `drizzle/` | Generated SQL migrations (committed) |
-| `scripts/seed.sql` | Idempotent seed data (`seed-scale.ts`: 5k-issue synthetic workspace) |
+| `scripts/seed.sql` | Idempotent seed data (`seed-scale.ts`: 5k-action synthetic dataset) |
 | `wrangler.jsonc` | Worker config: D1 binding, SPA assets, `/api/*` routing |
 | `vite.config.ts` | Vite + React + Tailwind + Cloudflare plugins |
 
@@ -310,7 +310,7 @@ cookie/token, and Access would otherwise block bearer automation):
 6. Put the live `PROGRESS_API_TOKEN` in the gitignored `.env` as
    `PROD_PROGRESS_API_TOKEN`; re-verify the MCP server and `progress work`.
 
-Self-check after cutover: `GET /api/workspace` returns 401 with no auth, 200
+Self-check after cutover: `GET /api/snapshot` returns 401 with no auth, 200
 with `Authorization: Bearer <PROGRESS_API_TOKEN>`; visiting `/` in a browser
 bounces through Google sign-in. (Webhook registration below is unchanged.)
 
@@ -325,8 +325,8 @@ events: Pushes + Pull requests.
 ### MCP server
 
 `src/mcp/server.ts` (D34) exposes the production API to Claude Code as MCP
-tools (`get_bundle`, `get_issue`, `list_issues`, `create_issue`,
-`update_status`, `set_due_date`, `comment`, `move_issue`). It is a **local
+tools (`get_bundle`, `get_action`, `list_actions`, `create_action`,
+`update_status`, `set_due_date`, `comment`, `move_action`). It is a **local
 stdio** server — it
 runs on your machine and reaches the API with the `PROGRESS_API_TOKEN` bearer
 from §6, so nothing is hosted on the Worker.
@@ -356,7 +356,7 @@ instead. Then in any session: *"pull the bundle for PROG-18 and start working"*
 ### Work CLI (`progress work`)
 
 `bin/progress.ts` (D35) is the outbound counterpart: `progress work <KEY>`
-fetches the issue's bundle, creates/checks out `iss/<KEY>` (so commits/PRs
+fetches the action's bundle, creates/checks out `act/<KEY>` (so commits/PRs
 auto-link via §5), and launches `claude` primed with the bundle — in the
 current directory, so it carries no machine-specific knowledge of where repos
 live. Run it from inside the checkout you want to work in.
