@@ -41,7 +41,7 @@ describe("renderBundle — Committing & PRs (smart-commit)", () => {
     expect(md).toContain("**Plan**");
     expect(md).toContain("**Commit**");
     expect(md).toContain("**Verify**");
-    expect(md).toContain("**Push the PR**");
+    expect(md).toContain("**Push the PR against `main`**");
   });
 
   it("tells the agent to push a PR rather than stall at a local commit", () => {
@@ -74,6 +74,25 @@ describe("renderBundle — Committing & PRs (smart-commit)", () => {
     const md = renderBundle(bundle({ key: "ACME-1" }));
     expect(md).toContain("`type(scope): ACME-1 subject`");
     expect(md).not.toContain("PROG-62");
+  });
+});
+
+describe("renderBundle — branch off main (PROG-95)", () => {
+  it("opens the report-back with branching off fresh main, key interpolated", () => {
+    const md = renderBundle(bundle({ key: "ACME-9" }));
+    expect(md).toContain("**Branch off fresh `main`**");
+    expect(md).toContain("`git fetch origin && git checkout -b iss/ACME-9 origin/main`");
+  });
+
+  it("forbids basing on another feature branch unless explicitly directed", () => {
+    const md = renderBundle(bundle());
+    expect(md).toMatch(/never branch off another feature branch unless this issue explicitly directs it/i);
+  });
+
+  it("requires the PR itself to target main", () => {
+    const md = renderBundle(bundle());
+    expect(md).toContain("--base main");
+    expect(md).toMatch(/based on `main`/i);
   });
 });
 
@@ -155,6 +174,14 @@ describe("renderArcBundle — combined-PR orchestration", () => {
     expect(md).toContain("Conventional Commits");
     expect(md).toMatch(/scan the diff for secrets/i);
     expect(md).toMatch(/do \*\*not\*\* add `Co-Authored-By` or any AI\/Claude attribution/i);
+  });
+
+  it("creates the shared arc branch off fresh main and PRs against main (PROG-95)", () => {
+    const md = renderArcBundle(arcBundle());
+    expect(md).toContain("**Share one branch, created off fresh `main`**");
+    expect(md).toContain("from `origin/main`");
+    expect(md).toMatch(/never off another feature branch unless explicitly directed/i);
+    expect(md).toContain("--base main");
   });
 });
 
