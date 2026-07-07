@@ -86,13 +86,20 @@ describe("renderBundle — branch off main (PROG-95)", () => {
 
   it("forbids basing on another feature branch unless explicitly directed", () => {
     const md = renderBundle(bundle());
-    expect(md).toMatch(/never branch off another feature branch unless this issue explicitly directs it/i);
+    expect(md).toMatch(/never branch off another feature branch unless explicitly directed/i);
   });
 
   it("requires the PR itself to target main", () => {
     const md = renderBundle(bundle());
     expect(md).toContain("--base main");
     expect(md).toMatch(/based on `main`/i);
+  });
+
+  it("states the identical rule (with its why) in the issue and arc orders", () => {
+    const rule =
+      "never branch off another feature branch unless explicitly directed — a PR based on a feature branch can land after its base has already merged, stranding the work off `main` (PROG-95)";
+    expect(renderBundle(bundle())).toContain(rule);
+    expect(renderArcBundle(arcBundle())).toContain(rule);
   });
 });
 
@@ -180,7 +187,7 @@ describe("renderArcBundle — combined-PR orchestration", () => {
     const md = renderArcBundle(arcBundle());
     expect(md).toContain("**Share one branch, created off fresh `main`**");
     expect(md).toContain("from `origin/main`");
-    expect(md).toMatch(/never off another feature branch unless explicitly directed/i);
+    expect(md).toMatch(/never branch off another feature branch unless explicitly directed/i);
     expect(md).toContain("--base main");
   });
 });
