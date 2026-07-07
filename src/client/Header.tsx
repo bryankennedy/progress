@@ -1,12 +1,12 @@
 // Persistent app header (SPEC v2 §4): the always-available navigation and the
-// "New" entry point (Issue · Initiative · Product · Repo · Arc). Structure
+// "New" entry point (Action · Workspace · Focus · Repo · Arc). Structure
 // creation is now discoverable everywhere, not just via the command palette.
 // The New menu reuses the existing optimistic create flows (the command-layer
 // event bus); no new write paths.
 
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { openCreateContainer, openCreateIssue, type ContainerDialogRequest } from "./commands/controller";
+import { openCreateContainer, openCreateAction, type ContainerDialogRequest } from "./commands/controller";
 import { NAV } from "./nav";
 import { useSnapshotSlice } from "./store";
 
@@ -27,8 +27,8 @@ export default function Header() {
   const isSuperAdmin = useSnapshotSlice((ws) => ws.isSuperAdmin);
 
   const newItems: { label: string; run: () => void }[] = [
-    { label: "Issue", run: () => openCreateIssue() },
-    ...(["initiative", "product", "repo", "arc"] as const).map((kind) => ({
+    { label: "Action", run: () => openCreateAction() },
+    ...(["workspace", "focus", "repo", "arc"] as const).map((kind) => ({
       label: kind[0]!.toUpperCase() + kind.slice(1),
       run: () => openCreateContainer({ kind } as ContainerDialogRequest),
     })),

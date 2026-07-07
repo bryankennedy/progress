@@ -1,27 +1,27 @@
-// "Work on this" (SPEC §11.2, PROG-19): hand an issue's context bundle to a
+// "Work on this" (SPEC §11.2, PROG-19): hand an action's context bundle to a
 // Claude Code session. In-app we offer two clipboard actions — copy the bundle
 // Markdown as a prompt (the §11.1 "copy as prompt" button), or copy the
 // `progress work <KEY>` CLI one-liner that fetches the bundle and launches
 // `claude` in the right checkout (bin/progress.ts, see SETUP §7).
 //
-// The bundle comes from GET /api/issues/:key/bundle (text/markdown). It's
-// cached and prefetched on issue load so the copy is instant — no interaction
+// The bundle comes from GET /api/actions/:key/bundle (text/markdown). It's
+// cached and prefetched on action load so the copy is instant — no interaction
 // spinner (SPEC §8.2).
 
 import { toast } from "./toast";
 
-// The bundle is rendered server-side from the issue's current state (fields,
+// The bundle is rendered server-side from the action's current state (fields,
 // comments, tags, lineage). We cache it so a copy is instant — but the cache
-// goes stale the moment the issue changes, so the store re-warms it via
+// goes stale the moment the action changes, so the store re-warms it via
 // `prefetchBundle` after every mutation (see store.ts). A copy always prefers
 // an in-flight refresh over the cached value, so a copy right after an edit
 // still gets the latest.
-// Cache keys are namespaced by surface (`issue:KEY`, `arc:ID`) so the issue and
+// Cache keys are namespaced by surface (`action:KEY`, `arc:ID`) so the action and
 // arc work orders never collide. Each entry remembers the URL it fetches from.
 const bundleCache = new Map<string, string>();
 const inflight = new Map<string, Promise<string>>();
 
-const issueBundle = (key: string) => ({ cacheKey: `issue:${key}`, url: `/api/issues/${key}/bundle` });
+const actionBundle = (key: string) => ({ cacheKey: `action:${key}`, url: `/api/actions/${key}/bundle` });
 const arcBundle = (arcId: string) => ({ cacheKey: `arc:${arcId}`, url: `/api/arcs/${arcId}/bundle` });
 
 async function fetchBundle(cacheKey: string, url: string): Promise<string> {
@@ -48,18 +48,18 @@ function loadBundle(cacheKey: string, url: string, force: boolean): Promise<stri
 }
 
 // Warm (or refresh) the cache so a later click copies instantly (and within
-// the clipboard's user-activation window). Called on issue-page mount and by
-// the store after any mutation to the issue, so the cached bundle never goes
+// the clipboard's user-activation window). Called on action-page mount and by
+// the store after any mutation to the action, so the cached bundle never goes
 // stale.
 export function prefetchBundle(key: string): void {
-  const { cacheKey, url } = issueBundle(key);
+  const { cacheKey, url } = actionBundle(key);
   void loadBundle(cacheKey, url, true).catch(() => {
     /* a failed prefetch just means the copy action fetches on demand */
   });
 }
 
-// Arc work order spans many issues, so it's heavier to render — prefetch on
-// arc-page mount keeps the copy click instant, same as the issue surface.
+// Arc work order spans many actions, so it's heavier to render — prefetch on
+// arc-page mount keeps the copy click instant, same as the action surface.
 export function prefetchArcBundle(arcId: string): void {
   const { cacheKey, url } = arcBundle(arcId);
   void loadBundle(cacheKey, url, true).catch(() => {
@@ -80,20 +80,20 @@ async function copy(text: string, ok: string): Promise<void> {
 export const workCommand = (key: string): string => `progress work ${key}`;
 
 export async function copyBundleAsPrompt(key: string): Promise<void> {
-  const { cacheKey, url } = issueBundle(key);
+  const { cacheKey, url } = actionBundle(key);
   let bundle: string;
   try {
     // Prefers an in-flight refresh, so a copy right after an edit/comment gets
     // the latest rather than a stale cached bundle.
     bundle = await loadBundle(cacheKey, url, false);
   } catch {
-    toast("Couldn't fetch the issue bundle.");
+    toast("Couldn't fetch the action bundle.");
     return;
   }
   await copy(bundle, `Copied ${key} as a prompt.`);
 }
 
-// The arc analogue: copy a single prompt covering every open issue in the arc.
+// The arc analogue: copy a single prompt covering every open action in the arc.
 // `label` is the arc name, just for the confirmation toast.
 export async function copyArcBundleAsPrompt(arcId: string, label: string): Promise<void> {
   const { cacheKey, url } = arcBundle(arcId);

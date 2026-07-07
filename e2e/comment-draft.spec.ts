@@ -15,17 +15,17 @@ test.beforeEach(async ({ context }) => {
   await signInAsOwner(context);
 });
 
-// Open the first issue from the board and wait for the comment composer.
-async function openFirstIssue(page: Page): Promise<void> {
+// Open the first action from the board and wait for the comment composer.
+async function openFirstAction(page: Page): Promise<void> {
   await page.goto("/");
-  const card = page.locator('a[href^="/issue/"]').first();
+  const card = page.locator('a[href^="/action/"]').first();
   await card.waitFor();
   await card.click();
   await page.waitForSelector(COMMENT);
 }
 
 test("a comment draft survives a reload (PROG-51)", async ({ page }) => {
-  await openFirstIssue(page);
+  await openFirstAction(page);
   const text = `Draft that must survive a reload ${Date.now()}`;
   await page.locator(COMMENT).fill(text);
   await page.waitForTimeout(600); // past the 400ms debounce → localStorage
@@ -34,7 +34,7 @@ test("a comment draft survives a reload (PROG-51)", async ({ page }) => {
 });
 
 test("posting a comment clears its draft, even across a reload (PROG-51)", async ({ page }) => {
-  await openFirstIssue(page);
+  await openFirstAction(page);
   const text = `Comment to post ${Date.now()}`;
   await page.locator(COMMENT).fill(text);
   await page.waitForTimeout(600);
@@ -53,7 +53,7 @@ test("posting a comment clears its draft, even across a reload (PROG-51)", async
 test("a second comment typed during an in-flight send is not clobbered (PROG-51)", async ({
   page,
 }) => {
-  await openFirstIssue(page);
+  await openFirstAction(page);
 
   // Hold the comment POST open so there's a window to keep typing while the first
   // send is in flight (the slow/retry path).
@@ -83,7 +83,7 @@ test("a second comment typed during an in-flight send is not clobbered (PROG-51)
 });
 
 test("repeated comment-save failures don't stack toasts (PROG-51)", async ({ page }) => {
-  await openFirstIssue(page);
+  await openFirstAction(page);
   // Force every comment POST to fail so each submit raises a sticky Retry toast.
   await page.route("**/comments", (route) =>
     route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"boom"}' }),
@@ -102,9 +102,9 @@ test("repeated comment-save failures don't stack toasts (PROG-51)", async ({ pag
 });
 
 test("a container description draft is restored with an indicator (PROG-51)", async ({ page }) => {
-  // Reach a container page via the issue breadcrumb's product link.
-  await openFirstIssue(page);
-  await page.locator('a[href^="/product/"]').first().click();
+  // Reach a container page via the action breadcrumb's focus link.
+  await openFirstAction(page);
+  await page.locator('a[href^="/focus/"]').first().click();
   await page.waitForSelector("section.cursor-text");
 
   await page.locator("section.cursor-text").first().click();
@@ -119,7 +119,7 @@ test("a container description draft is restored with an indicator (PROG-51)", as
 });
 
 test("an unsaved description edit is restored with an indicator (PROG-51)", async ({ page }) => {
-  await openFirstIssue(page);
+  await openFirstAction(page);
 
   // Enter the description editor and type, but leave WITHOUT saving (reload).
   await page.locator("section.cursor-text").first().click();

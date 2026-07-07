@@ -11,14 +11,14 @@ import Agenda from "./pages/Agenda";
 import Archive from "./pages/Archive";
 import ContainerPage, { type ContainerType } from "./pages/ContainerPage";
 import Home from "./pages/Home";
-import IssuePage from "./pages/IssuePage";
+import ActionPage from "./pages/ActionPage";
 import Outline from "./pages/Outline";
 import Search from "./pages/Search";
 import Structure from "./pages/Structure";
 
 const CONTAINER_ROUTES: { path: string; type: ContainerType }[] = [
-  { path: "/initiative/:id", type: "initiative" },
-  { path: "/product/:id", type: "product" },
+  { path: "/workspace/:id", type: "workspace" },
+  { path: "/focus/:id", type: "focus" },
   { path: "/repo/:id", type: "repo" },
   { path: "/arc/:id", type: "arc" },
 ];
@@ -67,8 +67,8 @@ export default function App() {
             <Route path="/admin">
               <Admin snapshot={snapshot} />
             </Route>
-            <Route path="/issue/:key">
-              {(params) => <IssuePage snapshot={snapshot} keyParam={params.key!} />}
+            <Route path="/action/:key">
+              {(params) => <ActionPage snapshot={snapshot} keyParam={params.key!} />}
             </Route>
             {CONTAINER_ROUTES.map(({ path, type }) => (
               <Route key={path} path={path}>

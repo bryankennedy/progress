@@ -5,14 +5,14 @@
 // blindness — color alone never carries the meaning. Urgent breaks the pattern
 // with a filled badge + exclamation so the most pressing work pops on a dense
 // board. One mapping (labels.ts PRIORITY_COLORS), no configuration. Used by the
-// board, Agenda, issue page, and container lists.
+// board, Agenda, action page, and container lists.
 
-import type { IssuePriority } from "../shared/constants";
+import type { ActionPriority } from "../shared/constants";
 import { PRIORITY_COLORS, PRIORITY_LABELS } from "./labels";
 
 // How many of the three bars are filled per level. Urgent renders its own glyph
 // (the count is unused for it).
-const FILLED_BARS: Record<IssuePriority, number> = {
+const FILLED_BARS: Record<ActionPriority, number> = {
   urgent: 3,
   high: 3,
   medium: 2,
@@ -35,7 +35,7 @@ export default function PriorityIndicator({
   priority,
   className = "",
 }: {
-  priority: IssuePriority;
+  priority: ActionPriority;
   className?: string;
 }) {
   const color = PRIORITY_COLORS[priority] ?? TRACK;

@@ -7,12 +7,12 @@
 //
 // Surface-specific pieces stay with the surface, passed in as slots: the
 // search page's Status dropdown renders `before` the shared six, the board's
-// backlog/sub-issues toggles render `after`, and each caller owns its own
+// backlog/steps toggles render `after`, and each caller owns its own
 // "what survives a clear" rule via `onClear`.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useSearch } from "wouter";
-import { ISSUE_PRIORITIES } from "../shared/constants";
+import { ACTION_PRIORITIES } from "../shared/constants";
 import type { SnapshotPayload } from "../shared/types";
 import {
   filtersToRestore,
@@ -28,8 +28,8 @@ import { PRIORITY_LABELS } from "./labels";
 // here: the board has no status filter (its columns are the statuses), so the
 // search page passes its Status dropdown through the `before` slot.
 export const SHARED_FILTER_KEYS = [
-  "initiative",
-  "product",
+  "workspace",
+  "focus",
   "arc",
   "repo",
   "tag",
@@ -60,11 +60,11 @@ export function useStickyFilterUrl({
   // Parent lookups for cascading filter validity (PROG-75).
   const parents = useMemo(
     () => ({
-      productInitiative: new Map(snapshot.products.map((p) => [p.id, p.initiativeId])),
-      arcProduct: new Map(snapshot.arcs.map((a) => [a.id, a.productId])),
-      repoProduct: new Map(snapshot.repos.map((r) => [r.id, r.productId])),
+      focusWorkspace: new Map(snapshot.focuses.map((p) => [p.id, p.workspaceId])),
+      arcFocus: new Map(snapshot.arcs.map((a) => [a.id, a.focusId])),
+      repoFocus: new Map(snapshot.repos.map((r) => [r.id, r.focusId])),
     }),
-    [snapshot.products, snapshot.arcs, snapshot.repos],
+    [snapshot.focuses, snapshot.arcs, snapshot.repos],
   );
 
   // Sticky restore (PROG-58): on a fresh mount with a bare URL, re-apply the
@@ -132,9 +132,9 @@ export default function FilterBar({
   // Desktop ignores this — the row is always `sm:flex`.
   const [open, setOpen] = useState(false);
 
-  const productInitiative = useMemo(
-    () => new Map(snapshot.products.map((p) => [p.id, p.initiativeId])),
-    [snapshot.products],
+  const focusWorkspace = useMemo(
+    () => new Map(snapshot.focuses.map((p) => [p.id, p.workspaceId])),
+    [snapshot.focuses],
   );
 
   return (
@@ -158,26 +158,26 @@ export default function FilterBar({
         className={`${open ? "flex" : "hidden"} mt-3 flex-wrap items-center gap-2 text-sm sm:mt-4 sm:flex`}
       >
         {before}
-        {/* Archived containers stay out of the dropdowns (D26); their issues
+        {/* Archived containers stay out of the dropdowns (D26); their actions
             still render, so nothing silently disappears from the view. */}
         <FilterSelect
-          label="Initiative"
-          value={filters.initiative}
-          options={sortByName(snapshot.initiatives.filter((i) => !i.archivedAt)).map((i) => [
+          label="Workspace"
+          value={filters.workspace}
+          options={sortByName(snapshot.workspaces.filter((i) => !i.archivedAt)).map((i) => [
             i.id,
             i.name,
           ])}
-          onChange={(v) => setParam("initiative", v)}
+          onChange={(v) => setParam("workspace", v)}
         />
         <FilterSelect
-          label="Product"
-          value={filters.product}
+          label="Focus"
+          value={filters.focus}
           options={sortByName(
-            snapshot.products
+            snapshot.focuses
               .filter((p) => !p.archivedAt)
-              .filter((p) => !filters.initiative || p.initiativeId === filters.initiative),
+              .filter((p) => !filters.workspace || p.workspaceId === filters.workspace),
           ).map((p) => [p.id, p.name])}
-          onChange={(v) => setParam("product", v)}
+          onChange={(v) => setParam("focus", v)}
         />
         <FilterSelect
           label="Arc"
@@ -186,10 +186,10 @@ export default function FilterBar({
           options={sortByName(
             snapshot.arcs
               .filter((a) => !a.archivedAt)
-              .filter((a) => !filters.product || a.productId === filters.product)
+              .filter((a) => !filters.focus || a.focusId === filters.focus)
               .filter(
                 (a) =>
-                  !filters.initiative || productInitiative.get(a.productId) === filters.initiative,
+                  !filters.workspace || focusWorkspace.get(a.focusId) === filters.workspace,
               ),
           ).map((a) => [a.id, a.name])}
           onChange={(v) => setParam("arc", v)}
@@ -201,10 +201,10 @@ export default function FilterBar({
           options={sortByName(
             snapshot.repos
               .filter((r) => !r.archivedAt)
-              .filter((r) => !filters.product || r.productId === filters.product)
+              .filter((r) => !filters.focus || r.focusId === filters.focus)
               .filter(
                 (r) =>
-                  !filters.initiative || productInitiative.get(r.productId) === filters.initiative,
+                  !filters.workspace || focusWorkspace.get(r.focusId) === filters.workspace,
               ),
           ).map((r) => [r.id, r.name])}
           onChange={(v) => setParam("repo", v)}
@@ -219,7 +219,7 @@ export default function FilterBar({
         <FilterSelect
           label="Priority"
           value={filters.priority}
-          options={ISSUE_PRIORITIES.map((p) => [p, PRIORITY_LABELS[p]])}
+          options={ACTION_PRIORITIES.map((p) => [p, PRIORITY_LABELS[p]])}
           onChange={(v) => setParam("priority", v)}
         />
         {after}

@@ -1,6 +1,6 @@
 // PROG-45: completed (archived) arcs accumulate on the Structure page and bury
 // the live structure it exists to curate. Show only the first few archived arcs
-// per product inline; the rest collapse behind a "more" link to /archive. Active
+// per focus inline; the rest collapse behind a "more" link to /archive. Active
 // nodes never count against the limit — only archived ones pile up.
 
 export const ARCHIVED_INLINE_LIMIT = 5;

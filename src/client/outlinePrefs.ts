@@ -1,5 +1,5 @@
 // Sticky Outline preferences (PROG-77). The Outline view shows completed
-// (done/canceled) issues by default — dimmed and struck through — but a
+// (done/canceled) actions by default — dimmed and struck through — but a
 // page-level toggle can hide them entirely. That choice is a per-user view
 // preference, so we persist it to localStorage: it survives navigating away from
 // /outline and coming back, instead of resetting every visit. Single-user app,
@@ -35,7 +35,7 @@ export function saveHideDone(hide: boolean): void {
 
 const SCOPE_KEY = "progress:outline-scope";
 
-export type OutlineScope = { kind: "product" | "initiative"; id: string };
+export type OutlineScope = { kind: "focus" | "workspace"; id: string };
 
 export function loadScope(): OutlineScope | null {
   try {
@@ -44,7 +44,7 @@ export function loadScope(): OutlineScope | null {
     const sep = raw.indexOf(":");
     const kind = raw.slice(0, sep);
     const id = raw.slice(sep + 1);
-    if ((kind === "product" || kind === "initiative") && id) return { kind, id };
+    if ((kind === "focus" || kind === "workspace") && id) return { kind, id };
   } catch {
     /* default this time */
   }

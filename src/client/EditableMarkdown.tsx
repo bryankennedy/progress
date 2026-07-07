@@ -1,5 +1,5 @@
 // Click-to-edit Markdown block (the "paper-y, open" editing surface, SPEC
-// §2): rendered prose that becomes a textarea on click. Shared by issue
+// §2): rendered prose that becomes a textarea on click. Shared by action
 // descriptions and container descriptions.
 //
 // With a `draftScope` (PROG-51), in-progress edits are mirrored to localStorage

@@ -11,17 +11,17 @@ type Box = { id: string; x: number; y: number; w: number; h: number; cx: number;
 
 // page.request shares the page's cookie jar (the standalone `request` fixture
 // has its own and would 401 once auth is configured).
-async function issueOf(page: Page, id: string): Promise<{ rank: string; status: string } | undefined> {
+async function actionOf(page: Page, id: string): Promise<{ rank: string; status: string } | undefined> {
   const ws = await (await page.request.get("/api/snapshot")).json();
-  return ws.issues.find((i: { id: string }) => i.id === id);
+  return ws.actions.find((i: { id: string }) => i.id === id);
 }
 async function rankOf(page: Page, id: string): Promise<string | undefined> {
-  return (await issueOf(page, id))?.rank;
+  return (await actionOf(page, id))?.rank;
 }
 
 // On-screen box of a card by id.
 async function boxOf(page: Page, id: string): Promise<Box> {
-  const b = (await page.locator(`[data-issue-id="${id}"]`).boundingBox())!;
+  const b = (await page.locator(`[data-action-id="${id}"]`).boundingBox())!;
   return { id, x: b.x, y: b.y, w: b.width, h: b.height, cx: b.x + b.width / 2, cy: b.y + b.height / 2 };
 }
 
@@ -37,12 +37,12 @@ async function boxesIn(page: Page, ids: string[]): Promise<Box[]> {
 async function isolateColumn(page: Page, status: string, ids: string[]): Promise<void> {
   const ws = await (await page.request.get("/api/snapshot")).json();
   const dump = status === "backlog" ? "todo" : "backlog";
-  for (const i of ws.issues as { id: string; status: string }[]) {
+  for (const i of ws.actions as { id: string; status: string }[]) {
     if (i.status === status && !ids.includes(i.id)) {
-      await page.request.patch(`/api/issues/${i.id}`, { data: { status: dump } });
+      await page.request.patch(`/api/actions/${i.id}`, { data: { status: dump } });
     }
   }
-  for (const id of ids) await page.request.patch(`/api/issues/${id}`, { data: { status } });
+  for (const id of ids) await page.request.patch(`/api/actions/${id}`, { data: { status } });
 }
 
 const overlay = (page: Page) => page.locator("[data-drag-overlay]");
@@ -74,23 +74,23 @@ async function glideTo(page: Page, fromX: number, fromY: number, toX: number, to
 // Live x of a card via getBoundingClientRect — unlike boundingBox() it doesn't
 // wait for the element to stop animating, so it's safe to read mid-drag.
 function liveX(page: Page, id: string): Promise<number> {
-  return page.locator(`[data-issue-id="${id}"]`).evaluate((el) => el.getBoundingClientRect().x);
+  return page.locator(`[data-action-id="${id}"]`).evaluate((el) => el.getBoundingClientRect().x);
 }
 
 test.beforeEach(async ({ page, context }) => {
   await signInAsOwner(context);
   await page.goto("/?backlog=1"); // show every column
-  await page.waitForSelector("[data-issue-id]");
+  await page.waitForSelector("[data-action-id]");
 });
 
 // Three known cards in `backlog` (leftmost column, always on-screen), in a
 // deterministic rank order — independent of ambient data and other specs.
 async function threeInBacklog(page: Page): Promise<[Box, Box, Box]> {
   const ws = await (await page.request.get("/api/snapshot")).json();
-  const ids: string[] = ws.issues.map((i: { id: string }) => i.id).slice(0, 3);
+  const ids: string[] = ws.actions.map((i: { id: string }) => i.id).slice(0, 3);
   await isolateColumn(page, "backlog", ids);
   await page.goto("/?backlog=1");
-  await page.waitForSelector(`[data-issue-id="${ids[0]}"]`);
+  await page.waitForSelector(`[data-action-id="${ids[0]}"]`);
   const [a, b, c] = await boxesIn(page, ids);
   return [a!, b!, c!];
 }
@@ -139,23 +139,23 @@ test("dragging a card DOWN past its neighbor persists — does not snap back (PR
 test("dragging a card to the TOP of a populated column moves it there (PROG-59)", async ({
   page,
 }) => {
-  // The issue's exact scenario, arranged via the API for determinism: a lone
+  // The action's exact scenario, arranged via the API for determinism: a lone
   // card in `todo` and a populated `backlog` (the two leftmost, on-screen
   // columns — a far-right column like in_review would scroll out of view).
   const ws = await (await page.request.get("/api/snapshot")).json();
-  const ids: string[] = ws.issues.map((i: { id: string }) => i.id);
+  const ids: string[] = ws.actions.map((i: { id: string }) => i.id);
   const mover = ids[0]!;
   const fillers = ids.slice(1, 4);
   await isolateColumn(page, "todo", [mover]);
   await isolateColumn(page, "backlog", fillers);
 
   await page.goto("/?backlog=1");
-  await page.waitForSelector(`[data-issue-id="${mover}"]`);
+  await page.waitForSelector(`[data-action-id="${mover}"]`);
 
   const targetTop = (await boxesIn(page, fillers))[0]!; // top card of backlog
   const moverBox = await boxOf(page, mover);
   expect(Math.round(moverBox.x)).not.toBe(Math.round(targetTop.x)); // genuinely different columns
-  const targetTopBefore = (await issueOf(page, targetTop.id))!;
+  const targetTopBefore = (await actionOf(page, targetTop.id))!;
 
   // Drag the lone card over the TOP card of the populated column, then nudge on
   // its center until onDragOver actually moves the card into the target column
@@ -174,7 +174,7 @@ test("dragging a card to the TOP of a populated column moves it there (PROG-59)"
   await page.mouse.up();
 
   await expect
-    .poll(async () => (await issueOf(page, mover))?.status, {
+    .poll(async () => (await actionOf(page, mover))?.status, {
       message: "the dragged card should adopt the target column's status",
     })
     .toBe("backlog");
@@ -189,13 +189,13 @@ test("dragging a card into an EMPTY column drops it there (PROG-40)", async ({ p
   // Empty columns are now full-height; the regression was that closestCorners
   // measured to their far corners and handed the drop to a neighbour's card.
   const ws = await (await page.request.get("/api/snapshot")).json();
-  const mover = ws.issues.map((i: { id: string }) => i.id)[0]!;
+  const mover = ws.actions.map((i: { id: string }) => i.id)[0]!;
   await isolateColumn(page, "in_progress", []); // empty the target column
   await isolateColumn(page, "todo", [mover]);
 
   await page.goto("/?backlog=1");
-  await page.waitForSelector(`[data-issue-id="${mover}"]`);
-  expect((await issueOf(page, mover))!.status).toBe("todo"); // sanity: starts elsewhere
+  await page.waitForSelector(`[data-action-id="${mover}"]`);
+  expect((await actionOf(page, mover))!.status).toBe("todo"); // sanity: starts elsewhere
 
   // The empty column has no card to aim at, so target the column section itself.
   const col = (await page
@@ -218,7 +218,7 @@ test("dragging a card into an EMPTY column drops it there (PROG-40)", async ({ p
   await page.mouse.up();
 
   await expect
-    .poll(async () => (await issueOf(page, mover))?.status, {
+    .poll(async () => (await actionOf(page, mover))?.status, {
       message: "the card should land in the empty column it was dropped on",
     })
     .toBe("in_progress");
@@ -229,14 +229,14 @@ test("a card dropped in a new column doesn't flash back to its old one (PROG-40)
 }) => {
   // Cross-column drop: lone card in `todo` → top of a populated `backlog`.
   const ws = await (await page.request.get("/api/snapshot")).json();
-  const ids: string[] = ws.issues.map((i: { id: string }) => i.id);
+  const ids: string[] = ws.actions.map((i: { id: string }) => i.id);
   const mover = ids[0]!;
   const fillers = ids.slice(1, 4);
   await isolateColumn(page, "todo", [mover]);
   await isolateColumn(page, "backlog", fillers);
 
   await page.goto("/?backlog=1");
-  await page.waitForSelector(`[data-issue-id="${mover}"]`);
+  await page.waitForSelector(`[data-action-id="${mover}"]`);
   const targetTop = (await boxesIn(page, fillers))[0]!;
   const moverBox = await boxOf(page, mover);
 
@@ -255,7 +255,7 @@ test("a card dropped in a new column doesn't flash back to its old one (PROG-40)
     (window as unknown as { __xs: number[] }).__xs = [];
     const t0 = performance.now();
     (function tick() {
-      const el = document.querySelector(`[data-issue-id="${id}"]`);
+      const el = document.querySelector(`[data-action-id="${id}"]`);
       if (el) (window as unknown as { __xs: number[] }).__xs.push(Math.round(el.getBoundingClientRect().x));
       if (performance.now() - t0 < 400) requestAnimationFrame(tick);
     })();

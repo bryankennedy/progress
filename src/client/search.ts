@@ -3,14 +3,14 @@
 // half of the two-wave search; comments stream in separately via /api/search.
 // Matching is case-insensitive substring, AND'd across whitespace terms (every
 // term must appear somewhere), and a hit ranks by WHERE the terms land — title
-// beats description — so "the issue I'm thinking of" sorts above one that merely
+// beats description — so "the action I'm thinking of" sorts above one that merely
 // mentions the word in its body. Pure functions, unit-tested in search.test.ts.
 
-import { ISSUE_PRIORITIES, ISSUE_STATUSES } from "../shared/constants";
-import type { WireIssue, SnapshotPayload } from "../shared/types";
+import { ACTION_PRIORITIES, ACTION_STATUSES } from "../shared/constants";
+import type { WireAction, SnapshotPayload } from "../shared/types";
 
-// The slice of a container row that search reads — every container (initiative,
-// product, repo, arc) carries these, so one shape covers all four.
+// The slice of a container row that search reads — every container (workspace,
+// focus, repo, arc) carries these, so one shape covers all four.
 type SearchableContainer = {
   id: string;
   name: string;
@@ -19,7 +19,7 @@ type SearchableContainer = {
 };
 
 // Title hits weigh more than description hits; the gap is what makes a
-// title-matching issue outrank a description-only one regardless of term count.
+// title-matching action outrank a description-only one regardless of term count.
 const TITLE_WEIGHT = 3;
 const DESC_WEIGHT = 1;
 
@@ -57,83 +57,83 @@ function byRecency(a: { updatedAt: string }, b: { updatedAt: string }): number {
   return a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0;
 }
 
-export type IssueHit = { issue: WireIssue; score: number; inTitle: boolean };
+export type ActionHit = { action: WireAction; score: number; inTitle: boolean };
 
-export function searchIssues(ws: SnapshotPayload, query: string, limit = 8): IssueHit[] {
+export function searchActions(ws: SnapshotPayload, query: string, limit = 8): ActionHit[] {
   const terms = queryTerms(query);
   if (terms.length === 0) return [];
-  const hits: IssueHit[] = [];
-  for (const issue of ws.issues) {
-    const scored = scoreFields(terms, issue.title, issue.description);
-    if (scored) hits.push({ issue, score: scored.score, inTitle: scored.inTitle });
+  const hits: ActionHit[] = [];
+  for (const action of ws.actions) {
+    const scored = scoreFields(terms, action.title, action.description);
+    if (scored) hits.push({ action, score: scored.score, inTitle: scored.inTitle });
   }
-  hits.sort((a, b) => b.score - a.score || byRecency(a.issue, b.issue));
+  hits.sort((a, b) => b.score - a.score || byRecency(a.action, b.action));
   return limit > 0 ? hits.slice(0, limit) : hits;
 }
 
 // Empty-query browse (PROG-78): "searching for nothing" is valid on the search
-// page when filters are active — every issue becomes a zero-score hit, newest
+// page when filters are active — every action becomes a zero-score hit, newest
 // first, and the caller's filters decide what actually shows. `inTitle` is true
 // so the row renders without a description snippet (there is no matched term
 // for a snippet to explain).
-export function browseIssues(ws: SnapshotPayload): IssueHit[] {
-  return ws.issues
-    .map((issue) => ({ issue, score: 0, inTitle: true }))
-    .sort((a, b) => byRecency(a.issue, b.issue));
+export function browseActions(ws: SnapshotPayload): ActionHit[] {
+  return ws.actions
+    .map((action) => ({ action, score: 0, inTitle: true }))
+    .sort((a, b) => byRecency(a.action, b.action));
 }
 
-// Column sorting for the search page's issue table (PROG-78). The sortable
+// Column sorting for the search page's action table (PROG-78). The sortable
 // keys are exactly the displayed columns; `null` means "no explicit sort" and
 // leaves the caller's default order (relevance for a query, recency for
 // browse) untouched.
-export type IssueSortKey = "key" | "title" | "product" | "status" | "priority";
-export type IssueSort = { key: IssueSortKey; dir: "asc" | "desc" };
+export type ActionSortKey = "key" | "title" | "focus" | "status" | "priority";
+export type ActionSort = { key: ActionSortKey; dir: "asc" | "desc" };
 
-export const ISSUE_SORT_KEYS: readonly IssueSortKey[] = [
+export const ACTION_SORT_KEYS: readonly ActionSortKey[] = [
   "key",
   "title",
-  "product",
+  "focus",
   "status",
   "priority",
 ];
 
-// Sort hits by a column. Semantics per key: `key` orders by product prefix
-// then issue number (numeric, so PROG-2 < PROG-10); `title`/`product` are
+// Sort hits by a column. Semantics per key: `key` orders by focus prefix
+// then action number (numeric, so PROG-2 < PROG-10); `title`/`focus` are
 // case-insensitive locale compares; `status` follows the workflow order
-// (ISSUE_STATUSES) and `priority` the urgency order (ISSUE_PRIORITIES), not
+// (ACTION_STATUSES) and `priority` the urgency order (ACTION_PRIORITIES), not
 // the alphabet. Ties always break by recency so equal cells stay newest-first.
-export function sortIssueHits(
+export function sortActionHits(
   ws: SnapshotPayload,
-  hits: IssueHit[],
-  sort: IssueSort | null,
-): IssueHit[] {
+  hits: ActionHit[],
+  sort: ActionSort | null,
+): ActionHit[] {
   if (!sort) return hits;
-  const productById = new Map(ws.products.map((p) => [p.id, p]));
-  const cmp = (a: WireIssue, b: WireIssue): number => {
+  const focusById = new Map(ws.focuses.map((p) => [p.id, p]));
+  const cmp = (a: WireAction, b: WireAction): number => {
     switch (sort.key) {
       case "key": {
-        const pa = productById.get(a.productId)?.keyPrefix ?? "";
-        const pb = productById.get(b.productId)?.keyPrefix ?? "";
+        const pa = focusById.get(a.focusId)?.keyPrefix ?? "";
+        const pb = focusById.get(b.focusId)?.keyPrefix ?? "";
         return pa.localeCompare(pb) || a.number - b.number;
       }
       case "title":
         return a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
-      case "product": {
-        const na = productById.get(a.productId)?.name ?? "";
-        const nb = productById.get(b.productId)?.name ?? "";
+      case "focus": {
+        const na = focusById.get(a.focusId)?.name ?? "";
+        const nb = focusById.get(b.focusId)?.name ?? "";
         return na.localeCompare(nb, undefined, { sensitivity: "base" });
       }
       case "status":
-        return ISSUE_STATUSES.indexOf(a.status) - ISSUE_STATUSES.indexOf(b.status);
+        return ACTION_STATUSES.indexOf(a.status) - ACTION_STATUSES.indexOf(b.status);
       case "priority":
-        return ISSUE_PRIORITIES.indexOf(a.priority) - ISSUE_PRIORITIES.indexOf(b.priority);
+        return ACTION_PRIORITIES.indexOf(a.priority) - ACTION_PRIORITIES.indexOf(b.priority);
     }
   };
   const dir = sort.dir === "desc" ? -1 : 1;
-  return hits.slice().sort((a, b) => dir * cmp(a.issue, b.issue) || byRecency(a.issue, b.issue));
+  return hits.slice().sort((a, b) => dir * cmp(a.action, b.action) || byRecency(a.action, b.action));
 }
 
-export type ContainerKind = "initiative" | "product" | "repo" | "arc";
+export type ContainerKind = "workspace" | "focus" | "repo" | "arc";
 export type ContainerHit = {
   id: string;
   kind: ContainerKind;
@@ -143,8 +143,8 @@ export type ContainerHit = {
 };
 
 const CONTAINER_LABEL: Record<ContainerKind, string> = {
-  initiative: "Initiative",
-  product: "Product",
+  workspace: "Workspace",
+  focus: "Focus",
   repo: "Repo",
   arc: "Arc",
 };
@@ -153,15 +153,15 @@ export function containerLabel(kind: ContainerKind): string {
   return CONTAINER_LABEL[kind];
 }
 
-// Containers carry a name + description like issues do, so they score the same
+// Containers carry a name + description like actions do, so they score the same
 // way (name plays the role of title). Archived ones stay out of search — they're
 // reachable from their parent's page, which lists them dimmed (D26).
 export function searchContainers(ws: SnapshotPayload, query: string, limit = 6): ContainerHit[] {
   const terms = queryTerms(query);
   if (terms.length === 0) return [];
   const sources: { kind: ContainerKind; rows: SearchableContainer[] }[] = [
-    { kind: "initiative", rows: ws.initiatives },
-    { kind: "product", rows: ws.products },
+    { kind: "workspace", rows: ws.workspaces },
+    { kind: "focus", rows: ws.focuses },
     { kind: "repo", rows: ws.repos },
     { kind: "arc", rows: ws.arcs },
   ];

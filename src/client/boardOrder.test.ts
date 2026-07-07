@@ -2,12 +2,12 @@
 // so the off-by-one (drag-down) regression is locked down here; the e2e only
 // has to prove the wiring. Run with `bun test`.
 import { describe, expect, it } from "bun:test";
-import { ISSUE_STATUSES, type IssueStatus } from "../shared/constants";
+import { ACTION_STATUSES, type ActionStatus } from "../shared/constants";
 import { reorder, type ColumnMap } from "./boardOrder";
 
-function makeColumns(partial: Partial<Record<IssueStatus, string[]>>): ColumnMap {
+function makeColumns(partial: Partial<Record<ActionStatus, string[]>>): ColumnMap {
   const cols = {} as ColumnMap;
-  for (const s of ISSUE_STATUSES) cols[s] = partial[s] ? [...partial[s]!] : [];
+  for (const s of ACTION_STATUSES) cols[s] = partial[s] ? [...partial[s]!] : [];
   return cols;
 }
 

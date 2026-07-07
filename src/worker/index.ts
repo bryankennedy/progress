@@ -9,27 +9,27 @@ import {
   comments,
   commitLinks,
   images,
-  initiatives,
-  ISSUE_ESTIMATES,
-  ISSUE_PRIORITIES,
-  ISSUE_STATUSES,
-  issueKeyAliases,
-  issues,
-  issueTags,
+  workspaces,
+  ACTION_ESTIMATES,
+  ACTION_PRIORITIES,
+  ACTION_STATUSES,
+  actionKeyAliases,
+  actions,
+  actionTags,
   prLinks,
-  products,
+  focuses,
   repos,
   tags,
   users,
-  type IssuePriority,
-  type IssueStatus,
+  type ActionPriority,
+  type ActionStatus,
   type PrState,
 } from "../db/schema";
-import { CLOSED_ISSUE_STATUSES, tagColor } from "../shared/constants";
+import { CLOSED_ACTION_STATUSES, tagColor } from "../shared/constants";
 import { isValidRank, rankAfter } from "../shared/rank";
 import { log } from "./log";
 import { commentSnippet, escapeLike, hasMorePages, parseOffset, SEARCH_CAP } from "./searchComments";
-import { renderArcBundle, renderBundle, type ArcIssueData } from "./bundle";
+import { renderArcBundle, renderBundle, type ArcActionData } from "./bundle";
 import { notAuthorizedPage } from "./pages";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import {
@@ -184,7 +184,7 @@ app.onError((err, c) => {
   });
   // Hono catches the throw and returns below, so it never propagates out of the
   // fetch handler for `withSentry` to auto-capture — report it explicitly.
-  // `requestId` ties the Sentry issue back to the matching Workers Logs line.
+  // `requestId` ties the Sentry action back to the matching Workers Logs line.
   Sentry.captureException(err, {
     tags: { requestId },
     extra: { method: c.req.method, path: c.req.path },
@@ -379,19 +379,19 @@ app.get("/api/health", async (c) => {
 // The single "load everything" endpoint that feeds the client store
 // (SPEC §8.2: fetch the full snapshot up front, render from memory after).
 // Comments and activity are deliberately excluded — they're the only
-// unbounded-growth data and aren't needed to render boards/lists; the issue
-// page loads them per issue.
+// unbounded-growth data and aren't needed to render boards/lists; the action
+// page loads them per action.
 app.get("/api/snapshot", async (c) => {
   const db = drizzle(c.env.DB);
   const [
     allUsers,
-    allInitiatives,
-    allProducts,
+    allWorkspaces,
+    allFocuses,
     allRepos,
     allArcs,
-    allIssues,
+    allActions,
     allTags,
-    allIssueTags,
+    allActionTags,
     allKeyAliases,
   ] = await Promise.all([
     // These nine reads are independent and need no transaction, so they run as
@@ -400,14 +400,14 @@ app.get("/api/snapshot", async (c) => {
     // local Miniflare; Promise.all is the Cloudflare-recommended shape for
     // independent reads and removes that runtime difference. See DECISIONS D31.
     db.select().from(users),
-    db.select().from(initiatives),
-    db.select().from(products),
+    db.select().from(workspaces),
+    db.select().from(focuses),
     db.select().from(repos),
     db.select().from(arcs),
-    db.select().from(issues),
+    db.select().from(actions),
     db.select().from(tags),
-    db.select().from(issueTags),
-    db.select().from(issueKeyAliases),
+    db.select().from(actionTags),
+    db.select().from(actionKeyAliases),
   ]);
   // The runtime allowlist is sensitive (who has access) and only the Admin page
   // needs it, so fetch + ship it to super-admins only (D44).
@@ -424,14 +424,14 @@ app.get("/api/snapshot", async (c) => {
     isSuperAdmin: isSuper,
     allowedEmails: allAllowedEmails,
     users: allUsers,
-    initiatives: allInitiatives,
-    products: allProducts,
+    workspaces: allWorkspaces,
+    focuses: allFocuses,
     repos: allRepos,
     arcs: allArcs,
-    issues: allIssues,
+    actions: allActions,
     tags: allTags,
-    issueTags: allIssueTags,
-    issueKeyAliases: allKeyAliases,
+    actionTags: allActionTags,
+    actionKeyAliases: allKeyAliases,
   });
 });
 
@@ -463,7 +463,7 @@ app.get("/api/search", async (c) => {
   );
   // Most-recent first; pull one extra to detect whether more pages exist.
   const rows = await db
-    .select({ id: comments.id, issueId: comments.issueId, body: comments.body })
+    .select({ id: comments.id, actionId: comments.actionId, body: comments.body })
     .from(comments)
     .where(predicate)
     .orderBy(desc(comments.createdAt))
@@ -473,7 +473,7 @@ app.get("/api/search", async (c) => {
   const truncated = hasMorePages(rows.length, offset);
   const hits = rows.slice(0, SEARCH_CAP).map((r) => ({
     commentId: r.id,
-    issueId: r.issueId,
+    actionId: r.actionId,
     snippet: commentSnippet(r.body, terms),
   }));
   return c.json({ hits, truncated });
@@ -630,8 +630,8 @@ type ContainerBody = {
   id?: unknown;
   name?: unknown;
   description?: unknown;
-  initiativeId?: unknown;
-  productId?: unknown;
+  workspaceId?: unknown;
+  focusId?: unknown;
   keyPrefix?: unknown;
   gitUrl?: unknown;
   archived?: unknown;
@@ -665,7 +665,7 @@ const idOr = (id: unknown, prefix: string) =>
 // Shared PATCH fields for all four container types; archive/unarchive is the
 // `archived` boolean mapped onto archivedAt (SPEC §3: no hard deletes).
 // `opts.rank` opts a route into the manual outline order (PROG-87) — the
-// client-computed fractional key, validated like the issue board rank. Repos
+// client-computed fractional key, validated like the action board rank. Repos
 // stay out: nothing reorders them and their table has no rank column.
 function containerPatchSet(
   body: ContainerBody,
@@ -691,13 +691,13 @@ function containerPatchSet(
   return { set };
 }
 
-app.post("/api/initiatives", async (c) => {
+app.post("/api/workspaces", async (c) => {
   const body = (await c.req.json()) as ContainerBody;
   if (badName(body.name)) return c.json({ error: "name must be a non-empty string" }, 400);
   const now = new Date();
   const db = drizzle(c.env.DB);
   const [container] = await db
-    .insert(initiatives)
+    .insert(workspaces)
     .values({
       id: idOr(body.id, "ini"),
       name: (body.name as string).trim(),
@@ -710,31 +710,31 @@ app.post("/api/initiatives", async (c) => {
   return c.json({ container }, 201);
 });
 
-app.post("/api/products", async (c) => {
+app.post("/api/focuses", async (c) => {
   const body = (await c.req.json()) as ContainerBody;
   if (badName(body.name)) return c.json({ error: "name must be a non-empty string" }, 400);
   if (typeof body.keyPrefix !== "string" || !KEY_PREFIX_RE.test(body.keyPrefix.toUpperCase()))
     return c.json({ error: "keyPrefix must be 2–8 letters" }, 400);
   const keyPrefix = body.keyPrefix.toUpperCase();
-  if (typeof body.initiativeId !== "string")
-    return c.json({ error: "initiativeId is required" }, 400);
+  if (typeof body.workspaceId !== "string")
+    return c.json({ error: "workspaceId is required" }, 400);
 
   const db = drizzle(c.env.DB);
-  const [initiative] = await db
+  const [workspace] = await db
     .select()
-    .from(initiatives)
-    .where(eq(initiatives.id, body.initiativeId))
+    .from(workspaces)
+    .where(eq(workspaces.id, body.workspaceId))
     .limit(1);
-  if (!initiative) return c.json({ error: "initiative not found" }, 400);
-  const [clash] = await db.select().from(products).where(eq(products.keyPrefix, keyPrefix)).limit(1);
+  if (!workspace) return c.json({ error: "workspace not found" }, 400);
+  const [clash] = await db.select().from(focuses).where(eq(focuses.keyPrefix, keyPrefix)).limit(1);
   if (clash) return c.json({ error: `key prefix ${keyPrefix} is already in use` }, 409);
 
   const now = new Date();
   const [container] = await db
-    .insert(products)
+    .insert(focuses)
     .values({
       id: idOr(body.id, "prd"),
-      initiativeId: body.initiativeId,
+      workspaceId: body.workspaceId,
       name: (body.name as string).trim(),
       description: typeof body.description === "string" ? body.description : "",
       keyPrefix,
@@ -749,21 +749,21 @@ app.post("/api/products", async (c) => {
 app.post("/api/repos", async (c) => {
   const body = (await c.req.json()) as ContainerBody;
   if (badName(body.name)) return c.json({ error: "name must be a non-empty string" }, 400);
-  if (typeof body.productId !== "string") return c.json({ error: "productId is required" }, 400);
+  if (typeof body.focusId !== "string") return c.json({ error: "focusId is required" }, 400);
   const gitUrl = body.gitUrl ?? null;
   if (gitUrl !== null && (typeof gitUrl !== "string" || !isValidGitUrl(gitUrl)))
     return c.json({ error: "gitUrl must be an http(s) URL or null" }, 400);
 
   const db = drizzle(c.env.DB);
-  const [product] = await db.select().from(products).where(eq(products.id, body.productId)).limit(1);
-  if (!product) return c.json({ error: "product not found" }, 400);
+  const [focus] = await db.select().from(focuses).where(eq(focuses.id, body.focusId)).limit(1);
+  if (!focus) return c.json({ error: "focus not found" }, 400);
 
   const now = new Date();
   const [container] = await db
     .insert(repos)
     .values({
       id: idOr(body.id, "rep"),
-      productId: body.productId,
+      focusId: body.focusId,
       name: (body.name as string).trim(),
       description: typeof body.description === "string" ? body.description : "",
       gitUrl,
@@ -778,18 +778,18 @@ app.post("/api/repos", async (c) => {
 app.post("/api/arcs", async (c) => {
   const body = (await c.req.json()) as ContainerBody;
   if (badName(body.name)) return c.json({ error: "name must be a non-empty string" }, 400);
-  if (typeof body.productId !== "string") return c.json({ error: "productId is required" }, 400);
+  if (typeof body.focusId !== "string") return c.json({ error: "focusId is required" }, 400);
 
   const db = drizzle(c.env.DB);
-  const [product] = await db.select().from(products).where(eq(products.id, body.productId)).limit(1);
-  if (!product) return c.json({ error: "product not found" }, 400);
+  const [focus] = await db.select().from(focuses).where(eq(focuses.id, body.focusId)).limit(1);
+  if (!focus) return c.json({ error: "focus not found" }, 400);
 
   const now = new Date();
   const [container] = await db
     .insert(arcs)
     .values({
       id: idOr(body.id, "arc"),
-      productId: body.productId,
+      focusId: body.focusId,
       name: (body.name as string).trim(),
       description: typeof body.description === "string" ? body.description : "",
       creatorId: c.get("userId"),
@@ -800,7 +800,7 @@ app.post("/api/arcs", async (c) => {
   return c.json({ container }, 201);
 });
 
-app.patch("/api/initiatives/:id", async (c) => {
+app.patch("/api/workspaces/:id", async (c) => {
   const body = (await c.req.json()) as ContainerBody;
   const { set, error } = containerPatchSet(body, { rank: true });
   if (error) return c.json({ error }, 400);
@@ -808,15 +808,15 @@ app.patch("/api/initiatives/:id", async (c) => {
   set.updatedAt = new Date();
   const db = drizzle(c.env.DB);
   const [container] = await db
-    .update(initiatives)
+    .update(workspaces)
     .set(set)
-    .where(eq(initiatives.id, c.req.param("id")))
+    .where(eq(workspaces.id, c.req.param("id")))
     .returning();
-  if (!container) return c.json({ error: "initiative not found" }, 404);
+  if (!container) return c.json({ error: "workspace not found" }, 404);
   return c.json({ container });
 });
 
-app.patch("/api/products/:id", async (c) => {
+app.patch("/api/focuses/:id", async (c) => {
   const id = c.req.param("id");
   const body = (await c.req.json()) as ContainerBody;
   const { set, error } = containerPatchSet(body, { rank: true });
@@ -826,15 +826,15 @@ app.patch("/api/products/:id", async (c) => {
     if (typeof body.keyPrefix !== "string" || !KEY_PREFIX_RE.test(body.keyPrefix.toUpperCase()))
       return c.json({ error: "keyPrefix must be 2–8 letters" }, 400);
     const keyPrefix = body.keyPrefix.toUpperCase();
-    const [clash] = await db.select().from(products).where(eq(products.keyPrefix, keyPrefix)).limit(1);
+    const [clash] = await db.select().from(focuses).where(eq(focuses.keyPrefix, keyPrefix)).limit(1);
     if (clash && clash.id !== id) return c.json({ error: `key prefix ${keyPrefix} is already in use` }, 409);
-    // Safe rename: issue keys are derived from the prefix, never stored (D18).
+    // Safe rename: action keys are derived from the prefix, never stored (D18).
     set.keyPrefix = keyPrefix;
   }
   if (Object.keys(set).length === 0) return c.json({ error: "no valid fields in patch" }, 400);
   set.updatedAt = new Date();
-  const [container] = await db.update(products).set(set).where(eq(products.id, id)).returning();
-  if (!container) return c.json({ error: "product not found" }, 404);
+  const [container] = await db.update(focuses).set(set).where(eq(focuses.id, id)).returning();
+  if (!container) return c.json({ error: "focus not found" }, 404);
   return c.json({ container });
 });
 
@@ -879,12 +879,12 @@ app.patch("/api/arcs/:id", async (c) => {
 
 // Assign a tag: by tagId for an existing tag, or by name (create-or-get,
 // then assign) so the client's "create tag and add it" is one atomic call.
-app.post("/api/issues/:id/tags", async (c) => {
+app.post("/api/actions/:id/tags", async (c) => {
   const id = c.req.param("id");
   const body = (await c.req.json()) as { tagId?: unknown; name?: unknown; id?: unknown };
   const db = drizzle(c.env.DB);
-  const [issue] = await db.select({ id: issues.id }).from(issues).where(eq(issues.id, id)).limit(1);
-  if (!issue) return c.json({ error: "issue not found" }, 404);
+  const [action] = await db.select({ id: actions.id }).from(actions).where(eq(actions.id, id)).limit(1);
+  if (!action) return c.json({ error: "action not found" }, 404);
 
   let tag;
   if (typeof body.tagId === "string") {
@@ -903,26 +903,26 @@ app.post("/api/issues/:id/tags", async (c) => {
     return c.json({ error: "tagId or name is required" }, 400);
   }
 
-  await db.insert(issueTags).values({ issueId: id, tagId: tag!.id }).onConflictDoNothing();
-  return c.json({ tag, link: { issueId: id, tagId: tag!.id } }, 201);
+  await db.insert(actionTags).values({ actionId: id, tagId: tag!.id }).onConflictDoNothing();
+  return c.json({ tag, link: { actionId: id, tagId: tag!.id } }, 201);
 });
 
-app.delete("/api/issues/:id/tags/:tagId", async (c) => {
+app.delete("/api/actions/:id/tags/:tagId", async (c) => {
   const db = drizzle(c.env.DB);
   await db
-    .delete(issueTags)
+    .delete(actionTags)
     .where(
-      and(eq(issueTags.issueId, c.req.param("id")), eq(issueTags.tagId, c.req.param("tagId"))),
+      and(eq(actionTags.actionId, c.req.param("id")), eq(actionTags.tagId, c.req.param("tagId"))),
     );
   return c.json({ ok: true });
 });
 
-type IssueCreateBody = {
+type ActionCreateBody = {
   title?: unknown;
-  productId?: unknown;
+  focusId?: unknown;
   repoId?: unknown;
   arcId?: unknown;
-  parentIssueId?: unknown;
+  parentActionId?: unknown;
   description?: unknown;
   status?: unknown;
   priority?: unknown;
@@ -930,92 +930,92 @@ type IssueCreateBody = {
   dueDate?: unknown;
 };
 
-// Issue creation (SPEC §3): the issue number comes from the product's
-// next_issue_number sequence (D18), allocated with an atomic increment. A
+// Action creation (SPEC §3): the action number comes from the focus's
+// next_action_number sequence (D18), allocated with an atomic increment. A
 // crash between allocation and insert leaves a number gap, which is harmless.
-app.post("/api/issues", async (c) => {
-  const body = (await c.req.json()) as IssueCreateBody;
+app.post("/api/actions", async (c) => {
+  const body = (await c.req.json()) as ActionCreateBody;
   if (typeof body.title !== "string" || body.title.trim() === "")
     return c.json({ error: "title must be a non-empty string" }, 400);
-  if (typeof body.productId !== "string")
-    return c.json({ error: "productId is required" }, 400);
+  if (typeof body.focusId !== "string")
+    return c.json({ error: "focusId is required" }, 400);
   const repoId = body.repoId ?? null;
   if (repoId !== null && typeof repoId !== "string")
     return c.json({ error: "repoId must be a string or null" }, 400);
   const arcId = body.arcId ?? null;
   if (arcId !== null && typeof arcId !== "string")
     return c.json({ error: "arcId must be a string or null" }, 400);
-  const parentIssueId = body.parentIssueId ?? null;
-  if (parentIssueId !== null && typeof parentIssueId !== "string")
-    return c.json({ error: "parentIssueId must be a string or null" }, 400);
+  const parentActionId = body.parentActionId ?? null;
+  if (parentActionId !== null && typeof parentActionId !== "string")
+    return c.json({ error: "parentActionId must be a string or null" }, 400);
   const description = body.description ?? "";
   if (typeof description !== "string")
     return c.json({ error: "description must be a string" }, 400);
-  const status = (body.status ?? "backlog") as IssueStatus;
-  if (!ISSUE_STATUSES.includes(status))
+  const status = (body.status ?? "backlog") as ActionStatus;
+  if (!ACTION_STATUSES.includes(status))
     return c.json({ error: `invalid status: ${String(body.status)}` }, 400);
-  const priority = (body.priority ?? "none") as IssuePriority;
-  if (!ISSUE_PRIORITIES.includes(priority))
+  const priority = (body.priority ?? "none") as ActionPriority;
+  if (!ACTION_PRIORITIES.includes(priority))
     return c.json({ error: `invalid priority: ${String(body.priority)}` }, 400);
   const estimate = (body.estimate ?? null) as number | null;
-  if (estimate !== null && !(ISSUE_ESTIMATES as readonly number[]).includes(estimate))
+  if (estimate !== null && !(ACTION_ESTIMATES as readonly number[]).includes(estimate))
     return c.json({ error: `invalid estimate: ${String(body.estimate)}` }, 400);
   const dueDate = (body.dueDate ?? null) as string | null;
   if (dueDate !== null && (typeof dueDate !== "string" || !isValidDueDate(dueDate)))
     return c.json({ error: `invalid dueDate: ${String(body.dueDate)} (expected YYYY-MM-DD)` }, 400);
 
   const db = drizzle(c.env.DB);
-  const [product] = await db
+  const [focus] = await db
     .select()
-    .from(products)
-    .where(eq(products.id, body.productId))
+    .from(focuses)
+    .where(eq(focuses.id, body.focusId))
     .limit(1);
-  if (!product) return c.json({ error: "product not found" }, 400);
+  if (!focus) return c.json({ error: "focus not found" }, 400);
   // The invariants SQLite can't express (D17): repo and arc must belong to
-  // the issue's product.
+  // the action's focus.
   if (repoId !== null) {
     const [repo] = await db.select().from(repos).where(eq(repos.id, repoId)).limit(1);
-    if (!repo || repo.productId !== product.id)
-      return c.json({ error: "repo not found in that product" }, 400);
+    if (!repo || repo.focusId !== focus.id)
+      return c.json({ error: "repo not found in that focus" }, 400);
   }
   if (arcId !== null) {
     const [arc] = await db.select().from(arcs).where(eq(arcs.id, arcId)).limit(1);
-    if (!arc || arc.productId !== product.id)
-      return c.json({ error: "arc not found in that product" }, 400);
+    if (!arc || arc.focusId !== focus.id)
+      return c.json({ error: "arc not found in that focus" }, 400);
   }
-  // Sub-issue parent (PROG-124): must be an existing issue in the same product.
-  // A brand-new issue can't create a cycle, so no chain walk is needed here.
-  if (parentIssueId !== null) {
+  // Step parent (PROG-124): must be an existing action in the same focus.
+  // A brand-new action can't create a cycle, so no chain walk is needed here.
+  if (parentActionId !== null) {
     const [parent] = await db
       .select()
-      .from(issues)
-      .where(eq(issues.id, parentIssueId))
+      .from(actions)
+      .where(eq(actions.id, parentActionId))
       .limit(1);
-    if (!parent || parent.productId !== product.id)
-      return c.json({ error: "parent issue not found in that product" }, 400);
+    if (!parent || parent.focusId !== focus.id)
+      return c.json({ error: "parent action not found in that focus" }, 400);
   }
 
   const [seq] = await db
-    .update(products)
-    .set({ nextIssueNumber: sql`${products.nextIssueNumber} + 1` })
-    .where(eq(products.id, product.id))
-    .returning({ next: products.nextIssueNumber });
-  // Board rank (PROG-43): append after the current last issue so a new card
+    .update(focuses)
+    .set({ nextActionNumber: sql`${focuses.nextActionNumber} + 1` })
+    .where(eq(focuses.id, focus.id))
+    .returning({ next: focuses.nextActionNumber });
+  // Board rank (PROG-43): append after the current last action so a new card
   // lands at the bottom of its column. Ranks are a single global order; sorting
   // only ever compares cards within one column, so being globally last places
   // it last among its column's members.
   const [{ maxRank } = { maxRank: null }] = await db
-    .select({ maxRank: max(issues.rank) })
-    .from(issues);
+    .select({ maxRank: max(actions.rank) })
+    .from(actions);
   const now = new Date();
-  const [issue] = await db
-    .insert(issues)
+  const [action] = await db
+    .insert(actions)
     .values({
-      id: newId("iss"),
-      productId: product.id,
+      id: newId("acn"),
+      focusId: focus.id,
       repoId,
       arcId,
-      parentIssueId,
+      parentActionId,
       number: seq!.next - 1,
       title: body.title.trim(),
       description,
@@ -1031,120 +1031,120 @@ app.post("/api/issues", async (c) => {
       completedAt: status === "done" ? now : null,
     })
     .returning();
-  return c.json({ issue }, 201);
+  return c.json({ action }, 201);
 });
 
-type IssueMoveBody = { productId?: unknown; repoId?: unknown };
+type ActionMoveBody = { focusId?: unknown; repoId?: unknown };
 
-// Issue movement (SPEC §3): within a product the key (and arc) survive; a
-// cross-product move re-keys from the target's sequence, clears the arc, and
-// retires the old key into issue_key_aliases as a permanent redirect (D18).
-app.post("/api/issues/:id/move", async (c) => {
+// Action movement (SPEC §3): within a focus the key (and arc) survive; a
+// cross-focus move re-keys from the target's sequence, clears the arc, and
+// retires the old key into action_key_aliases as a permanent redirect (D18).
+app.post("/api/actions/:id/move", async (c) => {
   const id = c.req.param("id");
-  const body = (await c.req.json()) as IssueMoveBody;
-  if (typeof body.productId !== "string")
-    return c.json({ error: "productId is required" }, 400);
+  const body = (await c.req.json()) as ActionMoveBody;
+  if (typeof body.focusId !== "string")
+    return c.json({ error: "focusId is required" }, 400);
   const repoId = body.repoId ?? null;
   if (repoId !== null && typeof repoId !== "string")
     return c.json({ error: "repoId must be a string or null" }, 400);
 
   const db = drizzle(c.env.DB);
-  const [existing] = await db.select().from(issues).where(eq(issues.id, id)).limit(1);
-  if (!existing) return c.json({ error: "issue not found" }, 404);
+  const [existing] = await db.select().from(actions).where(eq(actions.id, id)).limit(1);
+  if (!existing) return c.json({ error: "action not found" }, 404);
   const [target] = await db
     .select()
-    .from(products)
-    .where(eq(products.id, body.productId))
+    .from(focuses)
+    .where(eq(focuses.id, body.focusId))
     .limit(1);
-  if (!target) return c.json({ error: "product not found" }, 400);
+  if (!target) return c.json({ error: "focus not found" }, 400);
   if (repoId !== null) {
     const [repo] = await db.select().from(repos).where(eq(repos.id, repoId)).limit(1);
-    if (!repo || repo.productId !== target.id)
-      return c.json({ error: "repo not found in that product" }, 400);
+    if (!repo || repo.focusId !== target.id)
+      return c.json({ error: "repo not found in that focus" }, 400);
   }
-  if (existing.productId === target.id && existing.repoId === repoId)
-    return c.json({ error: "issue is already in that container" }, 400);
+  if (existing.focusId === target.id && existing.repoId === repoId)
+    return c.json({ error: "action is already in that container" }, 400);
 
   const now = new Date();
   const moveData = {
-    fromProductId: existing.productId,
+    fromFocusId: existing.focusId,
     fromRepoId: existing.repoId,
-    toProductId: target.id,
+    toFocusId: target.id,
     toRepoId: repoId,
   };
 
-  if (existing.productId === target.id) {
-    // Within-product move: key and arc are kept.
+  if (existing.focusId === target.id) {
+    // Within-focus move: key and arc are kept.
     const [updated] = await db.batch([
-      db.update(issues).set({ repoId, updatedAt: now }).where(eq(issues.id, id)).returning(),
+      db.update(actions).set({ repoId, updatedAt: now }).where(eq(actions.id, id)).returning(),
       db.insert(activity).values({
         id: newId("act"),
-        issueId: id,
+        actionId: id,
         actorId: c.get("userId"),
         type: "moved",
         data: moveData,
         createdAt: now,
       }),
     ]);
-    return c.json({ issue: updated[0] });
+    return c.json({ action: updated[0] });
   }
 
-  const [oldProduct] = await db
+  const [oldFocus] = await db
     .select()
-    .from(products)
-    .where(eq(products.id, existing.productId))
+    .from(focuses)
+    .where(eq(focuses.id, existing.focusId))
     .limit(1);
-  const oldKey = `${oldProduct!.keyPrefix}-${existing.number}`;
+  const oldKey = `${oldFocus!.keyPrefix}-${existing.number}`;
   const [seq] = await db
-    .update(products)
-    .set({ nextIssueNumber: sql`${products.nextIssueNumber} + 1` })
-    .where(eq(products.id, target.id))
-    .returning({ next: products.nextIssueNumber });
+    .update(focuses)
+    .set({ nextActionNumber: sql`${focuses.nextActionNumber} + 1` })
+    .where(eq(focuses.id, target.id))
+    .returning({ next: focuses.nextActionNumber });
   const number = seq!.next - 1;
   const [updated] = await db.batch([
     db
-      .update(issues)
-      // arcId and parentIssueId reference the old product, so a cross-product
-      // move clears both — the issue lands at the top level of the target
+      .update(actions)
+      // arcId and parentActionId reference the old focus, so a cross-focus
+      // move clears both — the action lands at the top level of the target
       // (PROG-124). Any children keep pointing here and are detached below.
-      .set({ productId: target.id, repoId, arcId: null, parentIssueId: null, number, updatedAt: now })
-      .where(eq(issues.id, id))
+      .set({ focusId: target.id, repoId, arcId: null, parentActionId: null, number, updatedAt: now })
+      .where(eq(actions.id, id))
       .returning(),
-    db.insert(issueKeyAliases).values({ key: oldKey, issueId: id, createdAt: now }),
-    // Detach any sub-issues of the moved issue: they stay in the old product,
-    // so they can't keep a now-cross-product parent (PROG-124, same-product
-    // invariant). They become top-level issues in their original product.
-    db.update(issues).set({ parentIssueId: null, updatedAt: now }).where(eq(issues.parentIssueId, id)),
+    db.insert(actionKeyAliases).values({ key: oldKey, actionId: id, createdAt: now }),
+    // Detach any steps of the moved action: they stay in the old focus,
+    // so they can't keep a now-cross-focus parent (PROG-124, same-focus
+    // invariant). They become top-level actions in their original focus.
+    db.update(actions).set({ parentActionId: null, updatedAt: now }).where(eq(actions.parentActionId, id)),
     db.insert(activity).values({
       id: newId("act"),
-      issueId: id,
+      actionId: id,
       actorId: c.get("userId"),
       type: "moved",
       data: { ...moveData, fromKey: oldKey, toKey: `${target.keyPrefix}-${number}` },
       createdAt: now,
     }),
   ]);
-  return c.json({ issue: updated[0] });
+  return c.json({ action: updated[0] });
 });
 
-type IssuePatchBody = Partial<{
+type ActionPatchBody = Partial<{
   title: string;
   description: string;
-  status: IssueStatus;
-  priority: IssuePriority;
+  status: ActionStatus;
+  priority: ActionPriority;
   estimate: number | null;
   arcId: string | null;
-  parentIssueId: string | null;
+  parentActionId: string | null;
   dueDate: string | null;
   rank: string;
 }>;
 
-// Generalized issue field update — the server side of the optimistic-mutation
+// Generalized action field update — the server side of the optimistic-mutation
 // template. Validates per field; a status change also appends an activity
-// event (the issue page's timeline interleaves these with comments).
-app.patch("/api/issues/:id", async (c) => {
+// event (the action page's timeline interleaves these with comments).
+app.patch("/api/actions/:id", async (c) => {
   const id = c.req.param("id");
-  const body = (await c.req.json()) as IssuePatchBody;
+  const body = (await c.req.json()) as ActionPatchBody;
   const set: Record<string, unknown> = {};
 
   if (body.title !== undefined) {
@@ -1157,15 +1157,15 @@ app.patch("/api/issues/:id", async (c) => {
       return c.json({ error: "description must be a string" }, 400);
     set.description = body.description;
   }
-  if (body.status !== undefined && !ISSUE_STATUSES.includes(body.status))
+  if (body.status !== undefined && !ACTION_STATUSES.includes(body.status))
     return c.json({ error: `invalid status: ${String(body.status)}` }, 400);
   if (body.priority !== undefined) {
-    if (!ISSUE_PRIORITIES.includes(body.priority))
+    if (!ACTION_PRIORITIES.includes(body.priority))
       return c.json({ error: `invalid priority: ${String(body.priority)}` }, 400);
     set.priority = body.priority;
   }
   if (body.estimate !== undefined) {
-    if (body.estimate !== null && !(ISSUE_ESTIMATES as readonly number[]).includes(body.estimate))
+    if (body.estimate !== null && !(ACTION_ESTIMATES as readonly number[]).includes(body.estimate))
       return c.json({ error: `invalid estimate: ${String(body.estimate)}` }, 400);
     set.estimate = body.estimate;
   }
@@ -1183,53 +1183,53 @@ app.patch("/api/issues/:id", async (c) => {
   }
 
   const db = drizzle(c.env.DB);
-  const [existing] = await db.select().from(issues).where(eq(issues.id, id)).limit(1);
-  if (!existing) return c.json({ error: "issue not found" }, 404);
+  const [existing] = await db.select().from(actions).where(eq(actions.id, id)).limit(1);
+  if (!existing) return c.json({ error: "action not found" }, 404);
 
-  // Arc must belong to the issue's product (SPEC §3) — validated against the
+  // Arc must belong to the action's focus (SPEC §3) — validated against the
   // loaded row, hence after the existence check.
   if (body.arcId !== undefined) {
     if (body.arcId !== null) {
       if (typeof body.arcId !== "string") return c.json({ error: "arcId must be a string or null" }, 400);
       const [arc] = await db.select().from(arcs).where(eq(arcs.id, body.arcId)).limit(1);
-      if (!arc || arc.productId !== existing.productId)
-        return c.json({ error: "arc not found in this issue's product" }, 400);
+      if (!arc || arc.focusId !== existing.focusId)
+        return c.json({ error: "arc not found in this action's focus" }, 400);
     }
     set.arcId = body.arcId;
   }
 
-  // Sub-issue reparent (PROG-124): parent must be in the same product, not the
-  // issue itself, and must not introduce a cycle. Walking up from the proposed
+  // Step reparent (PROG-124): parent must be in the same focus, not the
+  // action itself, and must not introduce a cycle. Walking up from the proposed
   // parent and stopping if we reach `id` catches cycles at any depth; the chain
   // is shallow in practice and bounded by a guard against malformed data.
-  if (body.parentIssueId !== undefined) {
-    if (body.parentIssueId !== null) {
-      if (typeof body.parentIssueId !== "string")
-        return c.json({ error: "parentIssueId must be a string or null" }, 400);
-      if (body.parentIssueId === id)
-        return c.json({ error: "an issue cannot be its own parent" }, 400);
+  if (body.parentActionId !== undefined) {
+    if (body.parentActionId !== null) {
+      if (typeof body.parentActionId !== "string")
+        return c.json({ error: "parentActionId must be a string or null" }, 400);
+      if (body.parentActionId === id)
+        return c.json({ error: "an action cannot be its own parent" }, 400);
       const [parent] = await db
         .select()
-        .from(issues)
-        .where(eq(issues.id, body.parentIssueId))
+        .from(actions)
+        .where(eq(actions.id, body.parentActionId))
         .limit(1);
-      if (!parent || parent.productId !== existing.productId)
-        return c.json({ error: "parent issue not found in this issue's product" }, 400);
+      if (!parent || parent.focusId !== existing.focusId)
+        return c.json({ error: "parent action not found in this action's focus" }, 400);
       // Cycle check: follow parent pointers upward; reaching `id` means the
-      // proposed parent is a descendant of this issue.
-      let cursor: string | null = parent.parentIssueId;
+      // proposed parent is a descendant of this action.
+      let cursor: string | null = parent.parentActionId;
       for (let hops = 0; cursor !== null && hops < 1000; hops++) {
         if (cursor === id)
           return c.json({ error: "that move would create a cycle" }, 400);
-        const [next]: { parentIssueId: string | null }[] = await db
-          .select({ parentIssueId: issues.parentIssueId })
-          .from(issues)
-          .where(eq(issues.id, cursor))
+        const [next]: { parentActionId: string | null }[] = await db
+          .select({ parentActionId: actions.parentActionId })
+          .from(actions)
+          .where(eq(actions.id, cursor))
           .limit(1);
-        cursor = next?.parentIssueId ?? null;
+        cursor = next?.parentActionId ?? null;
       }
     }
-    set.parentIssueId = body.parentIssueId;
+    set.parentActionId = body.parentActionId;
   }
 
   const now = new Date();
@@ -1241,102 +1241,102 @@ app.patch("/api/issues/:id", async (c) => {
   if (Object.keys(set).length === 0) return c.json({ error: "no valid fields in patch" }, 400);
   set.updatedAt = now;
 
-  const update = db.update(issues).set(set).where(eq(issues.id, id)).returning();
+  const update = db.update(actions).set(set).where(eq(actions.id, id)).returning();
   if (statusChanged) {
     const [updated] = await db.batch([
       update,
       db.insert(activity).values({
         id: newId("act"),
-        issueId: id,
+        actionId: id,
         actorId: c.get("userId"),
         type: "status_changed",
         data: { from: existing.status, to: body.status },
         createdAt: now,
       }),
     ]);
-    return c.json({ issue: updated[0] });
+    return c.json({ action: updated[0] });
   }
   const [updated] = await update;
-  return c.json({ issue: updated });
+  return c.json({ action: updated });
 });
 
-// Per-issue timeline (D20: not part of the snapshot payload). Carries the
-// issue's git links too — same load moment, same growth profile.
-app.get("/api/issues/:id/timeline", async (c) => {
+// Per-action timeline (D20: not part of the snapshot payload). Carries the
+// action's git links too — same load moment, same growth profile.
+app.get("/api/actions/:id/timeline", async (c) => {
   const id = c.req.param("id");
   const db = drizzle(c.env.DB);
-  const [issueComments, issueActivity, issuePrs, issueCommits] = await db.batch([
-    db.select().from(comments).where(eq(comments.issueId, id)).orderBy(asc(comments.createdAt)),
-    db.select().from(activity).where(eq(activity.issueId, id)).orderBy(asc(activity.createdAt)),
-    db.select().from(prLinks).where(eq(prLinks.issueId, id)).orderBy(asc(prLinks.createdAt)),
+  const [actionComments, actionActivity, actionPrs, actionCommits] = await db.batch([
+    db.select().from(comments).where(eq(comments.actionId, id)).orderBy(asc(comments.createdAt)),
+    db.select().from(activity).where(eq(activity.actionId, id)).orderBy(asc(activity.createdAt)),
+    db.select().from(prLinks).where(eq(prLinks.actionId, id)).orderBy(asc(prLinks.createdAt)),
     db
       .select()
       .from(commitLinks)
-      .where(eq(commitLinks.issueId, id))
+      .where(eq(commitLinks.actionId, id))
       .orderBy(asc(commitLinks.createdAt)),
   ]);
   return c.json({
-    comments: issueComments,
-    activity: issueActivity,
-    pullRequests: issuePrs,
-    commits: issueCommits,
+    comments: actionComments,
+    activity: actionActivity,
+    pullRequests: actionPrs,
+    commits: actionCommits,
   });
 });
 
 // Context bundle (SPEC §11.1, PROG-17): a deterministic Markdown "work order"
-// for an issue and its surroundings — lineage (with the arc description, where
+// for an action and its surroundings — lineage (with the arc description, where
 // epic-level intent lives), comments, and linked PRs/commits — ending in a
 // stable report-back preamble. The shared foundation for the agent-integration
 // surfaces (MCP server, "Work on this" kickoff) and a "copy as prompt" button
-// for manual use. Looked up by KEY (alias-aware via resolveIssueKeys), not the
+// for manual use. Looked up by KEY (alias-aware via resolveActionKeys), not the
 // internal id, so a retired key still resolves and renders the current key.
-app.get("/api/issues/:key/bundle", async (c) => {
+app.get("/api/actions/:key/bundle", async (c) => {
   const key = c.req.param("key").toUpperCase();
-  if (!/^[A-Z]{2,8}-\d+$/.test(key)) return c.json({ error: "malformed issue key" }, 400);
+  if (!/^[A-Z]{2,8}-\d+$/.test(key)) return c.json({ error: "malformed action key" }, 400);
   const db = drizzle(c.env.DB);
 
-  const resolved = await resolveIssueKeys(db, [key]);
-  const issueId = resolved.get(key);
-  if (!issueId) return c.json({ error: `no issue for key ${key}` }, 404);
+  const resolved = await resolveActionKeys(db, [key]);
+  const actionId = resolved.get(key);
+  if (!actionId) return c.json({ error: `no action for key ${key}` }, 404);
 
-  const [issue] = await db.select().from(issues).where(eq(issues.id, issueId)).limit(1);
-  if (!issue) return c.json({ error: `no issue for key ${key}` }, 404);
+  const [action] = await db.select().from(actions).where(eq(actions.id, actionId)).limit(1);
+  if (!action) return c.json({ error: `no action for key ${key}` }, 404);
 
   // Independent reads (no transaction needed) — Promise.all per D31.
-  const [product, repo, arc, tagRows, commentRows, prRows, commitRows] = await Promise.all([
-    db.select().from(products).where(eq(products.id, issue.productId)).limit(1),
-    issue.repoId
-      ? db.select().from(repos).where(eq(repos.id, issue.repoId)).limit(1)
+  const [focus, repo, arc, tagRows, commentRows, prRows, commitRows] = await Promise.all([
+    db.select().from(focuses).where(eq(focuses.id, action.focusId)).limit(1),
+    action.repoId
+      ? db.select().from(repos).where(eq(repos.id, action.repoId)).limit(1)
       : Promise.resolve([]),
-    issue.arcId
-      ? db.select().from(arcs).where(eq(arcs.id, issue.arcId)).limit(1)
+    action.arcId
+      ? db.select().from(arcs).where(eq(arcs.id, action.arcId)).limit(1)
       : Promise.resolve([]),
     db
       .select({ name: tags.name })
-      .from(issueTags)
-      .innerJoin(tags, eq(issueTags.tagId, tags.id))
-      .where(eq(issueTags.issueId, issueId))
+      .from(actionTags)
+      .innerJoin(tags, eq(actionTags.tagId, tags.id))
+      .where(eq(actionTags.actionId, actionId))
       .orderBy(asc(tags.name)),
     db
       .select({ body: comments.body, createdAt: comments.createdAt, author: users.name })
       .from(comments)
       .innerJoin(users, eq(comments.authorId, users.id))
-      .where(eq(comments.issueId, issueId))
+      .where(eq(comments.actionId, actionId))
       .orderBy(asc(comments.createdAt)),
-    db.select().from(prLinks).where(eq(prLinks.issueId, issueId)).orderBy(asc(prLinks.createdAt)),
+    db.select().from(prLinks).where(eq(prLinks.actionId, actionId)).orderBy(asc(prLinks.createdAt)),
     db
       .select()
       .from(commitLinks)
-      .where(eq(commitLinks.issueId, issueId))
+      .where(eq(commitLinks.actionId, actionId))
       .orderBy(asc(commitLinks.createdAt)),
   ]);
 
   const md = renderBundle({
-    // Canonical current key (normalizes an alias request), from the product
-    // prefix + issue number — keys are derived, never stored (D18).
-    key: `${product[0]!.keyPrefix}-${issue.number}`,
-    issue,
-    product: product[0]!,
+    // Canonical current key (normalizes an alias request), from the focus
+    // prefix + action number — keys are derived, never stored (D18).
+    key: `${focus[0]!.keyPrefix}-${action.number}`,
+    action,
+    focus: focus[0]!,
     repo: repo[0] ?? null,
     arc: arc[0] ?? null,
     tags: tagRows.map((t) => t.name),
@@ -1349,9 +1349,9 @@ app.get("/api/issues/:key/bundle", async (c) => {
 });
 
 // Arc-level work order (PROG: arc "copy as prompt"): a single deterministic
-// Markdown prompt covering every OPEN issue in an arc (done/canceled dropped),
-// each rendered in the same shape as the per-issue bundle, ending in
-// combined-PR orchestration that fans the issues out to sub-agents and lands
+// Markdown prompt covering every OPEN action in an arc (done/canceled dropped),
+// each rendered in the same shape as the per-action bundle, ending in
+// combined-PR orchestration that fans the actions out to sub-agents and lands
 // them in one PR. Looked up by the arc's internal id (the arc page has it).
 app.get("/api/arcs/:id/bundle", async (c) => {
   const id = c.req.param("id");
@@ -1360,56 +1360,56 @@ app.get("/api/arcs/:id/bundle", async (c) => {
   const [arc] = await db.select().from(arcs).where(eq(arcs.id, id)).limit(1);
   if (!arc) return c.json({ error: `no arc with id ${id}` }, 404);
 
-  const [product] = await db
+  const [focus] = await db
     .select()
-    .from(products)
-    .where(eq(products.id, arc.productId))
+    .from(focuses)
+    .where(eq(focuses.id, arc.focusId))
     .limit(1);
-  if (!product) return c.json({ error: `arc ${id} has no product` }, 500);
+  if (!focus) return c.json({ error: `arc ${id} has no focus` }, 500);
 
-  // Open issues only — drop terminal (done/canceled). Pre-sort by status order
+  // Open actions only — drop terminal (done/canceled). Pre-sort by status order
   // then number so the render is deterministic (mirrors the arc page's default
   // "status" sort intent; status enum is stored, so sort in JS below).
-  const openIssues = await db
+  const openActions = await db
     .select()
-    .from(issues)
-    .where(and(eq(issues.arcId, id), notInArray(issues.status, [...CLOSED_ISSUE_STATUSES])));
-  const statusRank = new Map(ISSUE_STATUSES.map((s, i) => [s, i]));
-  openIssues.sort(
+    .from(actions)
+    .where(and(eq(actions.arcId, id), notInArray(actions.status, [...CLOSED_ACTION_STATUSES])));
+  const statusRank = new Map(ACTION_STATUSES.map((s, i) => [s, i]));
+  openActions.sort(
     (a, b) => statusRank.get(a.status)! - statusRank.get(b.status)! || a.number - b.number,
   );
 
   const baseUrl = new URL(c.req.url).origin;
-  // Per-issue context (repo, tags, comments, PRs, commits), gathered in
-  // parallel across issues — independent reads, no transaction (D31).
-  const issueData: ArcIssueData[] = await Promise.all(
-    openIssues.map(async (issue): Promise<ArcIssueData> => {
+  // Per-action context (repo, tags, comments, PRs, commits), gathered in
+  // parallel across actions — independent reads, no transaction (D31).
+  const actionData: ArcActionData[] = await Promise.all(
+    openActions.map(async (action): Promise<ArcActionData> => {
       const [repo, tagRows, commentRows, prRows, commitRows] = await Promise.all([
-        issue.repoId
-          ? db.select().from(repos).where(eq(repos.id, issue.repoId)).limit(1)
+        action.repoId
+          ? db.select().from(repos).where(eq(repos.id, action.repoId)).limit(1)
           : Promise.resolve([]),
         db
           .select({ name: tags.name })
-          .from(issueTags)
-          .innerJoin(tags, eq(issueTags.tagId, tags.id))
-          .where(eq(issueTags.issueId, issue.id))
+          .from(actionTags)
+          .innerJoin(tags, eq(actionTags.tagId, tags.id))
+          .where(eq(actionTags.actionId, action.id))
           .orderBy(asc(tags.name)),
         db
           .select({ body: comments.body, createdAt: comments.createdAt, author: users.name })
           .from(comments)
           .innerJoin(users, eq(comments.authorId, users.id))
-          .where(eq(comments.issueId, issue.id))
+          .where(eq(comments.actionId, action.id))
           .orderBy(asc(comments.createdAt)),
-        db.select().from(prLinks).where(eq(prLinks.issueId, issue.id)).orderBy(asc(prLinks.createdAt)),
+        db.select().from(prLinks).where(eq(prLinks.actionId, action.id)).orderBy(asc(prLinks.createdAt)),
         db
           .select()
           .from(commitLinks)
-          .where(eq(commitLinks.issueId, issue.id))
+          .where(eq(commitLinks.actionId, action.id))
           .orderBy(asc(commitLinks.createdAt)),
       ]);
       return {
-        key: `${product.keyPrefix}-${issue.number}`,
-        issue,
+        key: `${focus.keyPrefix}-${action.number}`,
+        action,
         repo: repo[0] ?? null,
         tags: tagRows.map((t) => t.name),
         comments: commentRows,
@@ -1419,11 +1419,11 @@ app.get("/api/arcs/:id/bundle", async (c) => {
     }),
   );
 
-  const md = renderArcBundle({ arc, product, issues: issueData, baseUrl });
+  const md = renderArcBundle({ arc, focus, actions: actionData, baseUrl });
   return c.body(md, 200, { "Content-Type": "text/markdown; charset=utf-8" });
 });
 
-app.post("/api/issues/:id/comments", async (c) => {
+app.post("/api/actions/:id/comments", async (c) => {
   const id = c.req.param("id");
   const body = (await c.req.json()) as { id?: string; body?: string };
   if (typeof body.body !== "string" || body.body.trim() === "")
@@ -1441,11 +1441,11 @@ app.post("/api/issues/:id/comments", async (c) => {
   const db = drizzle(c.env.DB);
   const userId = c.get("userId");
   const [existing] = await db
-    .select({ id: issues.id })
-    .from(issues)
-    .where(eq(issues.id, id))
+    .select({ id: actions.id })
+    .from(actions)
+    .where(eq(actions.id, id))
     .limit(1);
-  if (!existing) return c.json({ error: "issue not found" }, 404);
+  if (!existing) return c.json({ error: "action not found" }, 404);
 
   // Insert with the supplied id (or a fresh one), tolerating a pre-existing row
   // so a retry — or two same-id requests racing — never throws a PK violation
@@ -1457,7 +1457,7 @@ app.post("/api/issues/:id/comments", async (c) => {
     .insert(comments)
     .values({
       id: commentId,
-      issueId: id,
+      actionId: id,
       authorId: userId,
       body: body.body,
       createdAt: now,
@@ -1468,15 +1468,15 @@ app.post("/api/issues/:id/comments", async (c) => {
   if (comment) return c.json({ comment }, 201);
 
   // Conflict: the id already exists. Treat it as success only when the existing
-  // row belongs to the same author *and* issue — never return another user's row
-  // and never silently re-home it onto a different issue (the user-scoping guard
+  // row belongs to the same author *and* action — never return another user's row
+  // and never silently re-home it onto a different action (the user-scoping guard
   // PROG-51). Anything else is a genuine conflict.
   const [prior] = await db
     .select()
     .from(comments)
     .where(eq(comments.id, commentId))
     .limit(1);
-  if (prior && prior.authorId === userId && prior.issueId === id)
+  if (prior && prior.authorId === userId && prior.actionId === id)
     return c.json({ comment: prior }, 200);
   return c.json({ error: "comment id already exists" }, 409);
 });
@@ -1509,45 +1509,45 @@ async function verifyGitHubSignature(
   return diff === 0;
 }
 
-// Magic words: anything shaped like an issue key. Resolution decides whether
+// Magic words: anything shaped like an action key. Resolution decides whether
 // a candidate is real, so prose like "UTF-8" can't false-positive.
-const ISSUE_KEY_RE = /\b([A-Za-z]{2,8}-\d{1,7})\b/g;
+const ACTION_KEY_RE = /\b([A-Za-z]{2,8}-\d{1,7})\b/g;
 
-function extractIssueKeys(...texts: (string | null | undefined)[]): string[] {
+function extractActionKeys(...texts: (string | null | undefined)[]): string[] {
   const keys = new Set<string>();
   for (const text of texts) {
     if (!text) continue;
-    for (const match of text.matchAll(ISSUE_KEY_RE)) keys.add(match[1]!.toUpperCase());
+    for (const match of text.matchAll(ACTION_KEY_RE)) keys.add(match[1]!.toUpperCase());
   }
   return [...keys];
 }
 
-// Key → issue id, checking current keys first and then the permanent
-// aliases, mirroring the client's findIssueByKey (SPEC §3: references in
+// Key → action id, checking current keys first and then the permanent
+// aliases, mirroring the client's findActionByKey (SPEC §3: references in
 // commits and notes never break).
-async function resolveIssueKeys(
+async function resolveActionKeys(
   db: ReturnType<typeof drizzle>,
   candidates: string[],
 ): Promise<Map<string, string>> {
   const resolved = new Map<string, string>();
   if (candidates.length === 0) return resolved;
-  const allProducts = await db
-    .select({ id: products.id, keyPrefix: products.keyPrefix })
-    .from(products);
-  const productByPrefix = new Map(allProducts.map((p) => [p.keyPrefix.toUpperCase(), p.id]));
+  const allFocuses = await db
+    .select({ id: focuses.id, keyPrefix: focuses.keyPrefix })
+    .from(focuses);
+  const focusByPrefix = new Map(allFocuses.map((p) => [p.keyPrefix.toUpperCase(), p.id]));
 
   const aliasCandidates: string[] = [];
   for (const key of candidates) {
     const [prefix, num] = key.split("-");
-    const productId = productByPrefix.get(prefix!);
-    if (productId) {
-      const [issue] = await db
-        .select({ id: issues.id })
-        .from(issues)
-        .where(and(eq(issues.productId, productId), eq(issues.number, Number(num))))
+    const focusId = focusByPrefix.get(prefix!);
+    if (focusId) {
+      const [action] = await db
+        .select({ id: actions.id })
+        .from(actions)
+        .where(and(eq(actions.focusId, focusId), eq(actions.number, Number(num))))
         .limit(1);
-      if (issue) {
-        resolved.set(key, issue.id);
+      if (action) {
+        resolved.set(key, action.id);
         continue;
       }
     }
@@ -1556,9 +1556,9 @@ async function resolveIssueKeys(
   if (aliasCandidates.length > 0) {
     const aliasRows = await db
       .select()
-      .from(issueKeyAliases)
-      .where(inArray(issueKeyAliases.key, aliasCandidates));
-    for (const row of aliasRows) resolved.set(row.key, row.issueId);
+      .from(actionKeyAliases)
+      .where(inArray(actionKeyAliases.key, aliasCandidates));
+    for (const row of aliasRows) resolved.set(row.key, row.actionId);
   }
   return resolved;
 }
@@ -1590,35 +1590,35 @@ type PullRequestPayload = {
 async function handlePush(db: ReturnType<typeof drizzle>, payload: PushPayload) {
   const githubRepo = payload.repository?.full_name ?? "unknown";
   const branch = payload.ref?.replace(/^refs\/heads\//, "") ?? "";
-  const branchKeys = extractIssueKeys(branch);
+  const branchKeys = extractActionKeys(branch);
   const pushCommits = payload.commits ?? [];
 
   const allKeys = new Set(branchKeys);
   for (const commit of pushCommits)
-    for (const key of extractIssueKeys(commit.message)) allKeys.add(key);
-  const resolved = await resolveIssueKeys(db, [...allKeys]);
+    for (const key of extractActionKeys(commit.message)) allKeys.add(key);
+  const resolved = await resolveActionKeys(db, [...allKeys]);
   if (resolved.size === 0) return { ok: true, linked: 0 };
 
   const now = new Date();
   let linked = 0;
   for (const commit of pushCommits) {
     if (!commit.id) continue;
-    const keys = [...branchKeys, ...extractIssueKeys(commit.message)];
-    const issueIds = new Set(
+    const keys = [...branchKeys, ...extractActionKeys(commit.message)];
+    const actionIds = new Set(
       keys.map((key) => resolved.get(key)).filter((id): id is string => id !== undefined),
     );
     const message = (commit.message ?? "").split("\n")[0]!.slice(0, 200);
-    for (const issueId of issueIds) {
+    for (const actionId of actionIds) {
       const [inserted] = await db
         .insert(commitLinks)
-        .values({ issueId, githubRepo, sha: commit.id, message, url: commit.url ?? "", createdAt: now })
+        .values({ actionId, githubRepo, sha: commit.id, message, url: commit.url ?? "", createdAt: now })
         .onConflictDoNothing()
         .returning();
       if (!inserted) continue;
       linked++;
       await db.insert(activity).values({
         id: newId("act"),
-        issueId,
+        actionId,
         actorId: OWNER_ID,
         type: "commit_linked",
         data: { githubRepo, sha: commit.id, message, url: commit.url ?? "", branch },
@@ -1637,7 +1637,7 @@ async function handlePullRequest(db: ReturnType<typeof drizzle>, payload: PullRe
   const pr = payload.pull_request;
   if (!pr?.number) return { ok: true, linked: 0 };
   const githubRepo = payload.repository?.full_name ?? "unknown";
-  const resolved = await resolveIssueKeys(db, extractIssueKeys(pr.title, pr.body, pr.head?.ref));
+  const resolved = await resolveActionKeys(db, extractActionKeys(pr.title, pr.body, pr.head?.ref));
   if (resolved.size === 0) return { ok: true, linked: 0 };
 
   const state: PrState = pr.merged ? "merged" : pr.state === "closed" ? "closed" : "open";
@@ -1647,13 +1647,13 @@ async function handlePullRequest(db: ReturnType<typeof drizzle>, payload: PullRe
   const now = new Date();
   let linked = 0;
 
-  for (const issueId of new Set(resolved.values())) {
+  for (const actionId of new Set(resolved.values())) {
     const [existing] = await db
-      .select({ issueId: prLinks.issueId })
+      .select({ actionId: prLinks.actionId })
       .from(prLinks)
       .where(
         and(
-          eq(prLinks.issueId, issueId),
+          eq(prLinks.actionId, actionId),
           eq(prLinks.githubRepo, githubRepo),
           eq(prLinks.prNumber, pr.number),
         ),
@@ -1665,7 +1665,7 @@ async function handlePullRequest(db: ReturnType<typeof drizzle>, payload: PullRe
         .set({ title, state, url, sourceBranch, updatedAt: now })
         .where(
           and(
-            eq(prLinks.issueId, issueId),
+            eq(prLinks.actionId, actionId),
             eq(prLinks.githubRepo, githubRepo),
             eq(prLinks.prNumber, pr.number),
           ),
@@ -1674,7 +1674,7 @@ async function handlePullRequest(db: ReturnType<typeof drizzle>, payload: PullRe
     }
     await db.batch([
       db.insert(prLinks).values({
-        issueId,
+        actionId,
         githubRepo,
         prNumber: pr.number,
         title,
@@ -1686,7 +1686,7 @@ async function handlePullRequest(db: ReturnType<typeof drizzle>, payload: PullRe
       }),
       db.insert(activity).values({
         id: newId("act"),
-        issueId,
+        actionId,
         actorId: OWNER_ID,
         type: "pr_linked",
         data: { githubRepo, prNumber: pr.number, title, url, state },
@@ -1711,7 +1711,7 @@ app.post("/api/webhooks/github", async (c) => {
   if (event === "push") return c.json(await handlePush(db, JSON.parse(rawBody) as PushPayload));
   if (event === "pull_request")
     return c.json(await handlePullRequest(db, JSON.parse(rawBody) as PullRequestPayload));
-  // Everything else (ping, issues, etc.): acknowledged, ignored.
+  // Everything else (ping, actions, etc.): acknowledged, ignored.
   return c.json({ ok: true, ignored: event });
 });
 

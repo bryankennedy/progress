@@ -1,9 +1,9 @@
 // Display names for the fixed vocabularies (SPEC §3) — one copy shared by
 // the board, pages, and the command palette.
 
-import type { IssuePriority, IssueStatus } from "../shared/constants";
+import type { ActionPriority, ActionStatus } from "../shared/constants";
 
-export const STATUS_LABELS: Record<IssueStatus, string> = {
+export const STATUS_LABELS: Record<ActionStatus, string> = {
   backlog: "Backlog",
   todo: "Todo",
   in_progress: "In Progress",
@@ -12,7 +12,7 @@ export const STATUS_LABELS: Record<IssueStatus, string> = {
   canceled: "Canceled",
 };
 
-export const PRIORITY_LABELS: Record<IssuePriority, string> = {
+export const PRIORITY_LABELS: Record<ActionPriority, string> = {
   urgent: "Urgent",
   high: "High",
   medium: "Medium",
@@ -25,9 +25,9 @@ export const PRIORITY_LABELS: Record<IssuePriority, string> = {
 // urgent→high→medium→low descend red→orange→gold→slate, but toned off the raw
 // spectrum to sit in the app's warm "Adobe & Moss" palette rather than reading
 // as stock UI colors — urgent reuses the on-system danger tomato. Defined once;
-// used by the board, Agenda, issue page, and container lists. `null` = "none",
+// used by the board, Agenda, action page, and container lists. `null` = "none",
 // which renders as faded/empty bars (no fill of its own).
-export const PRIORITY_COLORS: Record<IssuePriority, string | null> = {
+export const PRIORITY_COLORS: Record<ActionPriority, string | null> = {
   urgent: "#b23c28",
   high: "#bd6a30",
   medium: "#c79a31",

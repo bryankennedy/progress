@@ -3,14 +3,14 @@
 // need a React context to reach the singleton palette/dialog in CommandLayer.
 
 export type PaletteMode =
-  | { kind: "root"; issueId: string | null }
+  | { kind: "root"; actionId: string | null }
   | {
       kind: "status" | "priority" | "estimate" | "move" | "tag" | "arc" | "due" | "workon";
-      issueId: string;
+      actionId: string;
     };
 
 export type CreateDefaults = {
-  productId?: string;
+  focusId?: string;
   repoId?: string | null;
   arcId?: string | null;
 };
@@ -45,14 +45,14 @@ export const onOpenSearch = search.on;
 
 const create = channel<CreateDefaults | undefined>();
 // Defaults omitted → the dialog derives its container from the current route.
-export const openCreateIssue = (defaults?: CreateDefaults) => create.emit(defaults);
-export const onOpenCreateIssue = create.on;
+export const openCreateAction = (defaults?: CreateDefaults) => create.emit(defaults);
+export const onOpenCreateAction = create.on;
 
 export type ContainerDialogRequest =
-  | { kind: "initiative" }
-  | { kind: "product"; initiativeId?: string }
-  | { kind: "repo"; productId?: string }
-  | { kind: "arc"; productId?: string };
+  | { kind: "workspace" }
+  | { kind: "focus"; workspaceId?: string }
+  | { kind: "repo"; focusId?: string }
+  | { kind: "arc"; focusId?: string };
 
 const createContainer = channel<ContainerDialogRequest>();
 // Parent omitted → the dialog derives it from the current route.

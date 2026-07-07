@@ -20,9 +20,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import {
-  ISSUE_ESTIMATES,
-  ISSUE_PRIORITIES,
-  ISSUE_STATUSES,
+  ACTION_ESTIMATES,
+  ACTION_PRIORITIES,
+  ACTION_STATUSES,
 } from "../shared/constants";
 
 // ---------------------------------------------------------------------------
@@ -82,24 +82,24 @@ async function apiJson(method: string, path: string, body?: unknown): Promise<an
 // ---------------------------------------------------------------------------
 // Snapshot + alias-aware key resolution
 // ---------------------------------------------------------------------------
-// Issue keys are derived (PREFIX-number), never stored, and a cross-product move
-// retires the old key into issueKeyAliases as a permanent redirect (D18). We
+// Action keys are derived (PREFIX-number), never stored, and a cross-focus move
+// retires the old key into actionKeyAliases as a permanent redirect (D18). We
 // resolve both forms off one snapshot snapshot, the same way the Worker does.
 
 type Snapshot = {
-  products: any[];
+  focuses: any[];
   repos: any[];
   arcs: any[];
-  issues: any[];
+  actions: any[];
   tags: any[];
-  issueTags: any[];
-  issueKeyAliases: any[];
+  actionTags: any[];
+  actionKeyAliases: any[];
 };
 
 type Resolved = {
   ws: Snapshot;
-  issue: any;
-  product: any;
+  action: any;
+  focus: any;
   repo: any | null;
   arc: any | null;
   key: string;
@@ -109,59 +109,59 @@ async function snapshot(): Promise<Snapshot> {
   return (await apiJson("GET", "/api/snapshot")) as Snapshot;
 }
 
-function prefixOf(ws: Snapshot, productId: string): string {
-  return ws.products.find((p) => p.id === productId)?.keyPrefix ?? "???";
+function prefixOf(ws: Snapshot, focusId: string): string {
+  return ws.focuses.find((p) => p.id === focusId)?.keyPrefix ?? "???";
 }
 
-function liveKey(ws: Snapshot, issue: any): string {
-  return `${prefixOf(ws, issue.productId)}-${issue.number}`;
+function liveKey(ws: Snapshot, action: any): string {
+  return `${prefixOf(ws, action.focusId)}-${action.number}`;
 }
 
 function normalizeKey(raw: string): string {
   return raw.trim().toUpperCase();
 }
 
-// key → issue, honoring current keys first then retired aliases.
-function findIssueByKey(ws: Snapshot, rawKey: string): any | null {
+// key → action, honoring current keys first then retired aliases.
+function findActionByKey(ws: Snapshot, rawKey: string): any | null {
   const key = normalizeKey(rawKey);
-  const live = ws.issues.find((i) => liveKey(ws, i) === key);
+  const live = ws.actions.find((i) => liveKey(ws, i) === key);
   if (live) return live;
-  const alias = ws.issueKeyAliases.find((a) => a.key.toUpperCase() === key);
-  if (alias) return ws.issues.find((i) => i.id === alias.issueId) ?? null;
+  const alias = ws.actionKeyAliases.find((a) => a.key.toUpperCase() === key);
+  if (alias) return ws.actions.find((i) => i.id === alias.actionId) ?? null;
   return null;
 }
 
 async function resolve(rawKey: string): Promise<Resolved> {
   const ws = await snapshot();
-  const issue = findIssueByKey(ws, rawKey);
-  if (!issue) throw new Error(`No issue found for key ${normalizeKey(rawKey)}.`);
-  const product = ws.products.find((p) => p.id === issue.productId) ?? null;
-  const repo = issue.repoId ? ws.repos.find((r) => r.id === issue.repoId) ?? null : null;
-  const arc = issue.arcId ? ws.arcs.find((a) => a.id === issue.arcId) ?? null : null;
-  return { ws, issue, product, repo, arc, key: liveKey(ws, issue) };
+  const action = findActionByKey(ws, rawKey);
+  if (!action) throw new Error(`No action found for key ${normalizeKey(rawKey)}.`);
+  const focus = ws.focuses.find((p) => p.id === action.focusId) ?? null;
+  const repo = action.repoId ? ws.repos.find((r) => r.id === action.repoId) ?? null : null;
+  const arc = action.arcId ? ws.arcs.find((a) => a.id === action.arcId) ?? null : null;
+  return { ws, action, focus, repo, arc, key: liveKey(ws, action) };
 }
 
-function tagNamesFor(ws: Snapshot, issueId: string): string[] {
-  const ids = new Set(ws.issueTags.filter((t) => t.issueId === issueId).map((t) => t.tagId));
+function tagNamesFor(ws: Snapshot, actionId: string): string[] {
+  const ids = new Set(ws.actionTags.filter((t) => t.actionId === actionId).map((t) => t.tagId));
   return ws.tags
     .filter((t) => ids.has(t.id))
     .map((t) => t.name)
     .sort();
 }
 
-// Compact, agent-friendly view of an issue (keys, not opaque ids).
-function summarize(ws: Snapshot, issue: any) {
+// Compact, agent-friendly view of an action (keys, not opaque ids).
+function summarize(ws: Snapshot, action: any) {
   return {
-    key: liveKey(ws, issue),
-    title: issue.title,
-    status: issue.status,
-    priority: issue.priority,
-    estimate: issue.estimate,
-    dueDate: issue.dueDate ?? null,
-    product: prefixOf(ws, issue.productId),
-    repo: issue.repoId ? ws.repos.find((r) => r.id === issue.repoId)?.name ?? null : null,
-    arc: issue.arcId ? ws.arcs.find((a) => a.id === issue.arcId)?.name ?? null : null,
-    tags: tagNamesFor(ws, issue.id),
+    key: liveKey(ws, action),
+    title: action.title,
+    status: action.status,
+    priority: action.priority,
+    estimate: action.estimate,
+    dueDate: action.dueDate ?? null,
+    focus: prefixOf(ws, action.focusId),
+    repo: action.repoId ? ws.repos.find((r) => r.id === action.repoId)?.name ?? null : null,
+    arc: action.arcId ? ws.arcs.find((a) => a.id === action.arcId)?.name ?? null : null,
+    tags: tagNamesFor(ws, action.id),
   };
 }
 
@@ -178,20 +178,20 @@ const json = (v: unknown) => text(JSON.stringify(v, null, 2));
 
 const server = new McpServer({ name: "progress", version: "0.1.0" });
 
-const KEY = z.string().describe("Issue key like PROG-18 (retired/alias keys resolve too)");
+const KEY = z.string().describe("Action key like PROG-18 (retired/alias keys resolve too)");
 
 server.registerTool(
   "get_bundle",
   {
-    title: "Get issue bundle",
+    title: "Get action bundle",
     description:
-      "Fetch the deterministic Markdown work-order for an issue — title, status, full lineage " +
-      "(product → repo with gitUrl → arc), comments, linked PRs/commits, and a report-back " +
-      "preamble. This is the canonical context to start work on an issue.",
+      "Fetch the deterministic Markdown work-order for an action — title, status, full lineage " +
+      "(focus → repo with gitUrl → arc), comments, linked PRs/commits, and a report-back " +
+      "preamble. This is the canonical context to start work on an action.",
     inputSchema: { key: KEY },
   },
   async ({ key }) => {
-    const res = await api("GET", `/api/issues/${normalizeKey(key)}/bundle`);
+    const res = await api("GET", `/api/actions/${normalizeKey(key)}/bundle`);
     const body = await res.text();
     if (!res.ok) throw new Error(`get_bundle ${normalizeKey(key)} → ${res.status}: ${body}`);
     return text(body);
@@ -199,18 +199,18 @@ server.registerTool(
 );
 
 server.registerTool(
-  "get_issue",
+  "get_action",
   {
-    title: "Get issue",
-    description: "Get one issue as structured JSON (key, fields, lineage names, tags).",
+    title: "Get action",
+    description: "Get one action as structured JSON (key, fields, lineage names, tags).",
     inputSchema: { key: KEY },
   },
   async ({ key }) => {
     const r = await resolve(key);
     return json({
-      ...summarize(r.ws, r.issue),
-      description: r.issue.description,
-      productName: r.product?.name ?? null,
+      ...summarize(r.ws, r.action),
+      description: r.action.description,
+      focusName: r.focus?.name ?? null,
       repoGitUrl: r.repo?.gitUrl ?? null,
       arcDescription: r.arc?.description ?? null,
     });
@@ -218,45 +218,45 @@ server.registerTool(
 );
 
 server.registerTool(
-  "list_issues",
+  "list_actions",
   {
-    title: "List / filter issues",
+    title: "List / filter actions",
     description:
-      "List issues with optional filters. All filters AND together. Returns compact summaries " +
+      "List actions with optional filters. All filters AND together. Returns compact summaries " +
       "(key, title, status, priority, repo, arc, tags). Use this for 'my todo in repo X' queries.",
     inputSchema: {
-      status: z.enum(ISSUE_STATUSES).optional().describe("Exact status filter"),
-      productKey: z.string().optional().describe("Product key prefix, e.g. PROG"),
+      status: z.enum(ACTION_STATUSES).optional().describe("Exact status filter"),
+      focusKey: z.string().optional().describe("Focus key prefix, e.g. PROG"),
       repo: z.string().optional().describe("Repo name (exact)"),
       arc: z.string().optional().describe("Arc name (exact)"),
-      tag: z.string().optional().describe("Tag name the issue carries"),
+      tag: z.string().optional().describe("Tag name the action carries"),
       query: z.string().optional().describe("Case-insensitive substring of title or description"),
       limit: z.number().int().positive().max(200).optional().describe("Max results (default 50)"),
     },
   },
-  async ({ status, productKey, repo, arc, tag, query, limit }) => {
+  async ({ status, focusKey, repo, arc, tag, query, limit }) => {
     const ws = await snapshot();
-    const productId = productKey
-      ? ws.products.find((p) => p.keyPrefix.toUpperCase() === productKey.toUpperCase())?.id
+    const focusId = focusKey
+      ? ws.focuses.find((p) => p.keyPrefix.toUpperCase() === focusKey.toUpperCase())?.id
       : undefined;
-    if (productKey && !productId) throw new Error(`No product with key prefix ${productKey}.`);
+    if (focusKey && !focusId) throw new Error(`No focus with key prefix ${focusKey}.`);
     const repoId = repo ? ws.repos.find((r) => r.name === repo)?.id : undefined;
     if (repo && !repoId) throw new Error(`No repo named "${repo}".`);
     const arcId = arc ? ws.arcs.find((a) => a.name === arc)?.id : undefined;
     if (arc && !arcId) throw new Error(`No arc named "${arc}".`);
     const tagId = tag ? ws.tags.find((t) => t.name === tag)?.id : undefined;
     if (tag && !tagId) throw new Error(`No tag named "${tag}".`);
-    const taggedIssueIds = tagId
-      ? new Set(ws.issueTags.filter((t) => t.tagId === tagId).map((t) => t.issueId))
+    const taggedActionIds = tagId
+      ? new Set(ws.actionTags.filter((t) => t.tagId === tagId).map((t) => t.actionId))
       : null;
     const q = query?.toLowerCase();
 
-    const matches = ws.issues
+    const matches = ws.actions
       .filter((i) => (status ? i.status === status : true))
-      .filter((i) => (productId ? i.productId === productId : true))
+      .filter((i) => (focusId ? i.focusId === focusId : true))
       .filter((i) => (repoId ? i.repoId === repoId : true))
       .filter((i) => (arcId ? i.arcId === arcId : true))
-      .filter((i) => (taggedIssueIds ? taggedIssueIds.has(i.id) : true))
+      .filter((i) => (taggedActionIds ? taggedActionIds.has(i.id) : true))
       .filter((i) =>
         q
           ? i.title.toLowerCase().includes(q) || (i.description ?? "").toLowerCase().includes(q)
@@ -265,50 +265,50 @@ server.registerTool(
 
     const total = matches.length;
     const capped = matches.slice(0, limit ?? 50).map((i) => summarize(ws, i));
-    return json({ total, returned: capped.length, issues: capped });
+    return json({ total, returned: capped.length, actions: capped });
   },
 );
 
 server.registerTool(
-  "create_issue",
+  "create_action",
   {
-    title: "Create issue",
+    title: "Create action",
     description:
-      "Create a new issue in a product. arc/repo are referenced by name and must belong to that " +
-      "product. Returns the new issue's key.",
+      "Create a new action in a focus. arc/repo are referenced by name and must belong to that " +
+      "focus. Returns the new action's key.",
     inputSchema: {
-      productKey: z.string().describe("Product key prefix, e.g. PROG"),
+      focusKey: z.string().describe("Focus key prefix, e.g. PROG"),
       title: z.string().min(1),
       description: z.string().optional(),
-      status: z.enum(ISSUE_STATUSES).optional().describe("Default backlog"),
-      priority: z.enum(ISSUE_PRIORITIES).optional().describe("Default none"),
+      status: z.enum(ACTION_STATUSES).optional().describe("Default backlog"),
+      priority: z.enum(ACTION_PRIORITIES).optional().describe("Default none"),
       estimate: z
         .number()
         .optional()
-        .describe(`Points, one of ${ISSUE_ESTIMATES.join(", ")}`),
-      arc: z.string().optional().describe("Arc name within the product"),
-      repo: z.string().optional().describe("Repo name within the product"),
+        .describe(`Points, one of ${ACTION_ESTIMATES.join(", ")}`),
+      arc: z.string().optional().describe("Arc name within the focus"),
+      repo: z.string().optional().describe("Repo name within the focus"),
       dueDate: z.string().optional().describe("Optional due date as YYYY-MM-DD (calendar day)"),
     },
   },
-  async ({ productKey, title, description, status, priority, estimate, arc, repo, dueDate }) => {
+  async ({ focusKey, title, description, status, priority, estimate, arc, repo, dueDate }) => {
     const ws = await snapshot();
-    const product = ws.products.find((p) => p.keyPrefix.toUpperCase() === productKey.toUpperCase());
-    if (!product) throw new Error(`No product with key prefix ${productKey}.`);
+    const focus = ws.focuses.find((p) => p.keyPrefix.toUpperCase() === focusKey.toUpperCase());
+    if (!focus) throw new Error(`No focus with key prefix ${focusKey}.`);
     let arcId: string | null = null;
     if (arc) {
-      const found = ws.arcs.find((a) => a.name === arc && a.productId === product.id);
-      if (!found) throw new Error(`No arc named "${arc}" in ${product.keyPrefix}.`);
+      const found = ws.arcs.find((a) => a.name === arc && a.focusId === focus.id);
+      if (!found) throw new Error(`No arc named "${arc}" in ${focus.keyPrefix}.`);
       arcId = found.id;
     }
     let repoId: string | null = null;
     if (repo) {
-      const found = ws.repos.find((r) => r.name === repo && r.productId === product.id);
-      if (!found) throw new Error(`No repo named "${repo}" in ${product.keyPrefix}.`);
+      const found = ws.repos.find((r) => r.name === repo && r.focusId === focus.id);
+      if (!found) throw new Error(`No repo named "${repo}" in ${focus.keyPrefix}.`);
       repoId = found.id;
     }
-    const { issue } = await apiJson("POST", "/api/issues", {
-      productId: product.id,
+    const { action } = await apiJson("POST", "/api/actions", {
+      focusId: focus.id,
       title,
       description: description ?? "",
       status,
@@ -318,39 +318,39 @@ server.registerTool(
       repoId,
       dueDate: dueDate ?? null,
     });
-    return text(`Created ${product.keyPrefix}-${issue.number}: ${issue.title} (${issue.status}).`);
+    return text(`Created ${focus.keyPrefix}-${action.number}: ${action.title} (${action.status}).`);
   },
 );
 
 server.registerTool(
   "update_status",
   {
-    title: "Update issue status",
+    title: "Update action status",
     description:
-      "Move an issue through the fixed status set: " +
-      ISSUE_STATUSES.join(" → ") +
+      "Move an action through the fixed status set: " +
+      ACTION_STATUSES.join(" → ") +
       ". Use as you work (in_progress → in_review → done).",
-    inputSchema: { key: KEY, status: z.enum(ISSUE_STATUSES) },
+    inputSchema: { key: KEY, status: z.enum(ACTION_STATUSES) },
   },
   async ({ key, status }) => {
     const r = await resolve(key);
-    await apiJson("PATCH", `/api/issues/${r.issue.id}`, { status });
-    return text(`${r.key}: ${r.issue.status} → ${status}.`);
+    await apiJson("PATCH", `/api/actions/${r.action.id}`, { status });
+    return text(`${r.key}: ${r.action.status} → ${status}.`);
   },
 );
 
 server.registerTool(
   "set_due_date",
   {
-    title: "Set or clear an issue's due date",
+    title: "Set or clear an action's due date",
     description:
-      "Set an issue's due date to a calendar day (YYYY-MM-DD), or clear it with null. Due dates " +
+      "Set an action's due date to a calendar day (YYYY-MM-DD), or clear it with null. Due dates " +
       "are wall-calendar days (timezone-safe) and drive the Agenda view.",
     inputSchema: { key: KEY, dueDate: z.string().nullable().describe("YYYY-MM-DD, or null to clear") },
   },
   async ({ key, dueDate }) => {
     const r = await resolve(key);
-    await apiJson("PATCH", `/api/issues/${r.issue.id}`, { dueDate });
+    await apiJson("PATCH", `/api/actions/${r.action.id}`, { dueDate });
     return text(dueDate ? `${r.key} due ${dueDate}.` : `${r.key} due date cleared.`);
   },
 );
@@ -358,49 +358,49 @@ server.registerTool(
 server.registerTool(
   "comment",
   {
-    title: "Comment on an issue",
+    title: "Comment on an action",
     description:
-      "Post a Markdown comment — the report-back channel for progress notes. Mention the issue " +
+      "Post a Markdown comment — the report-back channel for progress notes. Mention the action " +
       "key in branches/commits/PRs for automatic linking instead.",
     inputSchema: { key: KEY, body: z.string().min(1) },
   },
   async ({ key, body }) => {
     const r = await resolve(key);
-    await apiJson("POST", `/api/issues/${r.issue.id}/comments`, { body });
+    await apiJson("POST", `/api/actions/${r.action.id}/comments`, { body });
     return text(`Comment posted on ${r.key}.`);
   },
 );
 
 server.registerTool(
-  "move_issue",
+  "move_action",
   {
-    title: "Move issue to another product",
+    title: "Move action to another focus",
     description:
-      "Move an issue to a different product (optionally into one of its repos). A cross-product " +
-      "move re-keys the issue and retires the old key as a permanent alias.",
+      "Move an action to a different focus (optionally into one of its repos). A cross-focus " +
+      "move re-keys the action and retires the old key as a permanent alias.",
     inputSchema: {
       key: KEY,
-      toProductKey: z.string().describe("Destination product key prefix"),
+      toFocusKey: z.string().describe("Destination focus key prefix"),
       repo: z.string().optional().describe("Destination repo name (optional)"),
     },
   },
-  async ({ key, toProductKey, repo }) => {
+  async ({ key, toFocusKey, repo }) => {
     const r = await resolve(key);
-    const target = r.ws.products.find(
-      (p) => p.keyPrefix.toUpperCase() === toProductKey.toUpperCase(),
+    const target = r.ws.focuses.find(
+      (p) => p.keyPrefix.toUpperCase() === toFocusKey.toUpperCase(),
     );
-    if (!target) throw new Error(`No product with key prefix ${toProductKey}.`);
+    if (!target) throw new Error(`No focus with key prefix ${toFocusKey}.`);
     let repoId: string | null = null;
     if (repo) {
-      const found = r.ws.repos.find((x) => x.name === repo && x.productId === target.id);
+      const found = r.ws.repos.find((x) => x.name === repo && x.focusId === target.id);
       if (!found) throw new Error(`No repo named "${repo}" in ${target.keyPrefix}.`);
       repoId = found.id;
     }
-    const { issue } = await apiJson("POST", `/api/issues/${r.issue.id}/move`, {
-      productId: target.id,
+    const { action } = await apiJson("POST", `/api/actions/${r.action.id}/move`, {
+      focusId: target.id,
       repoId,
     });
-    const newKey = `${target.keyPrefix}-${issue.number}`;
+    const newKey = `${target.keyPrefix}-${action.number}`;
     return text(
       newKey === r.key
         ? `Moved ${r.key} within ${target.keyPrefix} (key unchanged).`

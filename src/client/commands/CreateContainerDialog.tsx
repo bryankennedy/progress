@@ -6,10 +6,10 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import type { SnapshotPayload } from "../../shared/types";
-import { createContainer, findIssueByKey, type ContainerCreateInput } from "../store";
+import { createContainer, findActionByKey, type ContainerCreateInput } from "../store";
 import { onOpenCreateContainer, type ContainerDialogRequest } from "./controller";
 
-const KIND_LABELS = { initiative: "initiative", product: "product", repo: "repo", arc: "arc" };
+const KIND_LABELS = { workspace: "workspace", focus: "focus", repo: "repo", arc: "arc" };
 
 // e.g. "My Side Project" → "MYSI"; the user can always override.
 const suggestPrefix = (name: string) =>
@@ -18,19 +18,19 @@ const suggestPrefix = (name: string) =>
     .replaceAll(/[^A-Z]/g, "")
     .slice(0, 4);
 
-// Parent product for repo/arc creation, from wherever the user is.
-function deriveProductId(ws: SnapshotPayload, path: string): string | undefined {
-  let m = /^\/(?:product|repo|arc)\/([^/]+)/.exec(path);
+// Parent focus for repo/arc creation, from wherever the user is.
+function deriveFocusId(ws: SnapshotPayload, path: string): string | undefined {
+  let m = /^\/(?:focus|repo|arc)\/([^/]+)/.exec(path);
   if (m) {
     const id = m[1]!;
     return (
-      ws.products.find((p) => p.id === id)?.id ??
-      ws.repos.find((r) => r.id === id)?.productId ??
-      ws.arcs.find((a) => a.id === id)?.productId
+      ws.focuses.find((p) => p.id === id)?.id ??
+      ws.repos.find((r) => r.id === id)?.focusId ??
+      ws.arcs.find((a) => a.id === id)?.focusId
     );
   }
-  m = /^\/issue\/([^/]+)/.exec(path);
-  if (m) return findIssueByKey(ws, decodeURIComponent(m[1]!))?.issue.productId;
+  m = /^\/action\/([^/]+)/.exec(path);
+  if (m) return findActionByKey(ws, decodeURIComponent(m[1]!))?.action.focusId;
   return undefined;
 }
 
@@ -43,8 +43,8 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
   const [gitUrl, setGitUrl] = useState("");
   const [path, navigate] = useLocation();
 
-  const activeProducts = snapshot.products.filter((p) => !p.archivedAt);
-  const activeInitiatives = snapshot.initiatives.filter((i) => !i.archivedAt);
+  const activeFocuses = snapshot.focuses.filter((p) => !p.archivedAt);
+  const activeWorkspaces = snapshot.workspaces.filter((i) => !i.archivedAt);
 
   useEffect(
     () =>
@@ -54,15 +54,15 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
         setKeyPrefix("");
         setPrefixTouched(false);
         setGitUrl("");
-        if (req.kind === "product") {
+        if (req.kind === "focus") {
           setParentId(
-            ("initiativeId" in req ? req.initiativeId : undefined) ?? activeInitiatives[0]?.id ?? "",
+            ("workspaceId" in req ? req.workspaceId : undefined) ?? activeWorkspaces[0]?.id ?? "",
           );
         } else if (req.kind === "repo" || req.kind === "arc") {
           setParentId(
-            ("productId" in req ? req.productId : undefined) ??
-              deriveProductId(snapshot, path) ??
-              activeProducts[0]?.id ??
+            ("focusId" in req ? req.focusId : undefined) ??
+              deriveFocusId(snapshot, path) ??
+              activeFocuses[0]?.id ??
               "",
           );
         } else {
@@ -76,20 +76,20 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
   if (!request) return null;
   const kind = request.kind;
 
-  const prefixOk = kind !== "product" || /^[A-Z]{2,8}$/.test(keyPrefix);
-  const parentOk = kind === "initiative" || parentId !== "";
+  const prefixOk = kind !== "focus" || /^[A-Z]{2,8}$/.test(keyPrefix);
+  const parentOk = kind === "workspace" || parentId !== "";
   const canSubmit = name.trim() !== "" && prefixOk && parentOk;
 
   const submit = () => {
     if (!canSubmit) return;
     const input: ContainerCreateInput =
-      kind === "initiative"
+      kind === "workspace"
         ? { kind, name }
-        : kind === "product"
-          ? { kind, name, initiativeId: parentId, keyPrefix }
+        : kind === "focus"
+          ? { kind, name, workspaceId: parentId, keyPrefix }
           : kind === "repo"
-            ? { kind, name, productId: parentId, gitUrl: gitUrl.trim() || null }
-            : { kind, name, productId: parentId };
+            ? { kind, name, focusId: parentId, gitUrl: gitUrl.trim() || null }
+            : { kind, name, focusId: parentId };
     const id = createContainer(input);
     setRequest(null);
     navigate(`/${kind}/${id}`);
@@ -121,16 +121,16 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
           value={name}
           onChange={(e) => {
             setName(e.target.value);
-            if (kind === "product" && !prefixTouched) setKeyPrefix(suggestPrefix(e.target.value));
+            if (kind === "focus" && !prefixTouched) setKeyPrefix(suggestPrefix(e.target.value));
           }}
           placeholder={`${KIND_LABELS[kind][0]!.toUpperCase()}${KIND_LABELS[kind].slice(1)} name`}
           className={`mt-2 ${inputClass}`}
         />
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          {kind === "product" && (
+          {kind === "focus" && (
             <>
               <select value={parentId} onChange={(e) => setParentId(e.target.value)} className={selectClass}>
-                {activeInitiatives.map((i) => (
+                {activeWorkspaces.map((i) => (
                   <option key={i.id} value={i.id}>
                     {i.name}
                   </option>
@@ -143,14 +143,14 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
                   setPrefixTouched(true);
                 }}
                 placeholder="KEY"
-                title="Issue-key prefix: 2–8 letters"
+                title="Action-key prefix: 2–8 letters"
                 className="w-24 rounded border border-line px-2 py-1 font-mono text-xs uppercase focus:border-ink-faint focus:outline-none"
               />
             </>
           )}
           {(kind === "repo" || kind === "arc") && (
             <select value={parentId} onChange={(e) => setParentId(e.target.value)} className={selectClass}>
-              {activeProducts.map((p) => (
+              {activeFocuses.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>

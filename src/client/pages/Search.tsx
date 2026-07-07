@@ -1,14 +1,14 @@
 // The search page (PROG-130): the deeper-dive surface to the `/` modal. Same
 // two-wave model — title/description hits come from the in-memory store, comment
 // hits stream in from /api/search — but here results are filterable by the same
-// dimensions as the board (status, product/arc/repo, tag, priority) and the
+// dimensions as the board (status, focus/arc/repo, tag, priority) and the
 // query + filters live in the URL so a search is bookmarkable. The `/` modal's
 // "Open the search page" link hands its text here via ?q=. An empty query is
-// itself a valid search (PROG-78): browse mode — every issue passing the
+// itself a valid search (PROG-78): browse mode — every action passing the
 // filters (all of them by default, so the page opens onto the full list),
-// newest first. Long result sets paginate: issues/containers cap the DOM at
+// newest first. Long result sets paginate: actions/containers cap the DOM at
 // PAGE rows per "Show more" click (the data is already in memory), and the
-// comments section pulls further pages from the server via ?offset=. Issues
+// comments section pulls further pages from the server via ?offset=. Actions
 // render as a table whose column headers sort (asc → desc → back to the
 // default relevance/recency order); the sort is a URL param like the filters.
 // The filter row is the shared FilterBar (PROG-92) — same dropdowns, mobile
@@ -17,32 +17,32 @@
 
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { ISSUE_STATUSES } from "../../shared/constants";
-import type { WireIssue, SnapshotPayload } from "../../shared/types";
+import { ACTION_STATUSES } from "../../shared/constants";
+import type { WireAction, SnapshotPayload } from "../../shared/types";
 import { FILTER_NONE, matchesNullableId, SEARCH_FILTERS_KEY } from "../boardFilters";
 import FilterBar, { useStickyFilterUrl } from "../FilterBar";
 import FilterSelect from "../FilterSelect";
 import {
-  browseIssues,
+  browseActions,
   containerLabel,
   highlight,
-  ISSUE_SORT_KEYS,
+  ACTION_SORT_KEYS,
   queryTerms,
   searchContainers,
-  searchIssues,
-  sortIssueHits,
-  type IssueSort,
-  type IssueSortKey,
+  searchActions,
+  sortActionHits,
+  type ActionSort,
+  type ActionSortKey,
   type Segment,
 } from "../search";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
-import { issueKeyOf, useCommentSearch } from "../store";
+import { actionKeyOf, useCommentSearch } from "../store";
 
 // Rows rendered per section before a "Show more" click (PROG-78 pagination).
 const PAGE = 50;
 
-const FILTER_KEYS = ["initiative", "product", "repo", "arc", "tag", "priority", "status"] as const;
+const FILTER_KEYS = ["workspace", "focus", "repo", "arc", "tag", "priority", "status"] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
 type Filters = Partial<Record<FilterKey, string>>;
 
@@ -50,17 +50,17 @@ type Filters = Partial<Record<FilterKey, string>>;
 // the sticky effect's dependency stays reference-stable.
 const VOLATILE_KEYS = ["q"] as const;
 
-// The issue table's columns (PROG-78): one per displayed dimension, each
+// The action table's columns (PROG-78): one per displayed dimension, each
 // header click-sortable. Order here is the column order.
-const COLUMNS: { key: IssueSortKey; label: string }[] = [
+const COLUMNS: { key: ActionSortKey; label: string }[] = [
   { key: "key", label: "Key" },
   { key: "title", label: "Title" },
-  { key: "product", label: "Product" },
+  { key: "focus", label: "Focus" },
   { key: "status", label: "Status" },
   { key: "priority", label: "Priority" },
 ];
 
-function parseFilters(search: string): { q: string; filters: Filters; sort: IssueSort | null } {
+function parseFilters(search: string): { q: string; filters: Filters; sort: ActionSort | null } {
   const params = new URLSearchParams(search);
   const filters: Filters = {};
   for (const key of FILTER_KEYS) {
@@ -69,9 +69,9 @@ function parseFilters(search: string): { q: string; filters: Filters; sort: Issu
   }
   // Sort lives in the URL like the filters, so a sorted view is bookmarkable.
   // Unknown sort keys are ignored (malformed bookmark → default order).
-  const sortKey = params.get("sort") as IssueSortKey | null;
-  const sort: IssueSort | null =
-    sortKey && ISSUE_SORT_KEYS.includes(sortKey)
+  const sortKey = params.get("sort") as ActionSortKey | null;
+  const sort: ActionSort | null =
+    sortKey && ACTION_SORT_KEYS.includes(sortKey)
       ? { key: sortKey, dir: params.get("dir") === "desc" ? "desc" : "asc" }
       : null;
   return { q: params.get("q") ?? "", filters, sort };
@@ -94,7 +94,7 @@ export default function Search({ snapshot }: { snapshot: SnapshotPayload }) {
   // click → back to the default order (relevance for a query, recency for
   // browse). The default is a real state, not just "asc on something", so it
   // stays reachable.
-  const cycleSort = (key: IssueSortKey) => {
+  const cycleSort = (key: ActionSortKey) => {
     const params = new URLSearchParams(search);
     if (sort?.key !== key) {
       params.set("sort", key);
@@ -109,64 +109,64 @@ export default function Search({ snapshot }: { snapshot: SnapshotPayload }) {
     navigate(qs ? `/search?${qs}` : "/search", { replace: true });
   };
 
-  // tag → issue lookup for the tag filter (mirrors the board).
-  const tagsByIssue = useMemo(() => {
+  // tag → action lookup for the tag filter (mirrors the board).
+  const tagsByAction = useMemo(() => {
     const map = new Map<string, Set<string>>();
-    for (const link of snapshot.issueTags) {
-      const set = map.get(link.issueId) ?? new Set<string>();
+    for (const link of snapshot.actionTags) {
+      const set = map.get(link.actionId) ?? new Set<string>();
       set.add(link.tagId);
-      map.set(link.issueId, set);
+      map.set(link.actionId, set);
     }
     return map;
-  }, [snapshot.issueTags]);
+  }, [snapshot.actionTags]);
 
-  const productById = useMemo(
-    () => new Map(snapshot.products.map((p) => [p.id, p])),
-    [snapshot.products],
+  const focusById = useMemo(
+    () => new Map(snapshot.focuses.map((p) => [p.id, p])),
+    [snapshot.focuses],
   );
 
-  // Comment hits arrive as issue ids; a Map resolves them without a per-hit
-  // linear scan over the (up to 5k-issue) snapshot.
-  const issueById = useMemo(
-    () => new Map(snapshot.issues.map((i) => [i.id, i])),
-    [snapshot.issues],
+  // Comment hits arrive as action ids; a Map resolves them without a per-hit
+  // linear scan over the (up to 5k-action) snapshot.
+  const actionById = useMemo(
+    () => new Map(snapshot.actions.map((i) => [i.id, i])),
+    [snapshot.actions],
   );
 
-  // Does an issue pass the active filters? Used for both issue and comment hits.
+  // Does an action pass the active filters? Used for both action and comment hits.
   const passes = useMemo(() => {
-    return (issue: WireIssue): boolean => {
-      if (filters.initiative) {
-        const product = productById.get(issue.productId);
-        if (!product || product.initiativeId !== filters.initiative) return false;
+    return (action: WireAction): boolean => {
+      if (filters.workspace) {
+        const focus = focusById.get(action.focusId);
+        if (!focus || focus.workspaceId !== filters.workspace) return false;
       }
-      if (filters.product && issue.productId !== filters.product) return false;
-      // Nullable containers (PROG-76): "none" matches issues with no repo/arc.
-      if (filters.repo && !matchesNullableId(issue.repoId, filters.repo)) return false;
-      if (filters.arc && !matchesNullableId(issue.arcId, filters.arc)) return false;
-      if (filters.priority && issue.priority !== filters.priority) return false;
-      if (filters.status && issue.status !== filters.status) return false;
+      if (filters.focus && action.focusId !== filters.focus) return false;
+      // Nullable containers (PROG-76): "none" matches actions with no repo/arc.
+      if (filters.repo && !matchesNullableId(action.repoId, filters.repo)) return false;
+      if (filters.arc && !matchesNullableId(action.arcId, filters.arc)) return false;
+      if (filters.priority && action.priority !== filters.priority) return false;
+      if (filters.status && action.status !== filters.status) return false;
       if (filters.tag) {
-        const tags = tagsByIssue.get(issue.id);
+        const tags = tagsByAction.get(action.id);
         const ok =
           filters.tag === FILTER_NONE ? !tags || tags.size === 0 : (tags?.has(filters.tag) ?? false);
         if (!ok) return false;
       }
       return true;
     };
-  }, [filters, productById, tagsByIssue]);
+  }, [filters, focusById, tagsByAction]);
 
   const filtersActive = FILTER_KEYS.some((k) => filters[k]);
   // Empty query = browse mode (PROG-78): the filters — even none, the default
-  // view — are the whole search, so every issue passing them shows, newest
-  // first. Only issues can browse; containers and comments need a term to match.
+  // view — are the whole search, so every action passing them shows, newest
+  // first. Only actions can browse; containers and comments need a term to match.
   const browsing = terms.length === 0;
 
-  const issueHits = useMemo(() => {
+  const actionHits = useMemo(() => {
     const base =
       terms.length === 0
-        ? browseIssues(snapshot).filter((h) => passes(h.issue))
-        : searchIssues(snapshot, q, 0).filter((h) => passes(h.issue));
-    return sortIssueHits(snapshot, base, sort);
+        ? browseActions(snapshot).filter((h) => passes(h.action))
+        : searchActions(snapshot, q, 0).filter((h) => passes(h.action));
+    return sortActionHits(snapshot, base, sort);
   }, [snapshot, q, terms, passes, sort]);
   const containerHits = useMemo(() => searchContainers(snapshot, q, 0), [snapshot, q]);
 
@@ -175,25 +175,25 @@ export default function Search({ snapshot }: { snapshot: SnapshotPayload }) {
   // the query, filters, or sort change — `search` is the canonical state for
   // all three. Reset during render (prev-value pattern) rather than in an
   // effect, so a changed result set never paints a frame at the old depth.
-  const [issueLimit, setIssueLimit] = useState(PAGE);
+  const [actionLimit, setActionLimit] = useState(PAGE);
   const [containerLimit, setContainerLimit] = useState(PAGE);
   const [prevSearch, setPrevSearch] = useState(search);
   if (search !== prevSearch) {
     setPrevSearch(search);
-    setIssueLimit(PAGE);
+    setActionLimit(PAGE);
     setContainerLimit(PAGE);
   }
 
   const { data: comments, isFetching, hasMore, fetchMore, isFetchingMore } = useCommentSearch(q);
-  // Resolve comment hits to issues and apply the same filters.
+  // Resolve comment hits to actions and apply the same filters.
   const commentHits = useMemo(() => {
     return (comments?.hits ?? [])
       .map((hit) => {
-        const issue = issueById.get(hit.issueId);
-        return issue ? { ...hit, issue } : null;
+        const action = actionById.get(hit.actionId);
+        return action ? { ...hit, action } : null;
       })
-      .filter((h): h is NonNullable<typeof h> => h !== null && passes(h.issue));
-  }, [comments, issueById, passes]);
+      .filter((h): h is NonNullable<typeof h> => h !== null && passes(h.action));
+  }, [comments, actionById, passes]);
 
   return (
     // Full app-shell width (PROG-92) — matching the board so the filter row
@@ -203,7 +203,7 @@ export default function Search({ snapshot }: { snapshot: SnapshotPayload }) {
         autoFocus
         value={q}
         onChange={(e) => setParam("q", e.target.value || null)}
-        placeholder="Search issues, descriptions, comments…"
+        placeholder="Search actions, descriptions, comments…"
         className="w-full rounded-lg border border-line bg-card px-4 py-3 text-sm focus:border-ink-faint focus:outline-none"
       />
 
@@ -227,7 +227,7 @@ export default function Search({ snapshot }: { snapshot: SnapshotPayload }) {
           <FilterSelect
             label="Status"
             value={filters.status}
-            options={ISSUE_STATUSES.map((s) => [s, STATUS_LABELS[s]])}
+            options={ACTION_STATUSES.map((s) => [s, STATUS_LABELS[s]])}
             onChange={(v) => setParam("status", v)}
           />
         }
@@ -257,9 +257,9 @@ export default function Search({ snapshot }: { snapshot: SnapshotPayload }) {
           </Section>
         )}
 
-        <Section title="Issues" count={issueHits.length}>
-          {issueHits.length === 0 ? (
-            <Empty>No issues match.</Empty>
+        <Section title="Actions" count={actionHits.length}>
+          {actionHits.length === 0 ? (
+            <Empty>No actions match.</Empty>
           ) : (
             <div className="overflow-x-auto rounded-md border border-line bg-card">
               <table className="w-full text-sm">
@@ -293,16 +293,16 @@ export default function Search({ snapshot }: { snapshot: SnapshotPayload }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {issueHits.slice(0, issueLimit).map((hit) => {
-                    const key = issueKeyOf(snapshot, hit.issue);
-                    const product = productById.get(hit.issue.productId);
+                  {actionHits.slice(0, actionLimit).map((hit) => {
+                    const key = actionKeyOf(snapshot, hit.action);
+                    const focus = focusById.get(hit.action.focusId);
                     return (
                       // The whole row navigates (it's the click target the old
                       // card rows offered); the title stays a real link for
                       // middle-click / open-in-new-tab.
                       <tr
-                        key={hit.issue.id}
-                        onClick={() => navigate(`/issue/${key}`)}
+                        key={hit.action.id}
+                        onClick={() => navigate(`/action/${key}`)}
                         className="cursor-pointer border-t border-line first:border-t-0 hover:bg-line/40"
                       >
                         <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-ink-faint">
@@ -310,31 +310,31 @@ export default function Search({ snapshot }: { snapshot: SnapshotPayload }) {
                         </td>
                         <td className="w-full min-w-56 px-3 py-2">
                           <Link
-                            href={`/issue/${key}`}
+                            href={`/action/${key}`}
                             onClick={(e) => e.stopPropagation()}
                             className="hover:underline"
                           >
-                            <Highlighted segments={highlight(hit.issue.title, terms)} />
+                            <Highlighted segments={highlight(hit.action.title, terms)} />
                           </Link>
-                          {!hit.inTitle && hit.issue.description && (
+                          {!hit.inTitle && hit.action.description && (
                             <p className="mt-0.5 truncate text-xs text-ink-soft">
                               <Highlighted
-                                segments={highlight(descSnippet(hit.issue.description, terms), terms)}
+                                segments={highlight(descSnippet(hit.action.description, terms), terms)}
                               />
                             </p>
                           )}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-xs text-ink-faint">
-                          {product?.name}
+                          {focus?.name}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-xs text-ink-faint">
-                          {STATUS_LABELS[hit.issue.status]}
+                          {STATUS_LABELS[hit.action.status]}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-xs text-ink-faint">
-                          {hit.issue.priority !== "none" ? (
+                          {hit.action.priority !== "none" ? (
                             <span className="flex items-center gap-1.5">
-                              <PriorityIndicator priority={hit.issue.priority} />
-                              {PRIORITY_LABELS[hit.issue.priority]}
+                              <PriorityIndicator priority={hit.action.priority} />
+                              {PRIORITY_LABELS[hit.action.priority]}
                             </span>
                           ) : (
                             <span aria-label={PRIORITY_LABELS.none}>—</span>
@@ -347,10 +347,10 @@ export default function Search({ snapshot }: { snapshot: SnapshotPayload }) {
               </table>
             </div>
           )}
-          {issueHits.length > issueLimit && (
-            <ShowMore onClick={() => setIssueLimit((n) => n + PAGE)}>
-              Show {Math.min(PAGE, issueHits.length - issueLimit)} more ·{" "}
-              {(issueHits.length - issueLimit).toLocaleString()} remaining
+          {actionHits.length > actionLimit && (
+            <ShowMore onClick={() => setActionLimit((n) => n + PAGE)}>
+              Show {Math.min(PAGE, actionHits.length - actionLimit)} more ·{" "}
+              {(actionHits.length - actionLimit).toLocaleString()} remaining
             </ShowMore>
           )}
         </Section>
@@ -369,15 +369,15 @@ export default function Search({ snapshot }: { snapshot: SnapshotPayload }) {
               <Empty>{isFetching ? "Searching comments…" : "No comments match."}</Empty>
             ) : (
               commentHits.map((hit) => {
-                const key = issueKeyOf(snapshot, hit.issue);
+                const key = actionKeyOf(snapshot, hit.action);
                 return (
                   <Link
                     key={hit.commentId}
-                    href={`/issue/${key}`}
+                    href={`/action/${key}`}
                     className="block rounded-md border border-line bg-card px-3 py-2 text-sm hover:border-ink-faint"
                   >
                     <span className="font-mono text-xs text-ink-faint">{key}</span>{" "}
-                    <span className="text-ink-faint">{hit.issue.title}</span>
+                    <span className="text-ink-faint">{hit.action.title}</span>
                     <p className="mt-1 text-xs text-ink-soft">
                       <Highlighted segments={highlight(hit.snippet, terms)} />
                     </p>

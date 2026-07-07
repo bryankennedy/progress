@@ -1,12 +1,12 @@
 #!/usr/bin/env bun
-// progress — kick off work on an issue from the terminal (SPEC §11.2, PROG-19).
+// progress — kick off work on an action from the terminal (SPEC §11.2, PROG-19).
 //
 //   progress work PROG-19
 //
-// Fetches the issue's context bundle (GET /api/issues/:key/bundle) and launches
+// Fetches the action's context bundle (GET /api/actions/:key/bundle) and launches
 // a Claude Code session primed with it, in the current checkout. By default it
-// also creates/checks out `iss/PROG-19` — the branch-from-key linchpin — so the
-// commits and PRs that follow auto-link back to the issue (Progress §5).
+// also creates/checks out `act/PROG-19` — the branch-from-key linchpin — so the
+// commits and PRs that follow auto-link back to the action (Progress §5).
 //
 // It operates in the current directory and never tries to locate a repo from
 // its gitUrl, so Progress stays free of machine-specific knowledge about where
@@ -28,12 +28,12 @@ const KEY_RE = /^[A-Z]{2,8}-\d+$/;
 const USAGE = `Usage:
   progress work <KEY> [--no-branch] [--print]
 
-Fetches an issue's context bundle and launches \`claude\` primed with it, in the
-current directory. By default also creates/checks out \`iss/<KEY>\` so commits
-and PRs auto-link back to the issue.
+Fetches an action's context bundle and launches \`claude\` primed with it, in the
+current directory. By default also creates/checks out \`act/<KEY>\` so commits
+and PRs auto-link back to the action.
 
 Options:
-  --no-branch   Use the current branch; don't create/switch to iss/<KEY>.
+  --no-branch   Use the current branch; don't create/switch to act/<KEY>.
   --print       Print the bundle to stdout and exit (don't launch claude).
 
 Env:
@@ -51,7 +51,7 @@ async function fetchBundle(key: string): Promise<string> {
     fail("missing PROGRESS_API_TOKEN (or PROD_PROGRESS_API_TOKEN fallback) in env.");
   let res: Response;
   try {
-    res = await fetch(`${BASE}/api/issues/${key}/bundle`, {
+    res = await fetch(`${BASE}/api/actions/${key}/bundle`, {
       headers: { Authorization: `Bearer ${API_TOKEN}` },
       redirect: "manual",
     });
@@ -60,8 +60,8 @@ async function fetchBundle(key: string): Promise<string> {
   }
   if (res.status === 401)
     fail("401 unauthenticated — PROGRESS_API_TOKEN is missing or wrong.");
-  if (res.status === 404) fail(`no issue found for ${key}.`);
-  if (res.status === 400) fail(`malformed issue key: ${key} (expected e.g. PROG-19).`);
+  if (res.status === 404) fail(`no action found for ${key}.`);
+  if (res.status === 400) fail(`malformed action key: ${key} (expected e.g. PROG-19).`);
   const text = await res.text();
   if (!res.ok) fail(`bundle fetch failed: HTTP ${res.status}: ${text}`);
   return text;
@@ -80,9 +80,9 @@ function gitOut(args: string[]): string {
   }
 }
 
-// Create or switch to iss/<KEY>; no-op if already there. Returns the branch name.
+// Create or switch to act/<KEY>; no-op if already there. Returns the branch name.
 function ensureBranch(key: string): string {
-  const branch = `iss/${key}`;
+  const branch = `act/${key}`;
   if (gitOut(["branch", "--show-current"]) === branch) return branch;
   const exists =
     spawnSync("git", ["rev-parse", "--verify", "--quiet", `refs/heads/${branch}`], {
@@ -103,7 +103,7 @@ async function work(rest: string[]): Promise<void> {
     if (f !== "--no-branch" && f !== "--print") fail(`unknown option ${f}.\n\n${USAGE}`);
 
   const key = (positional[0] ?? "").toUpperCase();
-  if (!KEY_RE.test(key)) fail(`expected an issue key like PROG-19, got "${positional[0] ?? ""}".`);
+  if (!KEY_RE.test(key)) fail(`expected an action key like PROG-19, got "${positional[0] ?? ""}".`);
 
   const bundle = await fetchBundle(key);
   if (flags.has("--print")) {
@@ -115,7 +115,7 @@ async function work(rest: string[]): Promise<void> {
     if (inGitWorkTree()) ensureBranch(key);
     else
       console.error(
-        `progress: not in a git repo — skipping the iss/${key} branch. ` +
+        `progress: not in a git repo — skipping the act/${key} branch. ` +
           `cd into the checkout first, or pass --no-branch to silence this.`,
       );
   }

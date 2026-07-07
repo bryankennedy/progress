@@ -12,8 +12,8 @@ import {
 
 describe("filtersToRestore", () => {
   it("restores the saved query when the board opens unfiltered", () => {
-    expect(filtersToRestore("", "product=prd_1")).toBe("product=prd_1");
-    expect(filtersToRestore("", "product=prd_1&priority=high")).toBe("product=prd_1&priority=high");
+    expect(filtersToRestore("", "focus=foc_1")).toBe("focus=foc_1");
+    expect(filtersToRestore("", "focus=foc_1&priority=high")).toBe("focus=foc_1&priority=high");
   });
 
   it("does not restore when nothing is saved", () => {
@@ -21,8 +21,8 @@ describe("filtersToRestore", () => {
   });
 
   it("leaves the URL alone when it already carries filters (bookmark / deep link)", () => {
-    expect(filtersToRestore("product=prd_2", "product=prd_1")).toBeNull();
-    expect(filtersToRestore("arc=arc_9&backlog=1", "product=prd_1")).toBeNull();
+    expect(filtersToRestore("focus=foc_2", "focus=foc_1")).toBeNull();
+    expect(filtersToRestore("arc=arc_9&backlog=1", "focus=foc_1")).toBeNull();
   });
 
   it("does not restore over an explicitly cleared selection (saved is empty)", () => {
@@ -33,23 +33,23 @@ describe("filtersToRestore", () => {
 });
 
 // Prevent impossible filters (PROG-75). The board's filters form a hierarchy
-// (Initiative → Product → Arc/Repo); changing an ancestor must drop a stranded
+// (Workspace → Focus → Arc/Repo); changing an ancestor must drop a stranded
 // descendant so the board never filters to nothing behind a stale selection.
 describe("pruneImpossibleFilters", () => {
-  // prd_1, prd_2 live under ini_1; prd_3 under ini_2. Arcs/repos hang off them.
+  // foc_1, foc_2 live under wsp_1; foc_3 under wsp_2. Arcs/repos hang off them.
   const parents = {
-    productInitiative: new Map([
-      ["prd_1", "ini_1"],
-      ["prd_2", "ini_1"],
-      ["prd_3", "ini_2"],
+    focusWorkspace: new Map([
+      ["foc_1", "wsp_1"],
+      ["foc_2", "wsp_1"],
+      ["foc_3", "wsp_2"],
     ]),
-    arcProduct: new Map([
-      ["arc_1", "prd_1"],
-      ["arc_3", "prd_3"],
+    arcFocus: new Map([
+      ["arc_1", "foc_1"],
+      ["arc_3", "foc_3"],
     ]),
-    repoProduct: new Map([
-      ["repo_1", "prd_1"],
-      ["repo_3", "prd_3"],
+    repoFocus: new Map([
+      ["repo_1", "foc_1"],
+      ["repo_3", "foc_3"],
     ]),
   };
   const prune = (search: string) => {
@@ -59,42 +59,42 @@ describe("pruneImpossibleFilters", () => {
   };
 
   it("keeps a consistent hierarchy untouched", () => {
-    expect(prune("initiative=ini_1&product=prd_1&arc=arc_1&repo=repo_1")).toBe(
-      "initiative=ini_1&product=prd_1&arc=arc_1&repo=repo_1",
+    expect(prune("workspace=wsp_1&focus=foc_1&arc=arc_1&repo=repo_1")).toBe(
+      "workspace=wsp_1&focus=foc_1&arc=arc_1&repo=repo_1",
     );
   });
 
-  it("drops a Product from a different Initiative", () => {
-    expect(prune("initiative=ini_2&product=prd_1")).toBe("initiative=ini_2");
+  it("drops a Focus from a different Workspace", () => {
+    expect(prune("workspace=wsp_2&focus=foc_1")).toBe("workspace=wsp_2");
   });
 
-  it("drops an Arc/Repo from a different Product", () => {
-    expect(prune("product=prd_3&arc=arc_1&repo=repo_1")).toBe("product=prd_3");
+  it("drops an Arc/Repo from a different Focus", () => {
+    expect(prune("focus=foc_3&arc=arc_1&repo=repo_1")).toBe("focus=foc_3");
   });
 
-  it("drops an Arc/Repo whose Product left the chosen Initiative (no Product set)", () => {
-    expect(prune("initiative=ini_2&arc=arc_1&repo=repo_1")).toBe("initiative=ini_2");
+  it("drops an Arc/Repo whose Focus left the chosen Workspace (no Focus set)", () => {
+    expect(prune("workspace=wsp_2&arc=arc_1&repo=repo_1")).toBe("workspace=wsp_2");
   });
 
-  it("keeps an Arc/Repo consistent with the Initiative when no Product is set", () => {
-    expect(prune("initiative=ini_1&arc=arc_1&repo=repo_1")).toBe(
-      "initiative=ini_1&arc=arc_1&repo=repo_1",
+  it("keeps an Arc/Repo consistent with the Workspace when no Focus is set", () => {
+    expect(prune("workspace=wsp_1&arc=arc_1&repo=repo_1")).toBe(
+      "workspace=wsp_1&arc=arc_1&repo=repo_1",
     );
   });
 
-  it("cascades: changing Initiative strands Product, which strands Arc/Repo", () => {
-    // prd_1/arc_1/repo_1 are all under ini_1; switching to ini_2 invalidates all.
-    expect(prune("initiative=ini_2&product=prd_1&arc=arc_1&repo=repo_1")).toBe("initiative=ini_2");
+  it("cascades: changing Workspace strands Focus, which strands Arc/Repo", () => {
+    // foc_1/arc_1/repo_1 are all under wsp_1; switching to wsp_2 invalidates all.
+    expect(prune("workspace=wsp_2&focus=foc_1&arc=arc_1&repo=repo_1")).toBe("workspace=wsp_2");
   });
 
   it("leaves unrelated filters (tag, priority, backlog) alone", () => {
-    expect(prune("product=prd_3&arc=arc_1&tag=tag_1&priority=high&backlog=1")).toBe(
-      "product=prd_3&tag=tag_1&priority=high&backlog=1",
+    expect(prune("focus=foc_3&arc=arc_1&tag=tag_1&priority=high&backlog=1")).toBe(
+      "focus=foc_3&tag=tag_1&priority=high&backlog=1",
     );
   });
 
-  it("drops an Arc referencing an unknown/archived container under a Product", () => {
-    expect(prune("product=prd_1&arc=arc_gone")).toBe("product=prd_1");
+  it("drops an Arc referencing an unknown/archived container under a Focus", () => {
+    expect(prune("focus=foc_1&arc=arc_gone")).toBe("focus=foc_1");
   });
 
   it("is a no-op with no ancestors selected", () => {
@@ -104,10 +104,10 @@ describe("pruneImpossibleFilters", () => {
   // "No arc/repo" (PROG-76) belongs to no branch, so it's compatible with any
   // ancestor and must survive pruning.
   it("keeps an Arc/Repo 'none' filter under any ancestor selection", () => {
-    expect(prune(`product=prd_3&arc=${FILTER_NONE}&repo=${FILTER_NONE}`)).toBe(
-      `product=prd_3&arc=${FILTER_NONE}&repo=${FILTER_NONE}`,
+    expect(prune(`focus=foc_3&arc=${FILTER_NONE}&repo=${FILTER_NONE}`)).toBe(
+      `focus=foc_3&arc=${FILTER_NONE}&repo=${FILTER_NONE}`,
     );
-    expect(prune(`initiative=ini_2&arc=${FILTER_NONE}`)).toBe(`initiative=ini_2&arc=${FILTER_NONE}`);
+    expect(prune(`workspace=wsp_2&arc=${FILTER_NONE}`)).toBe(`workspace=wsp_2&arc=${FILTER_NONE}`);
   });
 });
 

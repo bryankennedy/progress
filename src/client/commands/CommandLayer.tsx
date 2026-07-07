@@ -1,23 +1,23 @@
 // One mount point for the command layer: global keyboard shortcuts,
-// current-issue tracking, the command palette, and the create-issue dialog.
+// current-action tracking, the command palette, and the create-action dialog.
 
 import { useEffect } from "react";
 import type { SnapshotPayload } from "../../shared/types";
 import CommandPalette from "./CommandPalette";
 import CreateContainerDialog from "./CreateContainerDialog";
-import CreateIssueDialog from "./CreateIssueDialog";
+import CreateActionDialog from "./CreateActionDialog";
 import SearchModal from "./SearchModal";
-import { initCurrentIssueTracking } from "./currentIssue";
+import { initCurrentActionTracking } from "./currentAction";
 import { useGlobalKeys } from "./useGlobalKeys";
 
 export default function CommandLayer({ snapshot }: { snapshot: SnapshotPayload }) {
-  useEffect(initCurrentIssueTracking, []);
+  useEffect(initCurrentActionTracking, []);
   useGlobalKeys();
   return (
     <>
       <CommandPalette snapshot={snapshot} />
       <SearchModal snapshot={snapshot} />
-      <CreateIssueDialog snapshot={snapshot} />
+      <CreateActionDialog snapshot={snapshot} />
       <CreateContainerDialog snapshot={snapshot} />
     </>
   );

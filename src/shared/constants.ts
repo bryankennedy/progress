@@ -2,7 +2,7 @@
 // verbatim by the Drizzle schema, the API's validation, and the client; this
 // file must stay dependency-free so the client bundle never pulls in ORM code.
 
-export const ISSUE_STATUSES = [
+export const ACTION_STATUSES = [
   "backlog",
   "todo",
   "in_progress",
@@ -10,20 +10,20 @@ export const ISSUE_STATUSES = [
   "done",
   "canceled",
 ] as const;
-export type IssueStatus = (typeof ISSUE_STATUSES)[number];
+export type ActionStatus = (typeof ACTION_STATUSES)[number];
 
-// "Closed" issues are terminal — done (shipped) or canceled (abandoned). The
+// "Closed" actions are terminal — done (shipped) or canceled (abandoned). The
 // rest (backlog/todo/in_progress/in_review) are still open / in play. The arc
 // work-order ("copy as prompt" for a whole arc) bundles only the open ones.
-export const CLOSED_ISSUE_STATUSES = ["done", "canceled"] as const satisfies readonly IssueStatus[];
-export const isOpenStatus = (s: IssueStatus): boolean =>
-  !(CLOSED_ISSUE_STATUSES as readonly IssueStatus[]).includes(s);
+export const CLOSED_ACTION_STATUSES = ["done", "canceled"] as const satisfies readonly ActionStatus[];
+export const isOpenStatus = (s: ActionStatus): boolean =>
+  !(CLOSED_ACTION_STATUSES as readonly ActionStatus[]).includes(s);
 
-export const ISSUE_PRIORITIES = ["urgent", "high", "medium", "low", "none"] as const;
-export type IssuePriority = (typeof ISSUE_PRIORITIES)[number];
+export const ACTION_PRIORITIES = ["urgent", "high", "medium", "low", "none"] as const;
+export type ActionPriority = (typeof ACTION_PRIORITIES)[number];
 
 // Linear-style points (SPEC §9 open question #1, default taken).
-export const ISSUE_ESTIMATES = [0, 1, 2, 3, 5, 8] as const;
+export const ACTION_ESTIMATES = [0, 1, 2, 3, 5, 8] as const;
 
 // Linked pull-request lifecycle (SPEC §5). "merged" is terminal; GitHub
 // reports it as closed + merged flag, normalized at the webhook.

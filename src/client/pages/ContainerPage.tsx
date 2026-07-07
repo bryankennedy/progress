@@ -1,35 +1,35 @@
-// Container pages (SPEC §4): every initiative, product, repo, and arc gets a
-// page — description on top (open-page feel), issue list below with inline
+// Container pages (SPEC §4): every workspace, focus, repo, and arc gets a
+// page — description on top (open-page feel), action list below with inline
 // status/priority edits. One component covers all four types; they differ
-// only in how their issue scope and child links derive from the snapshot.
+// only in how their action scope and child links derive from the snapshot.
 
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
-  ISSUE_PRIORITIES,
-  ISSUE_STATUSES,
-  type IssuePriority,
-  type IssueStatus,
+  ACTION_PRIORITIES,
+  ACTION_STATUSES,
+  type ActionPriority,
+  type ActionStatus,
 } from "../../shared/constants";
-import type { WireIssue, SnapshotPayload } from "../../shared/types";
+import type { WireAction, SnapshotPayload } from "../../shared/types";
 import { openCreateContainer } from "../commands/controller";
 import EditableMarkdown from "../EditableMarkdown";
 import InlineEdit from "../InlineEdit";
 import { PRIORITY_LABELS as SHARED_PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
-import { issueKeyOf, updateContainer, updateIssue } from "../store";
+import { actionKeyOf, updateContainer, updateAction } from "../store";
 import { copyArcBundleAsPrompt, prefetchArcBundle } from "../workOn";
 
-export type ContainerType = "initiative" | "product" | "repo" | "arc";
+export type ContainerType = "workspace" | "focus" | "repo" | "arc";
 
 const TYPE_LABELS: Record<ContainerType, string> = {
-  initiative: "Initiative",
-  product: "Product",
+  workspace: "Workspace",
+  focus: "Focus",
   repo: "Repo",
   arc: "Arc",
 };
 // Compact "none" for the narrow inline row selects.
-const PRIORITY_LABELS: Record<IssuePriority, string> = {
+const PRIORITY_LABELS: Record<ActionPriority, string> = {
   ...SHARED_PRIORITY_LABELS,
   none: "—",
 };
@@ -46,66 +46,66 @@ type Resolved = {
   archivedAt: string | null;
   keyPrefix?: string;
   gitUrl?: string | null;
-  issues: WireIssue[];
+  actions: WireAction[];
   children: ChildGroup[];
   boardParam: string;
 };
 
 function resolve(ws: SnapshotPayload, type: ContainerType, id: string): Resolved | undefined {
   switch (type) {
-    case "initiative": {
-      const initiative = ws.initiatives.find((i) => i.id === id);
-      if (!initiative) return undefined;
-      const products = ws.products.filter((p) => p.initiativeId === id);
-      const productIds = new Set(products.map((p) => p.id));
+    case "workspace": {
+      const workspace = ws.workspaces.find((i) => i.id === id);
+      if (!workspace) return undefined;
+      const focuses = ws.focuses.filter((p) => p.workspaceId === id);
+      const focusIds = new Set(focuses.map((p) => p.id));
       return {
-        ...initiative,
-        issues: ws.issues.filter((i) => productIds.has(i.productId)),
+        ...workspace,
+        actions: ws.actions.filter((i) => focusIds.has(i.focusId)),
         children: [
           {
-            label: "Products",
-            items: products.map((p) => ({
-              href: `/product/${p.id}`,
+            label: "Focuses",
+            items: focuses.map((p) => ({
+              href: `/focus/${p.id}`,
               name: p.name,
               archived: p.archivedAt !== null,
             })),
-            onNew: () => openCreateContainer({ kind: "product", initiativeId: id }),
+            onNew: () => openCreateContainer({ kind: "focus", workspaceId: id }),
           },
         ],
-        boardParam: `initiative=${id}`,
+        boardParam: `workspace=${id}`,
       };
     }
-    case "product": {
-      const product = ws.products.find((p) => p.id === id);
-      if (!product) return undefined;
+    case "focus": {
+      const focus = ws.focuses.find((p) => p.id === id);
+      if (!focus) return undefined;
       return {
-        ...product,
-        issues: ws.issues.filter((i) => i.productId === id),
+        ...focus,
+        actions: ws.actions.filter((i) => i.focusId === id),
         children: [
           {
             label: "Repos",
             items: ws.repos
-              .filter((r) => r.productId === id)
+              .filter((r) => r.focusId === id)
               .map((r) => ({
                 href: `/repo/${r.id}`,
                 name: r.name,
                 archived: r.archivedAt !== null,
               })),
-            onNew: () => openCreateContainer({ kind: "repo", productId: id }),
+            onNew: () => openCreateContainer({ kind: "repo", focusId: id }),
           },
           {
             label: "Arcs",
             items: ws.arcs
-              .filter((a) => a.productId === id)
+              .filter((a) => a.focusId === id)
               .map((a) => ({
                 href: `/arc/${a.id}`,
                 name: a.name,
                 archived: a.archivedAt !== null,
               })),
-            onNew: () => openCreateContainer({ kind: "arc", productId: id }),
+            onNew: () => openCreateContainer({ kind: "arc", focusId: id }),
           },
         ],
-        boardParam: `product=${id}`,
+        boardParam: `focus=${id}`,
       };
     }
     case "repo": {
@@ -113,9 +113,9 @@ function resolve(ws: SnapshotPayload, type: ContainerType, id: string): Resolved
       if (!repo) return undefined;
       return {
         ...repo,
-        issues: ws.issues.filter((i) => i.repoId === id),
+        actions: ws.actions.filter((i) => i.repoId === id),
         children: [],
-        boardParam: `product=${repo.productId}&repo=${id}`,
+        boardParam: `focus=${repo.focusId}&repo=${id}`,
       };
     }
     case "arc": {
@@ -123,16 +123,16 @@ function resolve(ws: SnapshotPayload, type: ContainerType, id: string): Resolved
       if (!arc) return undefined;
       return {
         ...arc,
-        issues: ws.issues.filter((i) => i.arcId === id),
+        actions: ws.actions.filter((i) => i.arcId === id),
         children: [],
-        boardParam: `product=${arc.productId}&arc=${id}`,
+        boardParam: `focus=${arc.focusId}&arc=${id}`,
       };
     }
   }
 }
 
 type SortMode = "status" | "number" | "updated";
-const STATUS_ORDER = new Map(ISSUE_STATUSES.map((s, i) => [s, i]));
+const STATUS_ORDER = new Map(ACTION_STATUSES.map((s, i) => [s, i]));
 
 export default function ContainerPage({
   snapshot,
@@ -144,13 +144,13 @@ export default function ContainerPage({
   id: string;
 }) {
   const [sort, setSort] = useState<SortMode>("status");
-  const [statusFilter, setStatusFilter] = useState<IssueStatus | "">("");
+  const [statusFilter, setStatusFilter] = useState<ActionStatus | "">("");
 
   const resolved = useMemo(() => resolve(snapshot, type, id), [snapshot, type, id]);
 
-  const issues = useMemo(() => {
+  const actions = useMemo(() => {
     if (!resolved) return [];
-    const list = resolved.issues.filter((i) => !statusFilter || i.status === statusFilter);
+    const list = resolved.actions.filter((i) => !statusFilter || i.status === statusFilter);
     return list.sort((a, b) => {
       if (sort === "updated") return b.updatedAt.localeCompare(a.updatedAt);
       if (sort === "status")
@@ -161,11 +161,11 @@ export default function ContainerPage({
     });
   }, [resolved, sort, statusFilter]);
 
-  // Warm the arc work-order cache on mount and whenever this arc's issues
+  // Warm the arc work-order cache on mount and whenever this arc's actions
   // change, so "Copy arc as prompt" copies instantly with the latest state.
   useEffect(() => {
     if (type === "arc") prefetchArcBundle(id);
-  }, [type, id, resolved?.issues]);
+  }, [type, id, resolved?.actions]);
 
   if (!resolved) {
     return (
@@ -208,7 +208,7 @@ export default function ContainerPage({
             {resolved.archivedAt ? "Unarchive" : "Archive"}
           </button>
         </div>
-        {type === "product" && (
+        {type === "focus" && (
           <p className="mt-1 flex items-center gap-2 text-xs text-ink-faint">
             Key prefix
             <InlineEdit
@@ -275,15 +275,15 @@ export default function ContainerPage({
 
       <div className="mt-8 flex flex-wrap items-center gap-2 text-sm">
         <h2 className="mr-auto text-sm font-medium uppercase tracking-wide font-mono text-ink-faint">
-          Issues · {issues.length}
+          Actions · {actions.length}
         </h2>
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as IssueStatus | "")}
+          onChange={(e) => setStatusFilter(e.target.value as ActionStatus | "")}
           className="rounded border border-line bg-card px-2 py-1 text-xs text-ink-soft"
         >
           <option value="">Status: all</option>
-          {ISSUE_STATUSES.map((s) => (
+          {ACTION_STATUSES.map((s) => (
             <option key={s} value={s}>
               {STATUS_LABELS[s]}
             </option>
@@ -301,7 +301,7 @@ export default function ContainerPage({
         {type === "arc" && (
           <button
             onClick={() => void copyArcBundleAsPrompt(id, resolved.name)}
-            title="Copy a single prompt covering every open issue in this arc, for handing to an agent"
+            title="Copy a single prompt covering every open action in this arc, for handing to an agent"
             className="text-xs text-adobe hover:underline"
           >
             Copy arc as prompt →
@@ -316,54 +316,54 @@ export default function ContainerPage({
       </div>
 
       <ul className="mt-3 divide-y divide-line rounded-lg border border-line bg-card">
-        {issues.map((issue) => (
-          <IssueRow key={issue.id} issue={issue} snapshot={snapshot} />
+        {actions.map((action) => (
+          <ActionRow key={action.id} action={action} snapshot={snapshot} />
         ))}
-        {issues.length === 0 && (
-          <li className="p-4 text-sm text-ink-faint">No issues here.</li>
+        {actions.length === 0 && (
+          <li className="p-4 text-sm text-ink-faint">No actions here.</li>
         )}
       </ul>
     </div>
   );
 }
 
-function IssueRow({ issue, snapshot }: { issue: WireIssue; snapshot: SnapshotPayload }) {
+function ActionRow({ action, snapshot }: { action: WireAction; snapshot: SnapshotPayload }) {
   return (
-    <li data-issue-id={issue.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+    <li data-action-id={action.id} className="flex items-center gap-3 px-3 py-2 text-sm">
       <Link
-        href={`/issue/${issueKeyOf(snapshot, issue)}`}
+        href={`/action/${actionKeyOf(snapshot, action)}`}
         className="w-20 shrink-0 font-mono text-xs text-ink-faint hover:text-ink-soft"
       >
-        {issueKeyOf(snapshot, issue)}
+        {actionKeyOf(snapshot, action)}
       </Link>
       <Link
-        href={`/issue/${issueKeyOf(snapshot, issue)}`}
+        href={`/action/${actionKeyOf(snapshot, action)}`}
         className="min-w-0 flex-1 truncate font-medium hover:text-adobe-deep"
       >
-        {issue.title}
+        {action.title}
       </Link>
-      {issue.estimate !== null && (
-        <span className="rounded bg-line px-1 text-xs text-ink-soft">{issue.estimate}</span>
+      {action.estimate !== null && (
+        <span className="rounded bg-line px-1 text-xs text-ink-soft">{action.estimate}</span>
       )}
       {/* Inline edits go through the same optimistic template as everywhere. */}
-      <PriorityIndicator priority={issue.priority} />
+      <PriorityIndicator priority={action.priority} />
       <select
-        value={issue.priority}
-        onChange={(e) => updateIssue(issue.id, { priority: e.target.value as IssuePriority })}
+        value={action.priority}
+        onChange={(e) => updateAction(action.id, { priority: e.target.value as ActionPriority })}
         className="rounded border border-line bg-card px-1.5 py-0.5 text-xs text-ink-soft"
       >
-        {ISSUE_PRIORITIES.map((p) => (
+        {ACTION_PRIORITIES.map((p) => (
           <option key={p} value={p}>
             {PRIORITY_LABELS[p]}
           </option>
         ))}
       </select>
       <select
-        value={issue.status}
-        onChange={(e) => updateIssue(issue.id, { status: e.target.value as IssueStatus })}
+        value={action.status}
+        onChange={(e) => updateAction(action.id, { status: e.target.value as ActionStatus })}
         className="rounded border border-line bg-card px-1.5 py-0.5 text-xs text-ink-soft"
       >
-        {ISSUE_STATUSES.map((s) => (
+        {ACTION_STATUSES.map((s) => (
           <option key={s} value={s}>
             {STATUS_LABELS[s]}
           </option>

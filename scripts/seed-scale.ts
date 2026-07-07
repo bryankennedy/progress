@@ -9,12 +9,12 @@
 // `bun run db:migrate && bun run db:seed`.
 
 const COUNTS = {
-  initiatives: 3,
-  products: 10,
+  workspaces: 3,
+  focuses: 10,
   repos: 25,
   arcs: 50,
   tags: 30,
-  issues: 5000,
+  actions: 5000,
 };
 
 // Deterministic PRNG (mulberry32) so re-runs generate identical rows.
@@ -44,7 +44,7 @@ function weighted<T>(pairs: readonly (readonly [T, number])[]): T {
 }
 
 const ADJECTIVES = ["flaky", "stale", "slow", "broken", "missing", "duplicate", "responsive", "optimistic", "batched", "cached", "inline", "global", "empty", "archived", "draggable", "keyboard", "mobile", "offline", "paginated", "normalized"];
-const NOUNS = ["board", "filter", "issue card", "status column", "command palette", "arc page", "tag picker", "key redirect", "webhook", "activity feed", "comment thread", "estimate field", "priority menu", "search index", "issue list", "container page", "markdown editor", "toast", "sidebar", "session"];
+const NOUNS = ["board", "filter", "action card", "status column", "command palette", "arc page", "tag picker", "key redirect", "webhook", "activity feed", "comment thread", "estimate field", "priority menu", "search index", "action list", "container page", "markdown editor", "toast", "sidebar", "session"];
 const VERBS = ["Fix", "Polish", "Investigate", "Refactor", "Speed up", "Simplify", "Wire up", "Design", "Prototype", "Harden", "Document", "Debounce", "Virtualize", "Cache", "Validate"];
 
 const STATUS = weightedTable([
@@ -90,51 +90,51 @@ function insertChunked(table: string, columns: string, rows: Row[], chunk = 500)
 
 const iniIds: string[] = [];
 const iniRows: Row[] = [];
-for (let i = 1; i <= COUNTS.initiatives; i++) {
-  const id = `ini_syn${i}`;
+for (let i = 1; i <= COUNTS.workspaces; i++) {
+  const id = `wsp_syn${i}`;
   iniIds.push(id);
   const t = NOW - int(0, YEAR);
-  iniRows.push(`('${id}', 'Synthetic Initiative ${i}', '', 'usr_owner', ${t}, ${t})`);
+  iniRows.push(`('${id}', 'Synthetic Workspace ${i}', '', 'usr_owner', ${t}, ${t})`);
 }
-insertChunked("initiatives", "id, name, description, creator_id, created_at, updated_at", iniRows);
+insertChunked("workspaces", "id, name, description, creator_id, created_at, updated_at", iniRows);
 
-// Product rows are rendered after issues are distributed (the
-// next_issue_number counter depends on it) but inserted before repos/arcs/
-// issues for FK order — hence the placeholder slot in `lines`.
-const productSlot = lines.length;
-const productIds: string[] = [];
-const productMeta = new Map<string, { initiative: string; prefix: string; t: number }>();
-for (let i = 1; i <= COUNTS.products; i++) {
-  const id = `prd_syn${i}`;
-  productIds.push(id);
-  productMeta.set(id, {
-    initiative: pick(iniIds),
+// Focus rows are rendered after actions are distributed (the
+// next_action_number counter depends on it) but inserted before repos/arcs/
+// actions for FK order — hence the placeholder slot in `lines`.
+const focusSlot = lines.length;
+const focusIds: string[] = [];
+const focusMeta = new Map<string, { workspace: string; prefix: string; t: number }>();
+for (let i = 1; i <= COUNTS.focuses; i++) {
+  const id = `foc_syn${i}`;
+  focusIds.push(id);
+  focusMeta.set(id, {
+    workspace: pick(iniIds),
     prefix: `SYN${String.fromCharCode(64 + i)}`,
     t: NOW - int(0, YEAR),
   });
 }
 
-const repoIdsByProduct = new Map<string, string[]>(productIds.map((p) => [p, []]));
+const repoIdsByFocus = new Map<string, string[]>(focusIds.map((p) => [p, []]));
 const repoRows: Row[] = [];
 for (let i = 1; i <= COUNTS.repos; i++) {
   const id = `rep_syn${i}`;
-  const product = pick(productIds);
-  repoIdsByProduct.get(product)!.push(id);
+  const focus = pick(focusIds);
+  repoIdsByFocus.get(focus)!.push(id);
   const t = NOW - int(0, YEAR);
-  repoRows.push(`('${id}', '${product}', 'synthetic-repo-${i}', '', NULL, 'usr_owner', ${t}, ${t})`);
+  repoRows.push(`('${id}', '${focus}', 'synthetic-repo-${i}', '', NULL, 'usr_owner', ${t}, ${t})`);
 }
-insertChunked("repos", "id, product_id, name, description, git_url, creator_id, created_at, updated_at", repoRows);
+insertChunked("repos", "id, focus_id, name, description, git_url, creator_id, created_at, updated_at", repoRows);
 
-const arcIdsByProduct = new Map<string, string[]>(productIds.map((p) => [p, []]));
+const arcIdsByFocus = new Map<string, string[]>(focusIds.map((p) => [p, []]));
 const arcRows: Row[] = [];
 for (let i = 1; i <= COUNTS.arcs; i++) {
   const id = `arc_syn${i}`;
-  const product = pick(productIds);
-  arcIdsByProduct.get(product)!.push(id);
+  const focus = pick(focusIds);
+  arcIdsByFocus.get(focus)!.push(id);
   const t = NOW - int(0, YEAR);
-  arcRows.push(`('${id}', '${product}', 'Synthetic Arc ${i}', '', 'usr_owner', ${t}, ${t})`);
+  arcRows.push(`('${id}', '${focus}', 'Synthetic Arc ${i}', '', 'usr_owner', ${t}, ${t})`);
 }
-insertChunked("arcs", "id, product_id, name, description, creator_id, created_at, updated_at", arcRows);
+insertChunked("arcs", "id, focus_id, name, description, creator_id, created_at, updated_at", arcRows);
 
 const tagIds: string[] = [];
 const tagRows: Row[] = [];
@@ -145,18 +145,18 @@ for (let i = 1; i <= COUNTS.tags; i++) {
 }
 insertChunked("tags", "id, name, color, created_at", tagRows);
 
-const nextNumber = new Map<string, number>(productIds.map((p) => [p, 1]));
-const issueRows: Row[] = [];
-const issueTagRows: Row[] = [];
-for (let i = 1; i <= COUNTS.issues; i++) {
-  const id = `iss_syn${i}`;
-  const product = pick(productIds);
-  const number = nextNumber.get(product)!;
-  nextNumber.set(product, number + 1);
+const nextNumber = new Map<string, number>(focusIds.map((p) => [p, 1]));
+const actionRows: Row[] = [];
+const actionTagRows: Row[] = [];
+for (let i = 1; i <= COUNTS.actions; i++) {
+  const id = `acn_syn${i}`;
+  const focus = pick(focusIds);
+  const number = nextNumber.get(focus)!;
+  nextNumber.set(focus, number + 1);
 
-  const repos = repoIdsByProduct.get(product)!;
+  const repos = repoIdsByFocus.get(focus)!;
   const repo = repos.length > 0 && rand() < 0.7 ? pick(repos) : null;
-  const arcs = arcIdsByProduct.get(product)!;
+  const arcs = arcIdsByFocus.get(focus)!;
   const arc = arcs.length > 0 && rand() < 0.5 ? pick(arcs) : null;
 
   const status = STATUS();
@@ -173,36 +173,36 @@ for (let i = 1; i <= COUNTS.issues; i++) {
   // same scheme migration 0005 backfills with.
   const rank = String(i * 1000 + 1).padStart(12, "0");
 
-  issueRows.push(
-    `('${id}', '${product}', ${repo ? `'${repo}'` : "NULL"}, ${arc ? `'${arc}'` : "NULL"}, ${number}, '${title}', '', '${status}', '${priority}', ${estimate}, '${rank}', 'usr_owner', ${assignee}, ${created}, ${updated}, ${completed})`,
+  actionRows.push(
+    `('${id}', '${focus}', ${repo ? `'${repo}'` : "NULL"}, ${arc ? `'${arc}'` : "NULL"}, ${number}, '${title}', '', '${status}', '${priority}', ${estimate}, '${rank}', 'usr_owner', ${assignee}, ${created}, ${updated}, ${completed})`,
   );
 
   const tagCount = weighted([[0, 40], [1, 35], [2, 20], [3, 5]] as const);
   const chosen = new Set<string>();
   while (chosen.size < tagCount) chosen.add(pick(tagIds));
-  for (const tag of chosen) issueTagRows.push(`('${id}', '${tag}')`);
+  for (const tag of chosen) actionTagRows.push(`('${id}', '${tag}')`);
 }
 insertChunked(
-  "issues",
-  "id, product_id, repo_id, arc_id, number, title, description, status, priority, estimate, rank, creator_id, assignee_id, created_at, updated_at, completed_at",
-  issueRows,
+  "actions",
+  "id, focus_id, repo_id, arc_id, number, title, description, status, priority, estimate, rank, creator_id, assignee_id, created_at, updated_at, completed_at",
+  actionRows,
 );
-insertChunked("issue_tags", "issue_id, tag_id", issueTagRows);
+insertChunked("action_tags", "action_id, tag_id", actionTagRows);
 
-// Render products into their reserved slot, now that counters are final.
-const prodRows = productIds.map((id, i) => {
-  const m = productMeta.get(id)!;
-  return `('${id}', '${m.initiative}', 'Synthetic Product ${i + 1}', '', '${m.prefix}', ${nextNumber.get(id)}, 'usr_owner', ${m.t}, ${m.t})`;
+// Render focuses into their reserved slot, now that counters are final.
+const prodRows = focusIds.map((id, i) => {
+  const m = focusMeta.get(id)!;
+  return `('${id}', '${m.workspace}', 'Synthetic Focus ${i + 1}', '', '${m.prefix}', ${nextNumber.get(id)}, 'usr_owner', ${m.t}, ${m.t})`;
 });
 lines.splice(
-  productSlot,
+  focusSlot,
   0,
-  `INSERT OR IGNORE INTO products (id, initiative_id, name, description, key_prefix, next_issue_number, creator_id, created_at, updated_at) VALUES\n${prodRows.join(",\n")};`,
+  `INSERT OR IGNORE INTO focuses (id, workspace_id, name, description, key_prefix, next_action_number, creator_id, created_at, updated_at) VALUES\n${prodRows.join(",\n")};`,
 );
 
 const outPath = new URL("./seed-scale.generated.sql", import.meta.url).pathname;
 await Bun.write(outPath, lines.join("\n\n") + "\n");
-console.log(`wrote ${lines.length} statements (${COUNTS.issues} issues) to ${outPath}`);
+console.log(`wrote ${lines.length} statements (${COUNTS.actions} actions) to ${outPath}`);
 
 const proc = Bun.spawnSync(
   ["bunx", "wrangler", "d1", "execute", "progress-db", "--local", `--file=${outPath}`],

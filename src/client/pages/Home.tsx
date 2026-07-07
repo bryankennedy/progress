@@ -1,9 +1,9 @@
-// The global "My Work" board (SPEC §4): one kanban across all initiatives
-// and products. Columns are the fixed statuses minus Canceled (PROG-63 — the
+// The global "My Work" board (SPEC §4): one kanban across all workspaces
+// and focuses. Columns are the fixed statuses minus Canceled (PROG-63 — the
 // board shows work you intend to do); Backlog hides behind a toggle by default
 // (open question #2 default). Filters live in URL query
 // params so any filtered board is bookmarkable — this is how the global
-// board covers the deferred per-product/per-arc boards.
+// board covers the deferred per-focus/per-arc boards.
 //
 // Cards carry a manual vertical order within their column (PROG-43): drag a
 // card above or below another to set the order you'll work them in. Position is
@@ -36,27 +36,27 @@ import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
-import { ISSUE_STATUSES, type IssueStatus } from "../../shared/constants";
+import { ACTION_STATUSES, type ActionStatus } from "../../shared/constants";
 import { rankBetween } from "../../shared/rank";
 import { reorder, type ColumnMap } from "../boardOrder";
 import { BOARD_FILTERS_KEY, FILTER_NONE, matchesNullableId } from "../boardFilters";
 import FilterBar, { useStickyFilterUrl } from "../FilterBar";
 import { recentlyCompleted } from "../boardDone";
-import type { WireIssue, WireTag, SnapshotPayload } from "../../shared/types";
-import { openCreateIssue } from "../commands/controller";
+import type { WireAction, WireTag, SnapshotPayload } from "../../shared/types";
+import { openCreateAction } from "../commands/controller";
 import { dayDiff, formatDueDate, relativeDue, todayISO } from "../dates";
 import { STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
-import { issueKeyOf, loadStats, updateIssue, type IssuePatch } from "../store";
+import { actionKeyOf, loadStats, updateAction, type ActionPatch } from "../store";
 
-const FILTER_KEYS = ["initiative", "product", "repo", "arc", "tag", "priority"] as const;
+const FILTER_KEYS = ["workspace", "focus", "repo", "arc", "tag", "priority"] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
-type Filters = Partial<Record<FilterKey, string>> & { backlog?: boolean; subissues?: boolean };
+type Filters = Partial<Record<FilterKey, string>> & { backlog?: boolean; steps?: boolean };
 
 // Binary (byte-order) comparison — ranks span digits + letters whose ASCII
 // order is the alphabet order, so `localeCompare` (case-folding, locale-aware)
 // would mis-sort them. Matches SQLite's default BINARY collation.
-const byRank = (a: WireIssue, b: WireIssue) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0);
+const byRank = (a: WireAction, b: WireAction) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0);
 
 function parseFilters(search: string): Filters {
   const params = new URLSearchParams(search);
@@ -66,9 +66,9 @@ function parseFilters(search: string): Filters {
     if (value) filters[key] = value;
   }
   filters.backlog = params.get("backlog") === "1";
-  // Sub-issues (PROG-124) are hidden by default so the board stays one card per
+  // Steps (PROG-124) are hidden by default so the board stays one card per
   // top-level deliverable; the toggle surfaces them with a nested style.
-  filters.subissues = params.get("subissues") === "1";
+  filters.steps = params.get("steps") === "1";
   return filters;
 }
 
@@ -82,70 +82,70 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
   });
   const filters = useMemo(() => parseFilters(search), [search]);
 
-  const tagsByIssue = useMemo(() => {
+  const tagsByAction = useMemo(() => {
     const tagById = new Map(snapshot.tags.map((t) => [t.id, t]));
     const map = new Map<string, WireTag[]>();
-    for (const link of snapshot.issueTags) {
+    for (const link of snapshot.actionTags) {
       const tag = tagById.get(link.tagId);
       if (!tag) continue;
-      const list = map.get(link.issueId) ?? [];
+      const list = map.get(link.actionId) ?? [];
       list.push(tag);
-      map.set(link.issueId, list);
+      map.set(link.actionId, list);
     }
     return map;
-  }, [snapshot.tags, snapshot.issueTags]);
+  }, [snapshot.tags, snapshot.actionTags]);
 
-  const issuesById = useMemo(
-    () => new Map(snapshot.issues.map((i) => [i.id, i])),
-    [snapshot.issues],
+  const actionsById = useMemo(
+    () => new Map(snapshot.actions.map((i) => [i.id, i])),
+    [snapshot.actions],
   );
 
   const visibleByStatus = useMemo(() => {
-    const productIdsInInitiative = filters.initiative
+    const focusIdsInWorkspace = filters.workspace
       ? new Set(
-          snapshot.products
-            .filter((p) => p.initiativeId === filters.initiative)
+          snapshot.focuses
+            .filter((p) => p.workspaceId === filters.workspace)
             .map((p) => p.id),
         )
       : null;
-    const issues = snapshot.issues.filter((issue) => {
-      // Child issues stay off the board unless "show sub-issues" is on (PROG-124).
-      if (!filters.subissues && issue.parentIssueId !== null) return false;
-      if (productIdsInInitiative && !productIdsInInitiative.has(issue.productId)) return false;
-      if (filters.product && issue.productId !== filters.product) return false;
-      // Nullable containers (PROG-76): the "none" sentinel matches issues with
+    const actions = snapshot.actions.filter((action) => {
+      // Child actions stay off the board unless "show steps" is on (PROG-124).
+      if (!filters.steps && action.parentActionId !== null) return false;
+      if (focusIdsInWorkspace && !focusIdsInWorkspace.has(action.focusId)) return false;
+      if (filters.focus && action.focusId !== filters.focus) return false;
+      // Nullable containers (PROG-76): the "none" sentinel matches actions with
       // no repo/arc; any other value is plain id equality.
-      if (filters.repo && !matchesNullableId(issue.repoId, filters.repo)) return false;
-      if (filters.arc && !matchesNullableId(issue.arcId, filters.arc)) return false;
-      if (filters.priority && issue.priority !== filters.priority) return false;
+      if (filters.repo && !matchesNullableId(action.repoId, filters.repo)) return false;
+      if (filters.arc && !matchesNullableId(action.arcId, filters.arc)) return false;
+      if (filters.priority && action.priority !== filters.priority) return false;
       if (filters.tag) {
-        const issueTags = tagsByIssue.get(issue.id) ?? [];
+        const actionTags = tagsByAction.get(action.id) ?? [];
         const ok =
           filters.tag === FILTER_NONE
-            ? issueTags.length === 0
-            : issueTags.some((t) => t.id === filters.tag);
+            ? actionTags.length === 0
+            : actionTags.some((t) => t.id === filters.tag);
         if (!ok) return false;
       }
       return true;
     });
-    const groups = new Map<IssueStatus, WireIssue[]>(ISSUE_STATUSES.map((s) => [s, []]));
-    for (const issue of issues) groups.get(issue.status)!.push(issue);
+    const groups = new Map<ActionStatus, WireAction[]>(ACTION_STATUSES.map((s) => [s, []]));
+    for (const action of actions) groups.get(action.status)!.push(action);
     // Manual board order (PROG-43): cards sort by their fractional rank.
     for (const group of groups.values()) group.sort(byRank);
     // Done can grow without bound — cap it to the most recently completed
-    // issues so it doesn't dominate the board (PROG-40). `doneTotal` keeps the
+    // actions so it doesn't dominate the board (PROG-40). `doneTotal` keeps the
     // header honest about how many are hidden.
     const doneTotal = groups.get("done")!.length;
     groups.set("done", recentlyCompleted(groups.get("done")!));
     return { groups, doneTotal };
-  }, [snapshot.issues, snapshot.products, filters, tagsByIssue]);
+  }, [snapshot.actions, snapshot.focuses, filters, tagsByAction]);
 
   // The drag model works on ordered id-lists per column. `sourceColumns` is the
   // store's truth (rank order); `columns` is a working copy mutated live during
   // a drag for cross-column preview and reset from source when idle.
   const sourceColumns = useMemo(() => {
     const cols = {} as ColumnMap;
-    for (const status of ISSUE_STATUSES)
+    for (const status of ACTION_STATUSES)
       cols[status] = visibleByStatus.groups.get(status)!.map((i) => i.id);
     return cols;
   }, [visibleByStatus]);
@@ -171,7 +171,7 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
     if (!activeIdRef.current) setColumns(sourceColumns);
   }, [sourceColumns]);
 
-  // Mouse: a distance constraint keeps plain clicks (card → issue page) from
+  // Mouse: a distance constraint keeps plain clicks (card → action page) from
   // starting a drag. Touch: a hold-delay keeps swipes scrolling the board
   // horizontally — press-and-hold a card to drag it (SPEC §4 mobile).
   const sensors = useSensors(
@@ -179,7 +179,7 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
   );
 
-  const draggingIssue = activeId ? issuesById.get(activeId) : undefined;
+  const draggingAction = activeId ? actionsById.get(activeId) : undefined;
 
   // Collision strategy for variable-height columns (PROG-40/PROG-59). Plain
   // closestCorners measures distance to a droppable's corners, so a tall EMPTY
@@ -198,7 +198,7 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
       let overId = getFirstCollision(hits, "id") as string | null;
       if (overId != null) {
         if (overId in columns) {
-          const items = columns[overId as IssueStatus];
+          const items = columns[overId as ActionStatus];
           if (items.length > 0) {
             const inner = closestCenter({
               ...args,
@@ -217,9 +217,9 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
     [columns],
   );
 
-  const columnOf = (id: string): IssueStatus | undefined => {
-    if (id in columns) return id as IssueStatus; // dropped on a column itself
-    return ISSUE_STATUSES.find((s) => columns[s].includes(id));
+  const columnOf = (id: string): ActionStatus | undefined => {
+    if (id in columns) return id as ActionStatus; // dropped on a column itself
+    return ACTION_STATUSES.find((s) => columns[s].includes(id));
   };
 
   const onDragStart = (e: DragStartEvent) => setActive(String(e.active.id));
@@ -256,8 +256,8 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
     setActive(null);
     const id = String(e.active.id);
     const overId = e.over ? String(e.over.id) : null;
-    const issue = issuesById.get(id);
-    if (!overId || !issue) {
+    const action = actionsById.get(id);
+    if (!overId || !action) {
       setColumns(sourceColumns);
       return;
     }
@@ -287,19 +287,19 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
 
     // No-op guard: same column and same neighbors as the stored order ⇒ a click
     // or a drag that landed back home; skip the write.
-    const src = sourceColumns[issue.status];
+    const src = sourceColumns[action.status];
     const sIdx = src.indexOf(id);
     const srcPrev = sIdx > 0 ? src[sIdx - 1]! : null;
     const srcNext = sIdx < src.length - 1 ? src[sIdx + 1]! : null;
-    if (to === issue.status && srcPrev === prevId && srcNext === nextId) return;
+    if (to === action.status && srcPrev === prevId && srcNext === nextId) return;
 
     const newRank = rankBetween(
-      prevId ? (issuesById.get(prevId)?.rank ?? null) : null,
-      nextId ? (issuesById.get(nextId)?.rank ?? null) : null,
+      prevId ? (actionsById.get(prevId)?.rank ?? null) : null,
+      nextId ? (actionsById.get(nextId)?.rank ?? null) : null,
     );
-    const patch: IssuePatch = { rank: newRank };
-    if (to !== issue.status) patch.status = to;
-    updateIssue(id, patch);
+    const patch: ActionPatch = { rank: newRank };
+    if (to !== action.status) patch.status = to;
+    updateAction(id, patch);
   };
 
   const onDragCancel = () => {
@@ -307,11 +307,11 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
     setColumns(sourceColumns);
   };
 
-  // Canceled is a valid status (set it from the issue page or any status
+  // Canceled is a valid status (set it from the action page or any status
   // dropdown) but never gets a board column — PROG-63: the board is for work
-  // you intend to do, so canceled issues just drop off it. Backlog still hides
+  // you intend to do, so canceled actions just drop off it. Backlog still hides
   // behind its toggle.
-  const visibleColumns = ISSUE_STATUSES.filter(
+  const visibleColumns = ACTION_STATUSES.filter(
     (s) => s !== "canceled" && (s !== "backlog" || filters.backlog),
   );
   const shownCount = visibleColumns.reduce((n, s) => n + columns[s].length, 0);
@@ -321,7 +321,7 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
   const activeFilterCount =
     FILTER_KEYS.filter((k) => filters[k]).length +
     (filters.backlog ? 1 : 0) +
-    (filters.subissues ? 1 : 0);
+    (filters.steps ? 1 : 0);
 
   return (
     <>
@@ -329,14 +329,14 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
           app name (PROG-53 — drop the redundant heading). */}
       <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <p className="text-xs text-ink-faint">
-          {shownCount} issues on board · {snapshot.issues.length} total · loaded in{" "}
+          {shownCount} actions on board · {snapshot.actions.length} total · loaded in{" "}
           {Math.round(loadStats.fetchMs)} ms · ⌘K for commands
         </p>
         <button
-          onClick={() => openCreateIssue()}
+          onClick={() => openCreateAction()}
           className="ml-auto inline-flex min-h-11 items-center rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep sm:min-h-0"
         >
-          New issue <span className="ml-1 text-white/70">(C)</span>
+          New action <span className="ml-1 text-white/70">(C)</span>
         </button>
       </header>
 
@@ -368,14 +368,14 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
               {filters.backlog ? "Hide backlog" : "Show backlog"}
             </button>
             <button
-              onClick={() => setParam("subissues", filters.subissues ? null : "1")}
+              onClick={() => setParam("steps", filters.steps ? null : "1")}
               className={`inline-flex min-h-11 items-center rounded border px-3 py-1 text-xs sm:min-h-0 sm:px-2 ${
-                filters.subissues
+                filters.steps
                   ? "border-ink-faint bg-line text-ink-soft"
                   : "border-line bg-card text-ink-faint hover:border-ink-faint"
               }`}
             >
-              {filters.subissues ? "Hide sub-issues" : "Show sub-issues"}
+              {filters.steps ? "Hide steps" : "Show steps"}
             </button>
           </>
         }
@@ -421,11 +421,11 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
             <BoardColumn
               key={status}
               status={status}
-              issueIds={columns[status]}
+              actionIds={columns[status]}
               total={status === "done" ? visibleByStatus.doneTotal : undefined}
-              issuesById={issuesById}
+              actionsById={actionsById}
               snapshot={snapshot}
-              tagsByIssue={tagsByIssue}
+              tagsByAction={tagsByAction}
               activeId={activeId}
             />
           ))}
@@ -437,12 +437,12 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
             (PROG-43). Dropping it makes the card settle in place instantly —
             on-brand with the instant-UI rule. */}
         <DragOverlay dropAnimation={null}>
-          {draggingIssue && (
+          {draggingAction && (
             <div data-drag-overlay>
               <CardView
-                issue={draggingIssue}
+                action={draggingAction}
                 snapshot={snapshot}
-                tags={tagsByIssue.get(draggingIssue.id) ?? []}
+                tags={tagsByAction.get(draggingAction.id) ?? []}
                 dragging
               />
             </div>
@@ -455,21 +455,21 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
 
 function BoardColumn({
   status,
-  issueIds,
+  actionIds,
   total,
-  issuesById,
+  actionsById,
   snapshot,
-  tagsByIssue,
+  tagsByAction,
   activeId,
 }: {
-  status: IssueStatus;
-  issueIds: string[];
+  status: ActionStatus;
+  actionIds: string[];
   // When the column is capped (Done — PROG-40), the true count before capping,
   // so the header can show "shown of total". Undefined ⇒ nothing is hidden.
   total?: number;
-  issuesById: Map<string, WireIssue>;
+  actionsById: Map<string, WireAction>;
   snapshot: SnapshotPayload;
-  tagsByIssue: Map<string, WireTag[]>;
+  tagsByAction: Map<string, WireTag[]>;
   activeId: string | null;
 }) {
   // Droppable so an empty column (or the space below the last card) still
@@ -478,7 +478,7 @@ function BoardColumn({
   // and the card list grows to fill it, so the drop zone spans the whole
   // column — drag sideways into it without going to the top (PROG-40).
   const { setNodeRef, isOver } = useDroppable({ id: status });
-  const hiddenCount = total !== undefined && total > issueIds.length;
+  const hiddenCount = total !== undefined && total > actionIds.length;
   return (
     // flex-1 min-w-72: columns grow equally to fill the board's container width
     // (capped + centered by <main>'s max-w-screen-2xl, so they don't sprawl on a
@@ -492,19 +492,19 @@ function BoardColumn({
       className={`flex min-w-72 flex-1 snap-start flex-col rounded-lg p-2 ${isOver ? "bg-adobe-wash/30 ring-1 ring-adobe-light" : "bg-line/40"}`}
     >
       <h2 className="px-1 pb-2 text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">
-        {STATUS_LABELS[status]} · {hiddenCount ? `${issueIds.length} of ${total}` : issueIds.length}
+        {STATUS_LABELS[status]} · {hiddenCount ? `${actionIds.length} of ${total}` : actionIds.length}
       </h2>
-      <SortableContext items={issueIds} strategy={verticalListSortingStrategy}>
+      <SortableContext items={actionIds} strategy={verticalListSortingStrategy}>
         <div className="flex min-h-8 flex-1 flex-col gap-1.5">
-          {issueIds.map((id) => {
-            const issue = issuesById.get(id);
-            if (!issue) return null;
+          {actionIds.map((id) => {
+            const action = actionsById.get(id);
+            if (!action) return null;
             return (
               <BoardCard
                 key={id}
-                issue={issue}
+                action={action}
                 snapshot={snapshot}
-                tags={tagsByIssue.get(id) ?? []}
+                tags={tagsByAction.get(id) ?? []}
                 hidden={activeId === id}
               />
             );
@@ -516,25 +516,25 @@ function BoardColumn({
 }
 
 function BoardCard({
-  issue,
+  action,
   snapshot,
   tags,
   hidden,
 }: {
-  issue: WireIssue;
+  action: WireAction;
   snapshot: SnapshotPayload;
   tags: WireTag[];
   hidden: boolean;
 }) {
   const { setNodeRef, listeners, attributes, transform, transition, isDragging } = useSortable({
-    id: issue.id,
+    id: action.id,
   });
   return (
     <div
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      data-issue-id={issue.id}
+      data-action-id={action.id}
       className={hidden || isDragging ? "opacity-30" : ""}
       // touchAction:manipulation keeps taps/holds responsive without blocking
       // board scroll (touch-action:none would kill scrolling over cards).
@@ -554,32 +554,32 @@ function BoardCard({
         transition,
       }}
     >
-      <Link href={`/issue/${issueKeyOf(snapshot, issue)}`} draggable={false}>
-        <CardView issue={issue} snapshot={snapshot} tags={tags} />
+      <Link href={`/action/${actionKeyOf(snapshot, action)}`} draggable={false}>
+        <CardView action={action} snapshot={snapshot} tags={tags} />
       </Link>
     </div>
   );
 }
 
 function CardView({
-  issue,
+  action,
   snapshot,
   tags,
   dragging = false,
 }: {
-  issue: WireIssue;
+  action: WireAction;
   snapshot: SnapshotPayload;
   tags: WireTag[];
   dragging?: boolean;
 }) {
-  const product = snapshot.products.find((p) => p.id === issue.productId);
-  // Sub-issue cards (PROG-124) read as nested-to-parent: indented with a moss
+  const focus = snapshot.focuses.find((p) => p.id === action.focusId);
+  // Step cards (PROG-124) read as nested-to-parent: indented with a moss
   // accent rail and a "↳ PARENT-KEY" breadcrumb, so they're distinct from the
   // top-level deliverables even though the column still sorts everything by rank.
-  const parent = issue.parentIssueId
-    ? snapshot.issues.find((i) => i.id === issue.parentIssueId)
+  const parent = action.parentActionId
+    ? snapshot.actions.find((i) => i.id === action.parentActionId)
     : undefined;
-  const isChild = issue.parentIssueId !== null;
+  const isChild = action.parentActionId !== null;
   return (
     <div
       className={`cursor-pointer rounded-md border border-line bg-card p-2.5 text-sm hover:border-line ${
@@ -590,23 +590,23 @@ function CardView({
       <p className="flex items-baseline justify-between gap-2">
         <span className="font-mono text-xs text-ink-faint">
           {parent && (
-            <span className="text-moss" title="Sub-issue">
+            <span className="text-moss" title="Step">
               ↳{" "}
-              {snapshot.products.find((p) => p.id === parent.productId)?.keyPrefix ?? "?"}-
+              {snapshot.focuses.find((p) => p.id === parent.focusId)?.keyPrefix ?? "?"}-
               {parent.number}{" "}
             </span>
           )}
-          {product?.keyPrefix ?? "?"}-{issue.number}
+          {focus?.keyPrefix ?? "?"}-{action.number}
         </span>
-        <span className="text-xs text-ink-faint">{product?.name}</span>
+        <span className="text-xs text-ink-faint">{focus?.name}</span>
       </p>
-      <p className="mt-1 font-medium leading-snug">{issue.title}</p>
+      <p className="mt-1 font-medium leading-snug">{action.title}</p>
       {/* Estimate + tags get their own line so they don't crowd the date/priority
           footer below (PROG-61). */}
-      {(issue.estimate !== null || tags.length > 0) && (
+      {(action.estimate !== null || tags.length > 0) && (
         <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-faint">
-          {issue.estimate !== null && (
-            <span className="rounded bg-line px-1">{issue.estimate}</span>
+          {action.estimate !== null && (
+            <span className="rounded bg-line px-1">{action.estimate}</span>
           )}
           {tags.map((tag) => (
             <span
@@ -619,14 +619,14 @@ function CardView({
           ))}
         </p>
       )}
-      {(issue.dueDate || issue.priority !== "none") && (
+      {(action.dueDate || action.priority !== "none") && (
         // Footer balances the two at-a-glance signals: the due date reads from
         // the bottom-left corner and the priority glyph is pinned bottom-right
         // (PROG-61) so date and priority never crowd each other.
         <div className="mt-2 flex items-end justify-between gap-2 text-xs text-ink-faint">
-          <span className="min-w-0">{issue.dueDate && <CardDueDate due={issue.dueDate} />}</span>
-          {issue.priority !== "none" && (
-            <PriorityIndicator priority={issue.priority} className="shrink-0" />
+          <span className="min-w-0">{action.dueDate && <CardDueDate due={action.dueDate} />}</span>
+          {action.priority !== "none" && (
+            <PriorityIndicator priority={action.priority} className="shrink-0" />
           )}
         </div>
       )}

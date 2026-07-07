@@ -15,8 +15,8 @@ export default function FilterSelect({
   value: string | undefined;
   options: [string, string][];
   onChange: (value: string | null) => void;
-  // Nullable fields (Arc, Repo, Tag) offer a "none" option to find issues with
-  // no value there (PROG-76). Required fields (Product) and global vocabularies
+  // Nullable fields (Arc, Repo, Tag) offer a "none" option to find actions with
+  // no value there (PROG-76). Required fields (Focus) and global vocabularies
   // (Priority, Status) leave it off.
   nullable?: boolean;
 }) {

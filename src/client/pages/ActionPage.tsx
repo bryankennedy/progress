@@ -3,32 +3,32 @@ import Markdown from "../Markdown";
 import MarkdownTextarea from "../MarkdownTextarea";
 import { Link, useLocation } from "wouter";
 import {
-  ISSUE_ESTIMATES,
-  ISSUE_PRIORITIES,
-  ISSUE_STATUSES,
-  type IssuePriority,
-  type IssueStatus,
+  ACTION_ESTIMATES,
+  ACTION_PRIORITIES,
+  ACTION_STATUSES,
+  type ActionPriority,
+  type ActionStatus,
 } from "../../shared/constants";
 import type { PrState } from "../../shared/constants";
 import type {
   WireActivity,
   WireComment,
   WireCommitLink,
-  WireIssue,
+  WireAction,
   WirePrLink,
   SnapshotPayload,
 } from "../../shared/types";
 import { openPalette } from "../commands/controller";
-import { useRegisterPageIssue } from "../commands/currentIssue";
+import { useRegisterPageAction } from "../commands/currentAction";
 import EditableMarkdown from "../EditableMarkdown";
 import InlineEdit from "../InlineEdit";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
 import {
   addComment,
-  findIssueByKey,
-  issueKeyOf,
-  updateIssue,
+  findActionByKey,
+  actionKeyOf,
+  updateAction,
   useTimeline,
 } from "../store";
 import { copyBundleAsPrompt, copyWorkCommand, prefetchBundle } from "../workOn";
@@ -46,25 +46,25 @@ const fmtTime = (iso: string) =>
 const FIELD_ACTION_CLS =
   "flex min-h-11 items-center text-xs text-adobe hover:underline sm:block sm:min-h-0";
 
-export default function IssuePage({
+export default function ActionPage({
   snapshot,
   keyParam,
 }: {
   snapshot: SnapshotPayload;
   keyParam: string;
 }) {
-  const resolved = findIssueByKey(snapshot, keyParam);
+  const resolved = findActionByKey(snapshot, keyParam);
   const [, navigate] = useLocation();
 
-  // Makes this issue the target of the single-key actions (S/P/E/M).
-  useRegisterPageIssue(resolved?.issue.id);
+  // Makes this action the target of the single-key actions (S/P/E/M).
+  useRegisterPageAction(resolved?.action.id);
 
-  // Alias hit (old key from a cross-product move): permanent redirect to the
+  // Alias hit (old key from a cross-focus move): permanent redirect to the
   // canonical key (SPEC §3).
-  const canonicalKey = resolved ? issueKeyOf(snapshot, resolved.issue) : null;
+  const canonicalKey = resolved ? actionKeyOf(snapshot, resolved.action) : null;
   useEffect(() => {
     if (resolved?.viaAlias && canonicalKey) {
-      navigate(`/issue/${canonicalKey}`, { replace: true });
+      navigate(`/action/${canonicalKey}`, { replace: true });
     }
   }, [resolved?.viaAlias, canonicalKey, navigate]);
 
@@ -76,20 +76,20 @@ export default function IssuePage({
   if (!resolved) {
     return (
       <p className="text-ink-soft">
-        No issue with key <span className="font-mono">{keyParam}</span>.{" "}
+        No action with key <span className="font-mono">{keyParam}</span>.{" "}
         <Link href="/" className="text-adobe hover:underline">
           Back to the board
         </Link>
       </p>
     );
   }
-  const { issue } = resolved;
+  const { action } = resolved;
 
-  const product = snapshot.products.find((p) => p.id === issue.productId);
-  const repo = issue.repoId ? snapshot.repos.find((r) => r.id === issue.repoId) : null;
-  const arc = issue.arcId ? snapshot.arcs.find((a) => a.id === issue.arcId) : null;
-  const issueTags = snapshot.issueTags
-    .filter((link) => link.issueId === issue.id)
+  const focus = snapshot.focuses.find((p) => p.id === action.focusId);
+  const repo = action.repoId ? snapshot.repos.find((r) => r.id === action.repoId) : null;
+  const arc = action.arcId ? snapshot.arcs.find((a) => a.id === action.arcId) : null;
+  const actionTags = snapshot.actionTags
+    .filter((link) => link.actionId === action.id)
     .map((link) => snapshot.tags.find((t) => t.id === link.tagId))
     .filter((t) => t !== undefined);
 
@@ -100,9 +100,9 @@ export default function IssuePage({
           Snapshot
         </Link>{" "}
         /{" "}
-        {product ? (
-          <Link href={`/product/${product.id}`} className="hover:text-ink-soft">
-            {product.name}
+        {focus ? (
+          <Link href={`/focus/${focus.id}`} className="hover:text-ink-soft">
+            {focus.name}
           </Link>
         ) : (
           "?"
@@ -121,8 +121,8 @@ export default function IssuePage({
         <p className="font-mono text-sm text-ink-faint">{canonicalKey}</p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">
           <InlineEdit
-            value={issue.title}
-            onSave={(title) => updateIssue(issue.id, { title })}
+            value={action.title}
+            onSave={(title) => updateAction(action.id, { title })}
             validate={(v) => v !== ""}
             className="w-full"
             inputClassName="text-2xl font-semibold tracking-tight"
@@ -139,11 +139,11 @@ export default function IssuePage({
       <div className="mt-6 grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,1fr)_14rem]">
         <div className="min-w-0 md:col-start-1 md:row-start-1">
           <EditableMarkdown
-            value={issue.description}
+            value={action.description}
             placeholder="Add a description…"
-            draftScope={{ meId: snapshot.me?.id ?? "anon", targetId: issue.id }}
+            draftScope={{ meId: snapshot.me?.id ?? "anon", targetId: action.id }}
             onSave={(description) =>
-              updateIssue(issue.id, { description }, { toastOnError: false })
+              updateAction(action.id, { description }, { toastOnError: false })
             }
           />
         </div>
@@ -156,35 +156,35 @@ export default function IssuePage({
         <aside className="w-full min-w-0 overflow-hidden space-y-4 md:col-start-2 md:row-start-1 md:row-span-2">
           <Field label="Status">
             <FieldSelect
-              value={issue.status}
-              options={ISSUE_STATUSES.map((s) => [s, STATUS_LABELS[s]])}
-              onChange={(v) => updateIssue(issue.id, { status: v as IssueStatus })}
+              value={action.status}
+              options={ACTION_STATUSES.map((s) => [s, STATUS_LABELS[s]])}
+              onChange={(v) => updateAction(action.id, { status: v as ActionStatus })}
             />
           </Field>
           <Field label="Priority">
             <div className="flex items-center gap-2">
-              <PriorityIndicator priority={issue.priority} />
+              <PriorityIndicator priority={action.priority} />
               <div className="min-w-0 flex-1">
                 <FieldSelect
-                  value={issue.priority}
-                  options={ISSUE_PRIORITIES.map((p) => [p, PRIORITY_LABELS[p]])}
-                  onChange={(v) => updateIssue(issue.id, { priority: v as IssuePriority })}
+                  value={action.priority}
+                  options={ACTION_PRIORITIES.map((p) => [p, PRIORITY_LABELS[p]])}
+                  onChange={(v) => updateAction(action.id, { priority: v as ActionPriority })}
                 />
               </div>
             </div>
           </Field>
           <Field label="Estimate">
             <FieldSelect
-              value={issue.estimate === null ? "" : String(issue.estimate)}
-              options={[["", "—"], ...ISSUE_ESTIMATES.map((e): [string, string] => [String(e), String(e)])]}
-              onChange={(v) => updateIssue(issue.id, { estimate: v === "" ? null : Number(v) })}
+              value={action.estimate === null ? "" : String(action.estimate)}
+              options={[["", "—"], ...ACTION_ESTIMATES.map((e): [string, string] => [String(e), String(e)])]}
+              onChange={(v) => updateAction(action.id, { estimate: v === "" ? null : Number(v) })}
             />
           </Field>
           <Field label="Due date">
             <input
               type="date"
-              value={issue.dueDate ?? ""}
-              onChange={(e) => updateIssue(issue.id, { dueDate: e.target.value || null })}
+              value={action.dueDate ?? ""}
+              onChange={(e) => updateAction(action.id, { dueDate: e.target.value || null })}
               // w-full + min-w-0 + max-w-full: pin the native date control to
               // the column width instead of letting its (wide, on iOS Safari)
               // intrinsic size win. iOS renders a localized label ("Jun 30, 2026")
@@ -199,11 +199,11 @@ export default function IssuePage({
           </Field>
           <Field label="Container">
             <p className="text-sm">
-              {product?.name ?? "?"}
+              {focus?.name ?? "?"}
               {repo ? ` / ${repo.name}` : ""}
             </p>
             <button
-              onClick={() => openPalette({ kind: "move", issueId: issue.id })}
+              onClick={() => openPalette({ kind: "move", actionId: action.id })}
               className={`mt-0.5 ${FIELD_ACTION_CLS}`}
             >
               Move… <span className="ml-1 text-ink-faint">(M)</span>
@@ -218,18 +218,18 @@ export default function IssuePage({
               <span className="text-sm text-ink-faint">—</span>
             )}
             <button
-              onClick={() => openPalette({ kind: "arc", issueId: issue.id })}
+              onClick={() => openPalette({ kind: "arc", actionId: action.id })}
               className={`mt-0.5 ${FIELD_ACTION_CLS}`}
             >
               Change… <span className="ml-1 text-ink-faint">(A)</span>
             </button>
           </Field>
           <Field label="Tags">
-            {issueTags.length === 0 ? (
+            {actionTags.length === 0 ? (
               <span className="text-sm text-ink-faint">—</span>
             ) : (
               <span className="flex flex-wrap gap-1">
-                {issueTags.map((tag) => (
+                {actionTags.map((tag) => (
                   <span
                     key={tag.id}
                     className="rounded-full px-2 py-0.5 text-xs text-white"
@@ -241,7 +241,7 @@ export default function IssuePage({
               </span>
             )}
             <button
-              onClick={() => openPalette({ kind: "tag", issueId: issue.id })}
+              onClick={() => openPalette({ kind: "tag", actionId: action.id })}
               className={`mt-0.5 ${FIELD_ACTION_CLS}`}
             >
               Edit… <span className="ml-1 text-ink-faint">(T)</span>
@@ -249,27 +249,27 @@ export default function IssuePage({
           </Field>
           <Field label="Work on this">
             <button
-              onClick={() => void copyBundleAsPrompt(issueKeyOf(snapshot, issue))}
+              onClick={() => void copyBundleAsPrompt(actionKeyOf(snapshot, action))}
               className={FIELD_ACTION_CLS}
             >
               Copy as prompt <span className="ml-1 text-ink-faint">(W)</span>
             </button>
             <button
-              onClick={() => copyWorkCommand(issueKeyOf(snapshot, issue))}
+              onClick={() => copyWorkCommand(actionKeyOf(snapshot, action))}
               className={FIELD_ACTION_CLS}
             >
               Copy CLI command
             </button>
           </Field>
           <div className="space-y-1 border-t border-line pt-3 text-xs text-ink-faint">
-            <p>Created {fmtTime(issue.createdAt)}</p>
-            <p>Updated {fmtTime(issue.updatedAt)}</p>
-            {issue.completedAt && <p>Completed {fmtTime(issue.completedAt)}</p>}
+            <p>Created {fmtTime(action.createdAt)}</p>
+            <p>Updated {fmtTime(action.updatedAt)}</p>
+            {action.completedAt && <p>Completed {fmtTime(action.completedAt)}</p>}
           </div>
         </aside>
 
         <div className="min-w-0 md:col-start-1 md:row-start-2">
-          <TimelineSection issue={issue} snapshot={snapshot} />
+          <TimelineSection action={action} snapshot={snapshot} />
         </div>
       </div>
     </div>
@@ -314,18 +314,18 @@ type TimelineEntry =
   | { kind: "activity"; at: string; event: WireActivity };
 
 function TimelineSection({
-  issue,
+  action,
   snapshot,
 }: {
-  issue: WireIssue;
+  action: WireAction;
   snapshot: SnapshotPayload;
 }) {
-  const { data: timeline, isPending, error } = useTimeline(issue.id);
+  const { data: timeline, isPending, error } = useTimeline(action.id);
   const meId = snapshot.me?.id ?? "anon";
   // Comment draft persists to localStorage as you type (PROG-51), so unsent text
   // survives a tab close, reload, or a failed/timed-out post. Cleared only once
   // the server confirms the comment.
-  const [draft, setDraft] = useState(() => readDraft("comment", meId, issue.id));
+  const [draft, setDraft] = useState(() => readDraft("comment", meId, action.id));
   const [sending, setSending] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout>>(undefined);
   // Always-current mirror of `draft`, so the post-send success handler can tell
@@ -337,17 +337,17 @@ function TimelineSection({
   }, [draft]);
   const userName = (id: string) => snapshot.users.find((u) => u.id === id)?.name ?? id;
 
-  // Re-hydrate when navigating between issues (this section is keyed by issue id
+  // Re-hydrate when navigating between actions (this section is keyed by action id
   // but remounts may reuse state) or once the signed-in user resolves.
   useEffect(() => {
-    setDraft(readDraft("comment", meId, issue.id));
-  }, [meId, issue.id]);
+    setDraft(readDraft("comment", meId, action.id));
+  }, [meId, action.id]);
   useEffect(() => () => clearTimeout(debounce.current), []);
 
   function onDraftChange(next: string) {
     setDraft(next);
     clearTimeout(debounce.current);
-    debounce.current = setTimeout(() => writeDraft("comment", meId, issue.id, next), 400);
+    debounce.current = setTimeout(() => writeDraft("comment", meId, action.id, next), 400);
   }
 
   // Send an explicit body (not read from state) so a Retry re-sends exactly that
@@ -356,7 +356,7 @@ function TimelineSection({
   // or in-flight send never loses it.
   async function sendComment(body: string) {
     setSending(true);
-    const ok = await addComment(issue.id, body);
+    const ok = await addComment(action.id, body);
     setSending(false);
     if (ok) {
       // Only clear if the field still holds the text we sent. If the user typed a
@@ -366,13 +366,13 @@ function TimelineSection({
       if (draftRef.current.trim() === body) {
         clearTimeout(debounce.current);
         setDraft("");
-        clearDraft("comment", meId, issue.id);
+        clearDraft("comment", meId, action.id);
       }
     } else {
       toastAction(
         "Couldn't post that comment — your text is saved here.",
         { label: "Retry", run: () => void sendComment(body) },
-        `comment:${issue.id}`,
+        `comment:${action.id}`,
       );
     }
   }
@@ -506,26 +506,26 @@ function CommitRow({ commit }: { commit: WireCommitLink }) {
 
 function describeActivity(event: WireActivity, snapshot: SnapshotPayload): string {
   if (event.type === "status_changed") {
-    const data = event.data as { from?: IssueStatus; to?: IssueStatus };
-    const label = (s: IssueStatus | undefined) => (s ? (STATUS_LABELS[s] ?? s) : "?");
+    const data = event.data as { from?: ActionStatus; to?: ActionStatus };
+    const label = (s: ActionStatus | undefined) => (s ? (STATUS_LABELS[s] ?? s) : "?");
     return `Status changed: ${label(data.from)} → ${label(data.to)}`;
   }
   if (event.type === "moved") {
     const data = event.data as {
-      fromProductId?: string;
+      fromFocusId?: string;
       fromRepoId?: string | null;
-      toProductId?: string;
+      toFocusId?: string;
       toRepoId?: string | null;
       fromKey?: string;
       toKey?: string;
     };
-    const containerName = (productId?: string, repoId?: string | null) => {
-      const product = snapshot.products.find((p) => p.id === productId);
+    const containerName = (focusId?: string, repoId?: string | null) => {
+      const focus = snapshot.focuses.find((p) => p.id === focusId);
       const repo = repoId ? snapshot.repos.find((r) => r.id === repoId) : undefined;
-      return `${product?.name ?? "?"}${repo ? ` / ${repo.name}` : ""}`;
+      return `${focus?.name ?? "?"}${repo ? ` / ${repo.name}` : ""}`;
     };
     const rekeyed = data.fromKey ? ` (was ${data.fromKey})` : "";
-    return `Moved: ${containerName(data.fromProductId, data.fromRepoId)} → ${containerName(data.toProductId, data.toRepoId)}${rekeyed}`;
+    return `Moved: ${containerName(data.fromFocusId, data.fromRepoId)} → ${containerName(data.toFocusId, data.toRepoId)}${rekeyed}`;
   }
   if (event.type === "pr_linked") {
     const data = event.data as { githubRepo?: string; prNumber?: number; title?: string };

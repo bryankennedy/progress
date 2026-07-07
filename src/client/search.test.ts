@@ -4,29 +4,29 @@
 import { describe, expect, it } from "bun:test";
 import type { SnapshotPayload } from "../shared/types";
 import {
-  browseIssues,
+  browseActions,
   highlight,
   queryTerms,
   searchContainers,
-  searchIssues,
-  sortIssueHits,
-  type IssueHit,
+  searchActions,
+  sortActionHits,
+  type ActionHit,
 } from "./search";
 
-// A minimal snapshot — search only reads issues + the four container arrays
+// A minimal snapshot — search only reads actions + the four container arrays
 // and their name/title/description/archivedAt fields, so the rest is cast away.
 function ws(over: Partial<SnapshotPayload>): SnapshotPayload {
   return {
-    initiatives: [],
-    products: [],
+    workspaces: [],
+    focuses: [],
     repos: [],
     arcs: [],
-    issues: [],
+    actions: [],
     ...over,
   } as unknown as SnapshotPayload;
 }
 
-function issue(over: Record<string, unknown>) {
+function action(over: Record<string, unknown>) {
   return {
     id: "i1",
     title: "",
@@ -44,101 +44,101 @@ describe("queryTerms", () => {
   });
 });
 
-describe("searchIssues", () => {
+describe("searchActions", () => {
   it("ranks a title match above a description-only match", () => {
     const data = ws({
-      issues: [
-        issue({ id: "desc", title: "unrelated", description: "mentions ozzie here" }),
-        issue({ id: "title", title: "Ozzie onboarding", description: "" }),
+      actions: [
+        action({ id: "desc", title: "unrelated", description: "mentions ozzie here" }),
+        action({ id: "title", title: "Ozzie onboarding", description: "" }),
       ],
     });
-    const hits = searchIssues(data, "ozzie");
-    expect(hits.map((h) => h.issue.id)).toEqual(["title", "desc"]);
+    const hits = searchActions(data, "ozzie");
+    expect(hits.map((h) => h.action.id)).toEqual(["title", "desc"]);
     expect(hits[0]!.inTitle).toBe(true);
     expect(hits[1]!.inTitle).toBe(false);
   });
 
   it("requires every term to appear somewhere (AND semantics)", () => {
     const data = ws({
-      issues: [
-        issue({ id: "both", title: "Ozzie sync", description: "" }),
-        issue({ id: "one", title: "Ozzie", description: "no second term" }),
+      actions: [
+        action({ id: "both", title: "Ozzie sync", description: "" }),
+        action({ id: "one", title: "Ozzie", description: "no second term" }),
       ],
     });
-    expect(searchIssues(data, "ozzie sync").map((h) => h.issue.id)).toEqual(["both"]);
+    expect(searchActions(data, "ozzie sync").map((h) => h.action.id)).toEqual(["both"]);
   });
 
   it("matches substrings, not just whole words", () => {
-    const data = ws({ issues: [issue({ id: "x", title: "refactor the ozziefier" })] });
-    expect(searchIssues(data, "ozzie").map((h) => h.issue.id)).toEqual(["x"]);
+    const data = ws({ actions: [action({ id: "x", title: "refactor the ozziefier" })] });
+    expect(searchActions(data, "ozzie").map((h) => h.action.id)).toEqual(["x"]);
   });
 
   it("breaks score ties by recency", () => {
     const data = ws({
-      issues: [
-        issue({ id: "old", title: "ozzie", updatedAt: "2026-01-01T00:00:00.000Z" }),
-        issue({ id: "new", title: "ozzie", updatedAt: "2026-06-01T00:00:00.000Z" }),
+      actions: [
+        action({ id: "old", title: "ozzie", updatedAt: "2026-01-01T00:00:00.000Z" }),
+        action({ id: "new", title: "ozzie", updatedAt: "2026-06-01T00:00:00.000Z" }),
       ],
     });
-    expect(searchIssues(data, "ozzie").map((h) => h.issue.id)).toEqual(["new", "old"]);
+    expect(searchActions(data, "ozzie").map((h) => h.action.id)).toEqual(["new", "old"]);
   });
 
   it("returns nothing for an empty query", () => {
-    const data = ws({ issues: [issue({ id: "x", title: "ozzie" })] });
-    expect(searchIssues(data, "  ")).toEqual([]);
+    const data = ws({ actions: [action({ id: "x", title: "ozzie" })] });
+    expect(searchActions(data, "  ")).toEqual([]);
   });
 });
 
-describe("browseIssues", () => {
-  it("returns every issue, newest first (PROG-78 empty-query browse)", () => {
+describe("browseActions", () => {
+  it("returns every action, newest first (PROG-78 empty-query browse)", () => {
     const data = ws({
-      issues: [
-        issue({ id: "old", title: "a", updatedAt: "2026-01-01T00:00:00.000Z" }),
-        issue({ id: "new", title: "b", updatedAt: "2026-06-01T00:00:00.000Z" }),
+      actions: [
+        action({ id: "old", title: "a", updatedAt: "2026-01-01T00:00:00.000Z" }),
+        action({ id: "new", title: "b", updatedAt: "2026-06-01T00:00:00.000Z" }),
       ],
     });
-    expect(browseIssues(data).map((h) => h.issue.id)).toEqual(["new", "old"]);
+    expect(browseActions(data).map((h) => h.action.id)).toEqual(["new", "old"]);
   });
 
   it("marks hits inTitle so no description snippet renders", () => {
-    const data = ws({ issues: [issue({ id: "x", description: "some body text" })] });
-    expect(browseIssues(data)[0]).toMatchObject({ inTitle: true, score: 0 });
+    const data = ws({ actions: [action({ id: "x", description: "some body text" })] });
+    expect(browseActions(data)[0]).toMatchObject({ inTitle: true, score: 0 });
   });
 });
 
-describe("sortIssueHits", () => {
-  const hitsOf = (issues: Record<string, unknown>[]): IssueHit[] =>
-    issues.map((i) => ({ issue: issue(i), score: 0, inTitle: true }) as unknown as IssueHit);
+describe("sortActionHits", () => {
+  const hitsOf = (actions: Record<string, unknown>[]): ActionHit[] =>
+    actions.map((i) => ({ action: action(i), score: 0, inTitle: true }) as unknown as ActionHit);
 
-  const products = [
+  const focuses = [
     { id: "p1", name: "Alpha", keyPrefix: "ALPH" },
     { id: "p2", name: "beta", keyPrefix: "BETA" },
   ] as never;
 
   it("returns the hits untouched when sort is null (default order preserved)", () => {
     const hits = hitsOf([{ id: "b" }, { id: "a" }]);
-    expect(sortIssueHits(ws({}), hits, null)).toBe(hits);
+    expect(sortActionHits(ws({}), hits, null)).toBe(hits);
   });
 
-  it("sorts by key numerically within a product (PROG-2 before PROG-10)", () => {
+  it("sorts by key numerically within a focus (PROG-2 before PROG-10)", () => {
     const hits = hitsOf([
-      { id: "ten", productId: "p1", number: 10 },
-      { id: "two", productId: "p1", number: 2 },
-      { id: "other", productId: "p2", number: 1 },
+      { id: "ten", focusId: "p1", number: 10 },
+      { id: "two", focusId: "p1", number: 2 },
+      { id: "other", focusId: "p2", number: 1 },
     ]);
-    const sorted = sortIssueHits(ws({ products }), hits, { key: "key", dir: "asc" });
-    expect(sorted.map((h) => h.issue.id)).toEqual(["two", "ten", "other"]);
+    const sorted = sortActionHits(ws({ focuses }), hits, { key: "key", dir: "asc" });
+    expect(sorted.map((h) => h.action.id)).toEqual(["two", "ten", "other"]);
   });
 
-  it("sorts title and product case-insensitively, and desc flips the order", () => {
+  it("sorts title and focus case-insensitively, and desc flips the order", () => {
     const hits = hitsOf([
-      { id: "z", title: "zebra", productId: "p2" },
-      { id: "a", title: "Apple", productId: "p1" },
+      { id: "z", title: "zebra", focusId: "p2" },
+      { id: "a", title: "Apple", focusId: "p1" },
     ]);
-    const data = ws({ products });
-    expect(sortIssueHits(data, hits, { key: "title", dir: "asc" }).map((h) => h.issue.id)).toEqual(["a", "z"]);
-    expect(sortIssueHits(data, hits, { key: "title", dir: "desc" }).map((h) => h.issue.id)).toEqual(["z", "a"]);
-    expect(sortIssueHits(data, hits, { key: "product", dir: "asc" }).map((h) => h.issue.id)).toEqual(["a", "z"]);
+    const data = ws({ focuses });
+    expect(sortActionHits(data, hits, { key: "title", dir: "asc" }).map((h) => h.action.id)).toEqual(["a", "z"]);
+    expect(sortActionHits(data, hits, { key: "title", dir: "desc" }).map((h) => h.action.id)).toEqual(["z", "a"]);
+    expect(sortActionHits(data, hits, { key: "focus", dir: "asc" }).map((h) => h.action.id)).toEqual(["a", "z"]);
   });
 
   it("sorts status by workflow order and priority by urgency, not alphabetically", () => {
@@ -148,7 +148,7 @@ describe("sortIssueHits", () => {
       { id: "prog", status: "in_progress" },
     ]);
     expect(
-      sortIssueHits(ws({}), statusHits, { key: "status", dir: "asc" }).map((h) => h.issue.id),
+      sortActionHits(ws({}), statusHits, { key: "status", dir: "asc" }).map((h) => h.action.id),
     ).toEqual(["backlog", "prog", "done"]);
 
     // Alphabetical would put "high" before "urgent"; urgency order must not.
@@ -158,7 +158,7 @@ describe("sortIssueHits", () => {
       { id: "urgent", priority: "urgent" },
     ]);
     expect(
-      sortIssueHits(ws({}), prioHits, { key: "priority", dir: "asc" }).map((h) => h.issue.id),
+      sortActionHits(ws({}), prioHits, { key: "priority", dir: "asc" }).map((h) => h.action.id),
     ).toEqual(["urgent", "high", "none"]);
   });
 
@@ -168,7 +168,7 @@ describe("sortIssueHits", () => {
       { id: "new", status: "todo", updatedAt: "2026-06-01T00:00:00.000Z" },
     ]);
     for (const dir of ["asc", "desc"] as const) {
-      expect(sortIssueHits(ws({}), hits, { key: "status", dir }).map((h) => h.issue.id)).toEqual([
+      expect(sortActionHits(ws({}), hits, { key: "status", dir }).map((h) => h.action.id)).toEqual([
         "new",
         "old",
       ]);
@@ -179,7 +179,7 @@ describe("sortIssueHits", () => {
 describe("searchContainers", () => {
   it("matches name and description but skips archived", () => {
     const data = ws({
-      products: [
+      focuses: [
         { id: "p1", name: "Ozzie", description: "", archivedAt: null },
         { id: "p2", name: "Other", description: "about ozzie", archivedAt: null },
         { id: "p3", name: "Ozzie archived", description: "", archivedAt: "2026-01-01" },

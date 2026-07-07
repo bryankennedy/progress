@@ -1,11 +1,11 @@
-// v2 dogfood pass (SPEC v2 §11): record the v2 build as issues in Progress's
+// v2 dogfood pass (SPEC v2 §11): record the v2 build as actions in Progress's
 // own production backlog, through the LIVE API with the Progress API token
 // (Authorization: Bearer) — the same pattern as scripts/dogfood-cutover.ts. Completed
 // build work lands as `done`; genuine follow-ups carry due dates so the new
 // Agenda view has real data across all four buckets.
 //
 // Run:  bun --env-file=.env scripts/dogfood-v2.ts   (idempotent — skips an
-// issue whose title already exists in the product; PATCH-to-state is a no-op
+// action whose title already exists in the focus; PATCH-to-state is a no-op
 // once it matches).
 
 const BASE = process.env.PROGRESS_BASE_URL ?? "https://progress.bck.dev";
@@ -33,10 +33,10 @@ async function api(method: string, path: string, body?: unknown): Promise<any> {
   return text ? JSON.parse(text) : null;
 }
 
-const PRODUCT_ID = "prd_progress";
+const FOCUS_ID = "foc_progress";
 const ARC_NAME = "v2 — Broaden & Due dates";
 const ARC_DESC =
-  "v2 broadens Progress to any area of responsibility (repo-less products, " +
+  "v2 broadens Progress to any area of responsibility (repo-less focuses, " +
   "frictionless structure creation) and adds the time dimension: optional " +
   "calendar-day due dates and the Agenda view. See docs/SPEC.md (v2).";
 
@@ -53,22 +53,22 @@ type Seed = {
 
 const SEEDS: Seed[] = [
   {
-    title: "Repo-less products first-class + inline/dashboard structure creation",
+    title: "Repo-less focuses first-class + inline/dashboard structure creation",
     description:
       "SPEC v2 §3–§4. Repo stays optional; no view treats a missing repo as incomplete. " +
       "Add discoverable structure creation: a persistent New menu in the app header, inline " +
-      "“+ New product/arc” in the create-issue dialog, and a /structure overview route with " +
+      "“+ New focus/arc” in the create-action dialog, and a /structure overview route with " +
       "inline “+ add” on each node. Reuses the v1 container write paths (D26).",
     status: "done",
     priority: "high",
     estimate: 3,
   },
   {
-    title: "Due-date field end-to-end (schema → API → issue page → new-issue → palette)",
+    title: "Due-date field end-to-end (schema → API → action page → new-action → palette)",
     description:
       "SPEC v2 §5. Optional calendar-day due date, timezone-safe ISO YYYY-MM-DD text (not an " +
-      "instant). Nullable due_date column + migration; POST/PATCH validation; issue-page sidebar " +
-      "field; new-issue dialog input; command-palette D picker. Rides the snapshot payload " +
+      "instant). Nullable due_date column + migration; POST/PATCH validation; action-page sidebar " +
+      "field; new-action dialog input; command-palette D picker. Rides the snapshot payload " +
       "(D37).",
     status: "done",
     priority: "high",
@@ -77,18 +77,18 @@ const SEEDS: Seed[] = [
   {
     title: "Agenda view + reusable priority indicator",
     description:
-      "SPEC v2 §6–§7.2. New /agenda route: dated, pending issues sorted by due date and grouped " +
+      "SPEC v2 §6–§7.2. New /agenda route: dated, pending actions sorted by due date and grouped " +
       "Overdue/Today/This week/Later from the local day (rolling 7 days, D38); overdue rows " +
-      "distinct; filterable by product/arc/tag; inline mark-done + bump-due. Priority indicator " +
+      "distinct; filterable by focus/arc/tag; inline mark-done + bump-due. Priority indicator " +
       "is a single color-coded dot (D39). All client-side from the store.",
     status: "done",
     priority: "high",
     estimate: 5,
   },
   {
-    title: "Agent surface: due dates in MCP (create_issue + set_due_date)",
+    title: "Agent surface: due dates in MCP (create_action + set_due_date)",
     description:
-      "Carry the due date through the agent surface: create_issue takes an optional dueDate and a " +
+      "Carry the due date through the agent surface: create_action takes an optional dueDate and a " +
       "new set_due_date tool sets/clears it. The bundle work-order shows the due date too.",
     status: "done",
     priority: "medium",
@@ -149,13 +149,13 @@ const SEEDS: Seed[] = [
 
 async function main() {
   const ws = await api("GET", "/api/snapshot");
-  const product = ws.products.find((p: any) => p.id === PRODUCT_ID);
-  if (!product) throw new Error(`Product ${PRODUCT_ID} not found in production.`);
+  const focus = ws.focuses.find((p: any) => p.id === FOCUS_ID);
+  if (!focus) throw new Error(`Focus ${FOCUS_ID} not found in production.`);
 
   // Resolve or create the v2 arc.
-  let arc = ws.arcs.find((a: any) => a.name === ARC_NAME && a.productId === PRODUCT_ID);
+  let arc = ws.arcs.find((a: any) => a.name === ARC_NAME && a.focusId === FOCUS_ID);
   if (!arc) {
-    arc = (await api("POST", "/api/arcs", { name: ARC_NAME, productId: PRODUCT_ID, description: ARC_DESC }))
+    arc = (await api("POST", "/api/arcs", { name: ARC_NAME, focusId: FOCUS_ID, description: ARC_DESC }))
       .container;
     console.log(`+ arc ${arc.name}`);
   } else {
@@ -163,7 +163,7 @@ async function main() {
   }
 
   const existingByTitle = new Map<string, any>(
-    ws.issues.filter((i: any) => i.productId === PRODUCT_ID).map((i: any) => [i.title, i]),
+    ws.actions.filter((i: any) => i.focusId === FOCUS_ID).map((i: any) => [i.title, i]),
   );
 
   for (const seed of SEEDS) {
@@ -174,15 +174,15 @@ async function main() {
       if (existing.status !== seed.status) patch.status = seed.status;
       if ((existing.dueDate ?? null) !== (seed.dueDate ?? null)) patch.dueDate = seed.dueDate ?? null;
       if (Object.keys(patch).length) {
-        await api("PATCH", `/api/issues/${existing.id}`, patch);
-        console.log(`~ ${product.keyPrefix}-${existing.number} ${JSON.stringify(patch)}`);
+        await api("PATCH", `/api/actions/${existing.id}`, patch);
+        console.log(`~ ${focus.keyPrefix}-${existing.number} ${JSON.stringify(patch)}`);
       } else {
-        console.log(`= ${product.keyPrefix}-${existing.number} (up to date)`);
+        console.log(`= ${focus.keyPrefix}-${existing.number} (up to date)`);
       }
       continue;
     }
-    const { issue } = await api("POST", "/api/issues", {
-      productId: PRODUCT_ID,
+    const { action } = await api("POST", "/api/actions", {
+      focusId: FOCUS_ID,
       arcId: arc.id,
       title: seed.title,
       description: seed.description,
@@ -192,17 +192,17 @@ async function main() {
       dueDate: seed.dueDate ?? null,
     });
     console.log(
-      `+ ${product.keyPrefix}-${issue.number} [${seed.status}${seed.dueDate ? ` due ${seed.dueDate}` : ""}] ${seed.title}`,
+      `+ ${focus.keyPrefix}-${action.number} [${seed.status}${seed.dueDate ? ` due ${seed.dueDate}` : ""}] ${seed.title}`,
     );
   }
 
   // Report the Agenda as production now computes its inputs.
   const after = await api("GET", "/api/snapshot");
-  const dated = after.issues
+  const dated = after.actions
     .filter((i: any) => i.dueDate && i.status !== "done" && i.status !== "canceled")
     .sort((a: any, b: any) => a.dueDate.localeCompare(b.dueDate));
   console.log(`\nAgenda inputs in production (${dated.length} dated, pending):`);
-  for (const i of dated) console.log(`  ${i.dueDate}  ${product.keyPrefix}-${i.number}  ${i.title}`);
+  for (const i of dated) console.log(`  ${i.dueDate}  ${focus.keyPrefix}-${i.number}  ${i.title}`);
 }
 
 main().catch((err) => {

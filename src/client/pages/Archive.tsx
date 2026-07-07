@@ -1,6 +1,6 @@
 // Archive (PROG-45): a low-traffic destination listing every completed
-// (archived) Arc, grouped by Initiative → Product for context. The Structure
-// page shows only the first few archived arcs per product and links here for
+// (archived) Arc, grouped by Workspace → Focus for context. The Structure
+// page shows only the first few archived arcs per focus and links here for
 // the rest, so curating live structure stays uncluttered while finished work
 // remains reachable. Deliberately absent from the primary nav — you arrive via
 // Structure's "more" link. Unarchiving still happens on the arc page itself.
@@ -13,29 +13,29 @@ export default function Archive({ snapshot }: { snapshot: SnapshotPayload }) {
     .filter((a) => a.archivedAt)
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const productsById = new Map(snapshot.products.map((p) => [p.id, p]));
-  const initiativesById = new Map(snapshot.initiatives.map((i) => [i.id, i]));
+  const focusesById = new Map(snapshot.focuses.map((p) => [p.id, p]));
+  const workspacesById = new Map(snapshot.workspaces.map((i) => [i.id, i]));
 
-  // Group archived arcs under their product, and products under their
-  // initiative, so the page mirrors the Structure tree's shape.
-  const byInitiative = new Map<
+  // Group archived arcs under their focus, and focuses under their
+  // workspace, so the page mirrors the Structure tree's shape.
+  const byWorkspace = new Map<
     string,
-    { initiativeName: string; products: Map<string, { productName: string; arcs: typeof archivedArcs }> }
+    { workspaceName: string; focuses: Map<string, { focusName: string; arcs: typeof archivedArcs }> }
   >();
   for (const arc of archivedArcs) {
-    const product = productsById.get(arc.productId);
-    if (!product) continue;
-    const initiative = initiativesById.get(product.initiativeId);
-    const initiativeId = initiative?.id ?? "none";
-    let initGroup = byInitiative.get(initiativeId);
+    const focus = focusesById.get(arc.focusId);
+    if (!focus) continue;
+    const workspace = workspacesById.get(focus.workspaceId);
+    const workspaceId = workspace?.id ?? "none";
+    let initGroup = byWorkspace.get(workspaceId);
     if (!initGroup) {
-      initGroup = { initiativeName: initiative?.name ?? "—", products: new Map() };
-      byInitiative.set(initiativeId, initGroup);
+      initGroup = { workspaceName: workspace?.name ?? "—", focuses: new Map() };
+      byWorkspace.set(workspaceId, initGroup);
     }
-    let prodGroup = initGroup.products.get(product.id);
+    let prodGroup = initGroup.focuses.get(focus.id);
     if (!prodGroup) {
-      prodGroup = { productName: product.name, arcs: [] };
-      initGroup.products.set(product.id, prodGroup);
+      prodGroup = { focusName: focus.name, arcs: [] };
+      initGroup.focuses.set(focus.id, prodGroup);
     }
     prodGroup.arcs.push(arc);
   }
@@ -58,19 +58,19 @@ export default function Archive({ snapshot }: { snapshot: SnapshotPayload }) {
         <p className="mt-6 text-sm text-ink-faint">No archived arcs yet.</p>
       ) : (
         <div className="mt-6 space-y-6">
-          {[...byInitiative.values()].map((initGroup, idx) => (
+          {[...byWorkspace.values()].map((initGroup, idx) => (
             <section key={idx} className="rounded-lg border border-line bg-card p-4">
               <span className="text-[10px] uppercase tracking-wide font-mono text-ink-faint">
-                Initiative
+                Workspace
               </span>{" "}
-              <span className="text-sm font-medium text-ink-soft">{initGroup.initiativeName}</span>
+              <span className="text-sm font-medium text-ink-soft">{initGroup.workspaceName}</span>
               <div className="mt-3 space-y-3 border-l border-line pl-4">
-                {[...initGroup.products.values()].map((prodGroup, pIdx) => (
+                {[...initGroup.focuses.values()].map((prodGroup, pIdx) => (
                   <div key={pIdx}>
                     <span className="text-[10px] uppercase tracking-wide font-mono text-ink-faint">
-                      Product
+                      Focus
                     </span>{" "}
-                    <span className="text-sm font-medium text-ink-soft">{prodGroup.productName}</span>
+                    <span className="text-sm font-medium text-ink-soft">{prodGroup.focusName}</span>
                     <div className="mt-1 flex flex-col items-start gap-0.5 border-l border-line pl-3 text-sm">
                       {prodGroup.arcs.map((arc) => (
                         <Link
