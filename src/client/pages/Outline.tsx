@@ -47,34 +47,8 @@ import {
 import { rankForReorder } from "../outlineReorder";
 import { byRankThenName, containerReorderRanks } from "../containerReorder";
 import { loadHideDone, loadScope, saveHideDone, saveScope } from "../outlinePrefs";
-
-// ---------- tree model ----------
-
-type Node = { action: WireAction; children: Node[]; depth: number };
-
-// Build the child forest for a given parent within one focus. `arcId` scopes
-// the top level (null = focus-level actions with no arc); deeper levels follow
-// parentActionId regardless of arc (a step inherits its parent's arc).
-function buildForest(
-  actions: WireAction[],
-  focusId: string,
-  parentActionId: string | null,
-  arcId: string | null,
-  depth: number,
-): Node[] {
-  const matches = actions.filter(
-    (i) =>
-      i.focusId === focusId &&
-      i.parentActionId === parentActionId &&
-      (parentActionId === null ? i.arcId === arcId : true),
-  );
-  matches.sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : a.number - b.number));
-  return matches.map((action) => ({
-    action,
-    depth,
-    children: buildForest(actions, focusId, action.id, arcId, depth + 1),
-  }));
-}
+// Tree model + sibling rules live in outlineTree.ts (pure, unit-tested).
+import { buildForest, siblingsOf, type OutlineNode as Node } from "../outlineTree";
 
 // ---------- level icons ----------
 
@@ -360,9 +334,13 @@ function ActionRow({
   // them from the forest entirely; this styling is only reached when they show.
   const done = !isOpenStatus(action.status);
   const [draft, setDraft] = useState(action.title);
-  // Keep the input in sync if the title changes elsewhere (e.g. server reconcile)
-  // while this row isn't focused.
-  useEffect(() => setDraft(action.title), [action.title]);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Keep the input in sync if the title changes elsewhere (e.g. server
+  // reconcile) — but never clobber an edit in progress; a focused input owns
+  // its draft until commit.
+  useEffect(() => {
+    if (document.activeElement !== inputRef.current) setDraft(action.title);
+  }, [action.title]);
 
   const commit = () => {
     const next = draft.trim();
@@ -398,13 +376,14 @@ function ActionRow({
       </Link>
       <LevelIcon kind={depth === 0 ? "action" : "sub"} />
       <input
+        ref={inputRef}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
-            commit();
+            // blur() fires onBlur synchronously — commit happens there, once.
             (e.target as HTMLInputElement).blur();
           } else if (e.key === "Tab" && !e.shiftKey) {
             e.preventDefault();
@@ -687,14 +666,14 @@ function FocusOutline({
 
   // Top-level (no-arc) forest, and one forest per arc.
   const looseForest = useMemo(
-    () => buildForest(visibleActions, focus.id, null, null, 0),
+    () => buildForest(visibleActions, focus.id, null, 0),
     [visibleActions, focus.id],
   );
   const arcForests = useMemo(
     () =>
       focusArcs.map((a) => ({
         arc: a,
-        forest: buildForest(visibleActions, focus.id, null, a.id, 1),
+        forest: buildForest(visibleActions, focus.id, a.id, 1),
       })),
     [visibleActions, focus.id, focusArcs],
   );
@@ -707,14 +686,7 @@ function FocusOutline({
 
   // Indent an existing action: nest it under its nearest preceding sibling.
   const indent = (action: WireAction) => {
-    const siblings = actions
-      .filter(
-        (i) =>
-          i.focusId === action.focusId &&
-          i.parentActionId === action.parentActionId &&
-          (action.parentActionId === null ? i.arcId === action.arcId : true),
-      )
-      .sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : a.number - b.number));
+    const siblings = siblingsOf(actions, action.focusId, action.parentActionId, action.arcId);
     const idx = siblings.findIndex((i) => i.id === action.id);
     const prev = siblings[idx - 1];
     if (!prev) return; // nothing to nest under
@@ -753,14 +725,7 @@ function FocusOutline({
   // The visible sibling group an action belongs to, in rendered (rank) order —
   // exactly the set a drag is allowed to reorder within.
   const siblingGroup = (action: WireAction): WireAction[] =>
-    visibleActions
-      .filter(
-        (i) =>
-          i.focusId === action.focusId &&
-          i.parentActionId === action.parentActionId &&
-          (action.parentActionId === null ? i.arcId === action.arcId : true),
-      )
-      .sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : a.number - b.number));
+    siblingsOf(visibleActions, action.focusId, action.parentActionId, action.arcId);
 
   const onReorder = (e: DragEndEvent) => {
     setActiveArcId(null);
@@ -809,29 +774,31 @@ function FocusOutline({
 
   // Capture-input deepen/shallow: move the new-bullet target down/up a level by
   // pointing it at the last action of the current sibling group.
-  const lastSiblingOf = (parentId: string | null, arcId: string | null): WireAction | undefined => {
-    const sibs = actions
-      .filter(
-        (i) =>
-          i.focusId === focus.id &&
-          i.parentActionId === parentId &&
-          (parentId === null ? i.arcId === arcId : true),
-      )
-      .sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : a.number - b.number));
-    return sibs[sibs.length - 1];
-  };
+  const lastSiblingOf = (parentId: string | null, arcId: string | null): WireAction | undefined =>
+    siblingsOf(actions, focus.id, parentId, arcId).at(-1);
   const deepen = () => {
     const last = lastSiblingOf(captureParent, captureArc);
     if (last) {
       setCaptureParent(last.id);
       setCaptureArc(last.arcId);
+      // The capture input remounts at its new spot — keep the keyboard on it.
+      setFocusToken((t) => t + 1);
     }
   };
   const shallow = () => {
-    if (captureParent === null) return;
+    if (captureParent === null) {
+      // Arc-scoped top-level capture: Shift+Tab pops out of the arc section to
+      // the focus's loose level, completing the deepen/shallow ladder.
+      if (captureArc !== null) {
+        setCaptureArc(null);
+        setFocusToken((t) => t + 1);
+      }
+      return;
+    }
     const parent = actionById.get(captureParent);
     setCaptureParent(parent ? parent.parentActionId : null);
     if (parent && parent.parentActionId === null) setCaptureArc(parent.arcId);
+    setFocusToken((t) => t + 1);
   };
 
   const create = (title: string, parentActionId: string | null, arcId: string | null) => {
@@ -888,7 +855,11 @@ function FocusOutline({
     );
   };
 
-  const captureDepthForArc = captureParent === null;
+  // "Back to top level" shows whenever capture has roved anywhere off the
+  // focus's loose level — under an action OR into an arc section (previously an
+  // arc-scoped capture stranded the user: the loose capture row was hidden and
+  // no affordance led back).
+  const captureAtTopLevel = captureParent === null && captureArc === null;
 
   return (
     <section className={showHeader ? "rounded-lg border border-line bg-card p-3" : ""}>
@@ -943,7 +914,7 @@ function FocusOutline({
               >
                 {(arcGrip) => (
                   <>
-                    <div className="group flex items-center gap-1.5" style={{ paddingLeft: 0 }}>
+                    <div className="group flex items-center gap-1.5">
                       {arcGrip}
                       <LevelIcon kind="arc" />
                       <Link
@@ -972,7 +943,6 @@ function FocusOutline({
                           setFocusToken((t) => t + 1);
                         }}
                         className="ml-[22px] rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
-                        style={{ marginLeft: 22 }}
                       >
                         + action here
                       </button>
@@ -984,7 +954,7 @@ function FocusOutline({
           </SortableContext>
 
           {/* When capture has roved off the top level, offer a way back. */}
-          {!captureDepthForArc && (
+          {!captureAtTopLevel && (
             <button
               onClick={() => {
                 setCaptureParent(null);
