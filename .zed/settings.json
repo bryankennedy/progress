@@ -1,0 +1,13 @@
+// Project Zed settings — keep format-on-save in lockstep with CI.
+// Zed's bundled Prettier reads this repo's .prettierrc (printWidth 100 etc.),
+// so saving a file here produces exactly what `bun run format:check` expects.
+{
+  "formatter": "prettier",
+  "languages": {
+    // Markdown is excluded from Prettier repo-wide (.prettierignore) — docs
+    // tables and emphasis are hand-formatted. Don't let format-on-save touch it.
+    "Markdown": {
+      "format_on_save": "off"
+    }
+  }
+}

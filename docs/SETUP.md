@@ -69,11 +69,30 @@ the dev server is served directly at the VM's main URL — no nginx in between.
 | `bun run check` | Type-check all tsconfig project references |
 | `bun run test` | Unit tests (`bun test`, scoped to `src/`) — e.g. the board-rank helper |
 | `bun run test:e2e` | Browser e2e (Playwright) — board drag-and-drop. One-time: `bunx playwright install chromium`. Boots a dev server if none is running |
+| `bun run format` | Format the repo with Prettier (writes files) |
+| `bun run format:check` | Verify formatting without writing — same gate CI runs |
 | `bun run build` | Production build to `dist/` |
 | `bun run db:generate` | Generate a SQL migration from `src/db/schema.ts` changes |
 | `bun run db:migrate` | Apply pending migrations to local D1 |
 | `bun run db:seed` | Seed baseline data (idempotent) |
 | `bun run db:seed:scale` | Add a deterministic 5k-action synthetic dataset (perf testing) |
+
+### Formatting
+
+Prettier is the single source of style truth — config lives in `.prettierrc`
+at the repo root (printWidth 100; everything else is Prettier defaults, which
+match the codebase's hand-written style: double quotes, semicolons, trailing
+commas). `.prettierignore` excludes generated files (`drizzle/`, `bun.lock`)
+and **all Markdown** — docs tables and emphasis are hand-formatted, and
+Prettier's table re-padding would produce whitespace-only diffs (see
+`docs/decisions/prettier-adoption.md`).
+
+- `bun run format` before committing (or rely on editor format-on-save).
+- CI runs `bun run format:check` as the first gate — unformatted code fails
+  the build before typecheck/tests run.
+- Zed picks up `.prettierrc` automatically; `.zed/settings.json` (committed)
+  pins the formatter and turns format-on-save off for Markdown so the editor
+  agrees with CI.
 
 ### Schema-change workflow
 
