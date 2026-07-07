@@ -2,7 +2,14 @@
 // escaping is the part most likely to bite (a literal "%" or "_" in a query),
 // so it's pinned here alongside the snippet windowing. Run `bun test`.
 import { describe, expect, it } from "bun:test";
-import { commentSnippet, escapeLike, parseOffset } from "./searchComments";
+import {
+  commentSnippet,
+  escapeLike,
+  hasMorePages,
+  MAX_OFFSET,
+  parseOffset,
+  SEARCH_CAP,
+} from "./searchComments";
 
 describe("parseOffset", () => {
   it("parses a plain non-negative integer", () => {
@@ -20,7 +27,25 @@ describe("parseOffset", () => {
   });
 
   it("caps runaway offsets", () => {
-    expect(parseOffset("999999999")).toBe(10_000);
+    expect(parseOffset("999999999")).toBe(MAX_OFFSET);
+  });
+});
+
+describe("hasMorePages", () => {
+  it("reports another page while the query overflows the cap", () => {
+    expect(hasMorePages(SEARCH_CAP + 1, 0)).toBe(true);
+    expect(hasMorePages(SEARCH_CAP + 1, MAX_OFFSET - SEARCH_CAP)).toBe(true);
+  });
+
+  it("reports no more pages when the match set is exhausted", () => {
+    expect(hasMorePages(SEARCH_CAP, 0)).toBe(false);
+    expect(hasMorePages(0, 0)).toBe(false);
+  });
+
+  it("ends pagination at the offset ceiling even mid-match-set", () => {
+    // Beyond MAX_OFFSET parseOffset clamps, so advertising more pages here
+    // would make the client refetch the same clamped page forever.
+    expect(hasMorePages(SEARCH_CAP + 1, MAX_OFFSET)).toBe(false);
   });
 });
 
