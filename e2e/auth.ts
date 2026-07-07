@@ -38,10 +38,9 @@ export async function signInAsOwner(context: BrowserContext): Promise<void> {
   const secret = devVar("SESSION_SECRET");
   if (!secret) return; // auth unconfigured → owner fallback handles it
   // An email the worker will authorize: the configured super-admin (D44).
-  const email =
-    (devVar("SUPER_ADMIN_EMAILS") ?? devVar("ALLOWED_EMAILS") ?? "owner@example.com")
-      .split(",")[0]!
-      .trim();
+  const email = (devVar("SUPER_ADMIN_EMAILS") ?? devVar("ALLOWED_EMAILS") ?? "owner@example.com")
+    .split(",")[0]!
+    .trim();
   const token = await signSession("usr_owner", email, secret);
   await context.addCookies([
     { name: SESSION_COOKIE, value: token, domain: "localhost", path: "/" },

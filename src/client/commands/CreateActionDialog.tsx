@@ -19,7 +19,10 @@ import { onOpenCreateAction, type CreateDefaults } from "./controller";
 
 // e.g. "My Side Project" → "MYSI"; the user can override.
 const suggestPrefix = (name: string) =>
-  name.toUpperCase().replaceAll(/[^A-Z]/g, "").slice(0, 4);
+  name
+    .toUpperCase()
+    .replaceAll(/[^A-Z]/g, "")
+    .slice(0, 4);
 
 // The container <select> encodes "focus-level or repo" in one value.
 const containerValue = (d: CreateDefaults) =>
@@ -66,7 +69,11 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
   // Inline structure creation (SPEC v2 §4): spin up a focus or arc without
   // leaving the dialog; the new container is created optimistically and
   // selected in place. `null` = panel closed.
-  const [newFocus, setNewFocus] = useState<{ name: string; prefix: string; workspaceId: string } | null>(null);
+  const [newFocus, setNewFocus] = useState<{
+    name: string;
+    prefix: string;
+    workspaceId: string;
+  } | null>(null);
   const [newArc, setNewArc] = useState<string | null>(null);
   const [path, navigate] = useLocation();
   const search = useSearch();
@@ -75,8 +82,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
     () =>
       onOpenCreateAction((given) => {
         const defaults = { ...deriveDefaults(snapshot, path, search), ...given };
-        if (!defaults.focusId)
-          defaults.focusId = snapshot.focuses.find((p) => !p.archivedAt)?.id;
+        if (!defaults.focusId) defaults.focusId = snapshot.focuses.find((p) => !p.archivedAt)?.id;
         setContainer(containerValue(defaults));
         setArcId(defaults.arcId ?? "");
         setTitle("");
@@ -101,9 +107,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
   // Archived containers aren't valid creation targets (D26).
   const activeFocuses = snapshot.focuses.filter((p) => !p.archivedAt);
   const activeWorkspaces = snapshot.workspaces.filter((i) => !i.archivedAt);
-  const focusArcs = snapshot.arcs.filter(
-    (a) => a.focusId === selectedFocusId && !a.archivedAt,
-  );
+  const focusArcs = snapshot.arcs.filter((a) => a.focusId === selectedFocusId && !a.archivedAt);
 
   const submitNewFocus = () => {
     if (!newFocus) return;
@@ -172,7 +176,9 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
         }}
         className="mx-auto mt-[12vh] max-w-lg rounded-xl border border-line bg-card p-4 shadow-2xl"
       >
-        <h2 className="text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">New action</h2>
+        <h2 className="text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">
+          New action
+        </h2>
         <input
           autoFocus
           value={title}
@@ -181,11 +187,13 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
           className="mt-2 w-full rounded border border-line px-3 py-2 text-sm focus:border-ink-faint focus:outline-none"
         />
         <div className="mt-3 flex flex-wrap gap-2">
-          <select value={container} onChange={(e) => onContainerChange(e.target.value)} className={selectClass}>
+          <select
+            value={container}
+            onChange={(e) => onContainerChange(e.target.value)}
+            className={selectClass}
+          >
             {activeFocuses.map((p) => {
-              const focusRepos = snapshot.repos.filter(
-                (r) => r.focusId === p.id && !r.archivedAt,
-              );
+              const focusRepos = snapshot.repos.filter((r) => r.focusId === p.id && !r.archivedAt);
               return (
                 <optgroup key={p.id} label={p.name}>
                   <option value={`p:${p.id}`}>{p.name}</option>
@@ -210,7 +218,11 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
             + New focus
           </button>
           {focusArcs.length > 0 && (
-            <select value={arcId} onChange={(e) => setArcId(e.target.value)} className={selectClass}>
+            <select
+              value={arcId}
+              onChange={(e) => setArcId(e.target.value)}
+              className={selectClass}
+            >
               <option value="">No arc</option>
               {focusArcs.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -250,7 +262,11 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
               </option>
             ))}
           </select>
-          <select value={estimate} onChange={(e) => setEstimate(e.target.value)} className={selectClass}>
+          <select
+            value={estimate}
+            onChange={(e) => setEstimate(e.target.value)}
+            className={selectClass}
+          >
             <option value="">No estimate</option>
             {ACTION_ESTIMATES.map((e) => (
               <option key={e} value={String(e)}>
@@ -276,7 +292,13 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
               value={newFocus.name}
               onChange={(e) =>
                 setNewFocus((p) =>
-                  p ? { ...p, name: e.target.value, prefix: p.prefix || suggestPrefix(e.target.value) } : p,
+                  p
+                    ? {
+                        ...p,
+                        name: e.target.value,
+                        prefix: p.prefix || suggestPrefix(e.target.value),
+                      }
+                    : p,
                 )
               }
               onKeyDown={(e) => {
@@ -292,7 +314,15 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
               value={newFocus.prefix}
               onChange={(e) =>
                 setNewFocus((p) =>
-                  p ? { ...p, prefix: e.target.value.toUpperCase().replaceAll(/[^A-Z]/g, "").slice(0, 8) } : p,
+                  p
+                    ? {
+                        ...p,
+                        prefix: e.target.value
+                          .toUpperCase()
+                          .replaceAll(/[^A-Z]/g, "")
+                          .slice(0, 8),
+                      }
+                    : p,
                 )
               }
               placeholder="KEY"
@@ -313,7 +343,11 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
             <button
               type="button"
               onClick={submitNewFocus}
-              disabled={newFocus.name.trim() === "" || !/^[A-Z]{2,8}$/.test(newFocus.prefix) || !newFocus.workspaceId}
+              disabled={
+                newFocus.name.trim() === "" ||
+                !/^[A-Z]{2,8}$/.test(newFocus.prefix) ||
+                !newFocus.workspaceId
+              }
               className="rounded bg-adobe px-2 py-1 text-xs text-white hover:bg-adobe-deep disabled:opacity-40"
             >
               Add

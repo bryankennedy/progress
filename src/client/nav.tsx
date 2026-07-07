@@ -87,9 +87,39 @@ export const MoreIcon = (
 
 export const NAV: NavItem[] = [
   { href: "/", label: "Board", match: (p) => p === "/", icon: BoardIcon, primary: true },
-  { href: "/outline", label: "Outline", match: (p) => p.startsWith("/outline"), icon: OutlineIcon, primary: true },
-  { href: "/agenda", label: "Agenda", match: (p) => p.startsWith("/agenda"), icon: AgendaIcon, primary: true },
-  { href: "/search", label: "Search", match: (p) => p.startsWith("/search"), icon: SearchIcon, primary: true },
-  { href: "/structure", label: "Structure", match: (p) => p.startsWith("/structure"), icon: StructureIcon, primary: false },
-  { href: "/archive", label: "Archive", match: (p) => p.startsWith("/archive"), icon: ArchiveIcon, primary: false },
+  {
+    href: "/outline",
+    label: "Outline",
+    match: (p) => p.startsWith("/outline"),
+    icon: OutlineIcon,
+    primary: true,
+  },
+  {
+    href: "/agenda",
+    label: "Agenda",
+    match: (p) => p.startsWith("/agenda"),
+    icon: AgendaIcon,
+    primary: true,
+  },
+  {
+    href: "/search",
+    label: "Search",
+    match: (p) => p.startsWith("/search"),
+    icon: SearchIcon,
+    primary: true,
+  },
+  {
+    href: "/structure",
+    label: "Structure",
+    match: (p) => p.startsWith("/structure"),
+    icon: StructureIcon,
+    primary: false,
+  },
+  {
+    href: "/archive",
+    label: "Archive",
+    match: (p) => p.startsWith("/archive"),
+    icon: ArchiveIcon,
+    primary: false,
+  },
 ];

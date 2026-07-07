@@ -155,8 +155,9 @@ async function main() {
   // Resolve or create the v2 arc.
   let arc = ws.arcs.find((a: any) => a.name === ARC_NAME && a.focusId === FOCUS_ID);
   if (!arc) {
-    arc = (await api("POST", "/api/arcs", { name: ARC_NAME, focusId: FOCUS_ID, description: ARC_DESC }))
-      .container;
+    arc = (
+      await api("POST", "/api/arcs", { name: ARC_NAME, focusId: FOCUS_ID, description: ARC_DESC })
+    ).container;
     console.log(`+ arc ${arc.name}`);
   } else {
     console.log(`= arc ${arc.name} (exists)`);
@@ -172,7 +173,8 @@ async function main() {
       // Idempotent reconcile: nudge status/dueDate to the desired state.
       const patch: Record<string, unknown> = {};
       if (existing.status !== seed.status) patch.status = seed.status;
-      if ((existing.dueDate ?? null) !== (seed.dueDate ?? null)) patch.dueDate = seed.dueDate ?? null;
+      if ((existing.dueDate ?? null) !== (seed.dueDate ?? null))
+        patch.dueDate = seed.dueDate ?? null;
       if (Object.keys(patch).length) {
         await api("PATCH", `/api/actions/${existing.id}`, patch);
         console.log(`~ ${focus.keyPrefix}-${existing.number} ${JSON.stringify(patch)}`);

@@ -27,14 +27,7 @@ import { PRIORITY_LABELS } from "./labels";
 // The dimensions every filtered surface shares. Status is deliberately not
 // here: the board has no status filter (its columns are the statuses), so the
 // search page passes its Status dropdown through the `before` slot.
-export const SHARED_FILTER_KEYS = [
-  "workspace",
-  "focus",
-  "arc",
-  "repo",
-  "tag",
-  "priority",
-] as const;
+export const SHARED_FILTER_KEYS = ["workspace", "focus", "arc", "repo", "tag", "priority"] as const;
 export type SharedFilterKey = (typeof SHARED_FILTER_KEYS)[number];
 export type SharedFilters = Partial<Record<SharedFilterKey, string>>;
 
@@ -188,8 +181,7 @@ export default function FilterBar({
               .filter((a) => !a.archivedAt)
               .filter((a) => !filters.focus || a.focusId === filters.focus)
               .filter(
-                (a) =>
-                  !filters.workspace || focusWorkspace.get(a.focusId) === filters.workspace,
+                (a) => !filters.workspace || focusWorkspace.get(a.focusId) === filters.workspace,
               ),
           ).map((a) => [a.id, a.name])}
           onChange={(v) => setParam("arc", v)}
@@ -203,8 +195,7 @@ export default function FilterBar({
               .filter((r) => !r.archivedAt)
               .filter((r) => !filters.focus || r.focusId === filters.focus)
               .filter(
-                (r) =>
-                  !filters.workspace || focusWorkspace.get(r.focusId) === filters.workspace,
+                (r) => !filters.workspace || focusWorkspace.get(r.focusId) === filters.workspace,
               ),
           ).map((r) => [r.id, r.name])}
           onChange={(v) => setParam("repo", v)}
@@ -224,7 +215,10 @@ export default function FilterBar({
         />
         {after}
         {clearVisible && (
-          <button onClick={onClear} className="text-xs text-ink-faint underline hover:text-ink-soft">
+          <button
+            onClick={onClear}
+            className="text-xs text-ink-faint underline hover:text-ink-soft"
+          >
             Clear filters
           </button>
         )}

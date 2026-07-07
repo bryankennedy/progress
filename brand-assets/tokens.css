@@ -5,38 +5,38 @@
 
 :root {
   /* Neutrals */
-  --paper:        #f5efe0;  /* primary surface / icon field */
-  --canvas:       #f0e9d9;  /* app background, one step under paper */
-  --card:         #fdfaf3;  /* raised cards, rows */
-  --line:         #e9dec6;  /* hairline dividers */
-  --ink:          #2c241b;  /* primary text */
-  --ink-soft:     #6b5f4d;  /* secondary text */
-  --ink-faint:    #9a8b73;  /* meta / mono labels */
+  --paper: #f5efe0; /* primary surface / icon field */
+  --canvas: #f0e9d9; /* app background, one step under paper */
+  --card: #fdfaf3; /* raised cards, rows */
+  --line: #e9dec6; /* hairline dividers */
+  --ink: #2c241b; /* primary text */
+  --ink-soft: #6b5f4d; /* secondary text */
+  --ink-faint: #9a8b73; /* meta / mono labels */
 
   /* Salmon Adobe — PRIMARY: active, "now", CTAs */
-  --adobe-deep:   #8f5340;
-  --adobe:        #bb6f50;  /* core / button fill */
-  --adobe-light:  #d89572;
-  --adobe-wash:   #efb892;
+  --adobe-deep: #8f5340;
+  --adobe: #bb6f50; /* core / button fill */
+  --adobe-light: #d89572;
+  --adobe-wash: #efb892;
 
   /* Olive Moss — SECONDARY: grounded, completed */
-  --moss-deep:    #566039;
-  --moss:         #79864c;  /* core / done states */
-  --moss-light:   #9aa468;
-  --moss-wash:    #bcc189;
+  --moss-deep: #566039;
+  --moss: #79864c; /* core / done states */
+  --moss-light: #9aa468;
+  --moss-wash: #bcc189;
 
   /* Functional accents (derived) */
-  --prompt-text:   #a85c3d;
+  --prompt-text: #a85c3d;
   --prompt-border: #e0b59f;
-  --prompt-bg:     #f7e7dc;
+  --prompt-bg: #f7e7dc;
 
   /* Type */
-  --font-serif: 'Spectral', Georgia, serif;
-  --font-mono:  'IBM Plex Mono', ui-monospace, monospace;
+  --font-serif: "Spectral", Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
   /* Radius */
   --r-sm: 6px;
   --r-md: 9px;
   --r-lg: 12px;
-  --r-icon: 22%;   /* app-icon squircle */
+  --r-icon: 22%; /* app-icon squircle */
 }

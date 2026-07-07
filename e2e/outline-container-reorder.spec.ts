@@ -61,7 +61,11 @@ test("arcs list alphabetically by default and drag-reorder within a focus (PROG-
   await page.goto("/outline");
   const workspaces = (await apiJson<{ workspaces: { id: string }[] }>(page, "/api/snapshot"))
     .workspaces;
-  const prefix = `Q${tag().toUpperCase().replaceAll(/[^A-Z]/g, "Z").padEnd(4, "X").slice(0, 4)}`;
+  const prefix = `Q${tag()
+    .toUpperCase()
+    .replaceAll(/[^A-Z]/g, "Z")
+    .padEnd(4, "X")
+    .slice(0, 4)}`;
   const focus = (
     await (
       await page.request.post("/api/focuses", {
@@ -70,11 +74,8 @@ test("arcs list alphabetically by default and drag-reorder within a focus (PROG-
     ).json()
   ).container as { id: string };
   const mk = async (name: string) =>
-    (
-      await (
-        await page.request.post("/api/arcs", { data: { name, focusId: focus.id } })
-      ).json()
-    ).container as { id: string };
+    (await (await page.request.post("/api/arcs", { data: { name, focusId: focus.id } })).json())
+      .container as { id: string };
   const gamma = await mk("Gamma e2e");
   const alpha = await mk("Alpha e2e");
   const beta = await mk("Beta e2e");
@@ -90,7 +91,9 @@ test("arcs list alphabetically by default and drag-reorder within a focus (PROG-
   ]);
 
   // Drag Gamma's section above Alpha's header.
-  const alphaBox = (await page.getByRole("link", { name: "Alpha e2e", exact: true }).boundingBox())!;
+  const alphaBox = (await page
+    .getByRole("link", { name: "Alpha e2e", exact: true })
+    .boundingBox())!;
   await dragGrip(page, "Reorder Gamma e2e", alphaBox.y - 10);
 
   await expect
@@ -108,9 +111,7 @@ test("arcs list alphabetically by default and drag-reorder within a focus (PROG-
 
   // The first drag in a tied group renumbers it: ranks are now distinct.
   const ws = await apiJson<{ arcs: { id: string; rank: string }[] }>(page, "/api/snapshot");
-  const ranks = [gamma.id, alpha.id, beta.id].map(
-    (id) => ws.arcs.find((a) => a.id === id)!.rank,
-  );
+  const ranks = [gamma.id, alpha.id, beta.id].map((id) => ws.arcs.find((a) => a.id === id)!.rank);
   expect(new Set(ranks).size).toBe(3);
   expect(ranks[0]! < ranks[1]! && ranks[1]! < ranks[2]!).toBe(true);
 
@@ -131,7 +132,11 @@ test("focuses drag-reorder at workspace scope (PROG-87)", async ({ page }) => {
           data: {
             name,
             workspaceId: workspace.id,
-            keyPrefix: `P${tag().toUpperCase().replaceAll(/[^A-Z]/g, "Z").padEnd(4, "Y").slice(0, 4)}`,
+            keyPrefix: `P${tag()
+              .toUpperCase()
+              .replaceAll(/[^A-Z]/g, "Z")
+              .padEnd(4, "Y")
+              .slice(0, 4)}`,
           },
         })
       ).json()
@@ -146,7 +151,9 @@ test("focuses drag-reorder at workspace scope (PROG-87)", async ({ page }) => {
   expect(await yOrder(page, ["Apple e2e", "Cherry e2e"])).toEqual(["Apple e2e", "Cherry e2e"]);
 
   // Drag the Cherry section above the Apple section.
-  const appleBox = (await page.getByRole("link", { name: "Apple e2e", exact: true }).boundingBox())!;
+  const appleBox = (await page
+    .getByRole("link", { name: "Apple e2e", exact: true })
+    .boundingBox())!;
   await dragGrip(page, "Reorder Cherry e2e", appleBox.y - 20);
 
   await expect

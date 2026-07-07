@@ -21,8 +21,14 @@ import { toast } from "./toast";
 const bundleCache = new Map<string, string>();
 const inflight = new Map<string, Promise<string>>();
 
-const actionBundle = (key: string) => ({ cacheKey: `action:${key}`, url: `/api/actions/${key}/bundle` });
-const arcBundle = (arcId: string) => ({ cacheKey: `arc:${arcId}`, url: `/api/arcs/${arcId}/bundle` });
+const actionBundle = (key: string) => ({
+  cacheKey: `action:${key}`,
+  url: `/api/actions/${key}/bundle`,
+});
+const arcBundle = (arcId: string) => ({
+  cacheKey: `arc:${arcId}`,
+  url: `/api/arcs/${arcId}/bundle`,
+});
 
 async function fetchBundle(cacheKey: string, url: string): Promise<string> {
   const res = await fetch(url);

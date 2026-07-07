@@ -19,7 +19,12 @@ import {
 import { ACTION_PRIORITIES, ACTION_STATUSES, PR_STATES } from "../shared/constants";
 import { DEFAULT_RANK } from "../shared/rank";
 
-export { ACTION_ESTIMATES, ACTION_PRIORITIES, ACTION_STATUSES, PR_STATES } from "../shared/constants";
+export {
+  ACTION_ESTIMATES,
+  ACTION_PRIORITIES,
+  ACTION_STATUSES,
+  PR_STATES,
+} from "../shared/constants";
 export type { ActionPriority, ActionStatus, PrState } from "../shared/constants";
 
 // Multi-user-ready from day one (SPEC §8.4, D13): one row in v1, but
@@ -240,7 +245,9 @@ export const activity = sqliteTable(
       .notNull()
       .references(() => users.id),
     type: text("type").notNull(),
-    data: text("data", { mode: "json" }).notNull().default(sql`'{}'`),
+    data: text("data", { mode: "json" })
+      .notNull()
+      .default(sql`'{}'`),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   },
   (t) => [index("activity_action_idx").on(t.actionId)],

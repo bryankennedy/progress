@@ -17,10 +17,7 @@
 
 import { execFileSync, spawnSync } from "node:child_process";
 
-const BASE = (process.env.PROGRESS_BASE_URL ?? "https://progress.bck.dev").replace(
-  /\/+$/,
-  "",
-);
+const BASE = (process.env.PROGRESS_BASE_URL ?? "https://progress.bck.dev").replace(/\/+$/, "");
 const API_TOKEN = process.env.PROGRESS_API_TOKEN ?? process.env.PROD_PROGRESS_API_TOKEN;
 
 const KEY_RE = /^[A-Z]{2,8}-\d+$/;
@@ -47,8 +44,7 @@ function fail(msg: string): never {
 }
 
 async function fetchBundle(key: string): Promise<string> {
-  if (!API_TOKEN)
-    fail("missing PROGRESS_API_TOKEN (or PROD_PROGRESS_API_TOKEN fallback) in env.");
+  if (!API_TOKEN) fail("missing PROGRESS_API_TOKEN (or PROD_PROGRESS_API_TOKEN fallback) in env.");
   let res: Response;
   try {
     res = await fetch(`${BASE}/api/actions/${key}/bundle`, {
@@ -58,8 +54,7 @@ async function fetchBundle(key: string): Promise<string> {
   } catch (e) {
     return fail(`couldn't reach ${BASE}: ${(e as Error).message}`);
   }
-  if (res.status === 401)
-    fail("401 unauthenticated — PROGRESS_API_TOKEN is missing or wrong.");
+  if (res.status === 401) fail("401 unauthenticated — PROGRESS_API_TOKEN is missing or wrong.");
   if (res.status === 404) fail(`no action found for ${key}.`);
   if (res.status === 400) fail(`malformed action key: ${key} (expected e.g. PROG-19).`);
   const text = await res.text();

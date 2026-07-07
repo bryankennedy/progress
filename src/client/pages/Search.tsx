@@ -148,7 +148,9 @@ export default function Search({ snapshot }: { snapshot: SnapshotPayload }) {
       if (filters.tag) {
         const tags = tagsByAction.get(action.id);
         const ok =
-          filters.tag === FILTER_NONE ? !tags || tags.size === 0 : (tags?.has(filters.tag) ?? false);
+          filters.tag === FILTER_NONE
+            ? !tags || tags.size === 0
+            : (tags?.has(filters.tag) ?? false);
         if (!ok) return false;
       }
       return true;
@@ -319,7 +321,10 @@ export default function Search({ snapshot }: { snapshot: SnapshotPayload }) {
                           {!hit.inTitle && hit.action.description && (
                             <p className="mt-0.5 truncate text-xs text-ink-soft">
                               <Highlighted
-                                segments={highlight(descSnippet(hit.action.description, terms), terms)}
+                                segments={highlight(
+                                  descSnippet(hit.action.description, terms),
+                                  terms,
+                                )}
                               />
                             </p>
                           )}
@@ -455,7 +460,11 @@ function Section({
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="rounded-md border border-dashed border-line px-3 py-3 text-xs text-ink-faint">{children}</p>;
+  return (
+    <p className="rounded-md border border-dashed border-line px-3 py-3 text-xs text-ink-faint">
+      {children}
+    </p>
+  );
 }
 
 function Highlighted({ segments }: { segments: Segment[] }) {

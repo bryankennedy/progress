@@ -115,7 +115,9 @@ export default function Structure({ snapshot }: { snapshot: SnapshotPayload }) {
   // half, the global manual order (PROG-87): rank set by dragging on the
   // Outline, name tiebreak — alphabetical until someone reorders. Repos have
   // no rank; the default keeps them purely alphabetical.
-  const byActive = <T extends { archivedAt: string | null; name: string; rank?: string }>(list: T[]) =>
+  const byActive = <T extends { archivedAt: string | null; name: string; rank?: string }>(
+    list: T[],
+  ) =>
     [...list].sort(
       (a, b) =>
         Number(!!a.archivedAt) - Number(!!b.archivedAt) ||
@@ -136,18 +138,21 @@ export default function Structure({ snapshot }: { snapshot: SnapshotPayload }) {
             The Workspace → Focus → Arc tree. Add anywhere; click a node to open it.
           </p>
         </div>
-        <AddButton label="New workspace" onClick={() => openCreateContainer({ kind: "workspace" })} />
+        <AddButton
+          label="New workspace"
+          onClick={() => openCreateContainer({ kind: "workspace" })}
+        />
       </div>
 
       <div className="mt-6 space-y-6">
         {workspaces.map((workspace) => {
-          const focuses = byActive(
-            snapshot.focuses.filter((p) => p.workspaceId === workspace.id),
-          );
+          const focuses = byActive(snapshot.focuses.filter((p) => p.workspaceId === workspace.id));
           return (
             <section key={workspace.id} className="rounded-lg border border-line bg-card p-4">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] uppercase tracking-wide font-mono text-ink-faint">Workspace</span>
+                <span className="text-[10px] uppercase tracking-wide font-mono text-ink-faint">
+                  Workspace
+                </span>
                 <NodeLink
                   href={`/workspace/${workspace.id}`}
                   name={workspace.name}
@@ -160,9 +165,7 @@ export default function Structure({ snapshot }: { snapshot: SnapshotPayload }) {
               </div>
 
               <div className="mt-3 space-y-3 border-l border-line pl-4">
-                {focuses.length === 0 && (
-                  <p className="text-xs text-ink-faint">No focuses yet.</p>
-                )}
+                {focuses.length === 0 && <p className="text-xs text-ink-faint">No focuses yet.</p>}
                 {focuses.map((focus) => {
                   const repos = byActive(snapshot.repos.filter((r) => r.focusId === focus.id));
                   const arcs = byActive(snapshot.arcs.filter((a) => a.focusId === focus.id));

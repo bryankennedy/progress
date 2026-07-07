@@ -24,13 +24,7 @@ import EditableMarkdown from "../EditableMarkdown";
 import InlineEdit from "../InlineEdit";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
-import {
-  addComment,
-  findActionByKey,
-  actionKeyOf,
-  updateAction,
-  useTimeline,
-} from "../store";
+import { addComment, findActionByKey, actionKeyOf, updateAction, useTimeline } from "../store";
 import { copyBundleAsPrompt, copyWorkCommand, prefetchBundle } from "../workOn";
 import { clearDraft, readDraft, writeDraft } from "../drafts";
 import { toastAction } from "../toast";
@@ -176,7 +170,10 @@ export default function ActionPage({
           <Field label="Estimate">
             <FieldSelect
               value={action.estimate === null ? "" : String(action.estimate)}
-              options={[["", "—"], ...ACTION_ESTIMATES.map((e): [string, string] => [String(e), String(e)])]}
+              options={[
+                ["", "—"],
+                ...ACTION_ESTIMATES.map((e): [string, string] => [String(e), String(e)]),
+              ]}
               onChange={(v) => updateAction(action.id, { estimate: v === "" ? null : Number(v) })}
             />
           </Field>
@@ -279,7 +276,9 @@ export default function ActionPage({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="mb-1 text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">{label}</p>
+      <p className="mb-1 text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">
+        {label}
+      </p>
       {children}
     </div>
   );
@@ -313,13 +312,7 @@ type TimelineEntry =
   | { kind: "comment"; at: string; comment: WireComment }
   | { kind: "activity"; at: string; event: WireActivity };
 
-function TimelineSection({
-  action,
-  snapshot,
-}: {
-  action: WireAction;
-  snapshot: SnapshotPayload;
-}) {
+function TimelineSection({ action, snapshot }: { action: WireAction; snapshot: SnapshotPayload }) {
   const { data: timeline, isPending, error } = useTimeline(action.id);
   const meId = snapshot.me?.id ?? "anon";
   // Comment draft persists to localStorage as you type (PROG-51), so unsent text
@@ -386,12 +379,16 @@ function TimelineSection({
   const entries = useMemo(() => {
     if (!timeline) return [];
     const merged: TimelineEntry[] = [
-      ...timeline.comments.map(
-        (comment): TimelineEntry => ({ kind: "comment", at: comment.createdAt, comment }),
-      ),
-      ...timeline.activity.map(
-        (event): TimelineEntry => ({ kind: "activity", at: event.createdAt, event }),
-      ),
+      ...timeline.comments.map((comment): TimelineEntry => ({
+        kind: "comment",
+        at: comment.createdAt,
+        comment,
+      })),
+      ...timeline.activity.map((event): TimelineEntry => ({
+        kind: "activity",
+        at: event.createdAt,
+        event,
+      })),
     ];
     return merged.sort((a, b) => a.at.localeCompare(b.at));
   }, [timeline]);
@@ -403,7 +400,9 @@ function TimelineSection({
     <section className="mt-10 border-t border-line pt-6">
       {hasGitLinks && (
         <div className="mb-8">
-          <h2 className="text-sm font-medium uppercase tracking-wide font-mono text-ink-faint">Git</h2>
+          <h2 className="text-sm font-medium uppercase tracking-wide font-mono text-ink-faint">
+            Git
+          </h2>
           <div className="mt-3 space-y-1.5">
             {timeline.pullRequests.map((pr) => (
               <PrRow key={`${pr.githubRepo}#${pr.prNumber}`} pr={pr} />
@@ -415,7 +414,9 @@ function TimelineSection({
         </div>
       )}
 
-      <h2 className="text-sm font-medium uppercase tracking-wide font-mono text-ink-faint">Activity</h2>
+      <h2 className="text-sm font-medium uppercase tracking-wide font-mono text-ink-faint">
+        Activity
+      </h2>
 
       {isPending && <p className="mt-3 text-sm text-ink-faint">Loading…</p>}
       {error && <p className="mt-3 text-sm text-danger">{String(error)}</p>}

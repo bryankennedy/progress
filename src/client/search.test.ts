@@ -136,9 +136,15 @@ describe("sortActionHits", () => {
       { id: "a", title: "Apple", focusId: "p1" },
     ]);
     const data = ws({ focuses });
-    expect(sortActionHits(data, hits, { key: "title", dir: "asc" }).map((h) => h.action.id)).toEqual(["a", "z"]);
-    expect(sortActionHits(data, hits, { key: "title", dir: "desc" }).map((h) => h.action.id)).toEqual(["z", "a"]);
-    expect(sortActionHits(data, hits, { key: "focus", dir: "asc" }).map((h) => h.action.id)).toEqual(["a", "z"]);
+    expect(
+      sortActionHits(data, hits, { key: "title", dir: "asc" }).map((h) => h.action.id),
+    ).toEqual(["a", "z"]);
+    expect(
+      sortActionHits(data, hits, { key: "title", dir: "desc" }).map((h) => h.action.id),
+    ).toEqual(["z", "a"]);
+    expect(
+      sortActionHits(data, hits, { key: "focus", dir: "asc" }).map((h) => h.action.id),
+    ).toEqual(["a", "z"]);
   });
 
   it("sorts status by workflow order and priority by urgency, not alphabetically", () => {
@@ -192,7 +198,9 @@ describe("searchContainers", () => {
   });
 
   it("builds the route href from the kind", () => {
-    const data = ws({ arcs: [{ id: "a1", name: "Ozzie", description: "", archivedAt: null }] as never });
+    const data = ws({
+      arcs: [{ id: "a1", name: "Ozzie", description: "", archivedAt: null }] as never,
+    });
     expect(searchContainers(data, "ozzie")[0]).toMatchObject({ kind: "arc", href: "/arc/a1" });
   });
 });

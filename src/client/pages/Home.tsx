@@ -27,11 +27,7 @@ import {
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import {
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -103,9 +99,7 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
   const visibleByStatus = useMemo(() => {
     const focusIdsInWorkspace = filters.workspace
       ? new Set(
-          snapshot.focuses
-            .filter((p) => p.workspaceId === filters.workspace)
-            .map((p) => p.id),
+          snapshot.focuses.filter((p) => p.workspaceId === filters.workspace).map((p) => p.id),
         )
       : null;
     const actions = snapshot.actions.filter((action) => {
@@ -492,7 +486,8 @@ function BoardColumn({
       className={`flex min-w-72 flex-1 snap-start flex-col rounded-lg p-2 ${isOver ? "bg-adobe-wash/30 ring-1 ring-adobe-light" : "bg-line/40"}`}
     >
       <h2 className="px-1 pb-2 text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">
-        {STATUS_LABELS[status]} · {hiddenCount ? `${actionIds.length} of ${total}` : actionIds.length}
+        {STATUS_LABELS[status]} ·{" "}
+        {hiddenCount ? `${actionIds.length} of ${total}` : actionIds.length}
       </h2>
       <SortableContext items={actionIds} strategy={verticalListSortingStrategy}>
         <div className="flex min-h-8 flex-1 flex-col gap-1.5">
@@ -591,8 +586,7 @@ function CardView({
         <span className="font-mono text-xs text-ink-faint">
           {parent && (
             <span className="text-moss" title="Step">
-              ↳{" "}
-              {snapshot.focuses.find((p) => p.id === parent.focusId)?.keyPrefix ?? "?"}-
+              ↳ {snapshot.focuses.find((p) => p.id === parent.focusId)?.keyPrefix ?? "?"}-
               {parent.number}{" "}
             </span>
           )}

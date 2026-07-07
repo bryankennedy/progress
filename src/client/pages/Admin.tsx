@@ -105,7 +105,9 @@ function AddForm({ existing }: { existing: WireAllowedEmail[] }) {
       >
         Add
       </button>
-      {dup && <span className="w-full text-xs text-danger">That email is already on the list.</span>}
+      {dup && (
+        <span className="w-full text-xs text-danger">That email is already on the list.</span>
+      )}
     </form>
   );
 }
@@ -128,7 +130,10 @@ function Row({ row }: { row: WireAllowedEmail }) {
         className="w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-ink-soft hover:border-line focus:border-ink-faint focus:bg-paper focus:outline-none"
       />
       <div className="flex items-center gap-3 justify-self-end">
-        <span className="whitespace-nowrap text-xs text-ink-faint" title={row.addedByEmail || undefined}>
+        <span
+          className="whitespace-nowrap text-xs text-ink-faint"
+          title={row.addedByEmail || undefined}
+        >
           {formatDate(row.createdAt)}
         </span>
         {confirming ? (
