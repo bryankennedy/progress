@@ -115,9 +115,10 @@ export function renderBundle(b: BundleData): string {
   out.push(
     `You are working on **${b.key}** (${issue.title}).`,
     "",
-    `1. Name your branch with the key — e.g. \`iss/${b.key}\` — and mention **${b.key}** in commit messages and the PR title/body. Progress auto-links branches, commits, and PRs that name the key, so the work appears on this issue with no extra step.`,
-    `2. Post progress notes as a comment on **${b.key}** and move its status as you go (\`todo\` → \`in_progress\` → \`in_review\` → \`done\`) via the Progress API / MCP tools.`,
-    `3. Keep this issue the source of truth — if scope changes, leave a comment rather than silently diverging.`,
+    `1. **Branch off fresh \`main\`** — \`git fetch origin && git checkout -b iss/${b.key} origin/main\`. Never branch off another feature branch unless this issue explicitly directs it — a PR based on a feature branch can land after its base has already merged, stranding the work off \`main\` (PROG-95).`,
+    `2. Name your branch with the key — e.g. \`iss/${b.key}\` — and mention **${b.key}** in commit messages and the PR title/body. Progress auto-links branches, commits, and PRs that name the key, so the work appears on this issue with no extra step.`,
+    `3. Post progress notes as a comment on **${b.key}** and move its status as you go (\`todo\` → \`in_progress\` → \`in_review\` → \`done\`) via the Progress API / MCP tools.`,
+    `4. Keep this issue the source of truth — if scope changes, leave a comment rather than silently diverging.`,
     "",
   );
   // A local, key-aware copy of the owner's smart-commit skill (PROG-62) so a
@@ -133,7 +134,7 @@ export function renderBundle(b: BundleData): string {
     "3. **Plan** — one commit per logical unit of work; keep unrelated changes in separate commits.",
     `4. **Commit** — use [Conventional Commits](https://www.conventionalcommits.org/): \`type(scope): ${b.key} subject\` (types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert). Subject in imperative mood, no trailing period; the body explains *why* (context), *what* (the change), and any side effects. Do **not** add \`Co-Authored-By\` or any AI/Claude attribution.`,
     "5. **Verify** — `git status` and `git log` to confirm the history is clean and complete.",
-    `6. **Push the PR** — once the work is functioning and verified, push the branch and open a pull request (title/body naming **${b.key}**) for review. The work isn't handed off until the PR is up, so don't stop at a local commit. Then move **${b.key}** to \`in_review\` (item 2).`,
+    `6. **Push the PR against \`main\`** — once the work is functioning and verified, push the branch and open a pull request **based on \`main\`** (\`gh pr create --base main …\`; never another feature branch — PROG-95), title/body naming **${b.key}**, for review. The work isn't handed off until the PR is up, so don't stop at a local commit. Then move **${b.key}** to \`in_review\` (item 3).`,
     "",
   );
   // Multiple agents often work different issues against this repo in parallel,
@@ -272,10 +273,10 @@ export function renderArcBundle(b: ArcBundleData): string {
     "",
     `1. **Plan the split.** Read every issue above and decide a sensible division of labor. Watch for issues that touch the same files or depend on each other — sequence or group those so sub-agents don't fight over the same code.`,
     `2. **Fan out to sub-agents.** Spin up one sub-agent per issue (or per independent group) and have each implement its issue. Give each sub-agent that issue's section above as its brief, and tell it to fetch more detail from the Progress API / MCP tools (\`get_bundle <KEY>\`) if it needs it.`,
-    `3. **Share one branch.** All sub-agents work toward a single feature branch for this arc (e.g. \`arc/${arc.name
+    `3. **Share one branch, created off fresh \`main\`** — \`git fetch origin\` then branch the arc's single feature branch from \`origin/main\` (e.g. \`arc/${arc.name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")}\`). Mention the relevant issue key in each commit so Progress auto-links the work back to the right issue.`,
+      .replace(/^-+|-+$/g, "")}\`); never off another feature branch unless explicitly directed (PROG-95). All sub-agents work toward that one branch. Mention the relevant issue key in each commit so Progress auto-links the work back to the right issue.`,
     `4. **Integrate and verify.** Once the sub-agents finish, reconcile their work on the shared branch, resolve any conflicts, and make sure the whole thing builds, type-checks, and passes tests **together** — not just issue-by-issue.`,
     `5. **Open ONE pull request** for the arc whose title/body names every issue key (${
       keys.length ? keys.join(", ") : "the keys above"
@@ -295,9 +296,9 @@ export function renderArcBundle(b: ArcBundleData): string {
     "3. **Plan** — one commit per logical unit of work; keep unrelated changes in separate commits, and name the issue key the commit advances.",
     "4. **Commit** — use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): KEY subject` (types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert), where `KEY` is the issue that commit advances. Subject in imperative mood, no trailing period; the body explains *why* (context), *what* (the change), and any side effects. Do **not** add `Co-Authored-By` or any AI/Claude attribution.",
     "5. **Verify** — `git status` and `git log` to confirm the history is clean and complete.",
-    `6. **Push the one PR** — once the whole arc is functioning and verified, push the shared branch and open a single pull request (title/body naming ${
+    `6. **Push the one PR against \`main\`** — once the whole arc is functioning and verified, push the shared branch and open a single pull request **based on \`main\`** (\`gh pr create --base main …\`; never another feature branch — PROG-95), title/body naming ${
       keys.length ? keys.join(", ") : "every issue key"
-    }) for review. The work isn't handed off until that PR is up. Then move each issue to \`in_review\`.`,
+    }, for review. The work isn't handed off until that PR is up. Then move each issue to \`in_review\`.`,
     "",
   );
 
