@@ -28,6 +28,22 @@ export function quickAddDueDate(bucket: AgendaBucket, today: string): string | n
   }
 }
 
+/**
+ * The arc a quick-added issue inherits: the active Arc filter, but only when
+ * it belongs to the chosen product — the API enforces same-product arcs (D17),
+ * and an arc from another product would leave the capture invisible under the
+ * filter that spawned it.
+ */
+export function inheritArcId(
+  filterArc: string | undefined,
+  productId: string,
+  arcs: readonly { id: string; productId: string }[],
+): string | null {
+  return filterArc && arcs.some((a) => a.id === filterArc && a.productId === productId)
+    ? filterArc
+    : null;
+}
+
 const PRODUCT_KEY = "progress:agenda-quickadd-product";
 
 export function loadQuickAddProduct(): string | null {

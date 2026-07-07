@@ -262,6 +262,9 @@ export type IssueCreateInput = {
   priority: IssuePriority;
   estimate: number | null;
   dueDate: string | null;
+  // Existing tag ids to link at birth (PROG-89b: the Agenda quick-add inherits
+  // the active Tag filter so the capture stays visible under it).
+  tagIds?: string[];
 };
 
 // Optimistic create: the issue number is allocated locally from the
@@ -274,6 +277,11 @@ export function createIssue(input: IssueCreateInput): string | undefined {
   const ws = queryClient.getQueryData<WorkspacePayload>(WS_KEY);
   const product = ws?.products.find((p) => p.id === input.productId);
   if (!ws || !product) return undefined;
+
+  // Birth tags (PROG-89b): deduped and limited to tags the store knows, so the
+  // optimistic links and the request body always agree. Linked under the temp
+  // id, remapped to the server id on reconcile.
+  const tagIds = [...new Set(input.tagIds ?? [])].filter((tid) => ws.tags.some((t) => t.id === tid));
 
   const tempId = `iss_optimistic_${Date.now()}`;
   const now = new Date().toISOString();
@@ -307,6 +315,9 @@ export function createIssue(input: IssueCreateInput): string | undefined {
       ? {
           ...w,
           issues: [...w.issues, temp],
+          issueTags: tagIds.length
+            ? [...w.issueTags, ...tagIds.map((tagId) => ({ issueId: tempId, tagId }))]
+            : w.issueTags,
           products: w.products.map((p) =>
             p.id === product.id ? { ...p, nextIssueNumber: p.nextIssueNumber + 1 } : p,
           ),
@@ -320,7 +331,7 @@ export function createIssue(input: IssueCreateInput): string | undefined {
       const res = await fetch("/api/issues", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(input),
+        body: JSON.stringify({ ...input, tagIds }),
       });
       if (res.ok) serverIssue = ((await res.json()) as { issue: WireIssue }).issue;
     } catch {
@@ -330,12 +341,20 @@ export function createIssue(input: IssueCreateInput): string | undefined {
       if (!w) return w;
       if (serverIssue) {
         const real = serverIssue;
-        return { ...w, issues: w.issues.map((i) => (i.id === tempId ? real : i)) };
+        return {
+          ...w,
+          issues: w.issues.map((i) => (i.id === tempId ? real : i)),
+          issueTags: w.issueTags.map((l) =>
+            l.issueId === tempId ? { ...l, issueId: real.id } : l,
+          ),
+        };
       }
-      // Failure: remove the temp issue and put the allocated number back.
+      // Failure: remove the temp issue (and its tag links) and put the
+      // allocated number back.
       return {
         ...w,
         issues: w.issues.filter((i) => i.id !== tempId),
+        issueTags: w.issueTags.filter((l) => l.issueId !== tempId),
         products: w.products.map((p) =>
           p.id === product.id ? { ...p, nextIssueNumber: p.nextIssueNumber - 1 } : p,
         ),
