@@ -130,6 +130,33 @@ const isValidDueDate = (s: string): boolean => {
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
+// Legacy API paths from before the PROG-98 noun rename. External callers —
+// MCP servers on old checkouts, agent work orders already in flight, saved
+// scripts — still speak the v1/v2 nouns; rewrite the path and re-dispatch
+// through the full stack (auth included) so both vocabularies hit the same
+// handlers. Registered first so a legacy request runs the middleware chain
+// once, on the rewritten path. `/api/workspace` (the old load-everything
+// payload) is an exact match — `/api/workspaces` is a live route.
+const LEGACY_API_PREFIXES: [string, string][] = [
+  ["/api/initiatives", "/api/workspaces"],
+  ["/api/products", "/api/focuses"],
+  ["/api/issues", "/api/actions"],
+];
+app.use("/api/*", async (c, next) => {
+  const url = new URL(c.req.url);
+  let rewritten: string | null = null;
+  if (url.pathname === "/api/workspace") rewritten = "/api/snapshot";
+  else
+    for (const [from, to] of LEGACY_API_PREFIXES)
+      if (url.pathname === from || url.pathname.startsWith(`${from}/`)) {
+        rewritten = to + url.pathname.slice(from.length);
+        break;
+      }
+  if (rewritten === null) return next();
+  url.pathname = rewritten;
+  return app.fetch(new Request(url, c.req.raw), c.env, c.executionCtx);
+});
+
 // Security headers on everything the Worker serves — the /api/* JSON, the image
 // blobs (PROG-42), and the standalone not-authorized page (PROG-57). These
 // complement public/_headers, which carries the CSP for the statically-served
@@ -184,7 +211,7 @@ app.onError((err, c) => {
   });
   // Hono catches the throw and returns below, so it never propagates out of the
   // fetch handler for `withSentry` to auto-capture — report it explicitly.
-  // `requestId` ties the Sentry action back to the matching Workers Logs line.
+  // `requestId` ties the Sentry issue back to the matching Workers Logs line.
   Sentry.captureException(err, {
     tags: { requestId },
     extra: { method: c.req.method, path: c.req.path },

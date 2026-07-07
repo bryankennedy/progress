@@ -1,7 +1,7 @@
 // Outline capture view (PROG-124, docs/intent/outline-capture.md): a
 // Workflowy-style outliner for fast keyboard capture of actions as nested
 // bullets. One Action data type — a step is just an action with a
-// `parentActionId`. The root picker scopes to an Workspace or a Focus and
+// `parentActionId`. The root picker scopes to a Workspace or a Focus and
 // sets the ceiling (Focus root → Arc/Action/Step; Workspace root →
 // Focus/Arc/Action/Step). A fresh bullet is always an Action; Arc/Focus
 // are reached only by the explicit "→ Arc" / structure controls, never typed.
@@ -451,7 +451,7 @@ function OutlineNode({
 
 // ---------- focus capture (workspace scope only) ----------
 
-// An workspace's first action needs a focus to live on, and a focus needs a
+// A workspace's first action needs a focus to live on, and a focus needs a
 // permanent, unique action-key prefix (e.g. PROG). So unlike actions/arcs, a
 // focus can't be a bare "type a name" bullet — but we keep the Workflowy feel:
 // type the name → the prefix auto-fills (editable) → Enter. The prefix is

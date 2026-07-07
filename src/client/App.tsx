@@ -1,4 +1,4 @@
-import { Link, Route, Switch } from "wouter";
+import { Link, Redirect, Route, Switch } from "wouter";
 import CommandLayer from "./commands/CommandLayer";
 import Header from "./Header";
 import MobileTabBar from "./MobileTabBar";
@@ -21,6 +21,14 @@ const CONTAINER_ROUTES: { path: string; type: ContainerType }[] = [
   { path: "/focus/:id", type: "focus" },
   { path: "/repo/:id", type: "repo" },
   { path: "/arc/:id", type: "arc" },
+];
+
+// Pre-PROG-98 noun routes — old links live on in PR bodies, commit messages,
+// and bookmarks; redirect instead of 404ing them.
+const LEGACY_REDIRECTS: { path: string; to: (id: string) => string }[] = [
+  { path: "/issue/:id", to: (id) => `/action/${id}` },
+  { path: "/initiative/:id", to: (id) => `/workspace/${id}` },
+  { path: "/product/:id", to: (id) => `/focus/${id}` },
 ];
 
 export default function App() {
@@ -76,6 +84,11 @@ export default function App() {
                 {(params: { id?: string }) => (
                   <ContainerPage snapshot={snapshot} type={type} id={params.id ?? ""} />
                 )}
+              </Route>
+            ))}
+            {LEGACY_REDIRECTS.map(({ path, to }) => (
+              <Route key={path} path={path}>
+                {(params: { id?: string }) => <Redirect to={to(params.id ?? "")} replace />}
               </Route>
             ))}
             <Route>
