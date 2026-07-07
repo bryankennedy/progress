@@ -2,8 +2,10 @@
 
 The system **as built** (milestones 1–5, 2026-06-11/12). Information-oriented
 and present tense throughout; if it's described here, it works today. For
-vision and unbuilt work see [`SPEC.md`](./SPEC.md); for rationale see
-[`DECISIONS.md`](./DECISIONS.md) (D-numbers below refer to its entries).
+vision and unbuilt work see [`SPEC.md`](./SPEC.md); for rationale see the
+decision log ([`DECISIONS.md`](./DECISIONS.md) for the convention — D-numbers
+below resolve in [`decisions/D1-D49.md`](./decisions/D1-D49.md), issue keys in
+`decisions/<KEY>.md`).
 
 ## 1. Stack & layout
 
@@ -421,10 +423,17 @@ canonical key — entirely client-side from the loaded workspace (D22).
   Containers, then Comments, with matched terms highlighted; Enter opens the
   selection, and a footer link hands the query to the page. The **`/search`
   page** (`pages/Search.tsx`) is the deep dive: the same results, filterable by
-  the board dimensions (status · product · arc · repo · tag · priority) — Arc,
-  Repo, and Tag share the board's **"none"** option for issues with no value
-  there (PROG-76) — with query + filters in the URL so a search is bookmarkable.
-  The filter dropdown itself (`FilterSelect.tsx`) is shared with the board. An
+  the board dimensions (status · initiative · product · arc · repo · tag ·
+  priority) — Arc, Repo, and Tag share the board's **"none"** option for issues
+  with no value there (PROG-76) — with query + filters in the URL so a search is
+  bookmarkable. The whole filter row is the shared **`FilterBar`**
+  (`src/client/FilterBar.tsx`, PROG-92): the same six dropdowns, hierarchy
+  narrowing + ancestor pruning (PROG-75), mobile "Filters" disclosure
+  (PROG-81), Clear link, and **sticky restore** (PROG-58) as the board — one
+  storage slot per surface; on search the filters and sort stick across visits
+  but the query text is volatile, and Clear keeps `q` + sort. The page spans
+  the full app-shell width (like the board) so the filter row fits one desktop
+  line. An
   **empty query is itself a valid search** (PROG-78): the page opens onto every
   issue passing the filters — all of them by default, so `/search` starts as a
   browsable full list — newest first. Only the Issues section renders in that
@@ -499,11 +508,14 @@ canonical key — entirely client-side from the loaded workspace (D22).
   Agenda filters sort the same way. The current filter selection is also
   mirrored to `localStorage` (`progress:board-filters`) and re-applied when the
   board is reopened with a bare URL, so a choice sticks across navigation;
-  "Clear filters" clears the memory too (PROG-58). On phones (`< sm`) the whole
+  "Clear filters" clears the memory too (PROG-58) and keeps the
+  backlog/sub-issues toggles. On phones (`< sm`) the whole
   filter row collapses behind a **"Filters"** disclosure — collapsed by default,
   with a badge counting the active filters/toggles — so the board itself sits
   above the fold instead of a screenful of dropdowns; at `sm` and up the row is
-  always inline (PROG-81). Drag-and-drop reorders cards
+  always inline (PROG-81). The row itself is the shared `FilterBar`
+  (PROG-92) — the search page renders the same component, so the two surfaces
+  can't drift. Drag-and-drop reorders cards
   vertically
   within a column (a manual work order) and moves them between columns to set
   status; both persist as one optimistic write via the card's `rank` (D44).

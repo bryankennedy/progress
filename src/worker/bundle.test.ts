@@ -50,13 +50,16 @@ describe("renderBundle — Committing & PRs (smart-commit)", () => {
     expect(md).toMatch(/don't (stall|stop) at a local commit/i);
   });
 
-  it("steers append-only docs (DECISIONS.md) to issue-keyed ids to avoid parallel-agent races", () => {
+  it("steers decisions to this issue's own file to avoid parallel-agent races (PROG-91)", () => {
     const md = renderBundle(bundle({ key: "ACME-7" }));
     expect(md).toContain("Avoiding merge collisions");
-    expect(md).toContain("docs/DECISIONS.md");
+    // One file per work element: the agent writes ITS issue's file.
+    expect(md).toContain("docs/decisions/ACME-7.md");
     // The decision heading example is keyed to this issue, not a global D<n>.
     expect(md).toContain("### ACME-7 — <title>");
-    expect(md).toMatch(/never claim the next global running number/i);
+    expect(md).toMatch(/never append to a shared log or claim the next global running number/i);
+    // The frozen legacy log and other issues' files are off-limits.
+    expect(md).toContain("docs/decisions/D1-D49.md");
   });
 
   it("carries the must-follow rules: conventional format, secret-scan, no AI attribution", () => {

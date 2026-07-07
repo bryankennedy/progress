@@ -1,8 +1,4 @@
-# Append-only logs: auto-resolve "both branches appended at EOF" by keeping
-# both sides instead of raising a conflict. Parallel agents on different issues
-# each add an issue-keyed entry at the end (see docs/DECISIONS.md header); the
-# `union` driver concatenates them on merge/rebase rather than stopping for a
-# hand-resolution that is always "keep both". Relies on the append-only rule —
-# union is blind to edits of existing lines, so never rewrite a settled entry on
-# a feature branch.
-docs/DECISIONS.md merge=union
+# The decision log's merge=union entry retired with PROG-91: decisions now live
+# one-file-per-work-element under docs/decisions/, so parallel branches write
+# different files and need no merge driver. Union would be a hazard on the
+# remaining shared docs — it silently keep-boths conflicting edits.

@@ -11,12 +11,16 @@
 // comments section pulls further pages from the server via ?offset=. Issues
 // render as a table whose column headers sort (asc → desc → back to the
 // default relevance/recency order); the sort is a URL param like the filters.
+// The filter row is the shared FilterBar (PROG-92) — same dropdowns, mobile
+// disclosure, Clear, and sticky-restore behavior as the board; only `q` is
+// volatile (filters + sort stick across visits, the query text doesn't).
 
 import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useSearch } from "wouter";
-import { ISSUE_PRIORITIES, ISSUE_STATUSES } from "../../shared/constants";
+import { Link } from "wouter";
+import { ISSUE_STATUSES } from "../../shared/constants";
 import type { WireIssue, WorkspacePayload } from "../../shared/types";
-import { FILTER_NONE, matchesNullableId, sortByName } from "../boardFilters";
+import { FILTER_NONE, matchesNullableId, SEARCH_FILTERS_KEY } from "../boardFilters";
+import FilterBar, { useStickyFilterUrl } from "../FilterBar";
 import FilterSelect from "../FilterSelect";
 import {
   browseIssues,
@@ -41,6 +45,10 @@ const PAGE = 50;
 const FILTER_KEYS = ["initiative", "product", "repo", "arc", "tag", "priority", "status"] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
 type Filters = Partial<Record<FilterKey, string>>;
+
+// `q` is content, not a selection — it never sticks (PROG-92). Module-level so
+// the sticky effect's dependency stays reference-stable.
+const VOLATILE_KEYS = ["q"] as const;
 
 // The issue table's columns (PROG-78): one per displayed dimension, each
 // header click-sortable. Order here is the column order.
@@ -70,18 +78,17 @@ function parseFilters(search: string): { q: string; filters: Filters; sort: Issu
 }
 
 export default function Search({ workspace }: { workspace: WorkspacePayload }) {
-  const search = useSearch();
-  const [, navigate] = useLocation();
+  // URL plumbing + sticky filters + ancestor pruning, shared with the board
+  // (PROG-92, FilterBar.tsx). `q` is volatile: the filters and sort stick
+  // across visits, the query text doesn't.
+  const { search, navigate, setParam } = useStickyFilterUrl({
+    workspace,
+    basePath: "/search",
+    storageKey: SEARCH_FILTERS_KEY,
+    volatileKeys: VOLATILE_KEYS,
+  });
   const { q, filters, sort } = useMemo(() => parseFilters(search), [search]);
   const terms = useMemo(() => queryTerms(q), [q]);
-
-  const setParam = (key: string, value: string | null) => {
-    const params = new URLSearchParams(search);
-    if (value) params.set(key, value);
-    else params.delete(key);
-    const qs = params.toString();
-    navigate(qs ? `/search?${qs}` : "/search", { replace: true });
-  };
 
   // Column-header click: new column → ascending, same column → flip, third
   // click → back to the default order (relevance for a query, recency for
@@ -178,7 +185,9 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
   }, [comments, workspace.issues, passes]);
 
   return (
-    <div className="mx-auto max-w-3xl">
+    // Full app-shell width (PROG-92) — matching the board so the filter row
+    // fits on one line on desktop; <main> caps it at max-w-screen-2xl.
+    <div>
       <input
         autoFocus
         value={q}
@@ -187,69 +196,31 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
         className="w-full rounded-lg border border-line bg-card px-4 py-3 text-sm focus:border-ink-faint focus:outline-none"
       />
 
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-        <FilterSelect
-          label="Status"
-          value={filters.status}
-          options={ISSUE_STATUSES.map((s) => [s, STATUS_LABELS[s]])}
-          onChange={(v) => setParam("status", v)}
-        />
-        <FilterSelect
-          label="Product"
-          value={filters.product}
-          options={sortByName(workspace.products.filter((p) => !p.archivedAt)).map((p) => [
-            p.id,
-            p.name,
-          ])}
-          onChange={(v) => setParam("product", v)}
-        />
-        <FilterSelect
-          label="Arc"
-          nullable
-          value={filters.arc}
-          options={sortByName(
-            workspace.arcs
-              .filter((a) => !a.archivedAt)
-              .filter((a) => !filters.product || a.productId === filters.product),
-          ).map((a) => [a.id, a.name])}
-          onChange={(v) => setParam("arc", v)}
-        />
-        <FilterSelect
-          label="Repo"
-          nullable
-          value={filters.repo}
-          options={sortByName(
-            workspace.repos
-              .filter((r) => !r.archivedAt)
-              .filter((r) => !filters.product || r.productId === filters.product),
-          ).map((r) => [r.id, r.name])}
-          onChange={(v) => setParam("repo", v)}
-        />
-        <FilterSelect
-          label="Tag"
-          nullable
-          value={filters.tag}
-          options={sortByName(workspace.tags).map((t) => [t.id, t.name])}
-          onChange={(v) => setParam("tag", v)}
-        />
-        <FilterSelect
-          label="Priority"
-          value={filters.priority}
-          options={ISSUE_PRIORITIES.map((p) => [p, PRIORITY_LABELS[p]])}
-          onChange={(v) => setParam("priority", v)}
-        />
-        {filtersActive && (
-          <button
-            // Keep the query, drop every filter.
-            onClick={() =>
-              navigate(q ? `/search?q=${encodeURIComponent(q)}` : "/search", { replace: true })
-            }
-            className="text-xs text-ink-faint underline hover:text-ink-soft"
-          >
-            Clear filters
-          </button>
-        )}
-      </div>
+      {/* The shared filter bar (PROG-92): identical dropdowns, mobile
+          disclosure, and Clear to the board's. Status is search-specific (the
+          board's columns ARE the statuses), so it rides in the `before` slot.
+          Clearing keeps the query and the sort — they're not filters. */}
+      <FilterBar
+        workspace={workspace}
+        filters={filters}
+        setParam={setParam}
+        activeCount={FILTER_KEYS.filter((k) => filters[k]).length}
+        clearVisible={filtersActive}
+        onClear={() => {
+          const params = new URLSearchParams(search);
+          for (const key of FILTER_KEYS) params.delete(key);
+          const qs = params.toString();
+          navigate(qs ? `/search?${qs}` : "/search", { replace: true });
+        }}
+        before={
+          <FilterSelect
+            label="Status"
+            value={filters.status}
+            options={ISSUE_STATUSES.map((s) => [s, STATUS_LABELS[s]])}
+            onChange={(v) => setParam("status", v)}
+          />
+        }
+      />
 
       <div className="mt-6 space-y-6">
         {containerHits.length > 0 && (
