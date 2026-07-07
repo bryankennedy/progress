@@ -1,0 +1,6 @@
+# Bulk mechanical commits for `git blame` to skip. GitHub-style blame UIs pick
+# this file up automatically; for local blame, opt in once per clone with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# chore(format): one-time repo-wide Prettier reformat (PR #70) — whitespace only
+937ec65de928c17911c069c4daccc8cd9877e61b
