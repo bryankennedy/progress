@@ -1,11 +1,15 @@
-// Sticky board filters (PROG-58). The board's filter state lives entirely in the
-// URL query string (see Home.tsx). We mirror it to localStorage so returning to
-// the board — e.g. via the header nav, which links to a bare "/" — restores the
+// Sticky filters (PROG-58, generalized to search in PROG-92). A filtered
+// surface's state lives entirely in its URL query string (see Home.tsx /
+// Search.tsx via FilterBar's useStickyFilterUrl). We mirror it to localStorage
+// so returning through the header nav — a bare "/" or "/search" — restores the
 // last selection instead of resetting to "all". The URL stays the single source
-// of truth (so a filtered board is still bookmarkable); storage is just a memory
+// of truth (so a filtered view is still bookmarkable); storage is just a memory
 // that re-seeds the URL on a fresh, unfiltered open.
 
-const STORAGE_KEY = "progress:board-filters";
+// One storage slot per filtered surface (PROG-92): the board and the search
+// page each remember their own last selection.
+export const BOARD_FILTERS_KEY = "progress:board-filters";
+export const SEARCH_FILTERS_KEY = "progress:search-filters";
 
 // Filter sentinel for "this nullable field is empty" (PROG-76): pick the option
 // to find issues with no Arc / Repo / Tag. A reserved value in the URL (e.g.
@@ -23,18 +27,18 @@ export function matchesNullableId(field: string | null, filter: string): boolean
 
 // localStorage can throw (private mode, storage disabled, quota). Sticky filters
 // are a convenience, never load-bearing, so every access fails soft: a throw
-// just means "not sticky this time" rather than a broken board.
-export function loadBoardFilters(): string {
+// just means "not sticky this time" rather than a broken view.
+export function loadStickyFilters(storageKey: string): string {
   try {
-    return window.localStorage.getItem(STORAGE_KEY) ?? "";
+    return window.localStorage.getItem(storageKey) ?? "";
   } catch {
     return "";
   }
 }
 
-export function saveBoardFilters(search: string): void {
+export function saveStickyFilters(storageKey: string, search: string): void {
   try {
-    window.localStorage.setItem(STORAGE_KEY, search);
+    window.localStorage.setItem(storageKey, search);
   } catch {
     /* sticky filters are a nicety — ignore storage failures */
   }

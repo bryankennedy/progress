@@ -22,13 +22,17 @@ function localISO(plusDays = 0): string {
   return `${d.getFullYear()}-${m}-${day}`;
 }
 
+// Product names must not contain nav-link words ("Agenda", "Board", …): the
+// board card prints the product name inside the card link, so a product named
+// "… agenda …" makes bare nav-link selectors ambiguous for every later spec
+// sharing the dev DB.
 async function makeProductWithSeed(page: Page, seedDue: string) {
   const ws = await (await page.request.get("/api/workspace")).json();
   const product = (
     await (
       await page.request.post("/api/products", {
         data: {
-          name: `E2E agenda ${tag()}`,
+          name: `E2E quickadd ${tag()}`,
           initiativeId: ws.initiatives[0].id,
           keyPrefix: `A${tag().toUpperCase().replaceAll(/[^A-Z]/g, "Z").padEnd(4, "Q").slice(0, 4)}`,
         },
@@ -43,6 +47,19 @@ async function makeProductWithSeed(page: Page, seedDue: string) {
     ).json()
   ).issue as { id: string };
   return { product, seed };
+}
+
+// Archiving a product hides it from filters, but its issues stay visible
+// everywhere (archive semantics) — so also cancel them, or every run leaves
+// live cards on the shared dev board.
+async function cleanupProduct(page: Page, productId: string) {
+  const ws = await (await page.request.get("/api/workspace")).json();
+  for (const i of ws.issues as { id: string; productId: string }[]) {
+    if (i.productId === productId) {
+      await page.request.patch(`/api/issues/${i.id}`, { data: { status: "canceled" } });
+    }
+  }
+  await page.request.patch(`/api/products/${productId}`, { data: { archived: true } });
 }
 
 test.beforeEach(async ({ context }) => {
@@ -79,7 +96,7 @@ test("quick-add under Today creates an issue due today (PROG-89)", async ({ page
     })
     .toEqual({ dueDate: today, status: "todo" });
 
-  await page.request.patch(`/api/products/${product.id}`, { data: { archived: true } });
+  await cleanupProduct(page, product.id);
 });
 
 test("quick-add under This week dates to the window's last day; Overdue has no input (PROG-89)", async ({
@@ -115,5 +132,5 @@ test("quick-add under This week dates to the window's last day; Overdue has no i
     })
     .toBe(endOfWindow);
 
-  await page.request.patch(`/api/products/${product.id}`, { data: { archived: true } });
+  await cleanupProduct(page, product.id);
 });

@@ -40,9 +40,9 @@ test("a filter chosen on the board survives navigating away and back (PROG-58)",
 
   // Leave the board, then return via the header "Board" link (which points at a
   // bare "/").
-  await page.getByRole("link", { name: "Agenda" }).click();
+  await page.getByRole("link", { name: "Agenda", exact: true }).click();
   await expect.poll(() => page.url()).toContain("/agenda");
-  await page.getByRole("link", { name: "Board" }).click();
+  await page.getByRole("link", { name: "Board", exact: true }).click();
 
   // Back on the board the selection is restored — both the URL and the control.
   await expect.poll(() => page.url()).toContain(`priority=${value}`);
@@ -80,9 +80,9 @@ test("clearing filters sticks across navigation (PROG-58)", async ({ page }) => 
   await page.getByRole("button", { name: "Clear filters" }).click();
   await expect.poll(() => priorityValue(page)).toBe("");
 
-  await page.getByRole("link", { name: "Agenda" }).click();
+  await page.getByRole("link", { name: "Agenda", exact: true }).click();
   await expect.poll(() => page.url()).toContain("/agenda");
-  await page.getByRole("link", { name: "Board" }).click();
+  await page.getByRole("link", { name: "Board", exact: true }).click();
 
   await page.waitForSelector("select");
   expect(await priorityValue(page)).toBe("");

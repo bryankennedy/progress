@@ -19,18 +19,19 @@ deliberately — keep it that way as milestones land:
   comments cite them); when an area ships, shrink its section to a pointer into
   REFERENCE rather than renumbering. The frozen **v1** roadmap is
   `docs/archive/SPEC-v1.md` — pre-v2 `SPEC §X` citations resolve there.
-- `docs/DECISIONS.md` — append-only decision log. Settled questions live here;
-  don't re-litigate them — supersede with a new entry if something changes. New
-  entries are **keyed to their issue** (`### KEY — title`), not a running `D<n>`
-  number, so parallel agents on different issues don't collide (PROG-62); D1–D48
-  keep their historical numbers. Always append at the **bottom**: the file is
-  `merge=union` (`.gitattributes`), so parallel appends merge as keep-both with
-  no conflict — which only holds while the log stays append-only, so supersede
-  settled entries, never rewrite them (`DECISIONS-union`).
+- `docs/DECISIONS.md` + `docs/decisions/` — the decision log, **one file per
+  work element** (PROG-91): your issue's decisions go in
+  `docs/decisions/<KEY>.md`, headed `### <KEY> — title` (a second decision from
+  the same issue appends there with a letter suffix, `### <KEY>b — …`).
+  Parallel branches write different files, so there's nothing to collide on.
+  Settled questions live in these files; don't re-litigate them — supersede
+  with a new entry in *your* file that names the old one, never rewrite one.
+  Legacy `D1`–`D49` citations resolve to `docs/decisions/D1-D49.md` (frozen);
+  `docs/DECISIONS.md` itself is just the convention doc.
 - `docs/SETUP.md` — how-to: install, run, schema changes, deploy.
 
 When a decision of consequence is made in conversation, record it in
-`docs/DECISIONS.md` in the same session.
+`docs/decisions/<KEY>.md` in the same session.
 
 ## Hard requirements (never trade away)
 
