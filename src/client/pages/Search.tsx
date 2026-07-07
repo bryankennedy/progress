@@ -15,7 +15,7 @@
 // disclosure, Clear, and sticky-restore behavior as the board; only `q` is
 // volatile (filters + sort stick across visits, the query text doesn't).
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { ISSUE_STATUSES } from "../../shared/constants";
 import type { WireIssue, WorkspacePayload } from "../../shared/types";
@@ -125,6 +125,13 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
     [workspace.products],
   );
 
+  // Comment hits arrive as issue ids; a Map resolves them without a per-hit
+  // linear scan over the (up to 5k-issue) workspace.
+  const issueById = useMemo(
+    () => new Map(workspace.issues.map((i) => [i.id, i])),
+    [workspace.issues],
+  );
+
   // Does an issue pass the active filters? Used for both issue and comment hits.
   const passes = useMemo(() => {
     return (issue: WireIssue): boolean => {
@@ -165,24 +172,28 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
 
   // Pagination (PROG-78): the full hit lists stay in memory (instant); only the
   // DOM is capped, at PAGE rows per "Show more" click. Limits reset whenever
-  // the query or filters change — `search` is the canonical state for both.
+  // the query, filters, or sort change — `search` is the canonical state for
+  // all three. Reset during render (prev-value pattern) rather than in an
+  // effect, so a changed result set never paints a frame at the old depth.
   const [issueLimit, setIssueLimit] = useState(PAGE);
   const [containerLimit, setContainerLimit] = useState(PAGE);
-  useEffect(() => {
+  const [prevSearch, setPrevSearch] = useState(search);
+  if (search !== prevSearch) {
+    setPrevSearch(search);
     setIssueLimit(PAGE);
     setContainerLimit(PAGE);
-  }, [search]);
+  }
 
   const { data: comments, isFetching, hasMore, fetchMore, isFetchingMore } = useCommentSearch(q);
   // Resolve comment hits to issues and apply the same filters.
   const commentHits = useMemo(() => {
     return (comments?.hits ?? [])
       .map((hit) => {
-        const issue = workspace.issues.find((i) => i.id === hit.issueId);
+        const issue = issueById.get(hit.issueId);
         return issue ? { ...hit, issue } : null;
       })
       .filter((h): h is NonNullable<typeof h> => h !== null && passes(h.issue));
-  }, [comments, workspace.issues, passes]);
+  }, [comments, issueById, passes]);
 
   return (
     // Full app-shell width (PROG-92) — matching the board so the filter row
@@ -284,7 +295,7 @@ export default function Search({ workspace }: { workspace: WorkspacePayload }) {
                 <tbody>
                   {issueHits.slice(0, issueLimit).map((hit) => {
                     const key = issueKeyOf(workspace, hit.issue);
-                    const product = workspace.products.find((p) => p.id === hit.issue.productId);
+                    const product = productById.get(hit.issue.productId);
                     return (
                       // The whole row navigates (it's the click target the old
                       // card rows offered); the title stays a real link for

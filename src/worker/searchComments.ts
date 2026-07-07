@@ -7,13 +7,26 @@
 // (PROG-78 pagination).
 export const SEARCH_CAP = 50;
 
+// Ceiling on ?offset=. Beyond it parseOffset clamps, so the window can no
+// longer advance — pagination must stop advertising more pages at this point
+// (see hasMorePages) or a clamped offset would serve the same page forever.
+export const MAX_OFFSET = 10_000;
+
 // Parse the ?offset= param defensively: anything that isn't a non-negative
 // integer (absent, garbage, negative, fractional, huge) clamps to a safe value
 // rather than erroring — a malformed bookmark should degrade to page one.
-export function parseOffset(raw: string | undefined, max = 10_000): number {
+export function parseOffset(raw: string | undefined, max = MAX_OFFSET): number {
   const n = Number(raw);
   if (!Number.isInteger(n) || n < 0) return 0;
   return Math.min(n, max);
+}
+
+// Whether `truncated` should report another page: the query produced more rows
+// than the page holds AND the next offset is still below the clamp ceiling. At
+// MAX_OFFSET the answer is no even mid-match-set, ending pagination cleanly
+// instead of letting the client refetch the same clamped page in a loop.
+export function hasMorePages(rowCount: number, offset: number): boolean {
+  return rowCount > SEARCH_CAP && offset < MAX_OFFSET;
 }
 
 // Escape LIKE wildcards so a query like "100%" or "a_b" matches literally.

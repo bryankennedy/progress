@@ -28,7 +28,7 @@ import {
 import { CLOSED_ISSUE_STATUSES, tagColor } from "../shared/constants";
 import { isValidRank, rankAfter } from "../shared/rank";
 import { log } from "./log";
-import { commentSnippet, escapeLike, parseOffset, SEARCH_CAP } from "./searchComments";
+import { commentSnippet, escapeLike, hasMorePages, parseOffset, SEARCH_CAP } from "./searchComments";
 import { renderArcBundle, renderBundle, type ArcIssueData } from "./bundle";
 import { notAuthorizedPage } from "./pages";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
@@ -470,7 +470,7 @@ app.get("/api/search", async (c) => {
     .limit(SEARCH_CAP + 1)
     .offset(offset);
 
-  const truncated = rows.length > SEARCH_CAP;
+  const truncated = hasMorePages(rows.length, offset);
   const hits = rows.slice(0, SEARCH_CAP).map((r) => ({
     commentId: r.id,
     issueId: r.issueId,
