@@ -187,7 +187,17 @@ async function optimisticActionMutation(
     writeAction(id, () => before);
     // A caller managing its own draft/Retry affordance (the description editor)
     // suppresses this generic toast to avoid a double notification.
-    if (opts?.toastOnError !== false) toast("Couldn't save that change — reverted.");
+    if (opts?.toastOnError !== false) {
+      // Surface the server's reason when it gave one (a 4xx names the invalid
+      // field) — same affordance as updateContainer.
+      let message = "";
+      try {
+        message = res ? (((await res.json()) as { error?: string }).error ?? "") : "";
+      } catch {
+        // no JSON body (network failure / non-JSON error) — generic message
+      }
+      toast(`Couldn't save that change — reverted.${message ? ` (${message})` : ""}`);
+    }
   } else {
     refreshBundle(id);
     if (patch.status !== undefined) {
@@ -284,7 +294,7 @@ export function createAction(input: ActionCreateInput): string | undefined {
     ws.tags.some((t) => t.id === tid),
   );
 
-  const tempId = `acn_optimistic_${Date.now()}`;
+  const tempId = `acn_optimistic_${crypto.randomUUID().replaceAll("-", "")}`;
   const now = new Date().toISOString();
   // Optimistic board rank: append after the current last action, mirroring the
   // server (PROG-43). The single writer means our max matches the DB's, so the
@@ -387,6 +397,14 @@ export function moveAction(id: string, target: MoveTarget) {
   const crossFocus = before.focusId !== target.focusId;
   const now = new Date().toISOString();
   const oldKey = actionKeyOf(ws, before);
+  // A cross-focus move also detaches this action's steps (they stay behind,
+  // top-level — PROG-124). The server only detaches on a *successful* move, so
+  // capture what the optimistic detach touches to restore it on failure.
+  const stepsBefore = new Map(
+    crossFocus
+      ? ws.actions.filter((i) => i.parentActionId === id).map((i) => [i.id, i.updatedAt])
+      : [],
+  );
 
   queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) => {
     if (!w) return w;
@@ -446,7 +464,16 @@ export function moveAction(id: string, target: MoveTarget) {
     }
     queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) => {
       if (!w) return w;
-      const restored = { ...w, actions: w.actions.map((i) => (i.id === id ? before : i)) };
+      const restored = {
+        ...w,
+        actions: w.actions.map((i) => {
+          if (i.id === id) return before;
+          const stepUpdatedAt = stepsBefore.get(i.id);
+          return stepUpdatedAt !== undefined
+            ? { ...i, parentActionId: id, updatedAt: stepUpdatedAt }
+            : i;
+        }),
+      };
       if (!crossFocus) return restored;
       return {
         ...restored,
