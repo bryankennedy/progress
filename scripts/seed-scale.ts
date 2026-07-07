@@ -91,7 +91,7 @@ function insertChunked(table: string, columns: string, rows: Row[], chunk = 500)
 const iniIds: string[] = [];
 const iniRows: Row[] = [];
 for (let i = 1; i <= COUNTS.workspaces; i++) {
-  const id = `wsp_syn${i}`;
+  const id = `ini_syn${i}`;
   iniIds.push(id);
   const t = NOW - int(0, YEAR);
   iniRows.push(`('${id}', 'Synthetic Workspace ${i}', '', 'usr_owner', ${t}, ${t})`);
@@ -105,7 +105,7 @@ const focusSlot = lines.length;
 const focusIds: string[] = [];
 const focusMeta = new Map<string, { workspace: string; prefix: string; t: number }>();
 for (let i = 1; i <= COUNTS.focuses; i++) {
-  const id = `foc_syn${i}`;
+  const id = `prd_syn${i}`;
   focusIds.push(id);
   focusMeta.set(id, {
     workspace: pick(iniIds),
@@ -149,7 +149,7 @@ const nextNumber = new Map<string, number>(focusIds.map((p) => [p, 1]));
 const actionRows: Row[] = [];
 const actionTagRows: Row[] = [];
 for (let i = 1; i <= COUNTS.actions; i++) {
-  const id = `acn_syn${i}`;
+  const id = `iss_syn${i}`;
   const focus = pick(focusIds);
   const number = nextNumber.get(focus)!;
   nextNumber.set(focus, number + 1);
