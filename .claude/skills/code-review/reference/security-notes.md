@@ -45,7 +45,7 @@ React escapes by default; the escape hatches are the findings:
 - Markdown rendering: `react-markdown` without `rehype-raw` does not render
   raw HTML — keep it that way; adding raw-HTML support to user-editable
   markdown is `blocking` without sanitization.
-- URLs from data (`href={issue.url}`): check for `javascript:` scheme when the
+- URLs from data (`href={action.url}`): check for `javascript:` scheme when the
   value can be user-supplied; constrain to `http(s)`.
 
 ## SSRF on outbound fetches

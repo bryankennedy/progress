@@ -14,22 +14,22 @@ localStorage, `JSON.parse`), it's a hole where runtime data flows in unchecked.
 
 ```ts
 const res = await fetch("/api/bundle");
-const bundle = (await res.json()) as WorkspaceBundle; // trust me
+const bundle = (await res.json()) as SnapshotBundle; // trust me
 ```
 
 **After (trust boundary gets a validator):**
 
 ```ts
-const bundle = workspaceBundleSchema.parse(await res.json()); // zod, one place
+const bundle = snapshotBundleSchema.parse(await res.json()); // zod, one place
 ```
 
 For internal hops where zod is overkill, prefer narrowing to casting:
 
 ```ts
 // Before
-const status = row.status as IssueStatus;
+const status = row.status as ActionStatus;
 // After — the constant array is the source of truth
-if (!ISSUE_STATUSES.includes(row.status)) throw new Error(`bad status: ${row.status}`);
+if (!ACTION_STATUSES.includes(row.status)) throw new Error(`bad status: ${row.status}`);
 ```
 
 ## `unknown` at trust boundaries
@@ -62,17 +62,17 @@ type SaveState =
 Pair with exhaustiveness — a `switch` on the discriminant with a `never`
 default arm (`const _exhaustive: never = state`) turns "added a variant" into
 a compile error instead of a silent fall-through. Flag switches over
-`IssueStatus`/`IssuePriority` that silently ignore unhandled members.
+`ActionStatus`/`ActionPriority` that silently ignore unhandled members.
 
 ## Return-type honesty
 
 A signature should not promise more than every code path delivers.
 
 ```ts
-// Before: returns undefined on miss but claims Issue
-function findIssue(key: string): Issue { return map.get(key)!; }
+// Before: returns undefined on miss but claims Action
+function findAction(key: string): Action { return map.get(key)!; }
 // After
-function findIssue(key: string): Issue | undefined { return map.get(key); }
+function findAction(key: string): Action | undefined { return map.get(key); }
 ```
 
 Non-null assertions (`!`) on lookups are the compact form of this lie — each
