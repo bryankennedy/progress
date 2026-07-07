@@ -28,7 +28,13 @@ import {
 import { CLOSED_ACTION_STATUSES, tagColor } from "../shared/constants";
 import { isValidRank, rankAfter } from "../shared/rank";
 import { log } from "./log";
-import { commentSnippet, escapeLike, hasMorePages, parseOffset, SEARCH_CAP } from "./searchComments";
+import {
+  commentSnippet,
+  escapeLike,
+  hasMorePages,
+  parseOffset,
+  SEARCH_CAP,
+} from "./searchComments";
 import { renderArcBundle, renderBundle, type ArcActionData } from "./bundle";
 import { notAuthorizedPage } from "./pages";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
@@ -229,11 +235,7 @@ app.onError((err, c) => {
 // wall. A deployed origin with unconfigured auth fails closed. Otherwise 401.
 app.use("/api/*", async (c, next) => {
   const path = c.req.path;
-  if (
-    path === "/api/health" ||
-    path.startsWith("/api/auth/") ||
-    path.startsWith("/api/webhooks/")
-  )
+  if (path === "/api/health" || path.startsWith("/api/auth/") || path.startsWith("/api/webhooks/"))
     return next();
 
   const env = c.env;
@@ -579,13 +581,7 @@ app.delete("/api/admin/allowlist/:id", async (c) => {
 // (allowlisted) user or the bearer token — never the public internet. Markdown
 // in descriptions/comments references them as `/api/images/<id>`.
 
-const IMAGE_TYPES = new Set([
-  "image/png",
-  "image/jpeg",
-  "image/gif",
-  "image/webp",
-  "image/avif",
-]);
+const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"]);
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB — generous for screenshots.
 
 app.post("/api/images", async (c) => {
@@ -630,7 +626,12 @@ app.get("/api/images/:id", async (c) => {
   // do this on a deployed origin (cf.image is a no-op off-edge, and a self-fetch
   // to localhost would loop under Miniflare); locally and without a token we just
   // stream the original. The subrequest carries the bearer so it clears the gate.
-  if (wantResize && url.searchParams.get("raw") !== "1" && !isLoopbackHost(c.req.url) && c.env.PROGRESS_API_TOKEN) {
+  if (
+    wantResize &&
+    url.searchParams.get("raw") !== "1" &&
+    !isLoopbackHost(c.req.url) &&
+    c.env.PROGRESS_API_TOKEN
+  ) {
     const rawUrl = `${url.origin}/api/images/${id}?raw=1`;
     const resized = await fetch(
       new Request(rawUrl, { headers: { Authorization: `Bearer ${c.env.PROGRESS_API_TOKEN}` } }),
@@ -853,8 +854,13 @@ app.patch("/api/focuses/:id", async (c) => {
     if (typeof body.keyPrefix !== "string" || !KEY_PREFIX_RE.test(body.keyPrefix.toUpperCase()))
       return c.json({ error: "keyPrefix must be 2–8 letters" }, 400);
     const keyPrefix = body.keyPrefix.toUpperCase();
-    const [clash] = await db.select().from(focuses).where(eq(focuses.keyPrefix, keyPrefix)).limit(1);
-    if (clash && clash.id !== id) return c.json({ error: `key prefix ${keyPrefix} is already in use` }, 409);
+    const [clash] = await db
+      .select()
+      .from(focuses)
+      .where(eq(focuses.keyPrefix, keyPrefix))
+      .limit(1);
+    if (clash && clash.id !== id)
+      return c.json({ error: `key prefix ${keyPrefix} is already in use` }, 409);
     // Safe rename: action keys are derived from the prefix, never stored (D18).
     set.keyPrefix = keyPrefix;
   }
@@ -910,7 +916,11 @@ app.post("/api/actions/:id/tags", async (c) => {
   const id = c.req.param("id");
   const body = (await c.req.json()) as { tagId?: unknown; name?: unknown; id?: unknown };
   const db = drizzle(c.env.DB);
-  const [action] = await db.select({ id: actions.id }).from(actions).where(eq(actions.id, id)).limit(1);
+  const [action] = await db
+    .select({ id: actions.id })
+    .from(actions)
+    .where(eq(actions.id, id))
+    .limit(1);
   if (!action) return c.json({ error: "action not found" }, 404);
 
   let tag;
@@ -965,8 +975,7 @@ app.post("/api/actions", async (c) => {
   const body = (await c.req.json()) as ActionCreateBody;
   if (typeof body.title !== "string" || body.title.trim() === "")
     return c.json({ error: "title must be a non-empty string" }, 400);
-  if (typeof body.focusId !== "string")
-    return c.json({ error: "focusId is required" }, 400);
+  if (typeof body.focusId !== "string") return c.json({ error: "focusId is required" }, 400);
   const repoId = body.repoId ?? null;
   if (repoId !== null && typeof repoId !== "string")
     return c.json({ error: "repoId must be a string or null" }, 400);
@@ -1000,11 +1009,7 @@ app.post("/api/actions", async (c) => {
   const tagIds = [...new Set(rawTagIds as string[])];
 
   const db = drizzle(c.env.DB);
-  const [focus] = await db
-    .select()
-    .from(focuses)
-    .where(eq(focuses.id, body.focusId))
-    .limit(1);
+  const [focus] = await db.select().from(focuses).where(eq(focuses.id, body.focusId)).limit(1);
   if (!focus) return c.json({ error: "focus not found" }, 400);
   // The invariants SQLite can't express (D17): repo and arc must belong to
   // the action's focus.
@@ -1021,11 +1026,7 @@ app.post("/api/actions", async (c) => {
   // Step parent (PROG-124): must be an existing action in the same focus.
   // A brand-new action can't create a cycle, so no chain walk is needed here.
   if (parentActionId !== null) {
-    const [parent] = await db
-      .select()
-      .from(actions)
-      .where(eq(actions.id, parentActionId))
-      .limit(1);
+    const [parent] = await db.select().from(actions).where(eq(actions.id, parentActionId)).limit(1);
     if (!parent || parent.focusId !== focus.id)
       return c.json({ error: "parent action not found in that focus" }, 400);
   }
@@ -1085,8 +1086,7 @@ type ActionMoveBody = { focusId?: unknown; repoId?: unknown };
 app.post("/api/actions/:id/move", async (c) => {
   const id = c.req.param("id");
   const body = (await c.req.json()) as ActionMoveBody;
-  if (typeof body.focusId !== "string")
-    return c.json({ error: "focusId is required" }, 400);
+  if (typeof body.focusId !== "string") return c.json({ error: "focusId is required" }, 400);
   const repoId = body.repoId ?? null;
   if (repoId !== null && typeof repoId !== "string")
     return c.json({ error: "repoId must be a string or null" }, 400);
@@ -1094,11 +1094,7 @@ app.post("/api/actions/:id/move", async (c) => {
   const db = drizzle(c.env.DB);
   const [existing] = await db.select().from(actions).where(eq(actions.id, id)).limit(1);
   if (!existing) return c.json({ error: "action not found" }, 404);
-  const [target] = await db
-    .select()
-    .from(focuses)
-    .where(eq(focuses.id, body.focusId))
-    .limit(1);
+  const [target] = await db.select().from(focuses).where(eq(focuses.id, body.focusId)).limit(1);
   if (!target) return c.json({ error: "focus not found" }, 400);
   if (repoId !== null) {
     const [repo] = await db.select().from(repos).where(eq(repos.id, repoId)).limit(1);
@@ -1150,14 +1146,24 @@ app.post("/api/actions/:id/move", async (c) => {
       // arcId and parentActionId reference the old focus, so a cross-focus
       // move clears both — the action lands at the top level of the target
       // (PROG-124). Any children keep pointing here and are detached below.
-      .set({ focusId: target.id, repoId, arcId: null, parentActionId: null, number, updatedAt: now })
+      .set({
+        focusId: target.id,
+        repoId,
+        arcId: null,
+        parentActionId: null,
+        number,
+        updatedAt: now,
+      })
       .where(eq(actions.id, id))
       .returning(),
     db.insert(actionKeyAliases).values({ key: oldKey, actionId: id, createdAt: now }),
     // Detach any steps of the moved action: they stay in the old focus,
     // so they can't keep a now-cross-focus parent (PROG-124, same-focus
     // invariant). They become top-level actions in their original focus.
-    db.update(actions).set({ parentActionId: null, updatedAt: now }).where(eq(actions.parentActionId, id)),
+    db
+      .update(actions)
+      .set({ parentActionId: null, updatedAt: now })
+      .where(eq(actions.parentActionId, id)),
     db.insert(activity).values({
       id: newId("act"),
       actionId: id,
@@ -1213,8 +1219,14 @@ app.patch("/api/actions/:id", async (c) => {
     set.estimate = body.estimate;
   }
   if (body.dueDate !== undefined) {
-    if (body.dueDate !== null && (typeof body.dueDate !== "string" || !isValidDueDate(body.dueDate)))
-      return c.json({ error: `invalid dueDate: ${String(body.dueDate)} (expected YYYY-MM-DD)` }, 400);
+    if (
+      body.dueDate !== null &&
+      (typeof body.dueDate !== "string" || !isValidDueDate(body.dueDate))
+    )
+      return c.json(
+        { error: `invalid dueDate: ${String(body.dueDate)} (expected YYYY-MM-DD)` },
+        400,
+      );
     set.dueDate = body.dueDate;
   }
   if (body.rank !== undefined) {
@@ -1233,7 +1245,8 @@ app.patch("/api/actions/:id", async (c) => {
   // loaded row, hence after the existence check.
   if (body.arcId !== undefined) {
     if (body.arcId !== null) {
-      if (typeof body.arcId !== "string") return c.json({ error: "arcId must be a string or null" }, 400);
+      if (typeof body.arcId !== "string")
+        return c.json({ error: "arcId must be a string or null" }, 400);
       const [arc] = await db.select().from(arcs).where(eq(arcs.id, body.arcId)).limit(1);
       if (!arc || arc.focusId !== existing.focusId)
         return c.json({ error: "arc not found in this action's focus" }, 400);
@@ -1262,8 +1275,7 @@ app.patch("/api/actions/:id", async (c) => {
       // proposed parent is a descendant of this action.
       let cursor: string | null = parent.parentActionId;
       for (let hops = 0; cursor !== null && hops < 1000; hops++) {
-        if (cursor === id)
-          return c.json({ error: "that move would create a cycle" }, 400);
+        if (cursor === id) return c.json({ error: "that move would create a cycle" }, 400);
         const [next]: { parentActionId: string | null }[] = await db
           .select({ parentActionId: actions.parentActionId })
           .from(actions)
@@ -1403,11 +1415,7 @@ app.get("/api/arcs/:id/bundle", async (c) => {
   const [arc] = await db.select().from(arcs).where(eq(arcs.id, id)).limit(1);
   if (!arc) return c.json({ error: `no arc with id ${id}` }, 404);
 
-  const [focus] = await db
-    .select()
-    .from(focuses)
-    .where(eq(focuses.id, arc.focusId))
-    .limit(1);
+  const [focus] = await db.select().from(focuses).where(eq(focuses.id, arc.focusId)).limit(1);
   if (!focus) return c.json({ error: `arc ${id} has no focus` }, 500);
 
   // Open actions only — drop terminal (done/canceled). Pre-sort by status order
@@ -1443,7 +1451,11 @@ app.get("/api/arcs/:id/bundle", async (c) => {
           .innerJoin(users, eq(comments.authorId, users.id))
           .where(eq(comments.actionId, action.id))
           .orderBy(asc(comments.createdAt)),
-        db.select().from(prLinks).where(eq(prLinks.actionId, action.id)).orderBy(asc(prLinks.createdAt)),
+        db
+          .select()
+          .from(prLinks)
+          .where(eq(prLinks.actionId, action.id))
+          .orderBy(asc(prLinks.createdAt)),
         db
           .select()
           .from(commitLinks)
@@ -1514,11 +1526,7 @@ app.post("/api/actions/:id/comments", async (c) => {
   // row belongs to the same author *and* action — never return another user's row
   // and never silently re-home it onto a different action (the user-scoping guard
   // PROG-51). Anything else is a genuine conflict.
-  const [prior] = await db
-    .select()
-    .from(comments)
-    .where(eq(comments.id, commentId))
-    .limit(1);
+  const [prior] = await db.select().from(comments).where(eq(comments.id, commentId)).limit(1);
   if (prior && prior.authorId === userId && prior.actionId === id)
     return c.json({ comment: prior }, 200);
   return c.json({ error: "comment id already exists" }, 409);
@@ -1654,7 +1662,14 @@ async function handlePush(db: ReturnType<typeof drizzle>, payload: PushPayload) 
     for (const actionId of actionIds) {
       const [inserted] = await db
         .insert(commitLinks)
-        .values({ actionId, githubRepo, sha: commit.id, message, url: commit.url ?? "", createdAt: now })
+        .values({
+          actionId,
+          githubRepo,
+          sha: commit.id,
+          message,
+          url: commit.url ?? "",
+          createdAt: now,
+        })
         .onConflictDoNothing()
         .returning();
       if (!inserted) continue;

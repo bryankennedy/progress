@@ -154,9 +154,7 @@ export default function ContainerPage({
     return list.sort((a, b) => {
       if (sort === "updated") return b.updatedAt.localeCompare(a.updatedAt);
       if (sort === "status")
-        return (
-          STATUS_ORDER.get(a.status)! - STATUS_ORDER.get(b.status)! || a.number - b.number
-        );
+        return STATUS_ORDER.get(a.status)! - STATUS_ORDER.get(b.status)! || a.number - b.number;
       return a.number - b.number;
     });
   }, [resolved, sort, statusFilter]);
@@ -199,7 +197,9 @@ export default function ContainerPage({
             />
           </h1>
           {resolved.archivedAt && (
-            <span className="mt-2 text-xs uppercase tracking-wide font-mono text-ink-faint">archived</span>
+            <span className="mt-2 text-xs uppercase tracking-wide font-mono text-ink-faint">
+              archived
+            </span>
           )}
           <button
             onClick={() => updateContainer(type, id, { archived: !resolved.archivedAt })}
@@ -248,7 +248,9 @@ export default function ContainerPage({
         (group) =>
           (group.items.length > 0 || group.onNew) && (
             <p key={group.label} className="mt-4 flex flex-wrap items-baseline gap-2 text-sm">
-              <span className="text-xs uppercase tracking-wide font-mono text-ink-faint">{group.label}</span>
+              <span className="text-xs uppercase tracking-wide font-mono text-ink-faint">
+                {group.label}
+              </span>
               {group.items.map((item) => (
                 <Link
                   key={item.href}
@@ -319,9 +321,7 @@ export default function ContainerPage({
         {actions.map((action) => (
           <ActionRow key={action.id} action={action} snapshot={snapshot} />
         ))}
-        {actions.length === 0 && (
-          <li className="p-4 text-sm text-ink-faint">No actions here.</li>
-        )}
+        {actions.length === 0 && <li className="p-4 text-sm text-ink-faint">No actions here.</li>}
       </ul>
     </div>
   );

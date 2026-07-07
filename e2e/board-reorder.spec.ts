@@ -11,7 +11,10 @@ type Box = { id: string; x: number; y: number; w: number; h: number; cx: number;
 
 // page.request shares the page's cookie jar (the standalone `request` fixture
 // has its own and would 401 once auth is configured).
-async function actionOf(page: Page, id: string): Promise<{ rank: string; status: string } | undefined> {
+async function actionOf(
+  page: Page,
+  id: string,
+): Promise<{ rank: string; status: string } | undefined> {
   const ws = await (await page.request.get("/api/snapshot")).json();
   return ws.actions.find((i: { id: string }) => i.id === id);
 }
@@ -22,7 +25,15 @@ async function rankOf(page: Page, id: string): Promise<string | undefined> {
 // On-screen box of a card by id.
 async function boxOf(page: Page, id: string): Promise<Box> {
   const b = (await page.locator(`[data-action-id="${id}"]`).boundingBox())!;
-  return { id, x: b.x, y: b.y, w: b.width, h: b.height, cx: b.x + b.width / 2, cy: b.y + b.height / 2 };
+  return {
+    id,
+    x: b.x,
+    y: b.y,
+    w: b.width,
+    h: b.height,
+    cx: b.x + b.width / 2,
+    cy: b.y + b.height / 2,
+  };
 }
 
 // Boxes for the given ids, ordered top→bottom (= rank order within a column).
@@ -128,10 +139,13 @@ test("dragging a card DOWN past its neighbor persists — does not snap back (PR
   // The off-by-one bug snapped a downward drop back to the top; the card must
   // now rank AFTER its old neighbor.
   await expect
-    .poll(async () => {
-      const [r0, r1] = [await rankOf(page, c0.id), await rankOf(page, c1.id)];
-      return r0 !== undefined && r1 !== undefined && r1 < r0;
-    }, { message: "c0 should sort after c1 after dragging down past it" })
+    .poll(
+      async () => {
+        const [r0, r1] = [await rankOf(page, c0.id), await rankOf(page, c1.id)];
+        return r0 !== undefined && r1 !== undefined && r1 < r0;
+      },
+      { message: "c0 should sort after c1 after dragging down past it" },
+    )
     .toBe(true);
   expect(await rankOf(page, c0.id)).not.toBe(before); // it actually changed
 });
@@ -256,7 +270,10 @@ test("a card dropped in a new column doesn't flash back to its old one (PROG-40)
     const t0 = performance.now();
     (function tick() {
       const el = document.querySelector(`[data-action-id="${id}"]`);
-      if (el) (window as unknown as { __xs: number[] }).__xs.push(Math.round(el.getBoundingClientRect().x));
+      if (el)
+        (window as unknown as { __xs: number[] }).__xs.push(
+          Math.round(el.getBoundingClientRect().x),
+        );
       if (performance.now() - t0 < 400) requestAnimationFrame(tick);
     })();
   }, mover);

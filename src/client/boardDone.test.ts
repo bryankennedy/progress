@@ -20,7 +20,11 @@ describe("recentlyCompleted", () => {
       row("feb", "2026-02-01"),
       row("apr", "2026-04-01"),
     ];
-    expect(recentlyCompleted(done, 2).map((r) => r.id).sort()).toEqual(["apr", "mar"]);
+    expect(
+      recentlyCompleted(done, 2)
+        .map((r) => r.id)
+        .sort(),
+    ).toEqual(["apr", "mar"]);
   });
 
   it("preserves the input (rank) order of the kept items", () => {

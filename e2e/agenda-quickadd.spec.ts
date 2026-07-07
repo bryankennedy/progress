@@ -34,7 +34,11 @@ async function makeFocusWithSeed(page: Page, seedDue: string) {
         data: {
           name: `E2E quickadd ${tag()}`,
           workspaceId: ws.workspaces[0].id,
-          keyPrefix: `A${tag().toUpperCase().replaceAll(/[^A-Z]/g, "Z").padEnd(4, "Q").slice(0, 4)}`,
+          keyPrefix: `A${tag()
+            .toUpperCase()
+            .replaceAll(/[^A-Z]/g, "Z")
+            .padEnd(4, "Q")
+            .slice(0, 4)}`,
         },
       })
     ).json()

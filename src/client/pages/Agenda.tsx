@@ -12,7 +12,12 @@
 import { useMemo, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import type { WireAction, WireTag, SnapshotPayload } from "../../shared/types";
-import { inheritArcId, loadQuickAddFocus, quickAddDueDate, saveQuickAddFocus } from "../agendaQuickAdd";
+import {
+  inheritArcId,
+  loadQuickAddFocus,
+  quickAddDueDate,
+  saveQuickAddFocus,
+} from "../agendaQuickAdd";
 import { sortByName } from "../boardFilters";
 import { type AgendaBucket, bucketOf, formatDueDate, relativeDue, todayISO } from "../dates";
 import { STATUS_LABELS } from "../labels";
@@ -79,7 +84,9 @@ export default function Agenda({ snapshot }: { snapshot: SnapshotPayload }) {
       .filter((i) => i.status !== "done" && i.status !== "canceled")
       .filter((i) => !filters.focus || i.focusId === filters.focus)
       .filter((i) => !filters.arc || i.arcId === filters.arc)
-      .filter((i) => !filters.tag || (tagsByAction.get(i.id) ?? []).some((t) => t.id === filters.tag))
+      .filter(
+        (i) => !filters.tag || (tagsByAction.get(i.id) ?? []).some((t) => t.id === filters.tag),
+      )
       .sort((a, b) => a.dueDate!.localeCompare(b.dueDate!) || keyOf(a).localeCompare(keyOf(b)));
   }, [snapshot.actions, snapshot.focuses, filters, tagsByAction]);
 
@@ -142,7 +149,9 @@ export default function Agenda({ snapshot }: { snapshot: SnapshotPayload }) {
           if (actions.length === 0) return null;
           return (
             <section key={bucket.key}>
-              <h2 className={`text-sm font-medium uppercase tracking-wide font-mono ${bucket.accent}`}>
+              <h2
+                className={`text-sm font-medium uppercase tracking-wide font-mono ${bucket.accent}`}
+              >
                 {bucket.label} · {actions.length}
               </h2>
               <ul className="mt-3 divide-y divide-line rounded-lg border border-line bg-card">
@@ -160,7 +169,12 @@ export default function Agenda({ snapshot }: { snapshot: SnapshotPayload }) {
               {/* Quick-add (PROG-89): capture straight into this date bucket.
                   Not on Overdue — an action can't be born already late. */}
               {bucket.key !== "overdue" && (
-                <QuickAddRow bucket={bucket.key} snapshot={snapshot} filters={filters} today={today} />
+                <QuickAddRow
+                  bucket={bucket.key}
+                  snapshot={snapshot}
+                  filters={filters}
+                  today={today}
+                />
               )}
             </section>
           );
@@ -255,7 +269,11 @@ function QuickAddRow({
             submit();
           }
         }}
-        placeholder={due ? `New action — due ${bucket === "today" ? "today" : formatDueDate(due)}, Enter to add` : ""}
+        placeholder={
+          due
+            ? `New action — due ${bucket === "today" ? "today" : formatDueDate(due)}, Enter to add`
+            : ""
+        }
         aria-label={`New action due ${due ?? ""}`}
         className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1.5 py-1 text-sm text-ink placeholder:text-ink-faint focus:border-line focus:bg-card focus:outline-none"
       />
@@ -327,7 +345,10 @@ function AgendaRow({
     // Two lines so the title always gets the full row width (the metadata and
     // inline actions used to crowd it down to an ellipsis): line 1 is the
     // title; line 2 is focus/arc · status · due, plus the bump/done actions.
-    <li data-action-id={action.id} className={`px-3 py-2.5 text-sm ${overdue ? "bg-danger-bg/50" : ""}`}>
+    <li
+      data-action-id={action.id}
+      className={`px-3 py-2.5 text-sm ${overdue ? "bg-danger-bg/50" : ""}`}
+    >
       <div className="flex items-center gap-2.5">
         <PriorityIndicator priority={action.priority} />
         <Link

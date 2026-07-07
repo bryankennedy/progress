@@ -62,10 +62,11 @@ function buildForest(
   arcId: string | null,
   depth: number,
 ): Node[] {
-  const matches = actions.filter((i) =>
-    i.focusId === focusId &&
-    i.parentActionId === parentActionId &&
-    (parentActionId === null ? i.arcId === arcId : true),
+  const matches = actions.filter(
+    (i) =>
+      i.focusId === focusId &&
+      i.parentActionId === parentActionId &&
+      (parentActionId === null ? i.arcId === arcId : true),
   );
   matches.sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : a.number - b.number));
   return matches.map((action) => ({
@@ -87,14 +88,28 @@ function LevelIcon({ kind }: { kind: "focus" | "arc" | "action" | "sub" }) {
     );
   if (kind === "arc")
     return (
-      <svg viewBox="0 0 16 16" className={`${cls} text-moss`} fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+      <svg
+        viewBox="0 0 16 16"
+        className={`${cls} text-moss`}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        aria-hidden
+      >
         <path d="M8 2.5 14 6 8 9.5 2 6 8 2.5Z" />
         <path d="M2 10l6 3.5L14 10" />
       </svg>
     );
   if (kind === "action")
     return (
-      <svg viewBox="0 0 16 16" className={`${cls} text-ink-faint`} fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <svg
+        viewBox="0 0 16 16"
+        className={`${cls} text-ink-faint`}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        aria-hidden
+      >
         <circle cx="8" cy="8" r="4.5" />
       </svg>
     );
@@ -156,8 +171,15 @@ function SortableSection({
   className?: string;
   children: (grip: ReactNode) => ReactNode;
 }) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
-    useSortable({ id });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
   // The grabbed section is carried by a DragOverlay (the board's pattern), so
   // the in-list source stays put and dims to a ghost; only its NEIGHBOURS get
   // the sorting translate, sliding aside to show the drop slot.
@@ -168,7 +190,9 @@ function SortableSection({
     <div
       ref={setNodeRef}
       style={style}
-      className={[className, isDragging ? "opacity-30" : undefined].filter(Boolean).join(" ") || undefined}
+      className={
+        [className, isDragging ? "opacity-30" : undefined].filter(Boolean).join(" ") || undefined
+      }
     >
       {children(
         <GripHandle
@@ -211,14 +235,14 @@ function SectionPreviewCard({
           style={{ paddingLeft: 8 + r.depth * 22 }}
         >
           {r.icon}
-          <span className={`truncate text-sm ${r.done ? "text-ink-faint line-through" : "text-ink"}`}>
+          <span
+            className={`truncate text-sm ${r.done ? "text-ink-faint line-through" : "text-ink"}`}
+          >
             {r.text}
           </span>
         </div>
       ))}
-      {more > 0 && (
-        <div className="py-0.5 pl-2 text-xs text-ink-faint">… {more} more</div>
-      )}
+      {more > 0 && <div className="py-0.5 pl-2 text-xs text-ink-faint">… {more} more</div>}
     </div>
   );
 }
@@ -279,7 +303,11 @@ function ArcMenu({ action, arcs }: { action: WireAction; arcs: WireArc[] }) {
                 setOpen(false);
                 const name = window.prompt("New arc name");
                 if (name && name.trim()) {
-                  const id = createContainer({ kind: "arc", name: name.trim(), focusId: action.focusId });
+                  const id = createContainer({
+                    kind: "arc",
+                    name: name.trim(),
+                    focusId: action.focusId,
+                  });
                   void updateAction(action.id, { arcId: id });
                 }
               }}
@@ -426,14 +454,25 @@ function OutlineNode({
   renderForest: (forest: Node[]) => ReactNode;
   renderCapture: (node: Node) => ReactNode;
 }) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
-    useSortable({ id: node.action.id });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: node.action.id });
   const style: CSSProperties = {
     transform: CSS.Translate.toString(transform),
     transition,
   };
   return (
-    <div ref={setNodeRef} style={style} className={isDragging ? "relative z-10 opacity-80" : undefined}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={isDragging ? "relative z-10 opacity-80" : undefined}
+    >
       <ActionRow
         node={node}
         ws={ws}
@@ -523,7 +562,12 @@ function FocusCaptureRow({
         value={prefix}
         onChange={(e) => {
           setPrefixTouched(true);
-          setPrefix(e.target.value.toUpperCase().replaceAll(/[^A-Z]/g, "").slice(0, 8));
+          setPrefix(
+            e.target.value
+              .toUpperCase()
+              .replaceAll(/[^A-Z]/g, "")
+              .slice(0, 8),
+          );
         }}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
@@ -647,7 +691,11 @@ function FocusOutline({
     [visibleActions, focus.id],
   );
   const arcForests = useMemo(
-    () => focusArcs.map((a) => ({ arc: a, forest: buildForest(visibleActions, focus.id, null, a.id, 1) })),
+    () =>
+      focusArcs.map((a) => ({
+        arc: a,
+        forest: buildForest(visibleActions, focus.id, null, a.id, 1),
+      })),
     [visibleActions, focus.id, focusArcs],
   );
 
@@ -820,7 +868,10 @@ function FocusOutline({
   const renderForest = (forest: Node[]): ReactNode => {
     if (forest.length === 0) return null;
     return (
-      <SortableContext items={forest.map((n) => n.action.id)} strategy={verticalListSortingStrategy}>
+      <SortableContext
+        items={forest.map((n) => n.action.id)}
+        strategy={verticalListSortingStrategy}
+      >
         {forest.map((node) => (
           <OutlineNode
             key={node.action.id}
@@ -859,107 +910,120 @@ function FocusOutline({
         onDragEnd={onReorder}
         onDragCancel={() => setActiveArcId(null)}
       >
-      {/* While an arc section is held, everything under it goes pointer-inert:
+        {/* While an arc section is held, everything under it goes pointer-inert:
           no row hover highlights, no accidental input focus — the only live
           thing is the drag itself (PROG-87 polish). */}
-      <div className={activeArcId ? "pointer-events-none select-none" : undefined}>
-      {/* Focus-level (no-arc) actions + their roving capture row. */}
-      {renderForest(looseForest)}
-      {captureParent === null && captureArc === null && (
-        <CaptureRow
-          depth={0}
-          placeholder="New action — Enter to add, Tab to nest under the one above"
-          onCreate={(t) => create(t, null, null)}
-          onDeepen={deepen}
-          onShallow={shallow}
-          focusToken={focusToken}
-        />
-      )}
-
-      {/* Arc sections — themselves drag-to-reorderable as whole blocks via the
-          grip in their header (PROG-87), inside the same DndContext as the
-          action rows (onReorder branches on what's dragged). */}
-      <SortableContext items={arcForests.map(({ arc }) => arc.id)} strategy={verticalListSortingStrategy}>
-      {arcForests.map(({ arc, forest }) => (
-        <SortableSection key={arc.id} id={arc.id} label={`Reorder ${arc.name}`} className="mt-2">
-          {(arcGrip) => (
-            <>
-          <div className="group flex items-center gap-1.5" style={{ paddingLeft: 0 }}>
-            {arcGrip}
-            <LevelIcon kind="arc" />
-            <Link href={`/arc/${arc.id}`} className="text-sm font-medium text-moss-deep hover:underline">
-              {arc.name}
-            </Link>
-          </div>
-          {renderForest(forest)}
-          {captureParent === null && captureArc === arc.id && (
+        <div className={activeArcId ? "pointer-events-none select-none" : undefined}>
+          {/* Focus-level (no-arc) actions + their roving capture row. */}
+          {renderForest(looseForest)}
+          {captureParent === null && captureArc === null && (
             <CaptureRow
-              depth={1}
-              placeholder={`New action in ${arc.name}`}
-              onCreate={(t) => create(t, null, arc.id)}
+              depth={0}
+              placeholder="New action — Enter to add, Tab to nest under the one above"
+              onCreate={(t) => create(t, null, null)}
               onDeepen={deepen}
               onShallow={shallow}
               focusToken={focusToken}
             />
           )}
-          {!(captureParent === null && captureArc === arc.id) && (
+
+          {/* Arc sections — themselves drag-to-reorderable as whole blocks via the
+          grip in their header (PROG-87), inside the same DndContext as the
+          action rows (onReorder branches on what's dragged). */}
+          <SortableContext
+            items={arcForests.map(({ arc }) => arc.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {arcForests.map(({ arc, forest }) => (
+              <SortableSection
+                key={arc.id}
+                id={arc.id}
+                label={`Reorder ${arc.name}`}
+                className="mt-2"
+              >
+                {(arcGrip) => (
+                  <>
+                    <div className="group flex items-center gap-1.5" style={{ paddingLeft: 0 }}>
+                      {arcGrip}
+                      <LevelIcon kind="arc" />
+                      <Link
+                        href={`/arc/${arc.id}`}
+                        className="text-sm font-medium text-moss-deep hover:underline"
+                      >
+                        {arc.name}
+                      </Link>
+                    </div>
+                    {renderForest(forest)}
+                    {captureParent === null && captureArc === arc.id && (
+                      <CaptureRow
+                        depth={1}
+                        placeholder={`New action in ${arc.name}`}
+                        onCreate={(t) => create(t, null, arc.id)}
+                        onDeepen={deepen}
+                        onShallow={shallow}
+                        focusToken={focusToken}
+                      />
+                    )}
+                    {!(captureParent === null && captureArc === arc.id) && (
+                      <button
+                        onClick={() => {
+                          setCaptureParent(null);
+                          setCaptureArc(arc.id);
+                          setFocusToken((t) => t + 1);
+                        }}
+                        className="ml-[22px] rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
+                        style={{ marginLeft: 22 }}
+                      >
+                        + action here
+                      </button>
+                    )}
+                  </>
+                )}
+              </SortableSection>
+            ))}
+          </SortableContext>
+
+          {/* When capture has roved off the top level, offer a way back. */}
+          {!captureDepthForArc && (
             <button
               onClick={() => {
                 setCaptureParent(null);
-                setCaptureArc(arc.id);
+                setCaptureArc(null);
                 setFocusToken((t) => t + 1);
               }}
-              className="ml-[22px] rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
-              style={{ marginLeft: 22 }}
+              className="mt-1 rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
             >
-              + action here
+              ↥ back to top level
             </button>
           )}
-            </>
-          )}
-        </SortableSection>
-      ))}
-      </SortableContext>
+        </div>
 
-      {/* When capture has roved off the top level, offer a way back. */}
-      {!captureDepthForArc && (
-        <button
-          onClick={() => {
-            setCaptureParent(null);
-            setCaptureArc(null);
-            setFocusToken((t) => t + 1);
-          }}
-          className="mt-1 rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
-        >
-          ↥ back to top level
-        </button>
-      )}
-      </div>
-
-      {/* The floating copy of the held arc section: follows the pointer from
+        {/* The floating copy of the held arc section: follows the pointer from
           the first pixel, lifted above the page (shadow), capped to a few rows.
           dropAnimation={null} for the same reason as the board (PROG-43): the
           reorder is committed on drop, so the default tween would fly the card
           back to its OLD slot before snapping. */}
-      <DragOverlay dropAnimation={null}>
-        {(() => {
-          const held = activeArcId ? arcForests.find(({ arc }) => arc.id === activeArcId) : undefined;
-          if (!held) return null;
-          const rows = forestPreviewRows(held.forest);
-          return (
-            <SectionPreviewCard
-              header={
-                <>
-                  <LevelIcon kind="arc" />
-                  <span className="text-sm font-medium text-moss-deep">{held.arc.name}</span>
-                </>
-              }
-              rows={rows}
-              more={rows.length - PREVIEW_ROWS}
-            />
-          );
-        })()}
-      </DragOverlay>
+        <DragOverlay dropAnimation={null}>
+          {(() => {
+            const held = activeArcId
+              ? arcForests.find(({ arc }) => arc.id === activeArcId)
+              : undefined;
+            if (!held) return null;
+            const rows = forestPreviewRows(held.forest);
+            return (
+              <SectionPreviewCard
+                header={
+                  <>
+                    <LevelIcon kind="arc" />
+                    <span className="text-sm font-medium text-moss-deep">{held.arc.name}</span>
+                  </>
+                }
+                rows={rows}
+                more={rows.length - PREVIEW_ROWS}
+              />
+            );
+          })()}
+        </DragOverlay>
       </DndContext>
     </section>
   );
@@ -1072,9 +1136,9 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Outline</h1>
           <p className="mt-1 text-xs text-ink-faint">
-            Fast capture — type to add actions, <kbd>Enter</kbd> for the next,{" "}
-            <kbd>Tab</kbd>/<kbd>Shift+Tab</kbd> to nest. Tap the <code>⋯</code> at the
-            start of a row to open the full action.
+            Fast capture — type to add actions, <kbd>Enter</kbd> for the next, <kbd>Tab</kbd>/
+            <kbd>Shift+Tab</kbd> to nest. Tap the <code>⋯</code> at the start of a row to open the
+            full action.
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -1124,10 +1188,15 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
             onDragEnd={onFocusReorder}
             onDragCancel={() => setActiveFocusId(null)}
           >
-            <SortableContext items={scopedFocuses.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+            <SortableContext
+              items={scopedFocuses.map((p) => p.id)}
+              strategy={verticalListSortingStrategy}
+            >
               {/* Pointer-inert while a focus section is held — see the arc
                   drag's identical wrapper (PROG-87 polish). */}
-              <div className={`space-y-4 ${activeFocusId ? "pointer-events-none select-none" : ""}`}>
+              <div
+                className={`space-y-4 ${activeFocusId ? "pointer-events-none select-none" : ""}`}
+              >
                 {scopedFocuses.map((p) => (
                   <SortableSection key={p.id} id={p.id} label={`Reorder ${p.name}`}>
                     {(focusGrip) => (
@@ -1150,7 +1219,9 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
                     <>
                       <LevelIcon kind="focus" />
                       <span className="font-medium text-ink">{heldFocus.name}</span>
-                      <span className="font-mono text-[11px] text-ink-faint">{heldFocus.keyPrefix}</span>
+                      <span className="font-mono text-[11px] text-ink-faint">
+                        {heldFocus.keyPrefix}
+                      </span>
                     </>
                   }
                   rows={heldFocusRows}
@@ -1161,7 +1232,13 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
           </DndContext>
         ) : (
           scopedFocuses.map((p) => (
-            <FocusOutline key={p.id} focus={p} ws={snapshot} showHeader={false} hideDone={hideDone} />
+            <FocusOutline
+              key={p.id}
+              focus={p}
+              ws={snapshot}
+              showHeader={false}
+              hideDone={hideDone}
+            />
           ))
         )}
 

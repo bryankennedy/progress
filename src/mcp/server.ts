@@ -19,20 +19,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import {
-  ACTION_ESTIMATES,
-  ACTION_PRIORITIES,
-  ACTION_STATUSES,
-} from "../shared/constants";
+import { ACTION_ESTIMATES, ACTION_PRIORITIES, ACTION_STATUSES } from "../shared/constants";
 
 // ---------------------------------------------------------------------------
 // Config + API client
 // ---------------------------------------------------------------------------
 
-const BASE = (process.env.PROGRESS_BASE_URL ?? "https://progress.bck.dev").replace(
-  /\/+$/,
-  "",
-);
+const BASE = (process.env.PROGRESS_BASE_URL ?? "https://progress.bck.dev").replace(/\/+$/, "");
 const API_TOKEN = process.env.PROGRESS_API_TOKEN ?? process.env.PROD_PROGRESS_API_TOKEN;
 
 if (!API_TOKEN) {
@@ -136,8 +129,8 @@ async function resolve(rawKey: string): Promise<Resolved> {
   const action = findActionByKey(ws, rawKey);
   if (!action) throw new Error(`No action found for key ${normalizeKey(rawKey)}.`);
   const focus = ws.focuses.find((p) => p.id === action.focusId) ?? null;
-  const repo = action.repoId ? ws.repos.find((r) => r.id === action.repoId) ?? null : null;
-  const arc = action.arcId ? ws.arcs.find((a) => a.id === action.arcId) ?? null : null;
+  const repo = action.repoId ? (ws.repos.find((r) => r.id === action.repoId) ?? null) : null;
+  const arc = action.arcId ? (ws.arcs.find((a) => a.id === action.arcId) ?? null) : null;
   return { ws, action, focus, repo, arc, key: liveKey(ws, action) };
 }
 
@@ -159,8 +152,8 @@ function summarize(ws: Snapshot, action: any) {
     estimate: action.estimate,
     dueDate: action.dueDate ?? null,
     focus: prefixOf(ws, action.focusId),
-    repo: action.repoId ? ws.repos.find((r) => r.id === action.repoId)?.name ?? null : null,
-    arc: action.arcId ? ws.arcs.find((a) => a.id === action.arcId)?.name ?? null : null,
+    repo: action.repoId ? (ws.repos.find((r) => r.id === action.repoId)?.name ?? null) : null,
+    arc: action.arcId ? (ws.arcs.find((a) => a.id === action.arcId)?.name ?? null) : null,
     tags: tagNamesFor(ws, action.id),
   };
 }
@@ -346,7 +339,10 @@ server.registerTool(
     description:
       "Set an action's due date to a calendar day (YYYY-MM-DD), or clear it with null. Due dates " +
       "are wall-calendar days (timezone-safe) and drive the Agenda view.",
-    inputSchema: { key: KEY, dueDate: z.string().nullable().describe("YYYY-MM-DD, or null to clear") },
+    inputSchema: {
+      key: KEY,
+      dueDate: z.string().nullable().describe("YYYY-MM-DD, or null to clear"),
+    },
   },
   async ({ key, dueDate }) => {
     const r = await resolve(key);
@@ -386,9 +382,7 @@ server.registerTool(
   },
   async ({ key, toFocusKey, repo }) => {
     const r = await resolve(key);
-    const target = r.ws.focuses.find(
-      (p) => p.keyPrefix.toUpperCase() === toFocusKey.toUpperCase(),
-    );
+    const target = r.ws.focuses.find((p) => p.keyPrefix.toUpperCase() === toFocusKey.toUpperCase());
     if (!target) throw new Error(`No focus with key prefix ${toFocusKey}.`);
     let repoId: string | null = null;
     if (repo) {

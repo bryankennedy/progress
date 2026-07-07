@@ -36,7 +36,9 @@ export function isValidRank(s: unknown): s is string {
 export function rankBetween(before: string | null, after: string | null): string {
   const a = before ?? "";
   if (after !== null && a >= after) {
-    throw new Error(`rankBetween: ${JSON.stringify(before)} does not sort before ${JSON.stringify(after)}`);
+    throw new Error(
+      `rankBetween: ${JSON.stringify(before)} does not sort before ${JSON.stringify(after)}`,
+    );
   }
   let b: string | null = after;
   let prefix = "";

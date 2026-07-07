@@ -15,7 +15,10 @@ export type ActionStatus = (typeof ACTION_STATUSES)[number];
 // "Closed" actions are terminal — done (shipped) or canceled (abandoned). The
 // rest (backlog/todo/in_progress/in_review) are still open / in play. The arc
 // work-order ("copy as prompt" for a whole arc) bundles only the open ones.
-export const CLOSED_ACTION_STATUSES = ["done", "canceled"] as const satisfies readonly ActionStatus[];
+export const CLOSED_ACTION_STATUSES = [
+  "done",
+  "canceled",
+] as const satisfies readonly ActionStatus[];
 export const isOpenStatus = (s: ActionStatus): boolean =>
   !(CLOSED_ACTION_STATUSES as readonly ActionStatus[]).includes(s);
 

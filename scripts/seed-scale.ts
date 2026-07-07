@@ -43,9 +43,67 @@ function weighted<T>(pairs: readonly (readonly [T, number])[]): T {
   return pairs[pairs.length - 1]![0];
 }
 
-const ADJECTIVES = ["flaky", "stale", "slow", "broken", "missing", "duplicate", "responsive", "optimistic", "batched", "cached", "inline", "global", "empty", "archived", "draggable", "keyboard", "mobile", "offline", "paginated", "normalized"];
-const NOUNS = ["board", "filter", "action card", "status column", "command palette", "arc page", "tag picker", "key redirect", "webhook", "activity feed", "comment thread", "estimate field", "priority menu", "search index", "action list", "container page", "markdown editor", "toast", "sidebar", "session"];
-const VERBS = ["Fix", "Polish", "Investigate", "Refactor", "Speed up", "Simplify", "Wire up", "Design", "Prototype", "Harden", "Document", "Debounce", "Virtualize", "Cache", "Validate"];
+const ADJECTIVES = [
+  "flaky",
+  "stale",
+  "slow",
+  "broken",
+  "missing",
+  "duplicate",
+  "responsive",
+  "optimistic",
+  "batched",
+  "cached",
+  "inline",
+  "global",
+  "empty",
+  "archived",
+  "draggable",
+  "keyboard",
+  "mobile",
+  "offline",
+  "paginated",
+  "normalized",
+];
+const NOUNS = [
+  "board",
+  "filter",
+  "action card",
+  "status column",
+  "command palette",
+  "arc page",
+  "tag picker",
+  "key redirect",
+  "webhook",
+  "activity feed",
+  "comment thread",
+  "estimate field",
+  "priority menu",
+  "search index",
+  "action list",
+  "container page",
+  "markdown editor",
+  "toast",
+  "sidebar",
+  "session",
+];
+const VERBS = [
+  "Fix",
+  "Polish",
+  "Investigate",
+  "Refactor",
+  "Speed up",
+  "Simplify",
+  "Wire up",
+  "Design",
+  "Prototype",
+  "Harden",
+  "Document",
+  "Debounce",
+  "Virtualize",
+  "Cache",
+  "Validate",
+];
 
 const STATUS = weightedTable([
   ["backlog", 45],
@@ -123,7 +181,11 @@ for (let i = 1; i <= COUNTS.repos; i++) {
   const t = NOW - int(0, YEAR);
   repoRows.push(`('${id}', '${focus}', 'synthetic-repo-${i}', '', NULL, 'usr_owner', ${t}, ${t})`);
 }
-insertChunked("repos", "id, focus_id, name, description, git_url, creator_id, created_at, updated_at", repoRows);
+insertChunked(
+  "repos",
+  "id, focus_id, name, description, git_url, creator_id, created_at, updated_at",
+  repoRows,
+);
 
 const arcIdsByFocus = new Map<string, string[]>(focusIds.map((p) => [p, []]));
 const arcRows: Row[] = [];
@@ -134,7 +196,11 @@ for (let i = 1; i <= COUNTS.arcs; i++) {
   const t = NOW - int(0, YEAR);
   arcRows.push(`('${id}', '${focus}', 'Synthetic Arc ${i}', '', 'usr_owner', ${t}, ${t})`);
 }
-insertChunked("arcs", "id, focus_id, name, description, creator_id, created_at, updated_at", arcRows);
+insertChunked(
+  "arcs",
+  "id, focus_id, name, description, creator_id, created_at, updated_at",
+  arcRows,
+);
 
 const tagIds: string[] = [];
 const tagRows: Row[] = [];
@@ -177,7 +243,12 @@ for (let i = 1; i <= COUNTS.actions; i++) {
     `('${id}', '${focus}', ${repo ? `'${repo}'` : "NULL"}, ${arc ? `'${arc}'` : "NULL"}, ${number}, '${title}', '', '${status}', '${priority}', ${estimate}, '${rank}', 'usr_owner', ${assignee}, ${created}, ${updated}, ${completed})`,
   );
 
-  const tagCount = weighted([[0, 40], [1, 35], [2, 20], [3, 5]] as const);
+  const tagCount = weighted([
+    [0, 40],
+    [1, 35],
+    [2, 20],
+    [3, 5],
+  ] as const);
   const chosen = new Set<string>();
   while (chosen.size < tagCount) chosen.add(pick(tagIds));
   for (const tag of chosen) actionTagRows.push(`('${id}', '${tag}')`);

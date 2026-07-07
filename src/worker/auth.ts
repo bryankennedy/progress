@@ -145,10 +145,7 @@ export async function signSession(uid: string, email: string, secret: string): P
   return sign({ uid, email, exp }, secret, "HS256");
 }
 
-export async function verifySession(
-  token: string,
-  secret: string,
-): Promise<SessionPayload | null> {
+export async function verifySession(token: string, secret: string): Promise<SessionPayload | null> {
   try {
     const payload = (await verify(token, secret, "HS256")) as unknown as SessionPayload;
     if (!payload?.uid) return null;
@@ -179,6 +176,9 @@ export async function verifyState(token: string, secret: string): Promise<boolea
 function decodeJwtClaims(jwt: string): Record<string, unknown> {
   const part = jwt.split(".")[1];
   if (!part) throw new Error("malformed id_token");
-  const b64 = part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "=");
+  const b64 = part
+    .replace(/-/g, "+")
+    .replace(/_/g, "/")
+    .padEnd(Math.ceil(part.length / 4) * 4, "=");
   return JSON.parse(atob(b64)) as Record<string, unknown>;
 }

@@ -20,7 +20,10 @@ export default function Archive({ snapshot }: { snapshot: SnapshotPayload }) {
   // workspace, so the page mirrors the Structure tree's shape.
   const byWorkspace = new Map<
     string,
-    { workspaceName: string; focuses: Map<string, { focusName: string; arcs: typeof archivedArcs }> }
+    {
+      workspaceName: string;
+      focuses: Map<string, { focusName: string; arcs: typeof archivedArcs }>;
+    }
   >();
   for (const arc of archivedArcs) {
     const focus = focusesById.get(arc.focusId);
