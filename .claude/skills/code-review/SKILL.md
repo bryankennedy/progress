@@ -25,8 +25,9 @@ security pre-flight (secrets, injection, XSS).
 
 - Anything `bun run check` owns (`tsc -b`, strict, `noUncheckedIndexedAccess`,
   `verbatimModuleSyntax`). Assume it passes; don't re-derive type errors.
-- Formatting. There is no Prettier/ESLint config; house style is the existing
-  double-quote/semicolon idiom. Never block on style a formatter would own.
+- Formatting. Prettier owns it (root `.prettierrc`, gated by
+  `bun run format:check` in CI). Never flag style a formatter owns; if a diff
+  looks unformatted, the CI gate — not the review — is the enforcement.
 - Deep security scanning — dedicated tooling owns that; only the pre-flight in
   `reference/security-notes.md` applies here.
 - Re-litigating settled decisions. Check `docs/DECISIONS.md` before flagging a
