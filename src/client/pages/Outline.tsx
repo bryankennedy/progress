@@ -37,6 +37,7 @@ import { CSS } from "@dnd-kit/utilities";
 import type { WireArc, WireAction, WireFocus } from "../../shared/types";
 import type { SnapshotPayload } from "../../shared/types";
 import { isOpenStatus } from "../../shared/constants";
+import { CLOSED_TITLE_CLASS } from "../actionDone";
 import {
   createContainer,
   createAction,
@@ -209,9 +210,7 @@ function SectionPreviewCard({
           style={{ paddingLeft: 8 + r.depth * 22 }}
         >
           {r.icon}
-          <span
-            className={`truncate text-sm ${r.done ? "text-ink-faint line-through" : "text-ink"}`}
-          >
+          <span className={`truncate text-sm ${r.done ? CLOSED_TITLE_CLASS : "text-ink"}`}>
             {r.text}
           </span>
         </div>
@@ -396,7 +395,7 @@ function ActionRow({
           }
         }}
         className={`min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-sm focus:bg-card focus:outline-none focus:ring-1 focus:ring-line ${
-          done ? "text-ink-faint line-through" : "text-ink"
+          done ? CLOSED_TITLE_CLASS : "text-ink"
         }`}
       />
       {/* Arc assignment stays a hover/focus affordance — desktop-only polish,

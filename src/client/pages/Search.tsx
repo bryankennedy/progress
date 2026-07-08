@@ -36,6 +36,7 @@ import {
   type Segment,
 } from "../search";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
+import { closedTitleClass } from "../actionDone";
 import PriorityIndicator from "../PriorityIndicator";
 import { actionKeyOf, useCommentSearch } from "../store";
 
@@ -314,7 +315,7 @@ export default function Search({ snapshot }: { snapshot: SnapshotPayload }) {
                           <Link
                             href={`/action/${key}`}
                             onClick={(e) => e.stopPropagation()}
-                            className="hover:underline"
+                            className={`hover:underline ${closedTitleClass(hit.action.status)}`}
                           >
                             <Highlighted segments={highlight(hit.action.title, terms)} />
                           </Link>
