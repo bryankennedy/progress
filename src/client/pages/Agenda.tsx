@@ -20,6 +20,7 @@ import {
 } from "../agendaQuickAdd";
 import { sortByName } from "../boardFilters";
 import { type AgendaBucket, bucketOf, formatDueDate, relativeDue, todayISO } from "../dates";
+import { tagsByAction as buildTagsByAction } from "../tags";
 import { STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
 import { createAction, actionKeyOf, setActionStatus, updateAction } from "../store";
@@ -60,18 +61,10 @@ export default function Agenda({ snapshot }: { snapshot: SnapshotPayload }) {
     navigate(qs ? `/agenda?${qs}` : "/agenda", { replace: true });
   };
 
-  const tagsByAction = useMemo(() => {
-    const tagById = new Map(snapshot.tags.map((t) => [t.id, t]));
-    const map = new Map<string, WireTag[]>();
-    for (const link of snapshot.actionTags) {
-      const tag = tagById.get(link.tagId);
-      if (!tag) continue;
-      const list = map.get(link.actionId) ?? [];
-      list.push(tag);
-      map.set(link.actionId, list);
-    }
-    return map;
-  }, [snapshot.tags, snapshot.actionTags]);
+  const tagsByAction = useMemo(
+    () => buildTagsByAction(snapshot),
+    [snapshot.tags, snapshot.actionTags],
+  );
 
   // Dated, still-pending actions matching the active filters, ascending by due
   // date (string compare is correct for YYYY-MM-DD), tiebroken by key.

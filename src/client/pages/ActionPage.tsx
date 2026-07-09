@@ -18,6 +18,7 @@ import type {
   WirePrLink,
   SnapshotPayload,
 } from "../../shared/types";
+import { sortByName } from "../boardFilters";
 import { openPalette } from "../commands/controller";
 import { useRegisterPageAction } from "../commands/currentAction";
 import EditableMarkdown from "../EditableMarkdown";
@@ -82,10 +83,13 @@ export default function ActionPage({
   const focus = snapshot.focuses.find((p) => p.id === action.focusId);
   const repo = action.repoId ? snapshot.repos.find((r) => r.id === action.repoId) : null;
   const arc = action.arcId ? snapshot.arcs.find((a) => a.id === action.arcId) : null;
-  const actionTags = snapshot.actionTags
-    .filter((link) => link.actionId === action.id)
-    .map((link) => snapshot.tags.find((t) => t.id === link.tagId))
-    .filter((t) => t !== undefined);
+  // Chips list alphabetically (PROG-83) — link insertion order means nothing.
+  const actionTags = sortByName(
+    snapshot.actionTags
+      .filter((link) => link.actionId === action.id)
+      .map((link) => snapshot.tags.find((t) => t.id === link.tagId))
+      .filter((t) => t !== undefined),
+  );
 
   return (
     <div className="mx-auto max-w-3xl overflow-hidden">
