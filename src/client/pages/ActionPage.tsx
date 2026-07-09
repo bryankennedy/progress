@@ -23,8 +23,10 @@ import { openPalette } from "../commands/controller";
 import { useRegisterPageAction } from "../commands/currentAction";
 import EditableMarkdown from "../EditableMarkdown";
 import InlineEdit from "../InlineEdit";
+import EstimateIndicator from "../EstimateIndicator";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
+import StatusIndicator from "../StatusIndicator";
 import { addComment, findActionByKey, actionKeyOf, updateAction, useTimeline } from "../store";
 import { copyBundleAsPrompt, copyWorkCommand, prefetchBundle } from "../workOn";
 import { clearDraft, readDraft, writeDraft } from "../drafts";
@@ -50,6 +52,8 @@ export default function ActionPage({
 }) {
   const resolved = findActionByKey(snapshot, keyParam);
   const [, navigate] = useLocation();
+  // For the due-date gutter button (PROG-101): it opens the native picker.
+  const dueDateRef = useRef<HTMLInputElement>(null);
 
   // Makes this action the target of the single-key actions (S/P/E/M).
   useRegisterPageAction(resolved?.action.id);
@@ -158,51 +162,82 @@ export default function ActionPage({
             column (and every w-full field in it) past the viewport — horizontal
             overflow on a phone. min-w-0 lets the track constrain it. */}
         <aside className="w-full min-w-0 overflow-hidden space-y-4 md:col-start-2 md:row-start-1 md:row-span-2">
+          {/* Field order + the icon gutter follow the owner's mockup
+              (PROG-101): every editable field carries a glyph on the left —
+              status/priority/estimate an indicator, due date the calendar
+              button — and Due date sits above Priority. */}
           <Field label="Status">
-            <FieldSelect
-              value={action.status}
-              options={ACTION_STATUSES.map((s) => [s, STATUS_LABELS[s]])}
-              onChange={(v) => updateAction(action.id, { status: v as ActionStatus })}
-            />
-          </Field>
-          <Field label="Priority">
-            <div className="flex items-center gap-2">
-              <PriorityIndicator priority={action.priority} />
-              <div className="min-w-0 flex-1">
-                <FieldSelect
-                  value={action.priority}
-                  options={ACTION_PRIORITIES.map((p) => [p, PRIORITY_LABELS[p]])}
-                  onChange={(v) => updateAction(action.id, { priority: v as ActionPriority })}
-                />
-              </div>
-            </div>
-          </Field>
-          <Field label="Estimate">
-            <FieldSelect
-              value={action.estimate === null ? "" : String(action.estimate)}
-              options={[
-                ["", "—"],
-                ...ACTION_ESTIMATES.map((e): [string, string] => [String(e), String(e)]),
-              ]}
-              onChange={(v) => updateAction(action.id, { estimate: v === "" ? null : Number(v) })}
-            />
+            <IconRow icon={<StatusIndicator status={action.status} />}>
+              <FieldSelect
+                value={action.status}
+                options={ACTION_STATUSES.map((s) => [s, STATUS_LABELS[s]])}
+                onChange={(v) => updateAction(action.id, { status: v as ActionStatus })}
+              />
+            </IconRow>
           </Field>
           <Field label="Due date">
-            <input
-              type="date"
-              value={action.dueDate ?? ""}
-              onChange={(e) => updateAction(action.id, { dueDate: e.target.value || null })}
-              // w-full + min-w-0 + max-w-full: pin the native date control to
-              // the column width instead of letting its (wide, on iOS Safari)
-              // intrinsic size win. iOS renders a localized label ("Jun 30, 2026")
-              // wider than the Android/Chrome "06/30/2026", and its intrinsic
-              // min-width can push past the viewport even with min-w-0. The
-              // explicit max-w-full + box-border ensures the border-box never
-              // exceeds the parent, and the [&::-webkit-date-and-time-value]
-              // override left-aligns the text (Safari centers it by default,
-              // burning horizontal space on both sides).
-              className="w-full min-w-0 max-w-full box-border rounded border border-line bg-card px-2 py-1 text-sm hover:border-ink-faint [&::-webkit-date-and-time-value]:text-left"
-            />
+            <IconRow
+              icon={
+                <button
+                  type="button"
+                  aria-label="Open calendar"
+                  onClick={() => {
+                    // The calendar button, moved from the input's right edge
+                    // (native indicator, hidden below) into the shared left
+                    // gutter. showPicker needs a user gesture and is missing
+                    // on older Safari — fall back to focusing the input.
+                    try {
+                      dueDateRef.current?.showPicker();
+                    } catch {
+                      dueDateRef.current?.focus();
+                    }
+                  }}
+                  className="flex text-ink-faint hover:text-ink-soft"
+                >
+                  <CalendarGlyph />
+                </button>
+              }
+            >
+              <input
+                ref={dueDateRef}
+                type="date"
+                value={action.dueDate ?? ""}
+                onChange={(e) => updateAction(action.id, { dueDate: e.target.value || null })}
+                // w-full + min-w-0 + max-w-full: pin the native date control to
+                // the column width instead of letting its (wide, on iOS Safari)
+                // intrinsic size win. iOS renders a localized label ("Jun 30, 2026")
+                // wider than the Android/Chrome "06/30/2026", and its intrinsic
+                // min-width can push past the viewport even with min-w-0. The
+                // explicit max-w-full + box-border ensures the border-box never
+                // exceeds the parent, and the [&::-webkit-date-and-time-value]
+                // override left-aligns the text (Safari centers it by default,
+                // burning horizontal space on both sides). The native
+                // right-edge picker indicator hides because the gutter button
+                // replaces it (PROG-101).
+                className="w-full min-w-0 max-w-full box-border rounded border border-line bg-card px-2 py-1 text-sm hover:border-ink-faint [&::-webkit-date-and-time-value]:text-left [&::-webkit-calendar-picker-indicator]:hidden"
+              />
+            </IconRow>
+          </Field>
+          <Field label="Priority">
+            <IconRow icon={<PriorityIndicator priority={action.priority} />}>
+              <FieldSelect
+                value={action.priority}
+                options={ACTION_PRIORITIES.map((p) => [p, PRIORITY_LABELS[p]])}
+                onChange={(v) => updateAction(action.id, { priority: v as ActionPriority })}
+              />
+            </IconRow>
+          </Field>
+          <Field label="Estimate">
+            <IconRow icon={<EstimateIndicator estimate={action.estimate} />}>
+              <FieldSelect
+                value={action.estimate === null ? "" : String(action.estimate)}
+                options={[
+                  ["", "—"],
+                  ...ACTION_ESTIMATES.map((e): [string, string] => [String(e), String(e)]),
+                ]}
+                onChange={(v) => updateAction(action.id, { estimate: v === "" ? null : Number(v) })}
+              />
+            </IconRow>
           </Field>
           <Field label="Container">
             <p className="text-sm">
@@ -280,6 +315,46 @@ export default function ActionPage({
         </div>
       </div>
     </div>
+  );
+}
+
+// The shared icon gutter for the sidebar's editable fields (PROG-101): glyph
+// on the left, control filling the rest, so the four rows align vertically.
+function IconRow({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2">
+      {icon}
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
+// The due-date field's calendar glyph — same 16×16 box and size as the
+// indicator glyphs so the gutter column lines up.
+function CalendarGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden className="inline-block h-3.5 w-3.5 shrink-0">
+      <rect
+        x="2"
+        y="3"
+        width="12"
+        height="11"
+        rx="2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path d="M2.75 6.5 H13.25" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M5.25 1.75 V4 M10.75 1.75 V4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <circle cx="5.5" cy="9.5" r="1" fill="currentColor" />
+      <circle cx="8" cy="9.5" r="1" fill="currentColor" />
+      <circle cx="10.5" cy="9.5" r="1" fill="currentColor" />
+    </svg>
   );
 }
 
