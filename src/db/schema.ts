@@ -63,6 +63,12 @@ export const focuses = sqliteTable(
       .references(() => workspaces.id),
     name: text("name").notNull(),
     description: text("description").notNull().default(""),
+    // Optional git repository this focus mirrors (PROG-102). A focus maps to at
+    // most one repo; the URL is display-only (a clickable link + agent context)
+    // — PR/commit webhooks match by action key, not by this field. null = a
+    // repo-less focus (household/personal areas, SPEC §3). Replaces the former
+    // first-class `repos` container.
+    gitUrl: text("git_url"),
     // Action-key prefix, e.g. "PROG" → PROG-123. Globally unique.
     keyPrefix: text("key_prefix").notNull(),
     // Per-focus action-number sequence; incremented on action create and on
@@ -78,28 +84,6 @@ export const focuses = sqliteTable(
     updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
   },
   (t) => [uniqueIndex("focuses_key_prefix_unique").on(t.keyPrefix)],
-);
-
-export const repos = sqliteTable(
-  "repos",
-  {
-    id: text("id").primaryKey(),
-    focusId: text("focus_id")
-      .notNull()
-      .references(() => focuses.id),
-    name: text("name").notNull(),
-    description: text("description").notNull().default(""),
-    // The real repository this container mirrors (SPEC §3). Optional until
-    // connected; the GitHub webhook milestone keys off it.
-    gitUrl: text("git_url"),
-    archivedAt: integer("archived_at", { mode: "timestamp" }),
-    creatorId: text("creator_id")
-      .notNull()
-      .references(() => users.id),
-    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
-  },
-  (t) => [index("repos_focus_idx").on(t.focusId)],
 );
 
 export const arcs = sqliteTable(
@@ -127,19 +111,18 @@ export const actions = sqliteTable(
   "actions",
   {
     id: text("id").primaryKey(),
-    // Container model (SPEC §3): focusId is always set; repoId narrows the
-    // container to one of that focus's repos. repoId ∈ focus's repos and
-    // arc same-focus are API-enforced invariants.
+    // Container model (SPEC §3, PROG-102): focusId is always set and is the sole
+    // container. arc same-focus is an API-enforced invariant. (The former repo
+    // narrowing was removed in PROG-102 — repo is now a field on the focus.)
     focusId: text("focus_id")
       .notNull()
       .references(() => focuses.id),
-    repoId: text("repo_id").references(() => repos.id),
     arcId: text("arc_id").references(() => arcs.id),
     // Step parent (PROG-124): a nullable self-reference making this action a
     // child of another action, nestable to unbounded depth. A step is just
     // an action with a parent — one data type, not a separate entity. The
     // same-focus and acyclic invariants SQLite can't express are API-enforced
-    // (like repoId/arcId above). The Outline view (`/outline`) is the primary
+    // (like arcId above). The Outline view (`/outline`) is the primary
     // editor; the board hides children unless "show steps" is on.
     parentActionId: text("parent_action_id").references((): AnySQLiteColumn => actions.id),
     // Key = focus.keyPrefix + "-" + number, derived, never stored — so a
@@ -171,7 +154,6 @@ export const actions = sqliteTable(
   },
   (t) => [
     uniqueIndex("actions_focus_number_unique").on(t.focusId, t.number),
-    index("actions_repo_idx").on(t.repoId),
     index("actions_arc_idx").on(t.arcId),
     index("actions_parent_idx").on(t.parentActionId),
     index("actions_status_idx").on(t.status),
@@ -333,7 +315,6 @@ export const images = sqliteTable("images", {
 export type User = typeof users.$inferSelect;
 export type Workspace = typeof workspaces.$inferSelect;
 export type Focus = typeof focuses.$inferSelect;
-export type Repo = typeof repos.$inferSelect;
 export type Arc = typeof arcs.$inferSelect;
 export type Action = typeof actions.$inferSelect;
 export type ActionKeyAlias = typeof actionKeyAliases.$inferSelect;
