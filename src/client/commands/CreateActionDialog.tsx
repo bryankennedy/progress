@@ -13,6 +13,7 @@ import {
   type ActionStatus,
 } from "../../shared/constants";
 import type { SnapshotPayload } from "../../shared/types";
+import { sortByName } from "../boardFilters";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import { createContainer, createAction, findActionByKey } from "../store";
 import { onOpenCreateAction, type CreateDefaults } from "./controller";
@@ -105,9 +106,13 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
   }, [container, snapshot.repos]);
 
   // Archived containers aren't valid creation targets (D26).
-  const activeFocuses = snapshot.focuses.filter((p) => !p.archivedAt);
-  const activeWorkspaces = snapshot.workspaces.filter((i) => !i.archivedAt);
-  const focusArcs = snapshot.arcs.filter((a) => a.focusId === selectedFocusId && !a.archivedAt);
+  // Pickers list options alphabetically, like the filter dropdowns (PROG-66,
+  // PROG-83) — a select is scanned by name.
+  const activeFocuses = sortByName(snapshot.focuses.filter((p) => !p.archivedAt));
+  const activeWorkspaces = sortByName(snapshot.workspaces.filter((i) => !i.archivedAt));
+  const focusArcs = sortByName(
+    snapshot.arcs.filter((a) => a.focusId === selectedFocusId && !a.archivedAt),
+  );
 
   const submitNewFocus = () => {
     if (!newFocus) return;
@@ -193,7 +198,9 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
             className={selectClass}
           >
             {activeFocuses.map((p) => {
-              const focusRepos = snapshot.repos.filter((r) => r.focusId === p.id && !r.archivedAt);
+              const focusRepos = sortByName(
+                snapshot.repos.filter((r) => r.focusId === p.id && !r.archivedAt),
+              );
               return (
                 <optgroup key={p.id} label={p.name}>
                   <option value={`p:${p.id}`}>{p.name}</option>

@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import type { SnapshotPayload } from "../../shared/types";
+import { sortByName } from "../boardFilters";
 import { createContainer, findActionByKey, type ContainerCreateInput } from "../store";
 import { onOpenCreateContainer, type ContainerDialogRequest } from "./controller";
 
@@ -43,8 +44,10 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
   const [gitUrl, setGitUrl] = useState("");
   const [path, navigate] = useLocation();
 
-  const activeFocuses = snapshot.focuses.filter((p) => !p.archivedAt);
-  const activeWorkspaces = snapshot.workspaces.filter((i) => !i.archivedAt);
+  // Parent pickers list options alphabetically, like the filter dropdowns
+  // (PROG-66, PROG-83) — a select is scanned by name.
+  const activeFocuses = sortByName(snapshot.focuses.filter((p) => !p.archivedAt));
+  const activeWorkspaces = sortByName(snapshot.workspaces.filter((i) => !i.archivedAt));
 
   useEffect(
     () =>

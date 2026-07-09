@@ -41,6 +41,7 @@ import { recentlyCompleted } from "../boardDone";
 import type { WireAction, WireTag, SnapshotPayload } from "../../shared/types";
 import { openCreateAction } from "../commands/controller";
 import { dayDiff, formatDueDate, relativeDue, todayISO } from "../dates";
+import { tagsByAction as buildTagsByAction } from "../tags";
 import { STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
 import { actionKeyOf, loadStats, updateAction, type ActionPatch } from "../store";
@@ -78,18 +79,10 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
   });
   const filters = useMemo(() => parseFilters(search), [search]);
 
-  const tagsByAction = useMemo(() => {
-    const tagById = new Map(snapshot.tags.map((t) => [t.id, t]));
-    const map = new Map<string, WireTag[]>();
-    for (const link of snapshot.actionTags) {
-      const tag = tagById.get(link.tagId);
-      if (!tag) continue;
-      const list = map.get(link.actionId) ?? [];
-      list.push(tag);
-      map.set(link.actionId, list);
-    }
-    return map;
-  }, [snapshot.tags, snapshot.actionTags]);
+  const tagsByAction = useMemo(
+    () => buildTagsByAction(snapshot),
+    [snapshot.tags, snapshot.actionTags],
+  );
 
   const actionsById = useMemo(
     () => new Map(snapshot.actions.map((i) => [i.id, i])),
