@@ -196,6 +196,16 @@ export default function ActionPage({
                     {focus.gitUrl.replace(/^https?:\/\//, "")}
                   </a>
                 )}
+                {/* Explicit "change" affordance (PROG-105): the gutter glyph
+                    also opens this palette, but a modal-backed field needs a
+                    visible trigger — the name itself links to the focus page.
+                    Mirrors the Tags field's "Edit… (T)". */}
+                <button
+                  onClick={() => openPalette({ kind: "move", actionId: action.id })}
+                  className={`mt-0.5 ${FIELD_ACTION_CLS}`}
+                >
+                  Change… <span className="ml-1 text-ink-faint">(M)</span>
+                </button>
               </div>
             </IconRow>
           </Field>
@@ -223,6 +233,12 @@ export default function ActionPage({
                 ) : (
                   <span className="text-sm text-ink-faint">—</span>
                 )}
+                <button
+                  onClick={() => openPalette({ kind: "arc", actionId: action.id })}
+                  className={`mt-0.5 ${FIELD_ACTION_CLS}`}
+                >
+                  Change… <span className="ml-1 text-ink-faint">(A)</span>
+                </button>
               </div>
             </IconRow>
           </Field>
