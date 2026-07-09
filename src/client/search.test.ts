@@ -168,6 +168,20 @@ describe("sortActionHits", () => {
     ).toEqual(["urgent", "high", "none"]);
   });
 
+  it("sorts by updated time chronologically (PROG-96)", () => {
+    const hits = hitsOf([
+      { id: "mid", updatedAt: "2026-03-01T00:00:00.000Z" },
+      { id: "new", updatedAt: "2026-06-01T00:00:00.000Z" },
+      { id: "old", updatedAt: "2026-01-01T00:00:00.000Z" },
+    ]);
+    expect(
+      sortActionHits(ws({}), hits, { key: "updated", dir: "asc" }).map((h) => h.action.id),
+    ).toEqual(["old", "mid", "new"]);
+    expect(
+      sortActionHits(ws({}), hits, { key: "updated", dir: "desc" }).map((h) => h.action.id),
+    ).toEqual(["new", "mid", "old"]);
+  });
+
   it("breaks ties by recency regardless of direction", () => {
     const hits = hitsOf([
       { id: "old", status: "todo", updatedAt: "2026-01-01T00:00:00.000Z" },

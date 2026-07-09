@@ -86,7 +86,7 @@ export function browseActions(ws: SnapshotPayload): ActionHit[] {
 // keys are exactly the displayed columns; `null` means "no explicit sort" and
 // leaves the caller's default order (relevance for a query, recency for
 // browse) untouched.
-export type ActionSortKey = "key" | "title" | "focus" | "status" | "priority";
+export type ActionSortKey = "key" | "title" | "focus" | "status" | "priority" | "updated";
 export type ActionSort = { key: ActionSortKey; dir: "asc" | "desc" };
 
 export const ACTION_SORT_KEYS: readonly ActionSortKey[] = [
@@ -95,13 +95,16 @@ export const ACTION_SORT_KEYS: readonly ActionSortKey[] = [
   "focus",
   "status",
   "priority",
+  "updated",
 ];
 
 // Sort hits by a column. Semantics per key: `key` orders by focus prefix
 // then action number (numeric, so PROG-2 < PROG-10); `title`/`focus` are
 // case-insensitive locale compares; `status` follows the workflow order
 // (ACTION_STATUSES) and `priority` the urgency order (ACTION_PRIORITIES), not
-// the alphabet. Ties always break by recency so equal cells stay newest-first.
+// the alphabet; `updated` compares the ISO timestamps (lexical = chronological,
+// so asc is oldest-edit first — PROG-96). Ties always break by recency so
+// equal cells stay newest-first.
 export function sortActionHits(
   ws: SnapshotPayload,
   hits: ActionHit[],
@@ -127,6 +130,8 @@ export function sortActionHits(
         return ACTION_STATUSES.indexOf(a.status) - ACTION_STATUSES.indexOf(b.status);
       case "priority":
         return ACTION_PRIORITIES.indexOf(a.priority) - ACTION_PRIORITIES.indexOf(b.priority);
+      case "updated":
+        return a.updatedAt < b.updatedAt ? -1 : a.updatedAt > b.updatedAt ? 1 : 0;
     }
   };
   const dir = sort.dir === "desc" ? -1 : 1;

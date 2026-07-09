@@ -35,6 +35,7 @@ import {
   type ActionSortKey,
   type Segment,
 } from "../search";
+import { localDayOfInstant, relativeDue, todayISO } from "../dates";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import { closedTitleClass } from "../actionDone";
 import PriorityIndicator from "../PriorityIndicator";
@@ -42,6 +43,11 @@ import { actionKeyOf, useCommentSearch } from "../store";
 
 // Rows rendered per section before a "Show more" click (PROG-78 pagination).
 const PAGE = 50;
+
+// Full local timestamp for the Updated cell's tooltip (PROG-96) — the same
+// format the action page's "Updated …" footer uses.
+const fmtUpdated = (iso: string) =>
+  new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 const FILTER_KEYS = ["workspace", "focus", "repo", "arc", "tag", "priority", "status"] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
@@ -59,6 +65,7 @@ const COLUMNS: { key: ActionSortKey; label: string }[] = [
   { key: "focus", label: "Focus" },
   { key: "status", label: "Status" },
   { key: "priority", label: "Priority" },
+  { key: "updated", label: "Updated" },
 ];
 
 function parseFilters(search: string): { q: string; filters: Filters; sort: ActionSort | null } {
@@ -186,6 +193,10 @@ export default function Search({ snapshot }: { snapshot: SnapshotPayload }) {
     setActionLimit(PAGE);
     setContainerLimit(PAGE);
   }
+
+  // Local "today" for the Updated column's relative phrasing (PROG-96) — one
+  // read per render, same pattern as the Agenda.
+  const today = todayISO();
 
   const { data: comments, isFetching, hasMore, fetchMore, isFetchingMore } = useCommentSearch(q);
   // Resolve comment hits to actions and apply the same filters.
@@ -345,6 +356,15 @@ export default function Search({ snapshot }: { snapshot: SnapshotPayload }) {
                           ) : (
                             <span aria-label={PRIORITY_LABELS.none}>—</span>
                           )}
+                        </td>
+                        {/* Relative phrase ("today", "3 days ago") answers the
+                            "what moved recently?" question at a glance (PROG-96);
+                            the exact timestamp rides in the tooltip. */}
+                        <td
+                          title={fmtUpdated(hit.action.updatedAt)}
+                          className="whitespace-nowrap px-3 py-2 text-xs text-ink-faint"
+                        >
+                          {relativeDue(localDayOfInstant(hit.action.updatedAt), today)}
                         </td>
                       </tr>
                     );
