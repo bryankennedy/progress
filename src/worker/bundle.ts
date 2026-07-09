@@ -3,13 +3,12 @@
 // The "copy as prompt" / `get_bundle` work order. Extracted from the worker
 // entry so it can be unit-tested in isolation (PROG-62).
 
-import type { arcs, commitLinks, actions, prLinks, focuses, repos } from "../db/schema";
+import type { arcs, commitLinks, actions, prLinks, focuses } from "../db/schema";
 
 export type BundleData = {
   key: string;
   action: typeof actions.$inferSelect;
   focus: typeof focuses.$inferSelect;
-  repo: typeof repos.$inferSelect | null;
   arc: typeof arcs.$inferSelect | null;
   tags: string[];
   comments: { body: string; createdAt: Date; author: string }[];
@@ -67,15 +66,12 @@ export function renderBundle(b: BundleData): string {
 
   out.push("## Description", "", para(action.description, "_No description._"), "");
 
-  // Lineage focus → repo → arc, descriptions included — the arc description
-  // is where epic-level intent ("why") lives, so the agent sees it.
+  // Lineage focus → arc, descriptions included — the arc description is where
+  // epic-level intent ("why") lives, so the agent sees it. The focus's optional
+  // git repo (PROG-102) rides the focus heading.
   out.push("## Context", "");
-  out.push(`**Focus — ${b.focus.name}**`, "");
+  out.push(`**Focus — ${b.focus.name}**${b.focus.gitUrl ? ` (git: ${b.focus.gitUrl})` : ""}`, "");
   if (b.focus.description.trim()) out.push(b.focus.description.trim(), "");
-  if (b.repo) {
-    out.push(`**Repo — ${b.repo.name}**${b.repo.gitUrl ? ` (git: ${b.repo.gitUrl})` : ""}`, "");
-    if (b.repo.description.trim()) out.push(b.repo.description.trim(), "");
-  }
   if (b.arc) {
     out.push(`**Arc — ${b.arc.name}**`, "");
     if (b.arc.description.trim()) out.push(b.arc.description.trim(), "");
@@ -173,7 +169,6 @@ export function renderBundle(b: BundleData): string {
 export type ArcActionData = {
   key: string;
   action: typeof actions.$inferSelect;
-  repo: typeof repos.$inferSelect | null;
   tags: string[];
   comments: { body: string; createdAt: Date; author: string }[];
   pullRequests: (typeof prLinks.$inferSelect)[];
@@ -191,8 +186,9 @@ export type ArcBundleData = {
 
 // The full per-action section — the action bundle's body (fields, description,
 // comments, images, linked PRs/commits) at one heading level deeper, minus the
-// per-action report-back footer (the arc has a single combined one). Repo is
-// rendered per action because actions in one arc can target different repos.
+// per-action report-back footer (the arc has a single combined one). The git
+// repo is a focus-level field now (PROG-102), so it's stated once in the arc's
+// "Focus context", not per action.
 function renderArcActionSection(b: ArcActionData, baseUrl: string): string[] {
   const { action } = b;
   const out: string[] = [];
@@ -208,8 +204,6 @@ function renderArcActionSection(b: ArcActionData, baseUrl: string): string[] {
     }`,
   );
   if (action.dueDate) out.push(`- **Due:** ${action.dueDate}`);
-  if (b.repo)
-    out.push(`- **Repo:** ${b.repo.name}${b.repo.gitUrl ? ` (git: ${b.repo.gitUrl})` : ""}`);
   if (b.tags.length) out.push(`- **Tags:** ${b.tags.join(", ")}`);
   out.push("");
 
@@ -268,7 +262,12 @@ export function renderArcBundle(b: ArcBundleData): string {
   // Arc description is the epic-level "why"; focus description gives the
   // surrounding context. Both up top so they're stated once for the whole run.
   out.push("## Why this arc", "", para(arc.description, "_No description._"), "");
-  out.push("## Focus context", "", `**${focus.name}**`, "");
+  out.push(
+    "## Focus context",
+    "",
+    `**${focus.name}**${focus.gitUrl ? ` (git: ${focus.gitUrl})` : ""}`,
+    "",
+  );
   if (focus.description.trim()) out.push(focus.description.trim(), "");
 
   out.push(`## Actions (${list.length})`, "");
