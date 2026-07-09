@@ -464,11 +464,13 @@ equivalents, so old bookmarks keep working.
   more" control (the full hit lists stay in memory — only the DOM is capped),
   and the comments section pulls further 50-hit pages from the server via
   `?offset=`, its header reading "50+" while more remain. Actions render as a
-  **table** (Key · Title · Focus · Status · Priority) whose column headers
+  **table** (Key · Title · Focus · Status · Priority · Updated) whose column headers
   **sort**: click a header for ascending, again for descending, a third time to
   restore the default order (relevance for a query, recency for browse). Key
   sorts numerically within a focus prefix, status by workflow order, priority
-  by urgency (pure `sortActionHits`, unit-tested); ties break by recency. The
+  by urgency, updated chronologically (pure `sortActionHits`, unit-tested);
+  ties break by recency. The Updated cell shows a relative phrase ("today",
+  "3 days ago") with the full local timestamp in its tooltip (PROG-96). The
   sort is a URL param (`?sort=&dir=`) like the filters, so sorted views are
   bookmarkable; whole rows navigate, the title stays a real link. A closed
   action's title (done or canceled) carries the shared finished treatment —
