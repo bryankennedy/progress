@@ -421,7 +421,15 @@ equivalents, so old bookmarks keep working.
   Container ranks sort `(rank, name)` — alphabetical until first reordered; a
   drag in a still-tied group renumbers the group, after which each drag is one
   write (`containerReorderRanks`, `src/client/containerReorder.ts`). The order
-  is global and also drives the Structure page and the scope picker. The scope
+  is global and also drives the Structure page, the scope picker, and — via
+  the shared `sortContainers` (active first, archived last, rank-then-name;
+  PROG-83) — the child lists on container pages. **Every other container/tag
+  list is deterministic too** (PROG-83): pickers and selects (create dialogs,
+  palette arc/move/tag pickers, palette container quick-jump, filter
+  dropdowns per PROG-66) list alphabetically by name, tag chips on action
+  pages and board/Agenda cards sort alphabetically (shared `tagsByAction`,
+  `src/client/tags.ts`), and Archive groups sort by name. Board **actions**
+  keep pure `rank` order — never alphabetized. The scope
   picker itself is sticky like Hide done: the last scope persists to
   `localStorage` and a bare `/outline` reopens it (URL params still win). Arcs are reached
   only by the explicit per-row "→ arc" control (pick existing or create new);
