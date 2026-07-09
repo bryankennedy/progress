@@ -167,13 +167,13 @@ export default function ActionPage({
               status/priority/estimate an indicator, due date the calendar
               button — and Due date sits above Priority. */}
           <Field label="Status">
-            <IconRow icon={<StatusIndicator status={action.status} />}>
-              <FieldSelect
-                value={action.status}
-                options={ACTION_STATUSES.map((s) => [s, STATUS_LABELS[s]])}
-                onChange={(v) => updateAction(action.id, { status: v as ActionStatus })}
-              />
-            </IconRow>
+            <IconSelect
+              icon={<StatusIndicator status={action.status} />}
+              openLabel="Change status"
+              value={action.status}
+              options={ACTION_STATUSES.map((s) => [s, STATUS_LABELS[s]])}
+              onChange={(v) => updateAction(action.id, { status: v as ActionStatus })}
+            />
           </Field>
           <Field label="Due date">
             <IconRow
@@ -192,7 +192,7 @@ export default function ActionPage({
                       dueDateRef.current?.focus();
                     }
                   }}
-                  className="flex text-ink-faint hover:text-ink-soft"
+                  className={`${GLYPH_BUTTON_CLS} text-ink-faint hover:text-ink-soft`}
                 >
                   <CalendarGlyph />
                 </button>
@@ -219,25 +219,25 @@ export default function ActionPage({
             </IconRow>
           </Field>
           <Field label="Priority">
-            <IconRow icon={<PriorityIndicator priority={action.priority} />}>
-              <FieldSelect
-                value={action.priority}
-                options={ACTION_PRIORITIES.map((p) => [p, PRIORITY_LABELS[p]])}
-                onChange={(v) => updateAction(action.id, { priority: v as ActionPriority })}
-              />
-            </IconRow>
+            <IconSelect
+              icon={<PriorityIndicator priority={action.priority} />}
+              openLabel="Change priority"
+              value={action.priority}
+              options={ACTION_PRIORITIES.map((p) => [p, PRIORITY_LABELS[p]])}
+              onChange={(v) => updateAction(action.id, { priority: v as ActionPriority })}
+            />
           </Field>
           <Field label="Estimate">
-            <IconRow icon={<EstimateIndicator estimate={action.estimate} />}>
-              <FieldSelect
-                value={action.estimate === null ? "" : String(action.estimate)}
-                options={[
-                  ["", "—"],
-                  ...ACTION_ESTIMATES.map((e): [string, string] => [String(e), String(e)]),
-                ]}
-                onChange={(v) => updateAction(action.id, { estimate: v === "" ? null : Number(v) })}
-              />
-            </IconRow>
+            <IconSelect
+              icon={<EstimateIndicator estimate={action.estimate} />}
+              openLabel="Change estimate"
+              value={action.estimate === null ? "" : String(action.estimate)}
+              options={[
+                ["", "—"],
+                ...ACTION_ESTIMATES.map((e): [string, string] => [String(e), String(e)]),
+              ]}
+              onChange={(v) => updateAction(action.id, { estimate: v === "" ? null : Number(v) })}
+            />
           </Field>
           <Field label="Container">
             <p className="text-sm">
@@ -329,6 +329,54 @@ function IconRow({ icon, children }: { icon: React.ReactNode; children: React.Re
   );
 }
 
+// Every gutter glyph is a button (PROG-101b): slight padding for a bigger hit
+// target, a hover wash for affordance.
+const GLYPH_BUTTON_CLS = "-m-1 flex rounded p-1 hover:bg-line";
+
+// A FieldSelect whose gutter glyph doubles as a picker button (PROG-101b):
+// clicking the glyph pops the select's dropdown, mirroring the due-date
+// calendar button, so the icon column is uniformly actionable.
+function IconSelect({
+  icon,
+  openLabel,
+  value,
+  options,
+  onChange,
+}: {
+  icon: React.ReactNode;
+  openLabel: string;
+  value: string;
+  options: [string, string][];
+  onChange: (value: string) => void;
+}) {
+  const ref = useRef<HTMLSelectElement>(null);
+  return (
+    <IconRow
+      icon={
+        <button
+          type="button"
+          aria-label={openLabel}
+          onClick={() => {
+            // showPicker is the only script API that pops a native select
+            // open; where it's missing (older Safari) fall back to focusing —
+            // Space/Enter then opens it.
+            try {
+              ref.current?.showPicker();
+            } catch {
+              ref.current?.focus();
+            }
+          }}
+          className={GLYPH_BUTTON_CLS}
+        >
+          {icon}
+        </button>
+      }
+    >
+      <FieldSelect ref={ref} value={value} options={options} onChange={onChange} />
+    </IconRow>
+  );
+}
+
 // The due-date field's calendar glyph — same 16×16 box and size as the
 // indicator glyphs so the gutter column lines up.
 function CalendarGlyph() {
@@ -373,13 +421,17 @@ function FieldSelect({
   value,
   options,
   onChange,
+  ref,
 }: {
   value: string;
   options: [string, string][];
   onChange: (value: string) => void;
+  // React 19 ref-as-prop; IconSelect uses it to pop the dropdown open.
+  ref?: React.Ref<HTMLSelectElement>;
 }) {
   return (
     <select
+      ref={ref}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="w-full rounded border border-line bg-card px-2 py-1 text-sm hover:border-ink-faint"

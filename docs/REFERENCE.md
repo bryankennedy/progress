@@ -593,7 +593,9 @@ equivalents, so old bookmarks keep working.
   check disc for done; canceled is a faint ✕ disc), the due-date **calendar
   button** (opens the native picker; the input's right-edge indicator is
   hidden), `PriorityIndicator`, and the `EstimateIndicator` fill gauge
-  (bottom-up fill proportional to the 0–8 scale; dashed when unset).
+  (bottom-up fill proportional to the 0–8 scale; dashed when unset). Every
+  glyph is a **button** that opens its field's picker — `showPicker()` on
+  the select/input, focus fallback where unsupported (PROG-101b).
 - **Command palette** — one keyboard surface (D25): root mode searches
   actions by key (retired alias keys included) or title and containers by
   name, and lists commands (create action/workspace/focus/repo/arc,

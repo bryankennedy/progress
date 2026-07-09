@@ -24,3 +24,14 @@ gutter, the way Priority already had its signal bars. Decisions:
 - **Field order is now Status · Due date · Priority · Estimate** (due date
   moved above priority, per the action). Container/arc/tags/work-on follow
   unchanged.
+
+### PROG-101b — every gutter glyph is a picker button
+
+Owner follow-up: since the calendar glyph is actionable, the other glyphs
+should be too. Each status/priority/estimate glyph is now a button that pops
+its select's dropdown via `HTMLSelectElement.showPicker()` — the only script
+API that opens a native select — falling back to focusing the select where
+the API is missing (Space/Enter then opens it). The wiring lives in one
+`IconSelect` wrapper (glyph button + `FieldSelect` sharing a ref), so a
+future fifth field can't forget it; all four buttons share a hover-wash
+class and a slightly padded hit target.
