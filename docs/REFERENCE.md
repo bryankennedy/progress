@@ -37,54 +37,48 @@ below resolve in [`decisions/D1-D49.md`](./decisions/D1-D49.md), issue keys in
 ```mermaid
 graph TD
     W["Workspace"] --> F["Focus"]
-    F --> R1["Repo"]
     F --> A["Arc"]
-    F -->|direct| X1["Action"]
-    R1 --> X2["Action"]
+    F --> X1["Action"]
     A -.groups.-> X1
-    A -.groups.-> X2
 
     classDef workspace fill:#CDEEF9,stroke:#06A7E0,color:#000
     classDef focus fill:#FBE4C9,stroke:#F08B23,color:#000
-    classDef repo fill:#FBF0C8,stroke:#F2C42E,color:#000
     classDef arc fill:#E8DBEE,stroke:#BA94C4,color:#000
     classDef action fill:#D7DEF0,stroke:#546EB4,color:#000
 
     class W workspace
     class F focus
-    class R1 repo
     class A arc
-    class X1,X2 action
+    class X1 action
 ```
 
 | Entity | Parent | Notes |
 |---|---|---|
 | Workspace | — | Portfolio-level theme grouping focuses. |
-| Focus | Workspace | The central unit; carries the action-key prefix (`keyPrefix`, 2–8 letters, globally unique, editable) and the per-focus action-number sequence (`nextActionNumber`). |
-| Repo | Focus | Sub-container mirroring a real git repository (`gitUrl`, optional until connected). |
+| Focus | Workspace | The central unit; carries the action-key prefix (`keyPrefix`, 2–8 letters, globally unique, editable), the per-focus action-number sequence (`nextActionNumber`), and an optional `gitUrl` — the git repo this focus mirrors (display-only link + agent context; PROG-102 folded the former Repo container into this field). |
 | Arc | Focus | Epic-like grouping of actions from anywhere under its focus. (The words "epic" and "project" are banned.) |
-| Action | Focus *or* Repo | The atomic unit. `focusId` always set; nullable `repoId` narrows the container (D17). Optional `arcId`, same-focus enforced. |
+| Action | Focus | The atomic unit. `focusId` is the sole container (D17, PROG-102). Optional `arcId`, same-focus enforced. |
 | Step | — (not a table) | An action whose `parentActionId` is set (PROG-124's sub-issue self-reference, renamed by PROG-98) — same row shape, no separate entity. |
 | Tag | — (global) | Name + auto-color (stable hash into a fixed 7-color palette, D27). |
 
 Nouns are per PROG-98 (the hierarchy rename); pre-rename docs/decisions say
 Initiative/Product/Issue for Workspace/Focus/Action. The plural of Focus is
-**focuses**.
+**focuses**. **Repo** was a first-class container through v2; PROG-102 demoted it
+to the focus's optional `gitUrl` field — pre-PROG-102 docs/decisions describe the
+old container.
 
 ### Containment & movement rules (as enforced)
 
-- An action's container is a focus or one of that focus's repos — never
-  both, never neither. Repo-in-focus and arc-in-focus invariants are
-  API-enforced (SQLite can't express them cheaply).
-- Actions move freely between containers. **Within a focus**: the key and
-  arc survive; only `repoId` changes. **Across focuses**: the action is
-  re-keyed from the target's sequence, its arc is cleared, and the old key
-  is written to `action_key_aliases` as a permanent redirect (D18, D24).
+- An action's container is its **focus** — always exactly one (PROG-102). The
+  arc-in-focus invariant is API-enforced (SQLite can't express it cheaply).
+- Actions move between **focuses**. A move re-keys the action from the target's
+  sequence, clears its arc, and writes the old key to `action_key_aliases` as a
+  permanent redirect (D18, D24). A move to the action's current focus is a no-op.
 - Action keys are **derived, never stored**: `focus.keyPrefix + "-" +
   action.number`. Renaming a prefix re-keys everything consistently; alias
   rows store retired keys verbatim so they survive renames too. Keys and
   their derivation were untouched by the PROG-98 rename.
-- **Archive, no hard deletes** — all four container types carry
+- **Archive, no hard deletes** — all three container types carry
   `archivedAt`. Archived containers leave board filters, creation targets,
   move targets, and palette search; their actions stay visible everywhere;
   parent pages list them dimmed so unarchive stays reachable (D26).
@@ -113,8 +107,9 @@ by schema, API validation, and client.
 ### Data conventions (D19)
 
 - IDs: app-generated text with type prefixes — new rows mint `usr_ wsp_ foc_
-  rep_ arc_ acn_ tag_ cmt_ act_` (`acn_` for actions because `act_` was
-  already activity's) — identifiable on sight in URLs and logs. Rows created
+  arc_ acn_ tag_ cmt_ act_` (`acn_` for actions because `act_` was
+  already activity's; `rep_` is retired with the Repo container, PROG-102) —
+  identifiable on sight in URLs and logs. Rows created
   before PROG-98 keep their `ini_ prd_ iss_` prefixes: ids are opaque and
   never parsed, so the two generations coexist.
 - Container and tag ids may be **client-generated** (the store creates rows
@@ -125,18 +120,20 @@ by schema, API validation, and client.
   `YYYY-MM-DD` text, identical in every timezone — deliberately not an instant.
 - Activity rows are append-only; `data` carries the event payload. Current
   event types: `status_changed` `{from, to}`, `moved` `{fromFocusId,
-  fromRepoId, toFocusId, toRepoId, fromKey?, toKey?}` (keys present only
-  on cross-focus moves), `pr_linked` `{githubRepo, prNumber, title, url,
-  state}`, `commit_linked` `{githubRepo, sha, message, url, branch}`.
+  toFocusId, fromKey?, toKey?}` (every move is cross-focus and re-keys since
+  PROG-102; pre-PROG-102 rows may also carry from/toRepoId, now ignored),
+  `pr_linked` `{githubRepo, prNumber, title, url, state}`, `commit_linked`
+  `{githubRepo, sha, message, url, branch}`.
 
 ### Git links (D29)
 
 Two tables, written only by the GitHub webhook: `pr_links` (PK `actionId +
 githubRepo + prNumber`; mutable `state` open/merged/closed and `title`) and
 `commit_links` (PK `actionId + sha`; immutable, message stored as subject
-line only). `githubRepo` is `"owner/name"` text, deliberately **not** an FK
-to `repos` — links survive container renames/archives and can arrive from
-repos that aren't containers here. Composite PKs double as the idempotency
+line only). `githubRepo` is `"owner/name"` text, keyed to `actionId` only and
+matched by action key — never tied to a container (it predates and outlived the
+removed Repo container, PROG-102), so links survive renames/archives and can
+arrive from any repo. Composite PKs double as the idempotency
 guard for webhook redeliveries. Links are permanent: editing the mention
 away later does not unlink.
 
@@ -214,8 +211,8 @@ straight from Cloudflare's asset handler:
 Both layers also carry HSTS. The single-tenant trust model is deliberate: any
 allowlisted user (or the bearer token) can read all tracker data and all images
 — there is no per-resource ownership check, because every allowlisted account is
-trusted (D44). `gitUrl` is validated server-side as an `http(s)` URL on
-`POST`/`PATCH /api/repos`, so a `javascript:` value can't reach the client as a
+trusted (D44). A focus's `gitUrl` is validated server-side as an `http(s)` URL on
+`POST`/`PATCH /api/focuses`, so a `javascript:` value can't reach the client as a
 clickable link.
 
 Vulnerability disclosure: a `SECURITY.md` at the repo root and an RFC 9116
@@ -228,13 +225,13 @@ mandatory — renew it before it lapses (an expired file is worse than none).
 | Route | Behavior |
 |---|---|
 | `GET /api/health` | Readiness probe: round-trips D1 (`select 1`). `{ ok: true, db: "ok" }` (200) when reachable, `{ ok: false, db: "error" }` (503) when not — so it reflects database reachability, not just that the Worker booted. The only `/api/*` route never access-logged. |
-| `GET /api/snapshot` | The load-everything payload (`SnapshotPayload`): `me` (the signed-in user, PROG-34), users, workspaces, focuses, repos, arcs, actions, tags, actionTags, actionKeyAliases — nine independent reads run with `Promise.all` (not a `db.batch`/transaction, which 500'd on production D1; D31). Comments/activity are deliberately excluded (D20). |
-| `POST /api/actions` | `{ title, focusId, repoId?, arcId?, parentActionId?, description?, status?, priority?, estimate?, dueDate?, tagIds? }` → 201 `{ action }`. `dueDate` is `YYYY-MM-DD` or null, validated (impossible dates rejected). `parentActionId` must be an existing action in the same focus (PROG-124). `tagIds` (PROG-89b) links existing tags at birth — every id must exist or the whole create 400s. Number allocated by atomic increment of the focus sequence; gaps from failed creates are harmless (D24). A board `rank` is auto-assigned, appended after the current last action (D44). |
+| `GET /api/snapshot` | The load-everything payload (`SnapshotPayload`): `me` (the signed-in user, PROG-34), users, workspaces, focuses, arcs, actions, tags, actionTags, actionKeyAliases — eight independent reads run with `Promise.all` (not a `db.batch`/transaction, which 500'd on production D1; D31). Comments/activity are deliberately excluded (D20). |
+| `POST /api/actions` | `{ title, focusId, arcId?, parentActionId?, description?, status?, priority?, estimate?, dueDate?, tagIds? }` → 201 `{ action }`. `dueDate` is `YYYY-MM-DD` or null, validated (impossible dates rejected). `parentActionId` must be an existing action in the same focus (PROG-124). `tagIds` (PROG-89b) links existing tags at birth — every id must exist or the whole create 400s. Number allocated by atomic increment of the focus sequence; gaps from failed creates are harmless (D24). A board `rank` is auto-assigned, appended after the current last action (D44). |
 | `PATCH /api/actions/:id` | Any of `title, description, status, priority, estimate, arcId, parentActionId, dueDate, rank` — validated per field; arc and parent must be same-focus; `parentActionId` reparent is acyclic and not self (PROG-124); `dueDate`/`arcId`/`parentActionId` accept null to clear. `rank` is a fractional-index board key the client computes from the drop site's neighbors (D44). A status change atomically appends a `status_changed` activity row and maintains `completedAt`. |
-| `POST /api/actions/:id/move` | `{ focusId, repoId }` (`repoId: null` = focus-level). Within-focus keeps key + arc; cross-focus re-keys, clears arc, writes the alias, logs `moved`. 400 on no-op. |
+| `POST /api/actions/:id/move` | `{ focusId }` — the focus is the sole container (PROG-102). Re-keys from the target focus, clears arc, detaches steps, writes the alias, logs `moved`. 400 if `focusId` is the action's current focus (no-op). |
 | `GET /api/actions/:id/timeline` | `{ comments, activity, pullRequests, commits }`, each ordered by `createdAt`. |
-| `GET /api/actions/:key/bundle` | Looked up by **key** (alias-aware), not id. Returns `text/markdown` — a deterministic context "work order": action fields + tags, lineage with descriptions (focus → repo incl. `gitUrl` → arc, where the arc description carries the "why"), comments, an **Images** list (absolute URLs of every image referenced in the description/comments, so a bearer-authed agent can fetch them — PROG-42), linked PRs/commits, then a stable report-back preamble — **branch off fresh `origin/main`, never another feature branch, and PR with `--base main`** (PROG-95), branch/key auto-linking + status flow, plus a **Committing & PRs** block that embeds a local, key-aware copy of the owner's smart-commit conventions (logical chunks, secret-scan, `type(scope): KEY subject`, no AI attribution) so a handed-off agent commits to the owner's rules (PROG-62). A retired key resolves and renders the current canonical key. 400 malformed key, 404 unknown. Rendered by `src/worker/bundle.ts` (`renderBundle`); shared foundation for the agent surfaces (SPEC §11.1, D33). |
-| `GET /api/arcs/:id/bundle` | Looked up by **id** (the arc page has it). Returns `text/markdown` — the **arc** work order: a single prompt covering **every open action** in the arc (`done`/`canceled` dropped via `isOpenStatus`), each rendered like the action bundle (fields, description, comments, Images, linked PRs/commits) minus its per-action footer, with focus/arc lineage stated once and repo per-action. Ends in **combined-PR** orchestration — fan the actions to sub-agents, share one branch, land **one PR naming every key** — plus the same smart-commit block (keyed per-commit). Deterministic (status-then-number sort). 404 unknown arc. Rendered by `renderArcBundle` in `src/worker/bundle.ts`. |
+| `GET /api/actions/:key/bundle` | Looked up by **key** (alias-aware), not id. Returns `text/markdown` — a deterministic context "work order": action fields + tags, lineage with descriptions (focus incl. optional `gitUrl` → arc, where the arc description carries the "why"), comments, an **Images** list (absolute URLs of every image referenced in the description/comments, so a bearer-authed agent can fetch them — PROG-42), linked PRs/commits, then a stable report-back preamble — **branch off fresh `origin/main`, never another feature branch, and PR with `--base main`** (PROG-95), branch/key auto-linking + status flow, plus a **Committing & PRs** block that embeds a local, key-aware copy of the owner's smart-commit conventions (logical chunks, secret-scan, `type(scope): KEY subject`, no AI attribution) so a handed-off agent commits to the owner's rules (PROG-62). A retired key resolves and renders the current canonical key. 400 malformed key, 404 unknown. Rendered by `src/worker/bundle.ts` (`renderBundle`); shared foundation for the agent surfaces (SPEC §11.1, D33). |
+| `GET /api/arcs/:id/bundle` | Looked up by **id** (the arc page has it). Returns `text/markdown` — the **arc** work order: a single prompt covering **every open action** in the arc (`done`/`canceled` dropped via `isOpenStatus`), each rendered like the action bundle (fields, description, comments, Images, linked PRs/commits) minus its per-action footer, with focus/arc lineage (incl. the focus's optional `gitUrl`) stated once. Ends in **combined-PR** orchestration — fan the actions to sub-agents, share one branch, land **one PR naming every key** — plus the same smart-commit block (keyed per-commit). Deterministic (status-then-number sort). 404 unknown arc. Rendered by `renderArcBundle` in `src/worker/bundle.ts`. |
 | `POST /api/actions/:id/comments` | `{ body }` → 201 `{ comment }`. |
 | `GET /api/search?q=&offset=` | Comment full-text search (PROG-130) — the one searchable text not in the snapshot payload (D20), so it needs the server; title/description search runs client-side over the store. Case-insensitive substring via SQLite `LIKE`, AND'd across whitespace terms, wildcards escaped (`ESCAPE '\'`) so `100%` matches literally. Returns `{ hits: [{ commentId, actionId, snippet }], truncated }`, most-recent first, one 50-hit page per request; `?offset=` skips past earlier pages (PROG-78 pagination; malformed/negative offsets clamp to 0) and `truncated` is true while more matches remain beyond the returned page **and** the next page is still reachable — offsets cap at 10,000 (`MAX_OFFSET`), where pagination ends rather than re-serving the clamped page. The client resolves `actionId` to the action it already holds; `snippet` is a body window the client re-highlights. Pure helpers in `src/worker/searchComments.ts`. |
 
@@ -272,19 +269,19 @@ and `MarkdownTextarea` handles paste + the "+ Image" button in both editors.
 | Route | Behavior |
 |---|---|
 | `POST /api/workspaces` | `{ id?, name, description? }` |
-| `POST /api/focuses` | `{ id?, name, workspaceId, keyPrefix, description? }` — prefix validated `^[A-Z]{2,8}$` (uppercased), 409 if taken |
-| `POST /api/repos` | `{ id?, name, focusId, gitUrl?, description? }` |
+| `POST /api/focuses` | `{ id?, name, workspaceId, keyPrefix, gitUrl?, description? }` — prefix validated `^[A-Z]{2,8}$` (uppercased), 409 if taken; `gitUrl` (optional) validated as an `http(s)` URL or null (PROG-102) |
 | `POST /api/arcs` | `{ id?, name, focusId, description? }` |
-| `PATCH /api/<type>/:id` | `{ name?, description?, archived? }` for all four; plus `keyPrefix?` (focuses), `gitUrl?` (repos), `rank?` (workspaces/focuses/arcs — the manual outline order, PROG-87). `archived: boolean` maps to `archivedAt`. |
+| `PATCH /api/<type>/:id` | `{ name?, description?, archived? }` for all three; plus `keyPrefix?` + `gitUrl?` (focuses), `rank?` (workspaces/focuses/arcs — the manual outline order, PROG-87). `archived: boolean` maps to `archivedAt`. |
 
-All return `{ container }`; creates return 201.
+All return `{ container }`; creates return 201. (The `repos` container and its
+`/api/repos` routes were removed in PROG-102; a focus's `gitUrl` replaces them.)
 
-Workspaces, focuses, and arcs carry a `rank` — the same fractional-index key
+The three container types carry a `rank` — the same fractional-index key
 space as the action board (`src/shared/rank.ts`) — set by dragging sections on
 the Outline (PROG-87). Unlike actions, creates don't append: every container is
 born at the shared midpoint key (`DEFAULT_RANK`), and clients sort by
 `(rank, name)`, so a group nobody has reordered reads alphabetically. The order
-is global (server-stored), not per-user. Repos have no rank.
+is global (server-stored), not per-user.
 
 ### GitHub webhook (D29)
 
@@ -324,8 +321,8 @@ vocabularies in `src/shared/constants.ts`:
 |---|---|
 | `get_bundle` | `GET /api/actions/:key/bundle` — the Markdown work order |
 | `get_action` | one action as structured JSON (fields + lineage names + tags) |
-| `list_actions` | filters `GET /api/snapshot` in-process: `status, focusKey, repo, arc, tag, query, limit` (AND-combined; default limit 50) |
-| `create_action` | `POST /api/actions` (arc/repo by name, resolved within the focus; optional `dueDate`) |
+| `list_actions` | filters `GET /api/snapshot` in-process: `status, focusKey, arc, tag, query, limit` (AND-combined; default limit 50) |
+| `create_action` | `POST /api/actions` (arc by name, resolved within the focus; optional `dueDate`) |
 | `update_status` | `PATCH /api/actions/:id` `{ status }` |
 | `set_due_date` | `PATCH /api/actions/:id` `{ dueDate }` — set a `YYYY-MM-DD` day or clear with null |
 | `comment` | `POST /api/actions/:id/comments` |
@@ -386,12 +383,13 @@ arc-page load. In-app only for now (no CLI/MCP arc kickoff yet).
 
 Routes: `/` (board), `/outline` (the capture outliner), `/agenda` (the
 due-date view), `/structure` (the container tree), `/archive` (completed arcs),
-`/action/:key`, `/workspace/:id`, `/focus/:id`, `/repo/:id`, `/arc/:id`. Action
+`/action/:key`, `/workspace/:id`, `/focus/:id`, `/arc/:id`. Action
 URLs are key-based; `findActionByKey` resolves current keys first, then alias
 keys with a `replaceState` redirect to the canonical key — entirely
 client-side from the loaded snapshot (D22). The pre-PROG-98 routes
 (`/issue/:key`, `/initiative/:id`, `/product/:id`) redirect to their renamed
-equivalents, so old bookmarks keep working.
+equivalents, and the retired `/repo/:id` (PROG-102) redirects to `/structure`,
+so old bookmarks keep working.
 
 ## 5. UI surfaces
 
@@ -453,11 +451,11 @@ equivalents, so old bookmarks keep working.
   Containers, then Comments, with matched terms highlighted; Enter opens the
   selection, and a footer link hands the query to the page. The **`/search`
   page** (`pages/Search.tsx`) is the deep dive: the same results, filterable by
-  the board dimensions (status · workspace · focus · arc · repo · tag ·
-  priority) — Arc, Repo, and Tag share the board's **"none"** option for actions
+  the board dimensions (status · workspace · focus · arc · tag ·
+  priority) — Arc and Tag share the board's **"none"** option for actions
   with no value there (PROG-76) — with query + filters in the URL so a search is
   bookmarkable. The whole filter row is the shared **`FilterBar`**
-  (`src/client/FilterBar.tsx`, PROG-92): the same six dropdowns, hierarchy
+  (`src/client/FilterBar.tsx`, PROG-92): the same five dropdowns, hierarchy
   narrowing + ancestor pruning (PROG-75), mobile "Filters" disclosure
   (PROG-81), Clear link, and **sticky restore** (PROG-58) as the board — one
   storage slot per surface; on search the filters and sort stick across visits
@@ -485,7 +483,7 @@ equivalents, so old bookmarks keep working.
   dimmed + struck through (`closedTitleClass`, PROG-100).
 - **App header** — persistent across pages: the "Progress" home link, nav
   (Board · Outline · Agenda · Search · Structure · Archive), a **New** menu (Action ·
-  Workspace · Focus · Repo · Arc) that opens the existing optimistic create flows, and the
+  Workspace · Focus · Arc) that opens the existing optimistic create flows, and the
   signed-in identity avatar. The always-available structure-creation entry point
   (SPEC v2 §4). The avatar dropdown holds the profile + **Sign out**, plus an
   **Admin** link for super-admins (D44) — Admin lives here, not in the top nav,
@@ -516,9 +514,10 @@ equivalents, so old bookmarks keep working.
   filters it was typed into. Groups still hide when empty, so the input appears
   only under populated groups; Overdue never gets one (an action can't be born
   late).
-- **Structure (`/structure`)** — the Workspace → Focus → (Repo · Arc) tree
+- **Structure (`/structure`)** — the Workspace → Focus → Arc tree
   with an inline "+ add" on each node (D40); a dedicated home for curating
-  structure that keeps the board uncluttered. Active arcs always show; archived
+  structure that keeps the board uncluttered. A focus's optional git repo
+  (PROG-102) shows as a link on its row. Active arcs always show; archived
   (completed) arcs render crossed-out but are capped at the first 5 per focus,
   with a "+N more in Archive →" link to `/archive` once they pile up beyond that
   (`capArchived`, PROG-45).
@@ -528,16 +527,16 @@ equivalents, so old bookmarks keep working.
   (PROG-45).
 - **Board (`/`)** — the global "My Work" kanban. Columns are the fixed
   statuses; Backlog hides behind a toggle by default. Filters (workspace,
-  focus, repo, arc, tag, priority) live in URL query params, so any
+  focus, arc, tag, priority) live in URL query params, so any
   filtered board is bookmarkable — this is how per-container boards are
   covered without existing (D23). Name-based filter dropdowns (workspace,
-  focus, repo, arc, tag) list their options alphabetically; priority keeps
+  focus, arc, tag) list their options alphabetically; priority keeps
   its logical order (PROG-66). The filters are hierarchy-aware (Workspace →
-  Focus → Arc/Repo): each dropdown only offers options reachable from the
+  Focus → Arc): each dropdown only offers options reachable from the
   ancestors already chosen, and changing an ancestor prunes any now-stranded
   descendant from the URL in the same write, so an impossible combination that
   matches nothing can't be selected (`pruneImpossibleFilters`, PROG-75). The
-  nullable filters — Arc, Repo, Tag — each also offer a **"none"** option
+  nullable filters — Arc, Tag — each also offer a **"none"** option
   (URL sentinel `?arc=none`, `matchesNullableId`) to find actions with no value
   there; it sits outside the hierarchy, so it's always offered and never pruned
   (PROG-76). The
@@ -598,7 +597,7 @@ equivalents, so old bookmarks keep working.
   the select/input, focus fallback where unsupported (PROG-101b).
 - **Command palette** — one keyboard surface (D25): root mode searches
   actions by key (retired alias keys included) or title and containers by
-  name, and lists commands (create action/workspace/focus/repo/arc,
+  name, and lists commands (create action/workspace/focus/arc,
   pickers for the current action). Picker modes are filterable lists; tag
   toggles keep the palette open for multi-edit.
 - **Create dialogs** — action and container creation; parents/containers

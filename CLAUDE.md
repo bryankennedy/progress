@@ -95,7 +95,12 @@ and comments (instant client-side title/desc + a streamed `GET /api/search`
 Product → **Focus**, Issue → **Action**, sub-issue → **Step** (Arc/Repo
 unchanged), and the old load-everything "workspace" payload is now the
 **snapshot** (`GET /api/snapshot`); legacy API paths and client routes alias,
-action keys and existing row ids are untouched (docs/decisions/PROG-98.md).
+action keys and existing row ids are untouched (docs/decisions/PROG-98.md); and
+the **Repo→Focus fold** (PROG-102, migration `0011`) — **Repo** is no longer a
+container but an optional `gitUrl` field on **Focus**, so a focus is an action's
+sole container; `repos` table + `actions.repoId` dropped, repo gone from the
+structure page / board + search filters / container switcher / MCP, move is now
+focus-only (docs/decisions/PROG-102.md).
 Likely next
 step per SPEC §8: **recurring due dates** (chores repeat); the due-date model +
 Agenda were built not to preclude it. Also pending: reminders/digests, start
