@@ -7,14 +7,25 @@
 // calendar day, so the relevant "now" is wherever the app is open). "This
 // week" is a rolling 7 days (DECISIONS D38).
 
-// Today's local calendar day as `YYYY-MM-DD`. Uses local getters (not
-// toISOString, which is UTC) so "today" flips at the user's local midnight.
+// A Date's local calendar day as `YYYY-MM-DD`. Uses local getters (not
+// toISOString, which is UTC) so the day flips at the user's local midnight.
+function localDay(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// Today's local calendar day as `YYYY-MM-DD`.
 export function todayISO(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return localDay(new Date());
+}
+
+// The local calendar day an ISO *instant* (a full timestamp like `updatedAt`)
+// fell on — the bridge from row timestamps to the calendar-day helpers below
+// (PROG-96: the search page phrases "updated" relative to today).
+export function localDayOfInstant(iso: string): string {
+  return localDay(new Date(iso));
 }
 
 // Whole-day signed difference between two `YYYY-MM-DD` days (b − a), computed
