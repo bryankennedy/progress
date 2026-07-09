@@ -154,10 +154,78 @@ export default function ActionPage({
             column (and every w-full field in it) past the viewport — horizontal
             overflow on a phone. min-w-0 lets the track constrain it. */}
         <aside className="w-full min-w-0 overflow-hidden space-y-4 md:col-start-2 md:row-start-1 md:row-span-2">
-          {/* Field order + the icon gutter follow the owner's mockup
-              (PROG-101): every editable field carries a glyph on the left —
-              status/priority/estimate an indicator, due date the calendar
-              button — and Due date sits above Priority. */}
+          {/* Field order + the icon gutter (PROG-101, reworked PROG-104):
+              every field carries a glyph on the left and its value in the same
+              text column. Focus + Arc — the container switchers — lead, then
+              status/due/priority/estimate, the standout Work-on-this panel, and
+              Tags last. The Focus/Arc glyphs are buttons that open the move/arc
+              palette (S/P/E/M/A shortcuts still fire regardless). */}
+          <Field label="Focus">
+            <IconRow
+              icon={
+                <button
+                  type="button"
+                  aria-label="Move to another focus (M)"
+                  onClick={() => openPalette({ kind: "move", actionId: action.id })}
+                  className={`${GLYPH_BUTTON_CLS} text-ink-faint hover:text-ink-soft`}
+                >
+                  <FocusGlyph />
+                </button>
+              }
+            >
+              {/* pl-2 aligns the value text with the select/input fields below,
+                  whose text sits inside a border + px-2 gutter (PROG-104). */}
+              <div className="min-w-0 pl-2">
+                {focus ? (
+                  <Link
+                    href={`/focus/${focus.id}`}
+                    className="block truncate text-sm hover:text-adobe-deep"
+                  >
+                    {focus.name}
+                  </Link>
+                ) : (
+                  <span className="text-sm text-ink-faint">?</span>
+                )}
+                {focus?.gitUrl && (
+                  <a
+                    href={focus.gitUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block truncate font-mono text-xs text-ink-faint hover:text-ink-soft hover:underline"
+                  >
+                    {focus.gitUrl.replace(/^https?:\/\//, "")}
+                  </a>
+                )}
+              </div>
+            </IconRow>
+          </Field>
+          <Field label="Arc">
+            <IconRow
+              icon={
+                <button
+                  type="button"
+                  aria-label="Change arc (A)"
+                  onClick={() => openPalette({ kind: "arc", actionId: action.id })}
+                  className={`${GLYPH_BUTTON_CLS} text-ink-faint hover:text-ink-soft`}
+                >
+                  <ArcGlyph />
+                </button>
+              }
+            >
+              <div className="min-w-0 pl-2">
+                {arc ? (
+                  <Link
+                    href={`/arc/${arc.id}`}
+                    className="block truncate text-sm hover:text-adobe-deep"
+                  >
+                    {arc.name}
+                  </Link>
+                ) : (
+                  <span className="text-sm text-ink-faint">—</span>
+                )}
+              </div>
+            </IconRow>
+          </Field>
           <Field label="Status">
             <IconSelect
               icon={<StatusIndicator status={action.status} />}
@@ -231,40 +299,31 @@ export default function ActionPage({
               onChange={(v) => updateAction(action.id, { estimate: v === "" ? null : Number(v) })}
             />
           </Field>
-          <Field label="Focus">
-            <p className="text-sm">{focus?.name ?? "?"}</p>
-            {focus?.gitUrl && (
-              <a
-                href={focus.gitUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="block truncate font-mono text-xs text-ink-faint hover:text-ink-soft hover:underline"
-              >
-                {focus.gitUrl.replace(/^https?:\/\//, "")}
-              </a>
-            )}
+          {/* Work on this (PROG-104): the agent-kickoff, lifted out of the plain
+              field rhythm into a tinted action panel so it reads as the sidebar's
+              primary call-to-action — hand this action to an agent and jump
+              forward in Progress. The filled adobe button + forward arrow
+              (nudged on hover) is the app's primary-CTA style (cf. the header
+              New button). */}
+          <div className="rounded-lg border border-adobe-wash bg-adobe-wash/30 p-3">
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide font-mono text-adobe-deep">
+              Work on this
+            </p>
             <button
-              onClick={() => openPalette({ kind: "move", actionId: action.id })}
-              className={`mt-0.5 ${FIELD_ACTION_CLS}`}
+              onClick={() => void copyBundleAsPrompt(actionKeyOf(snapshot, action))}
+              className="group flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-adobe px-3 py-2 text-sm font-medium text-white hover:bg-adobe-deep sm:min-h-0"
             >
-              Move… <span className="ml-1 text-ink-faint">(M)</span>
+              Copy as prompt
+              <ArrowGlyph className="transition-transform group-hover:translate-x-0.5" />
+              <span className="text-white/70">(W)</span>
             </button>
-          </Field>
-          <Field label="Arc">
-            {arc ? (
-              <Link href={`/arc/${arc.id}`} className="text-sm text-adobe-deep hover:underline">
-                {arc.name}
-              </Link>
-            ) : (
-              <span className="text-sm text-ink-faint">—</span>
-            )}
             <button
-              onClick={() => openPalette({ kind: "arc", actionId: action.id })}
-              className={`mt-0.5 ${FIELD_ACTION_CLS}`}
+              onClick={() => copyWorkCommand(actionKeyOf(snapshot, action))}
+              className="mt-1.5 flex min-h-11 w-full items-center justify-center text-xs text-adobe-deep hover:underline sm:min-h-0"
             >
-              Change… <span className="ml-1 text-ink-faint">(A)</span>
+              Copy CLI command
             </button>
-          </Field>
+          </div>
           <Field label="Tags">
             {actionTags.length === 0 ? (
               <span className="text-sm text-ink-faint">—</span>
@@ -286,20 +345,6 @@ export default function ActionPage({
               className={`mt-0.5 ${FIELD_ACTION_CLS}`}
             >
               Edit… <span className="ml-1 text-ink-faint">(T)</span>
-            </button>
-          </Field>
-          <Field label="Work on this">
-            <button
-              onClick={() => void copyBundleAsPrompt(actionKeyOf(snapshot, action))}
-              className={FIELD_ACTION_CLS}
-            >
-              Copy as prompt <span className="ml-1 text-ink-faint">(W)</span>
-            </button>
-            <button
-              onClick={() => copyWorkCommand(actionKeyOf(snapshot, action))}
-              className={FIELD_ACTION_CLS}
-            >
-              Copy CLI command
             </button>
           </Field>
           <div className="space-y-1 border-t border-line pt-3 text-xs text-ink-faint">
@@ -401,6 +446,56 @@ function CalendarGlyph() {
       <circle cx="5.5" cy="9.5" r="1" fill="currentColor" />
       <circle cx="8" cy="9.5" r="1" fill="currentColor" />
       <circle cx="10.5" cy="9.5" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+// Focus gutter glyph (PROG-104): a target/crosshair — the focus is the thing
+// the action is "focused" on. Same 16×16 box as the other gutter glyphs.
+function FocusGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden className="inline-block h-3.5 w-3.5 shrink-0">
+      <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="8" cy="8" r="2.25" fill="currentColor" />
+    </svg>
+  );
+}
+
+// Arc gutter glyph (PROG-104): a rainbow-like arc between two endpoints — the
+// milestone trajectory an arc groups actions along.
+function ArcGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden className="inline-block h-3.5 w-3.5 shrink-0">
+      <path
+        d="M2.75 11.5 A 5.25 5.25 0 0 1 13.25 11.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <circle cx="2.75" cy="11.5" r="1.4" fill="currentColor" />
+      <circle cx="13.25" cy="11.5" r="1.4" fill="currentColor" />
+    </svg>
+  );
+}
+
+// The "Work on this" forward arrow (PROG-104): evokes jumping forward in
+// Progress. Accepts a class so the button can nudge it on hover.
+function ArrowGlyph({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      aria-hidden
+      className={`inline-block h-3.5 w-3.5 shrink-0 ${className}`}
+    >
+      <path
+        d="M2.75 8 H12.25 M8.5 4.25 L12.25 8 L8.5 11.75"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
