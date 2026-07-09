@@ -3,7 +3,12 @@
 // this module's reason to exist.
 import { describe, expect, it } from "bun:test";
 import { DEFAULT_RANK } from "../shared/rank";
-import { byRankThenName, containerReorderRanks, type Ranked } from "./containerReorder";
+import {
+  byRankThenName,
+  containerReorderRanks,
+  sortContainers,
+  type Ranked,
+} from "./containerReorder";
 
 const tied = (id: string, name: string): Ranked => ({ id, name, rank: DEFAULT_RANK });
 
@@ -15,6 +20,36 @@ function applied(group: Ranked[], updates: Array<{ id: string; rank: string }>):
     .sort(byRankThenName)
     .map((g) => g.id);
 }
+
+describe("sortContainers", () => {
+  const row = (name: string, over: { archivedAt?: string | null; rank?: string } = {}) => ({
+    name,
+    archivedAt: over.archivedAt ?? null,
+    ...("rank" in over ? { rank: over.rank } : {}),
+  });
+
+  it("puts archived last, rank-then-name within each half (PROG-83)", () => {
+    const list = [
+      row("Beta", { archivedAt: "2026-01-01" }),
+      row("Delta", { rank: DEFAULT_RANK }),
+      row("Alpha", { archivedAt: "2026-01-01" }),
+      row("Charlie", { rank: "V" }), // dragged above the tied default rank
+    ];
+    expect(sortContainers(list).map((r) => r.name)).toEqual(["Charlie", "Delta", "Alpha", "Beta"]);
+  });
+
+  it("treats a missing rank as DEFAULT_RANK, so unranked kinds read alphabetically", () => {
+    const list = [row("zeta"), row("Echo"), row("alpha")];
+    expect(sortContainers(list).map((r) => r.name)).toEqual(["alpha", "Echo", "zeta"]);
+  });
+
+  it("returns a new array, leaving the snapshot order untouched", () => {
+    const list = [row("b"), row("a")];
+    const sorted = sortContainers(list);
+    expect(sorted).not.toBe(list);
+    expect(list.map((r) => r.name)).toEqual(["b", "a"]);
+  });
+});
 
 describe("byRankThenName", () => {
   it("falls back to alphabetical names while all ranks tie", () => {

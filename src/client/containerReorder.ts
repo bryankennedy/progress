@@ -12,7 +12,7 @@
 // ranks are pairwise distinct and every later drag is the one-write fast path.
 
 import { arrayMove } from "@dnd-kit/sortable";
-import { rankAfter } from "../shared/rank";
+import { DEFAULT_RANK, rankAfter } from "../shared/rank";
 import { rankForReorder } from "./outlineReorder";
 
 /** What ordering needs to know about a container. */
@@ -29,6 +29,26 @@ export function byRankThenName(
 ): number {
   if (a.rank !== b.rank) return a.rank < b.rank ? -1 : 1;
   return a.name.localeCompare(b.name);
+}
+
+/**
+ * The one display order for a container list (PROG-83): active first,
+ * archived last (they render dimmed), and within each half the global manual
+ * order — rank set by dragging on the Outline, name tiebreak, so an
+ * un-reordered group reads alphabetically. Repos carry no rank; defaulting to
+ * DEFAULT_RANK keeps them purely alphabetical. Returns a new array.
+ */
+export function sortContainers<
+  T extends { archivedAt: string | null; name: string; rank?: string },
+>(list: T[]): T[] {
+  return [...list].sort(
+    (a, b) =>
+      Number(!!a.archivedAt) - Number(!!b.archivedAt) ||
+      byRankThenName(
+        { rank: a.rank ?? DEFAULT_RANK, name: a.name },
+        { rank: b.rank ?? DEFAULT_RANK, name: b.name },
+      ),
+  );
 }
 
 /**

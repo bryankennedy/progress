@@ -14,6 +14,7 @@ import {
 import type { WireAction, SnapshotPayload } from "../../shared/types";
 import { openCreateContainer } from "../commands/controller";
 import { closedTitleClass } from "../actionDone";
+import { sortContainers } from "../containerReorder";
 import EditableMarkdown from "../EditableMarkdown";
 import InlineEdit from "../InlineEdit";
 import { PRIORITY_LABELS as SHARED_PRIORITY_LABELS, STATUS_LABELS } from "../labels";
@@ -57,7 +58,9 @@ function resolve(ws: SnapshotPayload, type: ContainerType, id: string): Resolved
     case "workspace": {
       const workspace = ws.workspaces.find((i) => i.id === id);
       if (!workspace) return undefined;
-      const focuses = ws.focuses.filter((p) => p.workspaceId === id);
+      // Child lists share the container display order (sortContainers,
+      // PROG-83): active first, rank-then-name — alpha until first reordered.
+      const focuses = sortContainers(ws.focuses.filter((p) => p.workspaceId === id));
       const focusIds = new Set(focuses.map((p) => p.id));
       return {
         ...workspace,
@@ -85,24 +88,20 @@ function resolve(ws: SnapshotPayload, type: ContainerType, id: string): Resolved
         children: [
           {
             label: "Repos",
-            items: ws.repos
-              .filter((r) => r.focusId === id)
-              .map((r) => ({
-                href: `/repo/${r.id}`,
-                name: r.name,
-                archived: r.archivedAt !== null,
-              })),
+            items: sortContainers(ws.repos.filter((r) => r.focusId === id)).map((r) => ({
+              href: `/repo/${r.id}`,
+              name: r.name,
+              archived: r.archivedAt !== null,
+            })),
             onNew: () => openCreateContainer({ kind: "repo", focusId: id }),
           },
           {
             label: "Arcs",
-            items: ws.arcs
-              .filter((a) => a.focusId === id)
-              .map((a) => ({
-                href: `/arc/${a.id}`,
-                name: a.name,
-                archived: a.archivedAt !== null,
-              })),
+            items: sortContainers(ws.arcs.filter((a) => a.focusId === id)).map((a) => ({
+              href: `/arc/${a.id}`,
+              name: a.name,
+              archived: a.archivedAt !== null,
+            })),
             onNew: () => openCreateContainer({ kind: "arc", focusId: id }),
           },
         ],

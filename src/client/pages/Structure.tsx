@@ -7,8 +7,7 @@
 import { Link } from "wouter";
 import type { SnapshotPayload } from "../../shared/types";
 import { openCreateContainer } from "../commands/controller";
-import { byRankThenName } from "../containerReorder";
-import { DEFAULT_RANK } from "../../shared/rank";
+import { sortContainers } from "../containerReorder";
 import { capArchived } from "../structureArchive";
 
 function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
@@ -67,7 +66,7 @@ function NodeGroup({
   collapseArchived?: boolean;
 }) {
   if (nodes.length === 0) return null;
-  // `nodes` arrives active-first, archived-last (byActive), so capping keeps
+  // `nodes` arrives active-first, archived-last (sortContainers), so capping keeps
   // every active node and only the first N archived ones inline.
   const { shown, hiddenCount } = collapseArchived
     ? capArchived(nodes)
@@ -110,24 +109,9 @@ function NodeGroup({
 }
 
 export default function Structure({ snapshot }: { snapshot: SnapshotPayload }) {
-  // Active first, archived last (dimmed), so curating stays focused on live
-  // structure while archived nodes remain reachable to unarchive. Within each
-  // half, the global manual order (PROG-87): rank set by dragging on the
-  // Outline, name tiebreak — alphabetical until someone reorders. Repos have
-  // no rank; the default keeps them purely alphabetical.
-  const byActive = <T extends { archivedAt: string | null; name: string; rank?: string }>(
-    list: T[],
-  ) =>
-    [...list].sort(
-      (a, b) =>
-        Number(!!a.archivedAt) - Number(!!b.archivedAt) ||
-        byRankThenName(
-          { rank: a.rank ?? DEFAULT_RANK, name: a.name },
-          { rank: b.rank ?? DEFAULT_RANK, name: b.name },
-        ),
-    );
-
-  const workspaces = byActive(snapshot.workspaces);
+  // Active first, archived last (dimmed), rank-then-name within each half —
+  // the shared container order (sortContainers, PROG-83).
+  const workspaces = sortContainers(snapshot.workspaces);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -148,7 +132,9 @@ export default function Structure({ snapshot }: { snapshot: SnapshotPayload }) {
 
       <div className="mt-6 space-y-6">
         {workspaces.map((workspace) => {
-          const focuses = byActive(snapshot.focuses.filter((p) => p.workspaceId === workspace.id));
+          const focuses = sortContainers(
+            snapshot.focuses.filter((p) => p.workspaceId === workspace.id),
+          );
           return (
             <section key={workspace.id} className="rounded-lg border border-line bg-card p-4">
               <div className="flex flex-wrap items-center gap-2">
@@ -169,8 +155,10 @@ export default function Structure({ snapshot }: { snapshot: SnapshotPayload }) {
               <div className="mt-3 space-y-3 border-l border-line pl-4">
                 {focuses.length === 0 && <p className="text-xs text-ink-faint">No focuses yet.</p>}
                 {focuses.map((focus) => {
-                  const repos = byActive(snapshot.repos.filter((r) => r.focusId === focus.id));
-                  const arcs = byActive(snapshot.arcs.filter((a) => a.focusId === focus.id));
+                  const repos = sortContainers(
+                    snapshot.repos.filter((r) => r.focusId === focus.id),
+                  );
+                  const arcs = sortContainers(snapshot.arcs.filter((a) => a.focusId === focus.id));
                   return (
                     <div key={focus.id}>
                       <div className="flex flex-wrap items-center gap-2">
