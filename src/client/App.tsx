@@ -19,16 +19,18 @@ import Structure from "./pages/Structure";
 const CONTAINER_ROUTES: { path: string; type: ContainerType }[] = [
   { path: "/workspace/:id", type: "workspace" },
   { path: "/focus/:id", type: "focus" },
-  { path: "/repo/:id", type: "repo" },
   { path: "/arc/:id", type: "arc" },
 ];
 
 // Pre-PROG-98 noun routes — old links live on in PR bodies, commit messages,
-// and bookmarks; redirect instead of 404ing them.
+// and bookmarks; redirect instead of 404ing them. `/repo/:id` joins them after
+// PROG-102 retired repos as containers — the id no longer resolves, so it lands
+// on the Structure overview rather than 404ing.
 const LEGACY_REDIRECTS: { path: string; to: (id: string) => string }[] = [
   { path: "/issue/:id", to: (id) => `/action/${id}` },
   { path: "/initiative/:id", to: (id) => `/workspace/${id}` },
   { path: "/product/:id", to: (id) => `/focus/${id}` },
+  { path: "/repo/:id", to: () => `/structure` },
 ];
 
 export default function App() {

@@ -46,7 +46,7 @@ import { STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
 import { actionKeyOf, loadStats, updateAction, type ActionPatch } from "../store";
 
-const FILTER_KEYS = ["workspace", "focus", "repo", "arc", "tag", "priority"] as const;
+const FILTER_KEYS = ["workspace", "focus", "arc", "tag", "priority"] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
 type Filters = Partial<Record<FilterKey, string>> & { backlog?: boolean; steps?: boolean };
 
@@ -100,9 +100,8 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
       if (!filters.steps && action.parentActionId !== null) return false;
       if (focusIdsInWorkspace && !focusIdsInWorkspace.has(action.focusId)) return false;
       if (filters.focus && action.focusId !== filters.focus) return false;
-      // Nullable containers (PROG-76): the "none" sentinel matches actions with
-      // no repo/arc; any other value is plain id equality.
-      if (filters.repo && !matchesNullableId(action.repoId, filters.repo)) return false;
+      // Nullable arc (PROG-76): the "none" sentinel matches actions with no
+      // arc; any other value is plain id equality.
       if (filters.arc && !matchesNullableId(action.arcId, filters.arc)) return false;
       if (filters.priority && action.priority !== filters.priority) return false;
       if (filters.tag) {

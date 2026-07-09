@@ -1,7 +1,8 @@
-// Container pages (SPEC §4): every workspace, focus, repo, and arc gets a
-// page — description on top (open-page feel), action list below with inline
-// status/priority edits. One component covers all four types; they differ
+// Container pages (SPEC §4): every workspace, focus, and arc gets a page —
+// description on top (open-page feel), action list below with inline
+// status/priority edits. One component covers all three types; they differ
 // only in how their action scope and child links derive from the snapshot.
+// A focus additionally edits its key prefix and optional git repo (PROG-102).
 
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
@@ -23,12 +24,11 @@ import PriorityIndicator from "../PriorityIndicator";
 import { actionKeyOf, updateContainer, updateAction } from "../store";
 import { copyArcBundleAsPrompt, prefetchArcBundle } from "../workOn";
 
-export type ContainerType = "workspace" | "focus" | "repo" | "arc";
+export type ContainerType = "workspace" | "focus" | "arc";
 
 const TYPE_LABELS: Record<ContainerType, string> = {
   workspace: "Workspace",
   focus: "Focus",
-  repo: "Repo",
   arc: "Arc",
 };
 // Compact "none" for the narrow inline row selects.
@@ -88,15 +88,6 @@ function resolve(ws: SnapshotPayload, type: ContainerType, id: string): Resolved
         actions: ws.actions.filter((i) => i.focusId === id),
         children: [
           {
-            label: "Repos",
-            items: sortContainers(ws.repos.filter((r) => r.focusId === id)).map((r) => ({
-              href: `/repo/${r.id}`,
-              name: r.name,
-              archived: r.archivedAt !== null,
-            })),
-            onNew: () => openCreateContainer({ kind: "repo", focusId: id }),
-          },
-          {
             label: "Arcs",
             items: sortContainers(ws.arcs.filter((a) => a.focusId === id)).map((a) => ({
               href: `/arc/${a.id}`,
@@ -107,16 +98,6 @@ function resolve(ws: SnapshotPayload, type: ContainerType, id: string): Resolved
           },
         ],
         boardParam: `focus=${id}`,
-      };
-    }
-    case "repo": {
-      const repo = ws.repos.find((r) => r.id === id);
-      if (!repo) return undefined;
-      return {
-        ...repo,
-        actions: ws.actions.filter((i) => i.repoId === id),
-        children: [],
-        boardParam: `focus=${repo.focusId}&repo=${id}`,
       };
     }
     case "arc": {
@@ -133,21 +114,15 @@ function resolve(ws: SnapshotPayload, type: ContainerType, id: string): Resolved
 }
 
 // The linked ancestor crumbs for a container page (PROG-103): a focus sits
-// under its workspace; a repo or arc under its focus (and that focus's
-// workspace); a workspace is a root. Dangling parents just shorten the trail.
+// under its workspace; an arc under its focus (and that focus's workspace); a
+// workspace is a root. Dangling parents just shorten the trail.
 function ancestorCrumbs(
   ws: SnapshotPayload,
   type: ContainerType,
   id: string,
 ): { label: string; href: string }[] {
   const focusId =
-    type === "focus"
-      ? id
-      : type === "repo"
-        ? ws.repos.find((r) => r.id === id)?.focusId
-        : type === "arc"
-          ? ws.arcs.find((a) => a.id === id)?.focusId
-          : undefined;
+    type === "focus" ? id : type === "arc" ? ws.arcs.find((a) => a.id === id)?.focusId : undefined;
   const focus = focusId ? ws.focuses.find((p) => p.id === focusId) : undefined;
   const workspace = focus ? ws.workspaces.find((w) => w.id === focus.workspaceId) : undefined;
   return [
@@ -243,13 +218,13 @@ export default function ContainerPage({
             />
           </p>
         )}
-        {type === "repo" && (
+        {type === "focus" && (
           <p className="mt-1 flex items-center gap-2 text-xs text-ink-faint">
             Git URL
             <InlineEdit
               value={resolved.gitUrl ?? ""}
               onSave={(gitUrl) => updateContainer(type, id, { gitUrl: gitUrl || null })}
-              placeholder="none — set it to enable PR/commit linking"
+              placeholder="none — the repo this focus mirrors"
               className="font-mono text-ink-soft"
               inputClassName="w-80 max-w-full font-mono text-xs"
             />

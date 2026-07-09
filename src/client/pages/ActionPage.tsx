@@ -87,7 +87,6 @@ export default function ActionPage({
 
   const focus = snapshot.focuses.find((p) => p.id === action.focusId);
   const workspace = focus ? snapshot.workspaces.find((w) => w.id === focus.workspaceId) : undefined;
-  const repo = action.repoId ? snapshot.repos.find((r) => r.id === action.repoId) : null;
   const arc = action.arcId ? snapshot.arcs.find((a) => a.id === action.arcId) : null;
   // Chips list alphabetically (PROG-83) — link insertion order means nothing.
   const actionTags = sortByName(
@@ -100,8 +99,8 @@ export default function ActionPage({
   return (
     <div className="mx-auto max-w-3xl overflow-hidden">
       {/* The action's place in the structure tree (PROG-103): Workspace /
-          Focus / Arc / key, ancestors linked. The repo isn't part of the
-          owner's stated path — it stays in the sidebar's Container field.
+          Focus / Arc / key, ancestors linked. The focus is the sole container
+          (PROG-102) — its optional git repo lives in the sidebar's Focus field.
           The key is the terminal crumb, so the old standalone key line above
           the title is gone (it would repeat the same text one line apart). */}
       <Breadcrumb
@@ -232,11 +231,18 @@ export default function ActionPage({
               onChange={(v) => updateAction(action.id, { estimate: v === "" ? null : Number(v) })}
             />
           </Field>
-          <Field label="Container">
-            <p className="text-sm">
-              {focus?.name ?? "?"}
-              {repo ? ` / ${repo.name}` : ""}
-            </p>
+          <Field label="Focus">
+            <p className="text-sm">{focus?.name ?? "?"}</p>
+            {focus?.gitUrl && (
+              <a
+                href={focus.gitUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="block truncate font-mono text-xs text-ink-faint hover:text-ink-soft hover:underline"
+              >
+                {focus.gitUrl.replace(/^https?:\/\//, "")}
+              </a>
+            )}
             <button
               onClick={() => openPalette({ kind: "move", actionId: action.id })}
               className={`mt-0.5 ${FIELD_ACTION_CLS}`}
@@ -645,21 +651,18 @@ function describeActivity(event: WireActivity, snapshot: SnapshotPayload): strin
     return `Status changed: ${label(data.from)} → ${label(data.to)}`;
   }
   if (event.type === "moved") {
+    // A move is focus-to-focus (PROG-102). Pre-PROG-102 events may also carry
+    // from/toRepoId; those are ignored now that repo isn't a container.
     const data = event.data as {
       fromFocusId?: string;
-      fromRepoId?: string | null;
       toFocusId?: string;
-      toRepoId?: string | null;
       fromKey?: string;
       toKey?: string;
     };
-    const containerName = (focusId?: string, repoId?: string | null) => {
-      const focus = snapshot.focuses.find((p) => p.id === focusId);
-      const repo = repoId ? snapshot.repos.find((r) => r.id === repoId) : undefined;
-      return `${focus?.name ?? "?"}${repo ? ` / ${repo.name}` : ""}`;
-    };
+    const focusName = (focusId?: string) =>
+      snapshot.focuses.find((p) => p.id === focusId)?.name ?? "?";
     const rekeyed = data.fromKey ? ` (was ${data.fromKey})` : "";
-    return `Moved: ${containerName(data.fromFocusId, data.fromRepoId)} → ${containerName(data.toFocusId, data.toRepoId)}${rekeyed}`;
+    return `Moved: ${focusName(data.fromFocusId)} → ${focusName(data.toFocusId)}${rekeyed}`;
   }
   if (event.type === "pr_linked") {
     const data = event.data as { githubRepo?: string; prNumber?: number; title?: string };

@@ -1,7 +1,8 @@
-// Container creation (D26): one dialog for all four types, opened from
+// Container creation (D26): one dialog for all three types, opened from
 // palette commands or the "+ New" buttons on container pages. Creation is
 // optimistic with a client-generated id, so submit navigates to the new
-// container page instantly.
+// container page instantly. A focus additionally takes an optional git repo
+// URL (PROG-102).
 
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
@@ -10,7 +11,7 @@ import { sortByName } from "../boardFilters";
 import { createContainer, findActionByKey, type ContainerCreateInput } from "../store";
 import { onOpenCreateContainer, type ContainerDialogRequest } from "./controller";
 
-const KIND_LABELS = { workspace: "workspace", focus: "focus", repo: "repo", arc: "arc" };
+const KIND_LABELS = { workspace: "workspace", focus: "focus", arc: "arc" };
 
 // e.g. "My Side Project" → "MYSI"; the user can always override.
 const suggestPrefix = (name: string) =>
@@ -19,16 +20,12 @@ const suggestPrefix = (name: string) =>
     .replaceAll(/[^A-Z]/g, "")
     .slice(0, 4);
 
-// Parent focus for repo/arc creation, from wherever the user is.
+// Parent focus for arc creation, from wherever the user is.
 function deriveFocusId(ws: SnapshotPayload, path: string): string | undefined {
-  let m = /^\/(?:focus|repo|arc)\/([^/]+)/.exec(path);
+  let m = /^\/(?:focus|arc)\/([^/]+)/.exec(path);
   if (m) {
     const id = m[1]!;
-    return (
-      ws.focuses.find((p) => p.id === id)?.id ??
-      ws.repos.find((r) => r.id === id)?.focusId ??
-      ws.arcs.find((a) => a.id === id)?.focusId
-    );
+    return ws.focuses.find((p) => p.id === id)?.id ?? ws.arcs.find((a) => a.id === id)?.focusId;
   }
   m = /^\/action\/([^/]+)/.exec(path);
   if (m) return findActionByKey(ws, decodeURIComponent(m[1]!))?.action.focusId;
@@ -61,7 +58,7 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
           setParentId(
             ("workspaceId" in req ? req.workspaceId : undefined) ?? activeWorkspaces[0]?.id ?? "",
           );
-        } else if (req.kind === "repo" || req.kind === "arc") {
+        } else if (req.kind === "arc") {
           setParentId(
             ("focusId" in req ? req.focusId : undefined) ??
               deriveFocusId(snapshot, path) ??
@@ -89,10 +86,8 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
       kind === "workspace"
         ? { kind, name }
         : kind === "focus"
-          ? { kind, name, workspaceId: parentId, keyPrefix }
-          : kind === "repo"
-            ? { kind, name, focusId: parentId, gitUrl: gitUrl.trim() || null }
-            : { kind, name, focusId: parentId };
+          ? { kind, name, workspaceId: parentId, keyPrefix, gitUrl: gitUrl.trim() || null }
+          : { kind, name, focusId: parentId };
     const id = createContainer(input);
     setRequest(null);
     navigate(`/${kind}/${id}`);
@@ -158,9 +153,15 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
                 title="Action-key prefix: 2–8 letters"
                 className="w-24 rounded border border-line px-2 py-1 font-mono text-xs uppercase focus:border-ink-faint focus:outline-none"
               />
+              <input
+                value={gitUrl}
+                onChange={(e) => setGitUrl(e.target.value)}
+                placeholder="Git URL (optional)"
+                className="min-w-48 flex-1 rounded border border-line px-2 py-1 text-xs focus:border-ink-faint focus:outline-none"
+              />
             </>
           )}
-          {(kind === "repo" || kind === "arc") && (
+          {kind === "arc" && (
             <select
               value={parentId}
               onChange={(e) => setParentId(e.target.value)}
@@ -172,14 +173,6 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
                 </option>
               ))}
             </select>
-          )}
-          {kind === "repo" && (
-            <input
-              value={gitUrl}
-              onChange={(e) => setGitUrl(e.target.value)}
-              placeholder="Git URL (optional)"
-              className="min-w-48 flex-1 rounded border border-line px-2 py-1 text-xs focus:border-ink-faint focus:outline-none"
-            />
           )}
         </div>
         <div className="mt-4 flex justify-end gap-2">

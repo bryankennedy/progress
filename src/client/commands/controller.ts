@@ -11,7 +11,6 @@ export type PaletteMode =
 
 export type CreateDefaults = {
   focusId?: string;
-  repoId?: string | null;
   arcId?: string | null;
 };
 
@@ -51,7 +50,6 @@ export const onOpenCreateAction = create.on;
 export type ContainerDialogRequest =
   | { kind: "workspace" }
   | { kind: "focus"; workspaceId?: string }
-  | { kind: "repo"; focusId?: string }
   | { kind: "arc"; focusId?: string };
 
 const createContainer = channel<ContainerDialogRequest>();

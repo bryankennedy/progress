@@ -238,30 +238,17 @@ function buildItems(
       ].filter((item) => matches(item.label));
     }
     case "move": {
-      const targets: { focusId: string; repoId: string | null; label: string; hint: string }[] = [];
-      // Archived containers aren't valid destinations (D26). Focuses list
-      // alphabetically, each followed by its repos, also alphabetical (PROG-83).
-      for (const focus of sortByName(ws.focuses.filter((p) => !p.archivedAt))) {
-        targets.push({ focusId: focus.id, repoId: null, label: focus.name, hint: "Focus" });
-        for (const repo of sortByName(
-          ws.repos.filter((r) => r.focusId === focus.id && !r.archivedAt),
-        )) {
-          targets.push({
-            focusId: focus.id,
-            repoId: repo.id,
-            label: `${focus.name} / ${repo.name}`,
-            hint: "Repo",
-          });
-        }
-      }
-      return targets
-        .filter((t) => !(t.focusId === action.focusId && t.repoId === action.repoId))
-        .filter((t) => matches(t.label))
-        .map((t) => ({
-          id: `${t.focusId}:${t.repoId ?? ""}`,
-          label: t.label,
-          hint: t.hint,
-          run: () => moveAction(action.id, { focusId: t.focusId, repoId: t.repoId }),
+      // A move now only changes the focus (PROG-102). Archived focuses aren't
+      // valid destinations (D26); the action's current focus is excluded.
+      // Alphabetical (PROG-83).
+      return sortByName(ws.focuses.filter((p) => !p.archivedAt))
+        .filter((focus) => focus.id !== action.focusId)
+        .filter((focus) => matches(focus.name))
+        .map((focus) => ({
+          id: focus.id,
+          label: focus.name,
+          hint: "Focus",
+          run: () => moveAction(action.id, { focusId: focus.id }),
         }));
     }
     case "due": {
@@ -375,7 +362,7 @@ function rootItems(
       picker("workon", "W"),
     );
   }
-  for (const kind of ["workspace", "focus", "repo", "arc"] as const) {
+  for (const kind of ["workspace", "focus", "arc"] as const) {
     commands.push({
       id: `cmd:new-${kind}`,
       label: `Create ${kind}…`,
@@ -421,7 +408,6 @@ function rootItems(
       href: `/workspace/${x.id}`,
     })),
     ...sortByName(ws.focuses).map((x) => ({ ...x, hint: "Focus", href: `/focus/${x.id}` })),
-    ...sortByName(ws.repos).map((x) => ({ ...x, hint: "Repo", href: `/repo/${x.id}` })),
     ...sortByName(ws.arcs).map((x) => ({ ...x, hint: "Arc", href: `/arc/${x.id}` })),
   ]
     .filter((c) => !c.archivedAt && matches(c.name))

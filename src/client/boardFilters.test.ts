@@ -33,10 +33,10 @@ describe("filtersToRestore", () => {
 });
 
 // Prevent impossible filters (PROG-75). The board's filters form a hierarchy
-// (Workspace → Focus → Arc/Repo); changing an ancestor must drop a stranded
+// (Workspace → Focus → Arc); changing an ancestor must drop a stranded
 // descendant so the board never filters to nothing behind a stale selection.
 describe("pruneImpossibleFilters", () => {
-  // foc_1, foc_2 live under wsp_1; foc_3 under wsp_2. Arcs/repos hang off them.
+  // foc_1, foc_2 live under wsp_1; foc_3 under wsp_2. Arcs hang off them.
   const parents = {
     focusWorkspace: new Map([
       ["foc_1", "wsp_1"],
@@ -47,10 +47,6 @@ describe("pruneImpossibleFilters", () => {
       ["arc_1", "foc_1"],
       ["arc_3", "foc_3"],
     ]),
-    repoFocus: new Map([
-      ["repo_1", "foc_1"],
-      ["repo_3", "foc_3"],
-    ]),
   };
   const prune = (search: string) => {
     const params = new URLSearchParams(search);
@@ -59,8 +55,8 @@ describe("pruneImpossibleFilters", () => {
   };
 
   it("keeps a consistent hierarchy untouched", () => {
-    expect(prune("workspace=wsp_1&focus=foc_1&arc=arc_1&repo=repo_1")).toBe(
-      "workspace=wsp_1&focus=foc_1&arc=arc_1&repo=repo_1",
+    expect(prune("workspace=wsp_1&focus=foc_1&arc=arc_1")).toBe(
+      "workspace=wsp_1&focus=foc_1&arc=arc_1",
     );
   });
 
@@ -68,23 +64,21 @@ describe("pruneImpossibleFilters", () => {
     expect(prune("workspace=wsp_2&focus=foc_1")).toBe("workspace=wsp_2");
   });
 
-  it("drops an Arc/Repo from a different Focus", () => {
-    expect(prune("focus=foc_3&arc=arc_1&repo=repo_1")).toBe("focus=foc_3");
+  it("drops an Arc from a different Focus", () => {
+    expect(prune("focus=foc_3&arc=arc_1")).toBe("focus=foc_3");
   });
 
-  it("drops an Arc/Repo whose Focus left the chosen Workspace (no Focus set)", () => {
-    expect(prune("workspace=wsp_2&arc=arc_1&repo=repo_1")).toBe("workspace=wsp_2");
+  it("drops an Arc whose Focus left the chosen Workspace (no Focus set)", () => {
+    expect(prune("workspace=wsp_2&arc=arc_1")).toBe("workspace=wsp_2");
   });
 
-  it("keeps an Arc/Repo consistent with the Workspace when no Focus is set", () => {
-    expect(prune("workspace=wsp_1&arc=arc_1&repo=repo_1")).toBe(
-      "workspace=wsp_1&arc=arc_1&repo=repo_1",
-    );
+  it("keeps an Arc consistent with the Workspace when no Focus is set", () => {
+    expect(prune("workspace=wsp_1&arc=arc_1")).toBe("workspace=wsp_1&arc=arc_1");
   });
 
-  it("cascades: changing Workspace strands Focus, which strands Arc/Repo", () => {
-    // foc_1/arc_1/repo_1 are all under wsp_1; switching to wsp_2 invalidates all.
-    expect(prune("workspace=wsp_2&focus=foc_1&arc=arc_1&repo=repo_1")).toBe("workspace=wsp_2");
+  it("cascades: changing Workspace strands Focus, which strands Arc", () => {
+    // foc_1/arc_1 are all under wsp_1; switching to wsp_2 invalidates all.
+    expect(prune("workspace=wsp_2&focus=foc_1&arc=arc_1")).toBe("workspace=wsp_2");
   });
 
   it("leaves unrelated filters (tag, priority, backlog) alone", () => {
@@ -98,21 +92,19 @@ describe("pruneImpossibleFilters", () => {
   });
 
   it("is a no-op with no ancestors selected", () => {
-    expect(prune("arc=arc_1&repo=repo_3")).toBe("arc=arc_1&repo=repo_3");
+    expect(prune("arc=arc_1")).toBe("arc=arc_1");
   });
 
-  // "No arc/repo" (PROG-76) belongs to no branch, so it's compatible with any
+  // "No arc" (PROG-76) belongs to no branch, so it's compatible with any
   // ancestor and must survive pruning.
-  it("keeps an Arc/Repo 'none' filter under any ancestor selection", () => {
-    expect(prune(`focus=foc_3&arc=${FILTER_NONE}&repo=${FILTER_NONE}`)).toBe(
-      `focus=foc_3&arc=${FILTER_NONE}&repo=${FILTER_NONE}`,
-    );
+  it("keeps an Arc 'none' filter under any ancestor selection", () => {
+    expect(prune(`focus=foc_3&arc=${FILTER_NONE}`)).toBe(`focus=foc_3&arc=${FILTER_NONE}`);
     expect(prune(`workspace=wsp_2&arc=${FILTER_NONE}`)).toBe(`workspace=wsp_2&arc=${FILTER_NONE}`);
   });
 });
 
-// The nullable-id filter (Arc / Repo) — the "none" sentinel matches an empty
-// field; everything else is plain id equality (PROG-76).
+// The nullable-id filter (Arc) — the "none" sentinel matches an empty field;
+// everything else is plain id equality (PROG-76).
 describe("matchesNullableId", () => {
   it("matches only empty fields when the filter is the 'none' sentinel", () => {
     expect(matchesNullableId(null, FILTER_NONE)).toBe(true);

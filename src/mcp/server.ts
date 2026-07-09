@@ -81,7 +81,6 @@ async function apiJson(method: string, path: string, body?: unknown): Promise<an
 
 type Snapshot = {
   focuses: any[];
-  repos: any[];
   arcs: any[];
   actions: any[];
   tags: any[];
@@ -93,7 +92,6 @@ type Resolved = {
   ws: Snapshot;
   action: any;
   focus: any;
-  repo: any | null;
   arc: any | null;
   key: string;
 };
@@ -129,9 +127,8 @@ async function resolve(rawKey: string): Promise<Resolved> {
   const action = findActionByKey(ws, rawKey);
   if (!action) throw new Error(`No action found for key ${normalizeKey(rawKey)}.`);
   const focus = ws.focuses.find((p) => p.id === action.focusId) ?? null;
-  const repo = action.repoId ? (ws.repos.find((r) => r.id === action.repoId) ?? null) : null;
   const arc = action.arcId ? (ws.arcs.find((a) => a.id === action.arcId) ?? null) : null;
-  return { ws, action, focus, repo, arc, key: liveKey(ws, action) };
+  return { ws, action, focus, arc, key: liveKey(ws, action) };
 }
 
 function tagNamesFor(ws: Snapshot, actionId: string): string[] {
@@ -152,7 +149,6 @@ function summarize(ws: Snapshot, action: any) {
     estimate: action.estimate,
     dueDate: action.dueDate ?? null,
     focus: prefixOf(ws, action.focusId),
-    repo: action.repoId ? (ws.repos.find((r) => r.id === action.repoId)?.name ?? null) : null,
     arc: action.arcId ? (ws.arcs.find((a) => a.id === action.arcId)?.name ?? null) : null,
     tags: tagNamesFor(ws, action.id),
   };
@@ -179,7 +175,7 @@ server.registerTool(
     title: "Get action bundle",
     description:
       "Fetch the deterministic Markdown work-order for an action — title, status, full lineage " +
-      "(focus → repo with gitUrl → arc), comments, linked PRs/commits, and a report-back " +
+      "(focus with optional gitUrl → arc), comments, linked PRs/commits, and a report-back " +
       "preamble. This is the canonical context to start work on an action.",
     inputSchema: { key: KEY },
   },
@@ -204,7 +200,7 @@ server.registerTool(
       ...summarize(r.ws, r.action),
       description: r.action.description,
       focusName: r.focus?.name ?? null,
-      repoGitUrl: r.repo?.gitUrl ?? null,
+      focusGitUrl: r.focus?.gitUrl ?? null,
       arcDescription: r.arc?.description ?? null,
     });
   },
@@ -216,25 +212,22 @@ server.registerTool(
     title: "List / filter actions",
     description:
       "List actions with optional filters. All filters AND together. Returns compact summaries " +
-      "(key, title, status, priority, repo, arc, tags). Use this for 'my todo in repo X' queries.",
+      "(key, title, status, priority, arc, tags). Use this for 'my todo in focus X' queries.",
     inputSchema: {
       status: z.enum(ACTION_STATUSES).optional().describe("Exact status filter"),
       focusKey: z.string().optional().describe("Focus key prefix, e.g. PROG"),
-      repo: z.string().optional().describe("Repo name (exact)"),
       arc: z.string().optional().describe("Arc name (exact)"),
       tag: z.string().optional().describe("Tag name the action carries"),
       query: z.string().optional().describe("Case-insensitive substring of title or description"),
       limit: z.number().int().positive().max(200).optional().describe("Max results (default 50)"),
     },
   },
-  async ({ status, focusKey, repo, arc, tag, query, limit }) => {
+  async ({ status, focusKey, arc, tag, query, limit }) => {
     const ws = await snapshot();
     const focusId = focusKey
       ? ws.focuses.find((p) => p.keyPrefix.toUpperCase() === focusKey.toUpperCase())?.id
       : undefined;
     if (focusKey && !focusId) throw new Error(`No focus with key prefix ${focusKey}.`);
-    const repoId = repo ? ws.repos.find((r) => r.name === repo)?.id : undefined;
-    if (repo && !repoId) throw new Error(`No repo named "${repo}".`);
     const arcId = arc ? ws.arcs.find((a) => a.name === arc)?.id : undefined;
     if (arc && !arcId) throw new Error(`No arc named "${arc}".`);
     const tagId = tag ? ws.tags.find((t) => t.name === tag)?.id : undefined;
@@ -247,7 +240,6 @@ server.registerTool(
     const matches = ws.actions
       .filter((i) => (status ? i.status === status : true))
       .filter((i) => (focusId ? i.focusId === focusId : true))
-      .filter((i) => (repoId ? i.repoId === repoId : true))
       .filter((i) => (arcId ? i.arcId === arcId : true))
       .filter((i) => (taggedActionIds ? taggedActionIds.has(i.id) : true))
       .filter((i) =>
@@ -267,7 +259,7 @@ server.registerTool(
   {
     title: "Create action",
     description:
-      "Create a new action in a focus. arc/repo are referenced by name and must belong to that " +
+      "Create a new action in a focus. arc is referenced by name and must belong to that " +
       "focus. Returns the new action's key.",
     inputSchema: {
       focusKey: z.string().describe("Focus key prefix, e.g. PROG"),
@@ -280,11 +272,10 @@ server.registerTool(
         .optional()
         .describe(`Points, one of ${ACTION_ESTIMATES.join(", ")}`),
       arc: z.string().optional().describe("Arc name within the focus"),
-      repo: z.string().optional().describe("Repo name within the focus"),
       dueDate: z.string().optional().describe("Optional due date as YYYY-MM-DD (calendar day)"),
     },
   },
-  async ({ focusKey, title, description, status, priority, estimate, arc, repo, dueDate }) => {
+  async ({ focusKey, title, description, status, priority, estimate, arc, dueDate }) => {
     const ws = await snapshot();
     const focus = ws.focuses.find((p) => p.keyPrefix.toUpperCase() === focusKey.toUpperCase());
     if (!focus) throw new Error(`No focus with key prefix ${focusKey}.`);
@@ -294,12 +285,6 @@ server.registerTool(
       if (!found) throw new Error(`No arc named "${arc}" in ${focus.keyPrefix}.`);
       arcId = found.id;
     }
-    let repoId: string | null = null;
-    if (repo) {
-      const found = ws.repos.find((r) => r.name === repo && r.focusId === focus.id);
-      if (!found) throw new Error(`No repo named "${repo}" in ${focus.keyPrefix}.`);
-      repoId = found.id;
-    }
     const { action } = await apiJson("POST", "/api/actions", {
       focusId: focus.id,
       title,
@@ -308,7 +293,6 @@ server.registerTool(
       priority,
       estimate: estimate ?? null,
       arcId,
-      repoId,
       dueDate: dueDate ?? null,
     });
     return text(`Created ${focus.keyPrefix}-${action.number}: ${action.title} (${action.status}).`);
@@ -372,34 +356,22 @@ server.registerTool(
   {
     title: "Move action to another focus",
     description:
-      "Move an action to a different focus (optionally into one of its repos). A cross-focus " +
-      "move re-keys the action and retires the old key as a permanent alias.",
+      "Move an action to a different focus. The move re-keys the action and retires the old key " +
+      "as a permanent alias.",
     inputSchema: {
       key: KEY,
       toFocusKey: z.string().describe("Destination focus key prefix"),
-      repo: z.string().optional().describe("Destination repo name (optional)"),
     },
   },
-  async ({ key, toFocusKey, repo }) => {
+  async ({ key, toFocusKey }) => {
     const r = await resolve(key);
     const target = r.ws.focuses.find((p) => p.keyPrefix.toUpperCase() === toFocusKey.toUpperCase());
     if (!target) throw new Error(`No focus with key prefix ${toFocusKey}.`);
-    let repoId: string | null = null;
-    if (repo) {
-      const found = r.ws.repos.find((x) => x.name === repo && x.focusId === target.id);
-      if (!found) throw new Error(`No repo named "${repo}" in ${target.keyPrefix}.`);
-      repoId = found.id;
-    }
     const { action } = await apiJson("POST", `/api/actions/${r.action.id}/move`, {
       focusId: target.id,
-      repoId,
     });
     const newKey = `${target.keyPrefix}-${action.number}`;
-    return text(
-      newKey === r.key
-        ? `Moved ${r.key} within ${target.keyPrefix} (key unchanged).`
-        : `Moved ${r.key} → ${newKey} (old key now redirects).`,
-    );
+    return text(`Moved ${r.key} → ${newKey} (old key now redirects).`);
   },
 );
 

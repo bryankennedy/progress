@@ -804,7 +804,6 @@ function FocusOutline({
     createAction({
       title,
       focusId: focus.id,
-      repoId: null,
       arcId,
       parentActionId,
       status: "todo",

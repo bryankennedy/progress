@@ -11,7 +11,6 @@
 const COUNTS = {
   workspaces: 3,
   focuses: 10,
-  repos: 25,
   arcs: 50,
   tags: 30,
   actions: 5000,
@@ -157,35 +156,25 @@ for (let i = 1; i <= COUNTS.workspaces; i++) {
 insertChunked("workspaces", "id, name, description, creator_id, created_at, updated_at", iniRows);
 
 // Focus rows are rendered after actions are distributed (the
-// next_action_number counter depends on it) but inserted before repos/arcs/
-// actions for FK order — hence the placeholder slot in `lines`.
+// next_action_number counter depends on it) but inserted before arcs/actions
+// for FK order — hence the placeholder slot in `lines`. Some focuses carry an
+// optional git_url (PROG-102), the field that replaced the `repos` container.
 const focusSlot = lines.length;
 const focusIds: string[] = [];
-const focusMeta = new Map<string, { workspace: string; prefix: string; t: number }>();
+const focusMeta = new Map<
+  string,
+  { workspace: string; prefix: string; gitUrl: string | null; t: number }
+>();
 for (let i = 1; i <= COUNTS.focuses; i++) {
   const id = `prd_syn${i}`;
   focusIds.push(id);
   focusMeta.set(id, {
     workspace: pick(iniIds),
     prefix: `SYN${String.fromCharCode(64 + i)}`,
+    gitUrl: rand() < 0.5 ? `https://github.com/synthetic/repo-${i}` : null,
     t: NOW - int(0, YEAR),
   });
 }
-
-const repoIdsByFocus = new Map<string, string[]>(focusIds.map((p) => [p, []]));
-const repoRows: Row[] = [];
-for (let i = 1; i <= COUNTS.repos; i++) {
-  const id = `rep_syn${i}`;
-  const focus = pick(focusIds);
-  repoIdsByFocus.get(focus)!.push(id);
-  const t = NOW - int(0, YEAR);
-  repoRows.push(`('${id}', '${focus}', 'synthetic-repo-${i}', '', NULL, 'usr_owner', ${t}, ${t})`);
-}
-insertChunked(
-  "repos",
-  "id, focus_id, name, description, git_url, creator_id, created_at, updated_at",
-  repoRows,
-);
 
 const arcIdsByFocus = new Map<string, string[]>(focusIds.map((p) => [p, []]));
 const arcRows: Row[] = [];
@@ -220,8 +209,6 @@ for (let i = 1; i <= COUNTS.actions; i++) {
   const number = nextNumber.get(focus)!;
   nextNumber.set(focus, number + 1);
 
-  const repos = repoIdsByFocus.get(focus)!;
-  const repo = repos.length > 0 && rand() < 0.7 ? pick(repos) : null;
   const arcs = arcIdsByFocus.get(focus)!;
   const arc = arcs.length > 0 && rand() < 0.5 ? pick(arcs) : null;
 
@@ -240,7 +227,7 @@ for (let i = 1; i <= COUNTS.actions; i++) {
   const rank = String(i * 1000 + 1).padStart(12, "0");
 
   actionRows.push(
-    `('${id}', '${focus}', ${repo ? `'${repo}'` : "NULL"}, ${arc ? `'${arc}'` : "NULL"}, ${number}, '${title}', '', '${status}', '${priority}', ${estimate}, '${rank}', 'usr_owner', ${assignee}, ${created}, ${updated}, ${completed})`,
+    `('${id}', '${focus}', ${arc ? `'${arc}'` : "NULL"}, ${number}, '${title}', '', '${status}', '${priority}', ${estimate}, '${rank}', 'usr_owner', ${assignee}, ${created}, ${updated}, ${completed})`,
   );
 
   const tagCount = weighted([
@@ -255,7 +242,7 @@ for (let i = 1; i <= COUNTS.actions; i++) {
 }
 insertChunked(
   "actions",
-  "id, focus_id, repo_id, arc_id, number, title, description, status, priority, estimate, rank, creator_id, assignee_id, created_at, updated_at, completed_at",
+  "id, focus_id, arc_id, number, title, description, status, priority, estimate, rank, creator_id, assignee_id, created_at, updated_at, completed_at",
   actionRows,
 );
 insertChunked("action_tags", "action_id, tag_id", actionTagRows);
@@ -263,12 +250,12 @@ insertChunked("action_tags", "action_id, tag_id", actionTagRows);
 // Render focuses into their reserved slot, now that counters are final.
 const prodRows = focusIds.map((id, i) => {
   const m = focusMeta.get(id)!;
-  return `('${id}', '${m.workspace}', 'Synthetic Focus ${i + 1}', '', '${m.prefix}', ${nextNumber.get(id)}, 'usr_owner', ${m.t}, ${m.t})`;
+  return `('${id}', '${m.workspace}', 'Synthetic Focus ${i + 1}', '', ${m.gitUrl ? `'${m.gitUrl}'` : "NULL"}, '${m.prefix}', ${nextNumber.get(id)}, 'usr_owner', ${m.t}, ${m.t})`;
 });
 lines.splice(
   focusSlot,
   0,
-  `INSERT OR IGNORE INTO focuses (id, workspace_id, name, description, key_prefix, next_action_number, creator_id, created_at, updated_at) VALUES\n${prodRows.join(",\n")};`,
+  `INSERT OR IGNORE INTO focuses (id, workspace_id, name, description, git_url, key_prefix, next_action_number, creator_id, created_at, updated_at) VALUES\n${prodRows.join(",\n")};`,
 );
 
 const outPath = new URL("./seed-scale.generated.sql", import.meta.url).pathname;

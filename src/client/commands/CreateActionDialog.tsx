@@ -3,7 +3,7 @@
 // viewed action's container, or the board's active filters — so the common
 // case is: press C, type a title, hit Enter.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import {
   ACTION_ESTIMATES,
@@ -25,18 +25,9 @@ const suggestPrefix = (name: string) =>
     .replaceAll(/[^A-Z]/g, "")
     .slice(0, 4);
 
-// The container <select> encodes "focus-level or repo" in one value.
-const containerValue = (d: CreateDefaults) =>
-  d.repoId ? `r:${d.repoId}` : d.focusId ? `p:${d.focusId}` : "";
-
 function deriveDefaults(ws: SnapshotPayload, path: string, search: string): CreateDefaults {
   let m = /^\/focus\/([^/]+)/.exec(path);
   if (m) return { focusId: m[1] };
-  m = /^\/repo\/([^/]+)/.exec(path);
-  if (m) {
-    const repo = ws.repos.find((r) => r.id === m![1]);
-    if (repo) return { focusId: repo.focusId, repoId: repo.id };
-  }
   m = /^\/arc\/([^/]+)/.exec(path);
   if (m) {
     const arc = ws.arcs.find((a) => a.id === m![1]);
@@ -45,12 +36,10 @@ function deriveDefaults(ws: SnapshotPayload, path: string, search: string): Crea
   m = /^\/action\/([^/]+)/.exec(path);
   if (m) {
     const found = findActionByKey(ws, decodeURIComponent(m[1]!));
-    if (found) return { focusId: found.action.focusId, repoId: found.action.repoId };
+    if (found) return { focusId: found.action.focusId };
   }
   // The board: honor its active container filters.
   const params = new URLSearchParams(search);
-  const repo = ws.repos.find((r) => r.id === params.get("repo"));
-  if (repo) return { focusId: repo.focusId, repoId: repo.id };
   const arc = ws.arcs.find((a) => a.id === params.get("arc"));
   if (arc) return { focusId: arc.focusId, arcId: arc.id };
   const focus = ws.focuses.find((p) => p.id === params.get("focus"));
@@ -84,7 +73,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
       onOpenCreateAction((given) => {
         const defaults = { ...deriveDefaults(snapshot, path, search), ...given };
         if (!defaults.focusId) defaults.focusId = snapshot.focuses.find((p) => !p.archivedAt)?.id;
-        setContainer(containerValue(defaults));
+        setContainer(defaults.focusId ?? "");
         setArcId(defaults.arcId ?? "");
         setTitle("");
         setStatus("todo");
@@ -98,12 +87,9 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
     [snapshot, path, search],
   );
 
-  const selectedFocusId = useMemo(() => {
-    if (container.startsWith("p:")) return container.slice(2);
-    if (container.startsWith("r:"))
-      return snapshot.repos.find((r) => r.id === container.slice(2))?.focusId;
-    return undefined;
-  }, [container, snapshot.repos]);
+  // `container` holds the selected focus id directly (PROG-102 dropped the
+  // focus/repo encoding).
+  const selectedFocusId = container || undefined;
 
   // Archived containers aren't valid creation targets (D26).
   // Pickers list options alphabetically, like the filter dropdowns (PROG-66,
@@ -124,7 +110,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
       workspaceId: newFocus.workspaceId,
       keyPrefix: newFocus.prefix,
     });
-    setContainer(`p:${id}`);
+    setContainer(id);
     setArcId("");
     setNewFocus(null);
   };
@@ -140,11 +126,8 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
 
   const onContainerChange = (value: string) => {
     setContainer(value);
-    const focusId = value.startsWith("p:")
-      ? value.slice(2)
-      : snapshot.repos.find((r) => r.id === value.slice(2))?.focusId;
     // Arc must stay within the action's focus (SPEC §3).
-    setArcId((a) => (snapshot.arcs.find((x) => x.id === a)?.focusId === focusId ? a : ""));
+    setArcId((a) => (snapshot.arcs.find((x) => x.id === a)?.focusId === value ? a : ""));
   };
 
   const submit = () => {
@@ -153,7 +136,6 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
     const key = createAction({
       title: trimmed,
       focusId: selectedFocusId,
-      repoId: container.startsWith("r:") ? container.slice(2) : null,
       arcId: arcId || null,
       parentActionId: null,
       status,
@@ -197,21 +179,11 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
             onChange={(e) => onContainerChange(e.target.value)}
             className={selectClass}
           >
-            {activeFocuses.map((p) => {
-              const focusRepos = sortByName(
-                snapshot.repos.filter((r) => r.focusId === p.id && !r.archivedAt),
-              );
-              return (
-                <optgroup key={p.id} label={p.name}>
-                  <option value={`p:${p.id}`}>{p.name}</option>
-                  {focusRepos.map((r) => (
-                    <option key={r.id} value={`r:${r.id}`}>
-                      {p.name} / {r.name}
-                    </option>
-                  ))}
-                </optgroup>
-              );
-            })}
+            {activeFocuses.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
           </select>
           <button
             type="button"

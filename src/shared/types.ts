@@ -14,7 +14,6 @@ import type {
   ActionTag,
   PrLink,
   Focus,
-  Repo,
   Tag,
   User,
 } from "../db/schema";
@@ -26,7 +25,6 @@ export type Serialized<T> = {
 export type WireUser = Serialized<User>;
 export type WireWorkspace = Serialized<Workspace>;
 export type WireFocus = Serialized<Focus>;
-export type WireRepo = Serialized<Repo>;
 export type WireArc = Serialized<Arc>;
 export type WireAction = Serialized<Action>;
 export type WireActionKeyAlias = Serialized<ActionKeyAlias>;
@@ -54,7 +52,6 @@ export type SnapshotPayload = {
   users: WireUser[];
   workspaces: WireWorkspace[];
   focuses: WireFocus[];
-  repos: WireRepo[];
   arcs: WireArc[];
   actions: WireAction[];
   tags: WireTag[];

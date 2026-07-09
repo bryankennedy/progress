@@ -46,25 +46,29 @@ is **"what's due and when."** So v2 is two moves:
    renders from memory (§7.1).
 2. **Rigid simplicity over configurability.** One fixed status set, one way to
    do things. v2 adds fields and views, **not** knobs.
-3. **The owner's nouns, exactly.** Workspace → Focus → Repo/Arc → Action
-   (→ Step) — the hierarchy was **unchanged in v2** (§3) and renamed once, by
-   PROG-98 (from Initiative → Product → Repo/Arc → Issue). "Epic" and
-   "project" remain banned words.
+3. **The owner's nouns, exactly.** Workspace → Focus → Arc → Action
+   (→ Step) — the hierarchy was **unchanged in v2** (§3), renamed once by
+   PROG-98 (from Initiative → Product → Repo/Arc → Issue), then simplified by
+   **PROG-102**, which demoted **Repo** from a container to the focus's optional
+   `gitUrl` field. "Epic" and "project" remain banned words.
 4. **Paper-y, calm UI.** Light, typography-led, mobile-friendly.
 
 ## 3. The broadened domain (same nouns, wider meaning) — **shipped**
 
 **Intent:** the existing nouns stretch to *any area of responsibility* without a
 vocabulary change — a **Focus** is a software product *or* "Household" /
-"Finances" / "Health"; **Repo** stays dev-specific and **optional**, so
-repo-less focuses are first-class; an **Arc** is a sub-area/theme; an **Action**
-is a task (now with a due date, §5). v2 shipped this by reusing "Product" for a
-life-area — one small mental stretch that kept rigid simplicity / settled
-schema; PROG-98 later removed the stretch by renaming the nouns
-(Workspace/Focus/Action/Step) without changing the shape.
+"Finances" / "Health"; the git repo a focus mirrors is dev-specific and
+**optional** (a plain `gitUrl` field since PROG-102), so repo-less focuses are
+first-class; an **Arc** is a sub-area/theme; an **Action** is a task (now with a
+due date, §5). v2 shipped this by reusing "Product" for a life-area — one small
+mental stretch that kept rigid simplicity / settled schema; PROG-98 later removed
+the stretch by renaming the nouns (Workspace/Focus/Action/Step) without changing
+the shape.
 
-Shipped: no schema-shape change; repo-less focuses carry no repo-only
-affordances. See `REFERENCE.md` §2 (domain model) and DECISIONS **D36**.
+Shipped: repo-less focuses carry no repo-only affordances. **PROG-102** then
+retired the Repo container outright — a focus optionally carries a `gitUrl`
+instead — so the "wider meaning" is now the *only* meaning. See `REFERENCE.md`
+§2 (domain model) and DECISIONS **D36**, **PROG-102**.
 
 ## 4. Frictionless structure creation — **shipped**
 
@@ -73,11 +77,11 @@ on their own from the dashboard"*): make structure creation discoverable and
 inline, not a palette-only power move.
 
 Shipped — a persistent **New** menu in the app header (Action · Workspace ·
-Focus · Repo · Arc), inline **"+ New focus / + New arc"** in the
-create-action dialog (folding in the deferred "add arc from the New Issue
-modal"), and a dedicated **`/structure`** route (the Workspace → Focus →
-Repo · Arc tree with inline "+ add"). All reuse the v1 optimistic container
-write paths (D26) — surfaces only, no new endpoints. See `REFERENCE.md` §5 and
+Focus · Arc; Repo was dropped by PROG-102), inline **"+ New focus / + New arc"**
+in the create-action dialog (folding in the deferred "add arc from the New Issue
+modal"), and a dedicated **`/structure`** route (the Workspace → Focus → Arc
+tree with inline "+ add"). All reuse the v1 optimistic container write paths
+(D26) — surfaces only, no new endpoints. See `REFERENCE.md` §5 and
 DECISIONS **D40**.
 
 ## 5. Due dates — **shipped**

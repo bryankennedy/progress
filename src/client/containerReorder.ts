@@ -35,8 +35,8 @@ export function byRankThenName(
  * The one display order for a container list (PROG-83): active first,
  * archived last (they render dimmed), and within each half the global manual
  * order — rank set by dragging on the Outline, name tiebreak, so an
- * un-reordered group reads alphabetically. Repos carry no rank; defaulting to
- * DEFAULT_RANK keeps them purely alphabetical. Returns a new array.
+ * un-reordered group reads alphabetically. The optional `rank` defaults to
+ * DEFAULT_RANK for any list that carries none. Returns a new array.
  */
 export function sortContainers<
   T extends { archivedAt: string | null; name: string; rank?: string },

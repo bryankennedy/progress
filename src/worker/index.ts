@@ -18,7 +18,6 @@ import {
   actionTags,
   prLinks,
   focuses,
-  repos,
   tags,
   users,
   type ActionPriority,
@@ -416,14 +415,13 @@ app.get("/api/snapshot", async (c) => {
     allUsers,
     allWorkspaces,
     allFocuses,
-    allRepos,
     allArcs,
     allActions,
     allTags,
     allActionTags,
     allKeyAliases,
   ] = await Promise.all([
-    // These nine reads are independent and need no transaction, so they run as
+    // These eight reads are independent and need no transaction, so they run as
     // parallel queries rather than a single D1 `db.batch` (an implicit
     // transaction). The batch form 500'd on production D1 while working under
     // local Miniflare; Promise.all is the Cloudflare-recommended shape for
@@ -431,7 +429,6 @@ app.get("/api/snapshot", async (c) => {
     db.select().from(users),
     db.select().from(workspaces),
     db.select().from(focuses),
-    db.select().from(repos),
     db.select().from(arcs),
     db.select().from(actions),
     db.select().from(tags),
@@ -455,7 +452,6 @@ app.get("/api/snapshot", async (c) => {
     users: allUsers,
     workspaces: allWorkspaces,
     focuses: allFocuses,
-    repos: allRepos,
     arcs: allArcs,
     actions: allActions,
     tags: allTags,
@@ -669,9 +665,10 @@ type ContainerBody = {
 // Letters only: a digit in the prefix would break PREFIX-n key parsing.
 const KEY_PREFIX_RE = /^[A-Z]{2,8}$/;
 
-// gitUrl is rendered as a clickable link in the client (Structure/ContainerPage),
-// so it must be a real web URL (PROG-65). Without this, a `javascript:` (or
-// `data:`) value would be a stored XSS vector the moment someone clicks it.
+// gitUrl is an optional field on the focus (PROG-102) rendered as a clickable
+// link in the client, so it must be a real web URL (PROG-65). Without this, a
+// `javascript:` (or `data:`) value would be a stored XSS vector the moment
+// someone clicks it.
 function isValidGitUrl(s: string): boolean {
   let u: URL;
   try {
@@ -690,11 +687,11 @@ const badName = (name: unknown) => typeof name !== "string" || name.trim() === "
 const idOr = (id: unknown, prefix: string) =>
   typeof id === "string" && new RegExp(`^${prefix}_[A-Za-z0-9]+$`).test(id) ? id : newId(prefix);
 
-// Shared PATCH fields for all four container types; archive/unarchive is the
-// `archived` boolean mapped onto archivedAt (SPEC §3: no hard deletes).
-// `opts.rank` opts a route into the manual outline order (PROG-87) — the
-// client-computed fractional key, validated like the action board rank. Repos
-// stay out: nothing reorders them and their table has no rank column.
+// Shared PATCH fields for the three container types (Workspace/Focus/Arc);
+// archive/unarchive is the `archived` boolean mapped onto archivedAt (SPEC §3:
+// no hard deletes). `opts.rank` opts a route into the manual outline order
+// (PROG-87) — the client-computed fractional key, validated like the action
+// board rank.
 function containerPatchSet(
   body: ContainerBody,
   opts?: { rank?: boolean },
@@ -746,6 +743,10 @@ app.post("/api/focuses", async (c) => {
   const keyPrefix = body.keyPrefix.toUpperCase();
   if (typeof body.workspaceId !== "string")
     return c.json({ error: "workspaceId is required" }, 400);
+  // Optional git repo mirrored by this focus (PROG-102).
+  const gitUrl = body.gitUrl ?? null;
+  if (gitUrl !== null && (typeof gitUrl !== "string" || !isValidGitUrl(gitUrl)))
+    return c.json({ error: "gitUrl must be an http(s) URL or null" }, 400);
 
   const db = drizzle(c.env.DB);
   const [workspace] = await db
@@ -765,36 +766,8 @@ app.post("/api/focuses", async (c) => {
       workspaceId: body.workspaceId,
       name: (body.name as string).trim(),
       description: typeof body.description === "string" ? body.description : "",
-      keyPrefix,
-      creatorId: c.get("userId"),
-      createdAt: now,
-      updatedAt: now,
-    })
-    .returning();
-  return c.json({ container }, 201);
-});
-
-app.post("/api/repos", async (c) => {
-  const body = (await c.req.json()) as ContainerBody;
-  if (badName(body.name)) return c.json({ error: "name must be a non-empty string" }, 400);
-  if (typeof body.focusId !== "string") return c.json({ error: "focusId is required" }, 400);
-  const gitUrl = body.gitUrl ?? null;
-  if (gitUrl !== null && (typeof gitUrl !== "string" || !isValidGitUrl(gitUrl)))
-    return c.json({ error: "gitUrl must be an http(s) URL or null" }, 400);
-
-  const db = drizzle(c.env.DB);
-  const [focus] = await db.select().from(focuses).where(eq(focuses.id, body.focusId)).limit(1);
-  if (!focus) return c.json({ error: "focus not found" }, 400);
-
-  const now = new Date();
-  const [container] = await db
-    .insert(repos)
-    .values({
-      id: idOr(body.id, "rep"),
-      focusId: body.focusId,
-      name: (body.name as string).trim(),
-      description: typeof body.description === "string" ? body.description : "",
       gitUrl,
+      keyPrefix,
       creatorId: c.get("userId"),
       createdAt: now,
       updatedAt: now,
@@ -864,17 +837,7 @@ app.patch("/api/focuses/:id", async (c) => {
     // Safe rename: action keys are derived from the prefix, never stored (D18).
     set.keyPrefix = keyPrefix;
   }
-  if (Object.keys(set).length === 0) return c.json({ error: "no valid fields in patch" }, 400);
-  set.updatedAt = new Date();
-  const [container] = await db.update(focuses).set(set).where(eq(focuses.id, id)).returning();
-  if (!container) return c.json({ error: "focus not found" }, 404);
-  return c.json({ container });
-});
-
-app.patch("/api/repos/:id", async (c) => {
-  const body = (await c.req.json()) as ContainerBody;
-  const { set, error } = containerPatchSet(body);
-  if (error) return c.json({ error }, 400);
+  // Optional git repo mirrored by this focus (PROG-102).
   if (body.gitUrl !== undefined) {
     if (body.gitUrl !== null && (typeof body.gitUrl !== "string" || !isValidGitUrl(body.gitUrl)))
       return c.json({ error: "gitUrl must be an http(s) URL or null" }, 400);
@@ -882,13 +845,8 @@ app.patch("/api/repos/:id", async (c) => {
   }
   if (Object.keys(set).length === 0) return c.json({ error: "no valid fields in patch" }, 400);
   set.updatedAt = new Date();
-  const db = drizzle(c.env.DB);
-  const [container] = await db
-    .update(repos)
-    .set(set)
-    .where(eq(repos.id, c.req.param("id")))
-    .returning();
-  if (!container) return c.json({ error: "repo not found" }, 404);
+  const [container] = await db.update(focuses).set(set).where(eq(focuses.id, id)).returning();
+  if (!container) return c.json({ error: "focus not found" }, 404);
   return c.json({ container });
 });
 
@@ -957,7 +915,6 @@ app.delete("/api/actions/:id/tags/:tagId", async (c) => {
 type ActionCreateBody = {
   title?: unknown;
   focusId?: unknown;
-  repoId?: unknown;
   arcId?: unknown;
   parentActionId?: unknown;
   description?: unknown;
@@ -976,9 +933,6 @@ app.post("/api/actions", async (c) => {
   if (typeof body.title !== "string" || body.title.trim() === "")
     return c.json({ error: "title must be a non-empty string" }, 400);
   if (typeof body.focusId !== "string") return c.json({ error: "focusId is required" }, 400);
-  const repoId = body.repoId ?? null;
-  if (repoId !== null && typeof repoId !== "string")
-    return c.json({ error: "repoId must be a string or null" }, 400);
   const arcId = body.arcId ?? null;
   if (arcId !== null && typeof arcId !== "string")
     return c.json({ error: "arcId must be a string or null" }, 400);
@@ -1011,13 +965,8 @@ app.post("/api/actions", async (c) => {
   const db = drizzle(c.env.DB);
   const [focus] = await db.select().from(focuses).where(eq(focuses.id, body.focusId)).limit(1);
   if (!focus) return c.json({ error: "focus not found" }, 400);
-  // The invariants SQLite can't express (D17): repo and arc must belong to
-  // the action's focus.
-  if (repoId !== null) {
-    const [repo] = await db.select().from(repos).where(eq(repos.id, repoId)).limit(1);
-    if (!repo || repo.focusId !== focus.id)
-      return c.json({ error: "repo not found in that focus" }, 400);
-  }
+  // The invariant SQLite can't express (D17): arc must belong to the action's
+  // focus.
   if (arcId !== null) {
     const [arc] = await db.select().from(arcs).where(eq(arcs.id, arcId)).limit(1);
     if (!arc || arc.focusId !== focus.id)
@@ -1055,7 +1004,6 @@ app.post("/api/actions", async (c) => {
     .values({
       id: newId("acn"),
       focusId: focus.id,
-      repoId,
       arcId,
       parentActionId,
       number: seq!.next - 1,
@@ -1078,55 +1026,29 @@ app.post("/api/actions", async (c) => {
   return c.json({ action }, 201);
 });
 
-type ActionMoveBody = { focusId?: unknown; repoId?: unknown };
+type ActionMoveBody = { focusId?: unknown };
 
-// Action movement (SPEC §3): within a focus the key (and arc) survive; a
-// cross-focus move re-keys from the target's sequence, clears the arc, and
+// Action movement (SPEC §3, PROG-102): a move now only changes the focus (the
+// sole container). It re-keys from the target's sequence, clears the arc, and
 // retires the old key into action_key_aliases as a permanent redirect (D18).
 app.post("/api/actions/:id/move", async (c) => {
   const id = c.req.param("id");
   const body = (await c.req.json()) as ActionMoveBody;
   if (typeof body.focusId !== "string") return c.json({ error: "focusId is required" }, 400);
-  const repoId = body.repoId ?? null;
-  if (repoId !== null && typeof repoId !== "string")
-    return c.json({ error: "repoId must be a string or null" }, 400);
 
   const db = drizzle(c.env.DB);
   const [existing] = await db.select().from(actions).where(eq(actions.id, id)).limit(1);
   if (!existing) return c.json({ error: "action not found" }, 404);
   const [target] = await db.select().from(focuses).where(eq(focuses.id, body.focusId)).limit(1);
   if (!target) return c.json({ error: "focus not found" }, 400);
-  if (repoId !== null) {
-    const [repo] = await db.select().from(repos).where(eq(repos.id, repoId)).limit(1);
-    if (!repo || repo.focusId !== target.id)
-      return c.json({ error: "repo not found in that focus" }, 400);
-  }
-  if (existing.focusId === target.id && existing.repoId === repoId)
-    return c.json({ error: "action is already in that container" }, 400);
+  if (existing.focusId === target.id)
+    return c.json({ error: "action is already in that focus" }, 400);
 
   const now = new Date();
   const moveData = {
     fromFocusId: existing.focusId,
-    fromRepoId: existing.repoId,
     toFocusId: target.id,
-    toRepoId: repoId,
   };
-
-  if (existing.focusId === target.id) {
-    // Within-focus move: key and arc are kept.
-    const [updated] = await db.batch([
-      db.update(actions).set({ repoId, updatedAt: now }).where(eq(actions.id, id)).returning(),
-      db.insert(activity).values({
-        id: newId("act"),
-        actionId: id,
-        actorId: c.get("userId"),
-        type: "moved",
-        data: moveData,
-        createdAt: now,
-      }),
-    ]);
-    return c.json({ action: updated[0] });
-  }
 
   const [oldFocus] = await db
     .select()
@@ -1148,7 +1070,6 @@ app.post("/api/actions/:id/move", async (c) => {
       // (PROG-124). Any children keep pointing here and are detached below.
       .set({
         focusId: target.id,
-        repoId,
         arcId: null,
         parentActionId: null,
         number,
@@ -1358,11 +1279,8 @@ app.get("/api/actions/:key/bundle", async (c) => {
   if (!action) return c.json({ error: `no action for key ${key}` }, 404);
 
   // Independent reads (no transaction needed) — Promise.all per D31.
-  const [focus, repo, arc, tagRows, commentRows, prRows, commitRows] = await Promise.all([
+  const [focus, arc, tagRows, commentRows, prRows, commitRows] = await Promise.all([
     db.select().from(focuses).where(eq(focuses.id, action.focusId)).limit(1),
-    action.repoId
-      ? db.select().from(repos).where(eq(repos.id, action.repoId)).limit(1)
-      : Promise.resolve([]),
     action.arcId
       ? db.select().from(arcs).where(eq(arcs.id, action.arcId)).limit(1)
       : Promise.resolve([]),
@@ -1392,7 +1310,6 @@ app.get("/api/actions/:key/bundle", async (c) => {
     key: `${focus[0]!.keyPrefix}-${action.number}`,
     action,
     focus: focus[0]!,
-    repo: repo[0] ?? null,
     arc: arc[0] ?? null,
     tags: tagRows.map((t) => t.name),
     comments: commentRows,
@@ -1431,14 +1348,11 @@ app.get("/api/arcs/:id/bundle", async (c) => {
   );
 
   const baseUrl = new URL(c.req.url).origin;
-  // Per-action context (repo, tags, comments, PRs, commits), gathered in
-  // parallel across actions — independent reads, no transaction (D31).
+  // Per-action context (tags, comments, PRs, commits), gathered in parallel
+  // across actions — independent reads, no transaction (D31).
   const actionData: ArcActionData[] = await Promise.all(
     openActions.map(async (action): Promise<ArcActionData> => {
-      const [repo, tagRows, commentRows, prRows, commitRows] = await Promise.all([
-        action.repoId
-          ? db.select().from(repos).where(eq(repos.id, action.repoId)).limit(1)
-          : Promise.resolve([]),
+      const [tagRows, commentRows, prRows, commitRows] = await Promise.all([
         db
           .select({ name: tags.name })
           .from(actionTags)
@@ -1465,7 +1379,6 @@ app.get("/api/arcs/:id/bundle", async (c) => {
       return {
         key: `${focus.keyPrefix}-${action.number}`,
         action,
-        repo: repo[0] ?? null,
         tags: tagRows.map((t) => t.name),
         comments: commentRows,
         pullRequests: prRows,
