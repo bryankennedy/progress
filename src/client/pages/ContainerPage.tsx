@@ -13,6 +13,7 @@ import {
 } from "../../shared/constants";
 import type { WireAction, SnapshotPayload } from "../../shared/types";
 import { openCreateContainer } from "../commands/controller";
+import { closedTitleClass } from "../actionDone";
 import EditableMarkdown from "../EditableMarkdown";
 import InlineEdit from "../InlineEdit";
 import { PRIORITY_LABELS as SHARED_PRIORITY_LABELS, STATUS_LABELS } from "../labels";
@@ -338,7 +339,9 @@ function ActionRow({ action, snapshot }: { action: WireAction; snapshot: Snapsho
       </Link>
       <Link
         href={`/action/${actionKeyOf(snapshot, action)}`}
-        className="min-w-0 flex-1 truncate font-medium hover:text-adobe-deep"
+        className={`min-w-0 flex-1 truncate font-medium hover:text-adobe-deep ${closedTitleClass(
+          action.status,
+        )}`}
       >
         {action.title}
       </Link>

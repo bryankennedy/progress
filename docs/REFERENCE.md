@@ -429,11 +429,12 @@ equivalents, so old bookmarks keep working.
   always visible on mobile (tappable, no hover needed) and faint-until-hover on
   desktop (PROG-80). Nothing here deletes or archives. All writes
   reuse the optimistic `createAction`/`updateAction`/`createContainer` paths.
-  Completed actions (done/canceled) read as finished — dimmed + struck through —
-  and a page-level **Hide done** toggle drops them (and their subtrees) from the
-  forest entirely. That toggle is a sticky per-user preference, persisted to
-  `localStorage` so it survives leaving and returning to the route
-  (`src/client/outlinePrefs.ts`, PROG-77).
+  Completed actions (done/canceled) read as finished — dimmed + struck through
+  via the shared closed-action treatment (`closedTitleClass`,
+  `src/client/actionDone.ts`, PROG-100) — and a page-level **Hide done** toggle
+  drops them (and their subtrees) from the forest entirely. That toggle is a
+  sticky per-user preference, persisted to `localStorage` so it survives leaving
+  and returning to the route (`src/client/outlinePrefs.ts`, PROG-77).
 - **Search (`/` modal + `/search` page, PROG-130)** — two surfaces sharing one
   two-wave model. Title/description hits come from the in-memory store and paint
   instantly; comment hits need a server round-trip (`GET /api/search`, D20) and
@@ -469,7 +470,9 @@ equivalents, so old bookmarks keep working.
   sorts numerically within a focus prefix, status by workflow order, priority
   by urgency (pure `sortActionHits`, unit-tested); ties break by recency. The
   sort is a URL param (`?sort=&dir=`) like the filters, so sorted views are
-  bookmarkable; whole rows navigate, the title stays a real link.
+  bookmarkable; whole rows navigate, the title stays a real link. A closed
+  action's title (done or canceled) carries the shared finished treatment —
+  dimmed + struck through (`closedTitleClass`, PROG-100).
 - **App header** — persistent across pages: the "Progress" home link, nav
   (Board · Outline · Agenda · Search · Structure · Archive), a **New** menu (Action ·
   Workspace · Focus · Repo · Arc) that opens the existing optimistic create flows, and the
@@ -566,7 +569,9 @@ equivalents, so old bookmarks keep working.
 - **Container pages** — description-on-top open page (inline-editable name,
   Markdown description, key prefix / git URL where applicable, archive
   toggle), child-container chips with "+ New" buttons, and a
-  sortable/filterable action list with inline status/priority edits.
+  sortable/filterable action list with inline status/priority edits; a closed
+  action (done or canceled) shows its title dimmed + struck through, the shared
+  finished treatment (`closedTitleClass`, PROG-100).
 - **Action page** — inline-editable title and description, sidebar fields
   (status/priority/estimate selects; container, arc, and tags with picker
   buttons; a **Work on this** field — D35), a Git section (linked PRs with
