@@ -1,7 +1,7 @@
 // The search page (PROG-130): the deeper-dive surface to the `/` modal. Same
 // two-wave model — title/description hits come from the in-memory store, comment
 // hits stream in from /api/search — but here results are filterable by the same
-// dimensions as the board (status, focus/arc/repo, tag, priority) and the
+// dimensions as the board (status, focus/arc, tag, priority) and the
 // query + filters live in the URL so a search is bookmarkable. The `/` modal's
 // "Open the search page" link hands its text here via ?q=. An empty query is
 // itself a valid search (PROG-78): browse mode — every action passing the
@@ -49,7 +49,7 @@ const PAGE = 50;
 const fmtUpdated = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
-const FILTER_KEYS = ["workspace", "focus", "repo", "arc", "tag", "priority", "status"] as const;
+const FILTER_KEYS = ["workspace", "focus", "arc", "tag", "priority", "status"] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
 type Filters = Partial<Record<FilterKey, string>>;
 
@@ -148,8 +148,7 @@ export default function Search({ snapshot }: { snapshot: SnapshotPayload }) {
         if (!focus || focus.workspaceId !== filters.workspace) return false;
       }
       if (filters.focus && action.focusId !== filters.focus) return false;
-      // Nullable containers (PROG-76): "none" matches actions with no repo/arc.
-      if (filters.repo && !matchesNullableId(action.repoId, filters.repo)) return false;
+      // Nullable arc (PROG-76): "none" matches actions with no arc.
       if (filters.arc && !matchesNullableId(action.arcId, filters.arc)) return false;
       if (filters.priority && action.priority !== filters.priority) return false;
       if (filters.status && action.status !== filters.status) return false;

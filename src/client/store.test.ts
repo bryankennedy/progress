@@ -29,7 +29,6 @@ function action(
   over: Partial<WireAction> & Pick<WireAction, "id" | "focusId" | "number">,
 ): WireAction {
   return {
-    repoId: null,
     arcId: null,
     parentActionId: null,
     title: `Action ${over.number}`,
@@ -56,7 +55,6 @@ function snapshot(over: Partial<SnapshotPayload>): SnapshotPayload {
     users: [],
     workspaces: [],
     focuses: [],
-    repos: [],
     arcs: [],
     actions: [],
     tags: [],
@@ -148,7 +146,7 @@ describe("moveAction rollback", () => {
     seed();
     globalThis.fetch = (() => new Promise<Response>(() => {})) as typeof fetch; // never resolves
 
-    moveAction("act_parent", { focusId: "foc_b", repoId: null });
+    moveAction("act_parent", { focusId: "foc_b" });
 
     expect(byId("act_parent").focusId).toBe("foc_b");
     expect(byId("act_parent").number).toBe(5);
@@ -163,7 +161,7 @@ describe("moveAction rollback", () => {
     const ws = seed();
     globalThis.fetch = (() => Promise.reject(new Error("network down"))) as typeof fetch;
 
-    moveAction("act_parent", { focusId: "foc_b", repoId: null });
+    moveAction("act_parent", { focusId: "foc_b" });
     await settle();
 
     expect(byId("act_parent")).toEqual(ws.actions[0]!);
@@ -173,18 +171,23 @@ describe("moveAction rollback", () => {
     expect(current().actionKeyAliases).toEqual([]);
   });
 
-  it("rolls a failed within-focus move back without touching steps or sequences", async () => {
+  it("is a no-op when the target focus is the action's current focus", async () => {
     seed();
-    globalThis.fetch = (() =>
-      Promise.resolve(
-        new Response(JSON.stringify({ error: "repo not found in that focus" }), { status: 400 }),
-      )) as typeof fetch;
+    let fetched = false;
+    globalThis.fetch = (() => {
+      fetched = true;
+      return new Promise<Response>(() => {});
+    }) as typeof fetch;
 
-    moveAction("act_parent", { focusId: "foc_a", repoId: "rep_x" });
+    // A move now only changes the focus (PROG-102); moving to the same focus
+    // returns early without touching the store or hitting the server.
+    moveAction("act_parent", { focusId: "foc_a" });
     await settle();
 
-    expect(byId("act_parent").repoId).toBeNull();
+    expect(fetched).toBe(false);
+    expect(byId("act_parent").focusId).toBe("foc_a");
     expect(byId("act_step").parentActionId).toBe("act_parent");
     expect(current().focuses.find((p) => p.id === "foc_a")?.nextActionNumber).toBe(2);
+    expect(current().actionKeyAliases).toEqual([]);
   });
 });

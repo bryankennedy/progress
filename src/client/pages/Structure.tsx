@@ -1,8 +1,9 @@
 // Structure overview (SPEC v2 §4, DECISIONS D40): a dedicated destination for
-// curating the Workspace → Focus → (Repo · Arc) tree, with an inline
-// "+ add" on each node. A first-class home for structure work that keeps the
-// board uncluttered. Reuses the existing optimistic container create flow
-// (openCreateContainer → CreateContainerDialog); no new write paths.
+// curating the Workspace → Focus → Arc tree, with an inline "+ add" on each
+// node. A first-class home for structure work that keeps the board uncluttered.
+// Reuses the existing optimistic container create flow (openCreateContainer →
+// CreateContainerDialog); no new write paths. A focus's optional git repo
+// (PROG-102) shows as a link on its row.
 
 import { Link } from "wouter";
 import type { SnapshotPayload } from "../../shared/types";
@@ -21,48 +22,43 @@ function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
   );
 }
 
-function NodeLink({
-  href,
-  name,
-  archived,
-  muted = false,
-}: {
-  href: string;
-  name: string;
-  archived: boolean;
-  muted?: boolean;
-}) {
-  // `muted` (repos) reads as supporting detail beneath the arc — lower-contrast
-  // and italic so the more important arcs stay visually primary.
-  const tone = archived ? "text-ink-faint line-through" : muted ? "text-ink-soft" : "text-ink";
+function NodeLink({ href, name, archived }: { href: string; name: string; archived: boolean }) {
+  const tone = archived ? "text-ink-faint line-through" : "text-ink";
   return (
-    <Link
-      href={href}
-      className={`rounded px-1.5 py-0.5 hover:bg-line ${muted ? "italic font-normal" : "font-medium"} ${tone}`}
-    >
+    <Link href={href} className={`rounded px-1.5 py-0.5 font-medium hover:bg-line ${tone}`}>
       {name}
     </Link>
   );
 }
 
-// A labeled list of like-kind nodes (all Repos, or all Arcs) under a Focus —
-// the type word appears once as a section heading instead of being repeated on
-// every row, mirroring the Workspace/Focus tree above. `muted` dims the
-// whole group (used for repos, which sit below the more important arcs). When
-// `collapseArchived` is set, archived nodes beyond the inline limit are hidden
-// behind a "more" link to /archive (PROG-45 — arcs only; repos don't accumulate
-// the same way).
+// A clickable git-repo link, shown next to a focus that mirrors one (PROG-102).
+function GitUrlLink({ gitUrl }: { gitUrl: string }) {
+  return (
+    <a
+      href={gitUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="truncate font-mono text-xs text-ink-faint hover:text-ink-soft hover:underline"
+    >
+      {gitUrl.replace(/^https?:\/\//, "")}
+    </a>
+  );
+}
+
+// A labeled list of like-kind nodes (all Arcs) under a Focus — the type word
+// appears once as a section heading instead of being repeated on every row,
+// mirroring the Workspace/Focus tree above. When `collapseArchived` is set,
+// archived nodes beyond the inline limit are hidden behind a "more" link to
+// /archive (PROG-45).
 function NodeGroup({
   label,
   nodes,
   hrefBase,
-  muted = false,
   collapseArchived = false,
 }: {
   label: string;
-  nodes: { id: string; name: string; archivedAt: string | null; gitUrl?: string | null }[];
+  nodes: { id: string; name: string; archivedAt: string | null }[];
   hrefBase: string;
-  muted?: boolean;
   collapseArchived?: boolean;
 }) {
   if (nodes.length === 0) return null;
@@ -77,22 +73,7 @@ function NodeGroup({
       <div className="mt-1 flex flex-col items-start gap-0.5 border-l border-line pl-3 text-sm">
         {shown.map((n) => (
           <div key={n.id} className="flex flex-wrap items-baseline gap-x-2">
-            <NodeLink
-              href={`${hrefBase}/${n.id}`}
-              name={n.name}
-              archived={!!n.archivedAt}
-              muted={muted}
-            />
-            {n.gitUrl && (
-              <a
-                href={n.gitUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="truncate font-mono text-xs text-ink-faint hover:text-ink-soft hover:underline"
-              >
-                {n.gitUrl.replace(/^https?:\/\//, "")}
-              </a>
-            )}
+            <NodeLink href={`${hrefBase}/${n.id}`} name={n.name} archived={!!n.archivedAt} />
           </div>
         ))}
         {hiddenCount > 0 && (
@@ -119,7 +100,7 @@ export default function Structure({ snapshot }: { snapshot: SnapshotPayload }) {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Structure</h1>
           <p className="mt-1 text-xs text-ink-faint">
-            The Initiative → Product → Arc → Action tree. Add an item anywhere.
+            The Workspace → Focus → Arc → Action tree. Add an item anywhere.
             <br />
             Click an item to open it.
           </p>
@@ -155,9 +136,6 @@ export default function Structure({ snapshot }: { snapshot: SnapshotPayload }) {
               <div className="mt-3 space-y-3 border-l border-line pl-4">
                 {focuses.length === 0 && <p className="text-xs text-ink-faint">No focuses yet.</p>}
                 {focuses.map((focus) => {
-                  const repos = sortContainers(
-                    snapshot.repos.filter((r) => r.focusId === focus.id),
-                  );
                   const arcs = sortContainers(snapshot.arcs.filter((a) => a.focusId === focus.id));
                   return (
                     <div key={focus.id}>
@@ -173,28 +151,19 @@ export default function Structure({ snapshot }: { snapshot: SnapshotPayload }) {
                         <span className="font-mono text-[11px] text-ink-faint">
                           {focus.keyPrefix}
                         </span>
+                        {focus.gitUrl && <GitUrlLink gitUrl={focus.gitUrl} />}
                         <AddButton
                           label="Arc"
                           onClick={() => openCreateContainer({ kind: "arc", focusId: focus.id })}
                         />
-                        <AddButton
-                          label="Repo"
-                          onClick={() => openCreateContainer({ kind: "repo", focusId: focus.id })}
-                        />
                       </div>
-                      {(repos.length > 0 || arcs.length > 0) && (
+                      {arcs.length > 0 && (
                         <div className="mt-2 space-y-2 border-l border-line pl-4">
                           <NodeGroup
                             label={arcs.length === 1 ? "Arc" : "Arcs"}
                             nodes={arcs}
                             hrefBase="/arc"
                             collapseArchived
-                          />
-                          <NodeGroup
-                            label={repos.length === 1 ? "Repo" : "Repos"}
-                            nodes={repos}
-                            hrefBase="/repo"
-                            muted
                           />
                         </div>
                       )}

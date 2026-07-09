@@ -140,7 +140,7 @@ export function sortActionHits(
     .sort((a, b) => dir * cmp(a.action, b.action) || byRecency(a.action, b.action));
 }
 
-export type ContainerKind = "workspace" | "focus" | "repo" | "arc";
+export type ContainerKind = "workspace" | "focus" | "arc";
 export type ContainerHit = {
   id: string;
   kind: ContainerKind;
@@ -152,7 +152,6 @@ export type ContainerHit = {
 const CONTAINER_LABEL: Record<ContainerKind, string> = {
   workspace: "Workspace",
   focus: "Focus",
-  repo: "Repo",
   arc: "Arc",
 };
 
@@ -169,7 +168,6 @@ export function searchContainers(ws: SnapshotPayload, query: string, limit = 6):
   const sources: { kind: ContainerKind; rows: SearchableContainer[] }[] = [
     { kind: "workspace", rows: ws.workspaces },
     { kind: "focus", rows: ws.focuses },
-    { kind: "repo", rows: ws.repos },
     { kind: "arc", rows: ws.arcs },
   ];
   const hits: ContainerHit[] = [];

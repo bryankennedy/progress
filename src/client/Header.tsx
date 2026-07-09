@@ -1,8 +1,8 @@
 // Persistent app header (SPEC v2 §4): the always-available navigation and the
-// "New" entry point (Action · Workspace · Focus · Repo · Arc). Structure
-// creation is now discoverable everywhere, not just via the command palette.
-// The New menu reuses the existing optimistic create flows (the command-layer
-// event bus); no new write paths.
+// "New" entry point (Action · Workspace · Focus · Arc). Structure creation is
+// now discoverable everywhere, not just via the command palette. The New menu
+// reuses the existing optimistic create flows (the command-layer event bus);
+// no new write paths.
 
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
@@ -32,7 +32,7 @@ export default function Header() {
 
   const newItems: { label: string; run: () => void }[] = [
     { label: "Action", run: () => openCreateAction() },
-    ...(["workspace", "focus", "repo", "arc"] as const).map((kind) => ({
+    ...(["workspace", "focus", "arc"] as const).map((kind) => ({
       label: kind[0]!.toUpperCase() + kind.slice(1),
       run: () => openCreateContainer({ kind } as ContainerDialogRequest),
     })),

@@ -19,7 +19,6 @@ import type {
   WireAction,
   WirePrLink,
   WireFocus,
-  WireRepo,
   WireTag,
   SnapshotPayload,
 } from "../shared/types";
@@ -264,7 +263,6 @@ export function setActionStatus(id: string, status: ActionStatus) {
 export type ActionCreateInput = {
   title: string;
   focusId: string;
-  repoId: string | null;
   arcId: string | null;
   parentActionId: string | null;
   status: ActionStatus;
@@ -304,7 +302,6 @@ export function createAction(input: ActionCreateInput): string | undefined {
   const temp: WireAction = {
     id: tempId,
     focusId: input.focusId,
-    repoId: input.repoId,
     arcId: input.arcId,
     parentActionId: input.parentActionId,
     number: focus.nextActionNumber,
@@ -379,43 +376,31 @@ export function createAction(input: ActionCreateInput): string | undefined {
 
 // ---------- action movement ----------
 
-export type MoveTarget = { focusId: string; repoId: string | null };
+export type MoveTarget = { focusId: string };
 
-// Optimistic move (SPEC §3): within a focus it's a one-field container
-// change; across focuses the action is re-keyed from the target's sequence,
-// its arc is cleared, and the old key is appended to the alias list — all
-// locally first, so the board and any open action page (which redirects via
-// the alias) update instantly. Rollback restores exactly what this move
-// touched.
+// Optimistic move (SPEC §3, PROG-102): a move changes the focus (the sole
+// container). The action is re-keyed from the target's sequence, its arc is
+// cleared, and the old key is appended to the alias list — all locally first,
+// so the board and any open action page (which redirects via the alias) update
+// instantly. Rollback restores exactly what this move touched.
 export function moveAction(id: string, target: MoveTarget) {
   const ws = queryClient.getQueryData<SnapshotPayload>(WS_KEY);
   const before = ws?.actions.find((i) => i.id === id);
   const targetFocus = ws?.focuses.find((p) => p.id === target.focusId);
   if (!ws || !before || !targetFocus) return;
-  if (before.focusId === target.focusId && before.repoId === target.repoId) return;
+  if (before.focusId === target.focusId) return;
 
-  const crossFocus = before.focusId !== target.focusId;
   const now = new Date().toISOString();
   const oldKey = actionKeyOf(ws, before);
-  // A cross-focus move also detaches this action's steps (they stay behind,
-  // top-level — PROG-124). The server only detaches on a *successful* move, so
-  // capture what the optimistic detach touches to restore it on failure.
+  // The move also detaches this action's steps (they stay behind, top-level —
+  // PROG-124). The server only detaches on a *successful* move, so capture what
+  // the optimistic detach touches to restore it on failure.
   const stepsBefore = new Map(
-    crossFocus
-      ? ws.actions.filter((i) => i.parentActionId === id).map((i) => [i.id, i.updatedAt])
-      : [],
+    ws.actions.filter((i) => i.parentActionId === id).map((i) => [i.id, i.updatedAt]),
   );
 
   queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) => {
     if (!w) return w;
-    if (!crossFocus) {
-      return {
-        ...w,
-        actions: w.actions.map((i) =>
-          i.id === id ? { ...i, repoId: target.repoId, updatedAt: now } : i,
-        ),
-      };
-    }
     return {
       ...w,
       actions: w.actions.map((i) =>
@@ -423,7 +408,6 @@ export function moveAction(id: string, target: MoveTarget) {
           ? {
               ...i,
               focusId: target.focusId,
-              repoId: target.repoId,
               arcId: null,
               // Cross-focus move drops the parent and detaches children
               // (PROG-124) — mirrors the server's move handler.
@@ -474,7 +458,6 @@ export function moveAction(id: string, target: MoveTarget) {
             : i;
         }),
       };
-      if (!crossFocus) return restored;
       return {
         ...restored,
         focuses: restored.focuses.map((p) =>
@@ -491,12 +474,11 @@ export function moveAction(id: string, target: MoveTarget) {
 
 // ---------- containers (D26) ----------
 
-export type ContainerKind = "workspace" | "focus" | "repo" | "arc";
+export type ContainerKind = "workspace" | "focus" | "arc";
 
 export const CONTAINER_COLLECTIONS = {
   workspace: "workspaces",
   focus: "focuses",
-  repo: "repos",
   arc: "arcs",
 } as const;
 type ContainerCollection = (typeof CONTAINER_COLLECTIONS)[ContainerKind];
@@ -504,13 +486,12 @@ type ContainerCollection = (typeof CONTAINER_COLLECTIONS)[ContainerKind];
 const CONTAINER_ID_PREFIXES: Record<ContainerKind, string> = {
   workspace: "ini",
   focus: "prd",
-  repo: "rep",
   arc: "arc",
 };
 
-type WireContainer = WireWorkspace | WireFocus | WireRepo | WireArc;
+type WireContainer = WireWorkspace | WireFocus | WireArc;
 
-// The four container collections have distinct element types; TS can't relate
+// The three container collections have distinct element types; TS can't relate
 // a union-typed key to its value type on write, so this helper centralizes
 // the (runtime-safe) casts.
 function writeContainers(key: ContainerCollection, fn: (list: WireContainer[]) => WireContainer[]) {
@@ -521,8 +502,7 @@ function writeContainers(key: ContainerCollection, fn: (list: WireContainer[]) =
 
 export type ContainerCreateInput =
   | { kind: "workspace"; name: string }
-  | { kind: "focus"; name: string; workspaceId: string; keyPrefix: string }
-  | { kind: "repo"; name: string; focusId: string; gitUrl?: string | null }
+  | { kind: "focus"; name: string; workspaceId: string; keyPrefix: string; gitUrl?: string | null }
   | { kind: "arc"; name: string; focusId: string };
 
 // Optimistic container create. The id is client-generated (container pages
@@ -549,13 +529,12 @@ export function createContainer(input: ContainerCreateInput): string {
         ? {
             ...base,
             workspaceId: input.workspaceId,
+            gitUrl: input.gitUrl ?? null,
             keyPrefix: input.keyPrefix.toUpperCase(),
             nextActionNumber: 1,
             rank: DEFAULT_RANK,
           }
-        : input.kind === "repo"
-          ? { ...base, focusId: input.focusId, gitUrl: input.gitUrl ?? null }
-          : { ...base, focusId: input.focusId, rank: DEFAULT_RANK };
+        : { ...base, focusId: input.focusId, rank: DEFAULT_RANK };
   const collection = CONTAINER_COLLECTIONS[input.kind];
   writeContainers(collection, (list) => [...list, temp]);
 
@@ -593,8 +572,9 @@ export type ContainerPatch = Partial<{
   description: string;
   archived: boolean;
   keyPrefix: string;
+  // Optional git repo mirrored by a focus (PROG-102).
   gitUrl: string | null;
-  // Manual outline order (PROG-87); workspaces/focuses/arcs only, not repos.
+  // Manual outline order (PROG-87); workspaces/focuses/arcs.
   rank: string;
 }>;
 

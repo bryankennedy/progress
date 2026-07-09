@@ -13,13 +13,12 @@ import {
   type ActionHit,
 } from "./search";
 
-// A minimal snapshot — search only reads actions + the four container arrays
+// A minimal snapshot — search only reads actions + the three container arrays
 // and their name/title/description/archivedAt fields, so the rest is cast away.
 function ws(over: Partial<SnapshotPayload>): SnapshotPayload {
   return {
     workspaces: [],
     focuses: [],
-    repos: [],
     arcs: [],
     actions: [],
     ...over,

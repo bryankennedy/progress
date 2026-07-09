@@ -12,15 +12,15 @@ export const BOARD_FILTERS_KEY = "progress:board-filters";
 export const SEARCH_FILTERS_KEY = "progress:search-filters";
 
 // Filter sentinel for "this nullable field is empty" (PROG-76): pick the option
-// to find actions with no Arc / Repo / Tag. A reserved value in the URL (e.g.
+// to find actions with no Arc / Tag. A reserved value in the URL (e.g.
 // `?arc=none`) that can't collide with a real container id — those are always
-// prefixed (`arc_…`, `repo_…`, `tag_…`). Priority's own "none" value is a
+// prefixed (`arc_…`, `tag_…`). Priority's own "none" value is a
 // different URL key, matched by plain equality and never routed through here, so
 // the two never conflict. Stays as-is through `URLSearchParams` (no %-encoding).
 export const FILTER_NONE = "none";
 
-// Apply a nullable-id filter (Arc / Repo): the sentinel keeps only actions with
-// no value there; any other value is a plain id equality (PROG-76).
+// Apply a nullable-id filter (Arc): the sentinel keeps only actions with no
+// value there; any other value is a plain id equality (PROG-76).
 export function matchesNullableId(field: string | null, filter: string): boolean {
   return filter === FILTER_NONE ? field === null : field === filter;
 }
@@ -59,12 +59,11 @@ export function filtersToRestore(currentSearch: string, saved: string): string |
 export type FilterParents = {
   focusWorkspace: Map<string, string>; // focus id -> workspace id
   arcFocus: Map<string, string>; // arc id -> focus id
-  repoFocus: Map<string, string>; // repo id -> focus id
 };
 
 // Drop any descendant filter the ancestor selection makes impossible (PROG-75),
 // mutating `params` in place. The board's filters are a hierarchy
-// (Workspace → Focus → Arc/Repo); changing a parent can strand a child from a
+// (Workspace → Focus → Arc); changing a parent can strand a child from a
 // different branch — e.g. picking a new Focus while an Arc from the old one is
 // still selected, which would silently filter the board to nothing. Pruning in
 // the same URL write keeps the offered options and the active selection in sync.
@@ -75,26 +74,22 @@ export function pruneImpossibleFilters(params: URLSearchParams, parents: FilterP
     params.delete("focus");
     focus = null;
   }
-  for (const [key, parentOf] of [
-    ["arc", parents.arcFocus],
-    ["repo", parents.repoFocus],
-  ] as const) {
-    const id = params.get(key);
-    // "No arc/repo" (PROG-76) belongs to no branch, so it's compatible with any
-    // ancestor selection — never prune it.
-    if (!id || id === FILTER_NONE) continue;
-    const owningFocus = parentOf.get(id);
-    // With a Focus chosen, the child must belong to it; otherwise (Workspace
-    // only) the child's Focus must belong to that Workspace.
+  const arc = params.get("arc");
+  // "No arc" (PROG-76) belongs to no branch, so it's compatible with any
+  // ancestor selection — never prune it.
+  if (arc && arc !== FILTER_NONE) {
+    const owningFocus = parents.arcFocus.get(arc);
+    // With a Focus chosen, the arc must belong to it; otherwise (Workspace
+    // only) the arc's Focus must belong to that Workspace.
     const impossible = focus
       ? owningFocus !== focus
       : !!workspace && parents.focusWorkspace.get(owningFocus ?? "") !== workspace;
-    if (impossible) params.delete(key);
+    if (impossible) params.delete("arc");
   }
 }
 
 // Order name-based filter dropdown options alphabetically (PROG-66) so a long
-// Arc / Focus / Repo / Workspace / tag list is scannable. Returns a new array
+// Arc / Focus / Workspace / tag list is scannable. Returns a new array
 // (the input may be a live store array, e.g. snapshot.tags). Logical
 // vocabularies — status, priority — keep their meaningful order and must NOT use
 // this; their fixed sequence is the order they read in.

@@ -11,7 +11,6 @@ const NOW = "2026-07-07T00:00:00.000Z";
 function action(over: Partial<WireAction> & Pick<WireAction, "id" | "number">): WireAction {
   return {
     focusId: "foc_1",
-    repoId: null,
     arcId: null,
     parentActionId: null,
     title: over.id,

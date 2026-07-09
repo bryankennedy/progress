@@ -27,7 +27,7 @@ import { PRIORITY_LABELS } from "./labels";
 // The dimensions every filtered surface shares. Status is deliberately not
 // here: the board has no status filter (its columns are the statuses), so the
 // search page passes its Status dropdown through the `before` slot.
-export const SHARED_FILTER_KEYS = ["workspace", "focus", "arc", "repo", "tag", "priority"] as const;
+export const SHARED_FILTER_KEYS = ["workspace", "focus", "arc", "tag", "priority"] as const;
 export type SharedFilterKey = (typeof SHARED_FILTER_KEYS)[number];
 export type SharedFilters = Partial<Record<SharedFilterKey, string>>;
 
@@ -55,9 +55,8 @@ export function useStickyFilterUrl({
     () => ({
       focusWorkspace: new Map(snapshot.focuses.map((p) => [p.id, p.workspaceId])),
       arcFocus: new Map(snapshot.arcs.map((a) => [a.id, a.focusId])),
-      repoFocus: new Map(snapshot.repos.map((r) => [r.id, r.focusId])),
     }),
-    [snapshot.focuses, snapshot.arcs, snapshot.repos],
+    [snapshot.focuses, snapshot.arcs],
   );
 
   // Sticky restore (PROG-58): on a fresh mount with a bare URL, re-apply the
@@ -185,20 +184,6 @@ export default function FilterBar({
               ),
           ).map((a) => [a.id, a.name])}
           onChange={(v) => setParam("arc", v)}
-        />
-        <FilterSelect
-          label="Repo"
-          nullable
-          value={filters.repo}
-          options={sortByName(
-            snapshot.repos
-              .filter((r) => !r.archivedAt)
-              .filter((r) => !filters.focus || r.focusId === filters.focus)
-              .filter(
-                (r) => !filters.workspace || focusWorkspace.get(r.focusId) === filters.workspace,
-              ),
-          ).map((r) => [r.id, r.name])}
-          onChange={(v) => setParam("repo", v)}
         />
         <FilterSelect
           label="Tag"

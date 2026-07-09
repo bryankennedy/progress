@@ -233,7 +233,6 @@ function QuickAddRow({
     createAction({
       title: t,
       focusId,
-      repoId: null,
       arcId: inheritArcId(filters.arc, focusId, snapshot.arcs),
       parentActionId: null,
       status: "todo",
