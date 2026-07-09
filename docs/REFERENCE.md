@@ -583,10 +583,19 @@ equivalents, so old bookmarks keep working.
   action (done or canceled) shows its title dimmed + struck through, the shared
   finished treatment (`closedTitleClass`, PROG-100).
 - **Action page** — inline-editable title and description, sidebar fields
-  (status/priority/estimate selects; container, arc, and tags with picker
-  buttons; a **Work on this** field — D35), a Git section (linked PRs with
-  state badges, commits with short shas, linking out to GitHub), and comments
-  + activity interleaved into one timeline.
+  (status/due-date/priority/estimate in that order, then container, arc, and
+  tags with picker buttons; a **Work on this** field — D35), a Git section
+  (linked PRs with state badges, commits with short shas, linking out to
+  GitHub), and comments + activity interleaved into one timeline. Each
+  editable sidebar field carries a **left-gutter glyph** (PROG-101): the
+  shared `StatusIndicator` (circle progression — dashed backlog → outlined
+  todo → adobe half/three-quarter pies for in progress/in review → moss
+  check disc for done; canceled is a faint ✕ disc), the due-date **calendar
+  button** (opens the native picker; the input's right-edge indicator is
+  hidden), `PriorityIndicator`, and the `EstimateIndicator` fill gauge
+  (bottom-up fill proportional to the 0–8 scale; dashed when unset). Every
+  glyph is a **button** that opens its field's picker — `showPicker()` on
+  the select/input, focus fallback where unsupported (PROG-101b).
 - **Command palette** — one keyboard surface (D25): root mode searches
   actions by key (retired alias keys included) or title and containers by
   name, and lists commands (create action/workspace/focus/repo/arc,
