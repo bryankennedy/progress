@@ -15,15 +15,12 @@ VALUES ('ini_tooling', 'Personal Tooling',
         'Tools that remove friction from building products.',
         'usr_owner', unixepoch(), unixepoch());
 
-INSERT OR IGNORE INTO focuses (id, workspace_id, name, description, key_prefix, next_action_number, creator_id, created_at, updated_at)
+-- The focus optionally mirrors a git repo (PROG-102): git_url is the field
+-- that replaced the former `repos` container. NULL = not connected.
+INSERT OR IGNORE INTO focuses (id, workspace_id, name, description, git_url, key_prefix, next_action_number, creator_id, created_at, updated_at)
 VALUES ('prd_progress', 'ini_tooling', 'Progress',
         'A personal product-development tracker — this very app.',
-        'PROG', 15, 'usr_owner', unixepoch(), unixepoch());
-
-INSERT OR IGNORE INTO repos (id, focus_id, name, description, git_url, creator_id, created_at, updated_at)
-VALUES ('rep_progress', 'prd_progress', 'progress',
-        'The Progress app: Cloudflare Worker + D1 + React in one repo.',
-        NULL, 'usr_owner', unixepoch(), unixepoch());
+        NULL, 'PROG', 15, 'usr_owner', unixepoch(), unixepoch());
 
 INSERT OR IGNORE INTO arcs (id, focus_id, name, description, creator_id, created_at, updated_at)
 VALUES
@@ -34,63 +31,63 @@ VALUES
    'GitHub webhook, magic-word linking, PR/commit display on actions.',
    'usr_owner', unixepoch(), unixepoch());
 
--- Actions. Container: repo-level for code work in this repo; focus-level for
--- deploy/ops work. Keys derive as PROG-<number>.
-INSERT OR IGNORE INTO actions (id, focus_id, repo_id, arc_id, number, title, description, status, priority, estimate, creator_id, assignee_id, created_at, updated_at, completed_at)
+-- Actions. Keys derive as PROG-<number>. (Pre-PROG-102 this fixture put code
+-- work at repo level; repos are gone now, so every action is focus-level.)
+INSERT OR IGNORE INTO actions (id, focus_id, arc_id, number, title, description, status, priority, estimate, creator_id, assignee_id, created_at, updated_at, completed_at)
 VALUES
-  ('iss_prog1',  'prd_progress', 'rep_progress', 'arc_v1core', 1,
+  ('iss_prog1',  'prd_progress', 'arc_v1core', 1,
    'Scaffold single-app stack with walking skeleton',
    'Vite + React + Tailwind + Hono + D1/Drizzle in one app; end-to-end round trip verified (milestone 1).',
    'done', 'high', 3, 'usr_owner', 'usr_owner', unixepoch(), unixepoch(), unixepoch()),
-  ('iss_prog2',  'prd_progress', 'rep_progress', 'arc_v1core', 2,
+  ('iss_prog2',  'prd_progress', 'arc_v1core', 2,
    'Full domain schema',
-   'All SPEC §3 entities in Drizzle: workspaces, focuses, repos, arcs, actions, tags, key aliases, comments, activity.',
+   'All SPEC §3 entities in Drizzle: workspaces, focuses, arcs, actions, tags, key aliases, comments, activity.',
    'in_progress', 'high', 3, 'usr_owner', 'usr_owner', unixepoch(), unixepoch(), NULL),
-  ('iss_prog3',  'prd_progress', 'rep_progress', 'arc_v1core', 3,
+  ('iss_prog3',  'prd_progress', 'arc_v1core', 3,
    'Whole-snapshot load endpoint',
    'Single /api/snapshot payload with every container, action, and tag (SPEC §8.2 — load everything up front).',
    'todo', 'high', 2, 'usr_owner', 'usr_owner', unixepoch(), unixepoch(), NULL),
-  ('iss_prog4',  'prd_progress', 'rep_progress', 'arc_v1core', 4,
+  ('iss_prog4',  'prd_progress', 'arc_v1core', 4,
    'Client store with optimistic mutations',
    'Decide store library with a latency spike (SPEC §9 #4), then render everything from memory; establish the optimistic-mutation template.',
    'todo', 'high', 5, 'usr_owner', 'usr_owner', unixepoch(), unixepoch(), NULL),
-  ('iss_prog5',  'prd_progress', 'rep_progress', 'arc_v1core', 5,
+  ('iss_prog5',  'prd_progress', 'arc_v1core', 5,
    'Global "My Work" kanban board',
-   'Fixed status columns, drag-and-drop, filters by workspace/focus/repo/arc/tag/priority.',
+   'Fixed status columns, drag-and-drop, filters by workspace/focus/arc/tag/priority.',
    'backlog', 'medium', 5, 'usr_owner', NULL, unixepoch(), unixepoch(), NULL),
-  ('iss_prog6',  'prd_progress', 'rep_progress', 'arc_v1core', 6,
+  ('iss_prog6',  'prd_progress', 'arc_v1core', 6,
    'Container pages',
-   'Workspace, focus, repo, and arc pages: description on top, sortable/filterable action list below.',
+   'Workspace, focus, and arc pages: description on top, sortable/filterable action list below.',
    'backlog', 'medium', 3, 'usr_owner', NULL, unixepoch(), unixepoch(), NULL),
-  ('iss_prog7',  'prd_progress', 'rep_progress', 'arc_v1core', 7,
+  ('iss_prog7',  'prd_progress', 'arc_v1core', 7,
    'Action page with comments and activity',
    'Open-page view: Markdown description, field strip, interleaved comments + activity timeline.',
    'backlog', 'medium', 5, 'usr_owner', NULL, unixepoch(), unixepoch(), NULL),
-  ('iss_prog8',  'prd_progress', 'rep_progress', 'arc_v1core', 8,
+  ('iss_prog8',  'prd_progress', 'arc_v1core', 8,
    'Command palette (⌘K)',
    'Jump to anything, create an action from anywhere.',
    'backlog', 'low', 3, 'usr_owner', NULL, unixepoch(), unixepoch(), NULL),
-  ('iss_prog9',  'prd_progress', 'rep_progress', 'arc_v1core', 9,
+  ('iss_prog9',  'prd_progress', 'arc_v1core', 9,
    'Single-key actions on focused action',
    'Linear-style: s = status, p = priority; exact map decided during build.',
    'backlog', 'low', 2, 'usr_owner', NULL, unixepoch(), unixepoch(), NULL),
-  ('iss_prog10', 'prd_progress', 'rep_progress', 'arc_v1core', 10,
+  ('iss_prog10', 'prd_progress', 'arc_v1core', 10,
    'Action movement with key-alias redirects',
-   'Move actions between containers and focuses; cross-focus moves re-key and leave a permanent alias.',
+   'Move actions between focuses; cross-focus moves re-key and leave a permanent alias.',
    'backlog', 'medium', 3, 'usr_owner', NULL, unixepoch(), unixepoch(), NULL),
-  ('iss_prog11', 'prd_progress', 'rep_progress', 'arc_gitint', 11,
+  ('iss_prog11', 'prd_progress', 'arc_gitint', 11,
    'GitHub webhook with magic-word linking',
    'Push + PR events; action keys in branch/commit/PR text auto-link to the action. HMAC-verified, bypasses Access.',
    'backlog', 'medium', 5, 'usr_owner', NULL, unixepoch(), unixepoch(), NULL),
-  ('iss_prog12', 'prd_progress', NULL, NULL, 12,
+  ('iss_prog12', 'prd_progress', NULL, 12,
    'Cloudflare Access in front of production',
    'Owner login via Access; no auth code in the app (SPEC §8.3).',
    'backlog', 'medium', 1, 'usr_owner', NULL, unixepoch(), unixepoch(), NULL),
-  ('iss_prog13', 'prd_progress', NULL, NULL, 13,
+  ('iss_prog13', 'prd_progress', NULL, 13,
    'Production deploy',
    'Create the real D1 database, set its id in wrangler.jsonc, wrangler deploy.',
    'backlog', 'medium', 2, 'usr_owner', NULL, unixepoch(), unixepoch(), NULL),
-  ('iss_prog14', 'prd_progress', 'rep_progress', 'arc_v1core', 14,
+  ('iss_prog14', 'prd_progress', 'arc_v1core', 14,
    'Mobile responsive pass',
    'Board scrolls horizontally, action pages reflow; genuinely usable on a phone.',
    'backlog', 'low', 3, 'usr_owner', NULL, unixepoch(), unixepoch(), NULL);
@@ -125,7 +122,7 @@ VALUES
    'Round trip verified: D1 → Drizzle → Hono → React on one dev server. See docs/SETUP.md.',
    unixepoch(), unixepoch()),
   ('cmt_2', 'iss_prog2', 'usr_owner',
-   'Container model decided: focus_id always set, nullable repo_id narrows it. See DECISIONS.md.',
+   'Container model decided: focus_id is the sole container; a focus optionally carries a git_url (PROG-102). See DECISIONS.md.',
    unixepoch(), unixepoch());
 
 INSERT OR IGNORE INTO activity (id, action_id, actor_id, type, data, created_at)
