@@ -581,9 +581,13 @@ so old bookmarks keep working.
   sortable/filterable action list with inline status/priority edits; a closed
   action (done or canceled) shows its title dimmed + struck through, the shared
   finished treatment (`closedTitleClass`, PROG-100).
-- **Action page** — inline-editable title and description, sidebar fields
-  (status/due-date/priority/estimate in that order, then container, arc, and
-  tags with picker buttons; a **Work on this** field — D35), a Git section
+- **Action page** — a structural breadcrumb (Workspace / Focus / Arc / KEY,
+  ancestors linked, unset arc omitted — the shared `Breadcrumb` component,
+  PROG-103; container pages use it too, ending in their kind),
+  inline-editable title and description, sidebar fields
+  (status/due-date/priority/estimate in that order, then focus (its optional
+  gitUrl links out), arc, and tags with picker buttons; a **Work on this**
+  field — D35), a Git section
   (linked PRs with state badges, commits with short shas, linking out to
   GitHub), and comments + activity interleaved into one timeline. Each
   editable sidebar field carries a **left-gutter glyph** (PROG-101): the

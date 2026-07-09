@@ -15,6 +15,7 @@ import {
 import type { WireAction, SnapshotPayload } from "../../shared/types";
 import { openCreateContainer } from "../commands/controller";
 import { closedTitleClass } from "../actionDone";
+import Breadcrumb from "../Breadcrumb";
 import { sortContainers } from "../containerReorder";
 import EditableMarkdown from "../EditableMarkdown";
 import InlineEdit from "../InlineEdit";
@@ -112,6 +113,24 @@ function resolve(ws: SnapshotPayload, type: ContainerType, id: string): Resolved
   }
 }
 
+// The linked ancestor crumbs for a container page (PROG-103): a focus sits
+// under its workspace; an arc under its focus (and that focus's workspace); a
+// workspace is a root. Dangling parents just shorten the trail.
+function ancestorCrumbs(
+  ws: SnapshotPayload,
+  type: ContainerType,
+  id: string,
+): { label: string; href: string }[] {
+  const focusId =
+    type === "focus" ? id : type === "arc" ? ws.arcs.find((a) => a.id === id)?.focusId : undefined;
+  const focus = focusId ? ws.focuses.find((p) => p.id === focusId) : undefined;
+  const workspace = focus ? ws.workspaces.find((w) => w.id === focus.workspaceId) : undefined;
+  return [
+    ...(workspace ? [{ label: workspace.name, href: `/workspace/${workspace.id}` }] : []),
+    ...(focus && type !== "focus" ? [{ label: focus.name, href: `/focus/${focus.id}` }] : []),
+  ];
+}
+
 type SortMode = "status" | "number" | "updated";
 const STATUS_ORDER = new Map(ACTION_STATUSES.map((s, i) => [s, i]));
 
@@ -159,12 +178,10 @@ export default function ContainerPage({
 
   return (
     <div className="mx-auto max-w-3xl">
-      <nav className="text-sm text-ink-faint">
-        <Link href="/" className="hover:text-ink-soft">
-          Snapshot
-        </Link>{" "}
-        / {TYPE_LABELS[type]}
-      </nav>
+      {/* Ancestors in the structure tree, then the page's own kind (PROG-103)
+          — the name itself is the H1 right below. Replaces the old
+          "Snapshot /" trail (same rationale as the action page). */}
+      <Breadcrumb crumbs={[...ancestorCrumbs(snapshot, type, id), { label: TYPE_LABELS[type] }]} />
 
       <header className="mt-4">
         <div className="flex items-start gap-3">
