@@ -19,6 +19,7 @@ import type {
   SnapshotPayload,
 } from "../../shared/types";
 import { sortByName } from "../boardFilters";
+import Breadcrumb from "../Breadcrumb";
 import { openPalette } from "../commands/controller";
 import { useRegisterPageAction } from "../commands/currentAction";
 import EditableMarkdown from "../EditableMarkdown";
@@ -85,6 +86,7 @@ export default function ActionPage({
   const { action } = resolved;
 
   const focus = snapshot.focuses.find((p) => p.id === action.focusId);
+  const workspace = focus ? snapshot.workspaces.find((w) => w.id === focus.workspaceId) : undefined;
   const repo = action.repoId ? snapshot.repos.find((r) => r.id === action.repoId) : null;
   const arc = action.arcId ? snapshot.arcs.find((a) => a.id === action.arcId) : null;
   // Chips list alphabetically (PROG-83) — link insertion order means nothing.
@@ -97,30 +99,21 @@ export default function ActionPage({
 
   return (
     <div className="mx-auto max-w-3xl overflow-hidden">
-      <nav className="text-sm text-ink-faint">
-        <Link href="/" className="hover:text-ink-soft">
-          Snapshot
-        </Link>{" "}
-        /{" "}
-        {focus ? (
-          <Link href={`/focus/${focus.id}`} className="hover:text-ink-soft">
-            {focus.name}
-          </Link>
-        ) : (
-          "?"
-        )}
-        {repo && (
-          <>
-            {" / "}
-            <Link href={`/repo/${repo.id}`} className="hover:text-ink-soft">
-              {repo.name}
-            </Link>
-          </>
-        )}
-      </nav>
+      {/* The action's place in the structure tree (PROG-103): Workspace /
+          Focus / Arc / key, ancestors linked. The repo isn't part of the
+          owner's stated path — it stays in the sidebar's Container field.
+          The key is the terminal crumb, so the old standalone key line above
+          the title is gone (it would repeat the same text one line apart). */}
+      <Breadcrumb
+        crumbs={[
+          ...(workspace ? [{ label: workspace.name, href: `/workspace/${workspace.id}` }] : []),
+          { label: focus?.name ?? "?", href: focus ? `/focus/${focus.id}` : undefined },
+          ...(arc ? [{ label: arc.name, href: `/arc/${arc.id}` }] : []),
+          { label: canonicalKey ?? "?", mono: true },
+        ]}
+      />
 
       <header className="mt-4">
-        <p className="font-mono text-sm text-ink-faint">{canonicalKey}</p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">
           <InlineEdit
             value={action.title}
