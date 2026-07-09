@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { ACTION_ESTIMATES, ACTION_PRIORITIES, ACTION_STATUSES } from "../../shared/constants";
 import type { WireAction, SnapshotPayload } from "../../shared/types";
+import { sortByName } from "../boardFilters";
 import { addDays, formatDueDate, relativeDue, todayISO } from "../dates";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import {
@@ -190,20 +191,16 @@ function buildItems(
       const assigned = new Set(
         ws.actionTags.filter((l) => l.actionId === action.id).map((l) => l.tagId),
       );
-      const items: Item[] = ws.tags
-        .filter((t) => matches(t.name))
-        .slice()
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map((t) => ({
-          id: t.id,
-          label: t.name,
-          hint: assigned.has(t.id) ? "✓ added" : undefined,
-          run: () => {
-            if (assigned.has(t.id)) untagAction(action.id, t.id);
-            else tagAction(action.id, { tagId: t.id });
-            return "keep";
-          },
-        }));
+      const items: Item[] = sortByName(ws.tags.filter((t) => matches(t.name))).map((t) => ({
+        id: t.id,
+        label: t.name,
+        hint: assigned.has(t.id) ? "✓ added" : undefined,
+        run: () => {
+          if (assigned.has(t.id)) untagAction(action.id, t.id);
+          else tagAction(action.id, { tagId: t.id });
+          return "keep";
+        },
+      }));
       const name = query.trim();
       if (name !== "" && !ws.tags.some((t) => t.name.toLowerCase() === q)) {
         items.push({
@@ -219,7 +216,10 @@ function buildItems(
       return items;
     }
     case "arc": {
-      const focusArcs = ws.arcs.filter((a) => a.focusId === action.focusId && !a.archivedAt);
+      // Alphabetical like every picker (PROG-83); "No arc" stays pinned first.
+      const focusArcs = sortByName(
+        ws.arcs.filter((a) => a.focusId === action.focusId && !a.archivedAt),
+      );
       // "No arc" filters like any option, so a typed query can't leave it
       // sitting first and steal the Enter.
       return [
@@ -239,10 +239,13 @@ function buildItems(
     }
     case "move": {
       const targets: { focusId: string; repoId: string | null; label: string; hint: string }[] = [];
-      // Archived containers aren't valid destinations (D26).
-      for (const focus of ws.focuses.filter((p) => !p.archivedAt)) {
+      // Archived containers aren't valid destinations (D26). Focuses list
+      // alphabetically, each followed by its repos, also alphabetical (PROG-83).
+      for (const focus of sortByName(ws.focuses.filter((p) => !p.archivedAt))) {
         targets.push({ focusId: focus.id, repoId: null, label: focus.name, hint: "Focus" });
-        for (const repo of ws.repos.filter((r) => r.focusId === focus.id && !r.archivedAt)) {
+        for (const repo of sortByName(
+          ws.repos.filter((r) => r.focusId === focus.id && !r.archivedAt),
+        )) {
           targets.push({
             focusId: focus.id,
             repoId: repo.id,
@@ -409,12 +412,17 @@ function rootItems(
   items.push(...ranked.map((r) => actionItem(r.action)));
 
   // Archived containers stay out of search (reachable from their parent's
-  // page, which lists them dimmed — D26).
+  // page, which lists them dimmed — D26). Each kind lists alphabetically
+  // (PROG-83), kinds in hierarchy order, so the cap trims deterministically.
   const containers = [
-    ...ws.workspaces.map((x) => ({ ...x, hint: "Workspace", href: `/workspace/${x.id}` })),
-    ...ws.focuses.map((x) => ({ ...x, hint: "Focus", href: `/focus/${x.id}` })),
-    ...ws.repos.map((x) => ({ ...x, hint: "Repo", href: `/repo/${x.id}` })),
-    ...ws.arcs.map((x) => ({ ...x, hint: "Arc", href: `/arc/${x.id}` })),
+    ...sortByName(ws.workspaces).map((x) => ({
+      ...x,
+      hint: "Workspace",
+      href: `/workspace/${x.id}`,
+    })),
+    ...sortByName(ws.focuses).map((x) => ({ ...x, hint: "Focus", href: `/focus/${x.id}` })),
+    ...sortByName(ws.repos).map((x) => ({ ...x, hint: "Repo", href: `/repo/${x.id}` })),
+    ...sortByName(ws.arcs).map((x) => ({ ...x, hint: "Arc", href: `/arc/${x.id}` })),
   ]
     .filter((c) => !c.archivedAt && matches(c.name))
     .slice(0, 6);
