@@ -11,7 +11,8 @@ export type Crumb = {
   label: string;
   // Ancestors carry an href; the terminal (current-location) crumb omits it.
   href?: string;
-  // Action keys render in the mono face they use everywhere else.
+  // Action keys render in the mono face they use everywhere else — both the
+  // terminal key and any linked Step parents above it (PROG-106).
   mono?: boolean;
 };
 
@@ -24,7 +25,10 @@ export default function Breadcrumb({ crumbs }: { crumbs: Crumb[] }) {
         <span key={i}>
           {i > 0 && " / "}
           {crumb.href ? (
-            <Link href={crumb.href} className="hover:text-ink-soft">
+            <Link
+              href={crumb.href}
+              className={`hover:text-ink-soft${crumb.mono ? " font-mono" : ""}`}
+            >
               {crumb.label}
             </Link>
           ) : (

@@ -28,7 +28,14 @@ import EstimateIndicator from "../EstimateIndicator";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
 import StatusIndicator from "../StatusIndicator";
-import { addComment, findActionByKey, actionKeyOf, updateAction, useTimeline } from "../store";
+import {
+  actionAncestors,
+  actionKeyOf,
+  addComment,
+  findActionByKey,
+  updateAction,
+  useTimeline,
+} from "../store";
 import { copyBundleAsPrompt, copyWorkCommand, prefetchBundle } from "../workOn";
 import { clearDraft, readDraft, writeDraft } from "../drafts";
 import { toastAction } from "../toast";
@@ -88,6 +95,8 @@ export default function ActionPage({
   const focus = snapshot.focuses.find((p) => p.id === action.focusId);
   const workspace = focus ? snapshot.workspaces.find((w) => w.id === focus.workspaceId) : undefined;
   const arc = action.arcId ? snapshot.arcs.find((a) => a.id === action.arcId) : null;
+  // Empty for a top-level action, so its trail is unchanged (PROG-106).
+  const ancestors = actionAncestors(snapshot, action);
   // Chips list alphabetically (PROG-83) — link insertion order means nothing.
   const actionTags = sortByName(
     snapshot.actionTags
@@ -102,12 +111,19 @@ export default function ActionPage({
           Focus / Arc / key, ancestors linked. The focus is the sole container
           (PROG-102) — its optional git repo lives in the sidebar's Focus field.
           The key is the terminal crumb, so the old standalone key line above
-          the title is gone (it would repeat the same text one line apart). */}
+          the title is gone (it would repeat the same text one line apart).
+          A Step continues the trail through its parent actions (PROG-106) —
+          the containers stop at the arc, and the parent chain resumes the
+          descent from there: … / Arc / PROG-4 / PROG-11. */}
       <Breadcrumb
         crumbs={[
           ...(workspace ? [{ label: workspace.name, href: `/workspace/${workspace.id}` }] : []),
           { label: focus?.name ?? "?", href: focus ? `/focus/${focus.id}` : undefined },
           ...(arc ? [{ label: arc.name, href: `/arc/${arc.id}` }] : []),
+          ...ancestors.map((a) => {
+            const key = actionKeyOf(snapshot, a);
+            return { label: key, href: `/action/${key}`, mono: true };
+          }),
           { label: canonicalKey ?? "?", mono: true },
         ]}
       />
