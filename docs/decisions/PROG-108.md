@@ -20,3 +20,16 @@ disabled — a done action has nothing to complete, and the status select still
 covers reopening. The sidebar status label now names the kind of thing shown:
 **"Action Status"**, or **"Step Status"** when the action has a parent
 (`parentActionId`, the PROG-106 chain).
+
+### PROG-108b — Consolidated status panel supersedes the Work-on-this box
+
+Review iteration on PROG-108: the sidebar's state controls consolidate into
+**one wash-tinted panel at the very top** (the style the PROG-104 Work-on-this
+box introduced), ordered header → status select → **Complete action** →
+**Copy as prompt**. The Work-on-this box is absorbed into it, and its **Copy
+CLI command** link is retired from the page — the command palette still
+offers the command, so the rarely-used path costs a keystroke instead of
+permanent sidebar space. The panel header keeps the Action Status / Step
+Status wording from PROG-108. **Comment & close** also picked up the panel's
+adobe-wash tint so it reads as a warm action beside the filled Comment
+primary.
