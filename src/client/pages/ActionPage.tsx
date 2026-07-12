@@ -6,6 +6,7 @@ import {
   ACTION_ESTIMATES,
   ACTION_PRIORITIES,
   ACTION_STATUSES,
+  isOpenStatus,
   type ActionPriority,
   type ActionStatus,
 } from "../../shared/constants";
@@ -36,7 +37,7 @@ import {
   updateAction,
   useTimeline,
 } from "../store";
-import { copyBundleAsPrompt, copyWorkCommand, prefetchBundle } from "../workOn";
+import { copyBundleAsPrompt, prefetchBundle } from "../workOn";
 import { clearDraft, readDraft, writeDraft } from "../drafts";
 import { toastAction } from "../toast";
 
@@ -170,12 +171,55 @@ export default function ActionPage({
             column (and every w-full field in it) past the viewport — horizontal
             overflow on a phone. min-w-0 lets the track constrain it. */}
         <aside className="w-full min-w-0 overflow-hidden space-y-4 md:col-start-2 md:row-start-1 md:row-span-2">
+          {/* The status panel (PROG-108b): the action's state controls in one
+              wash-tinted box leading the sidebar — the status select, the
+              one-click Complete action, and the agent-kickoff Copy as prompt
+              (absorbing the PROG-104 Work-on-this panel; its Copy-CLI-command
+              link is retired). The header names which kind of thing this page
+              shows: a Step is an action with a parent (PROG-106 chain). */}
+          <div className="rounded-lg border border-adobe-wash bg-adobe-wash/30 p-3">
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide font-mono text-adobe-deep">
+              {action.parentActionId ? "Step Status" : "Action Status"}
+            </p>
+            <IconSelect
+              icon={<StatusIndicator status={action.status} />}
+              openLabel="Change status"
+              value={action.status}
+              options={ACTION_STATUSES.map((s) => [s, STATUS_LABELS[s]])}
+              onChange={(v) => updateAction(action.id, { status: v as ActionStatus })}
+            />
+            {/* Closed actions (done/canceled) have no work left to hand to an
+                agent, so the kickoff hides with them (PROG-108b). */}
+            {isOpenStatus(action.status) && (
+              <button
+                onClick={() => void copyBundleAsPrompt(actionKeyOf(snapshot, action))}
+                className="group mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-adobe px-3 py-2 text-sm font-medium text-white hover:bg-adobe-deep sm:min-h-0"
+              >
+                Copy as prompt
+                <ArrowGlyph className="transition-transform group-hover:translate-x-0.5" />
+                <span className="text-white/70">(W)</span>
+              </button>
+            )}
+            {/* One-click move to done (PROG-108), in moss — the palette's
+                completed/grounded green — so finishing reads distinctly from
+                the adobe kickoff above. Hidden once the action is already
+                done — the select above still covers reopen. */}
+            {action.status !== "done" && (
+              <button
+                onClick={() => updateAction(action.id, { status: "done" })}
+                className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-moss px-3 py-2 text-sm font-medium text-white hover:bg-moss-deep sm:min-h-0"
+              >
+                Complete action
+                <CheckGlyph />
+              </button>
+            )}
+          </div>
           {/* Field order + the icon gutter (PROG-101, reworked PROG-104):
               every field carries a glyph on the left and its value in the same
-              text column. Focus + Arc — the container switchers — lead, then
-              status/due/priority/estimate, the standout Work-on-this panel, and
-              Tags last. The Focus/Arc glyphs are buttons that open the move/arc
-              palette (S/P/E/M/A shortcuts still fire regardless). */}
+              text column. After the status panel, Focus + Arc — the container
+              switchers — then due/priority/estimate, and Tags last. The
+              Focus/Arc glyphs are buttons that open the move/arc palette
+              (S/P/E/M/A shortcuts still fire regardless). */}
           <Field label="Focus">
             <IconRow
               icon={
@@ -258,15 +302,6 @@ export default function ActionPage({
               </div>
             </IconRow>
           </Field>
-          <Field label="Status">
-            <IconSelect
-              icon={<StatusIndicator status={action.status} />}
-              openLabel="Change status"
-              value={action.status}
-              options={ACTION_STATUSES.map((s) => [s, STATUS_LABELS[s]])}
-              onChange={(v) => updateAction(action.id, { status: v as ActionStatus })}
-            />
-          </Field>
           <Field label="Due date">
             <IconRow
               icon={
@@ -331,31 +366,6 @@ export default function ActionPage({
               onChange={(v) => updateAction(action.id, { estimate: v === "" ? null : Number(v) })}
             />
           </Field>
-          {/* Work on this (PROG-104): the agent-kickoff, lifted out of the plain
-              field rhythm into a tinted action panel so it reads as the sidebar's
-              primary call-to-action — hand this action to an agent and jump
-              forward in Progress. The filled adobe button + forward arrow
-              (nudged on hover) is the app's primary-CTA style (cf. the header
-              New button). */}
-          <div className="rounded-lg border border-adobe-wash bg-adobe-wash/30 p-3">
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide font-mono text-adobe-deep">
-              Work on this
-            </p>
-            <button
-              onClick={() => void copyBundleAsPrompt(actionKeyOf(snapshot, action))}
-              className="group flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-adobe px-3 py-2 text-sm font-medium text-white hover:bg-adobe-deep sm:min-h-0"
-            >
-              Copy as prompt
-              <ArrowGlyph className="transition-transform group-hover:translate-x-0.5" />
-              <span className="text-white/70">(W)</span>
-            </button>
-            <button
-              onClick={() => copyWorkCommand(actionKeyOf(snapshot, action))}
-              className="mt-1.5 flex min-h-11 w-full items-center justify-center text-xs text-adobe-deep hover:underline sm:min-h-0"
-            >
-              Copy CLI command
-            </button>
-          </div>
           <Field label="Tags">
             {actionTags.length === 0 ? (
               <span className="text-sm text-ink-faint">—</span>
@@ -532,6 +542,23 @@ function ArrowGlyph({ className = "" }: { className?: string }) {
   );
 }
 
+// The "Complete action" check mark (PROG-108) — same 16×16 box and stroke
+// weight as the other button glyphs.
+function CheckGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden className="inline-block h-3.5 w-3.5 shrink-0">
+      <path
+        d="M3 8.5 L6.5 12 L13 4.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
@@ -610,7 +637,7 @@ function TimelineSection({ action, snapshot }: { action: WireAction; snapshot: S
   // text without a stale-closure read. The text stays in the field and in
   // localStorage until the server confirms, then both are cleared — so a failed
   // or in-flight send never loses it.
-  async function sendComment(body: string) {
+  async function sendComment(body: string): Promise<boolean> {
     setSending(true);
     const ok = await addComment(action.id, body);
     setSending(false);
@@ -631,12 +658,24 @@ function TimelineSection({ action, snapshot }: { action: WireAction; snapshot: S
         `comment:${action.id}`,
       );
     }
+    return ok;
   }
 
   function submitComment() {
     const body = draft.trim();
     if (body === "" || sending) return;
     void sendComment(body);
+  }
+
+  // Comment & close (PROG-108): post the comment, then move the action to
+  // done — the "leave a wrap-up note and finish" flow in one click. The close
+  // only follows a confirmed comment; on failure the draft-preserving Retry
+  // toast re-sends just the comment, and the user closes once it lands.
+  async function submitCommentAndClose() {
+    const body = draft.trim();
+    if (body === "" || sending) return;
+    const ok = await sendComment(body);
+    if (ok) void updateAction(action.id, { status: "done" });
   }
 
   const entries = useMemo(() => {
@@ -717,13 +756,28 @@ function TimelineSection({ action, snapshot }: { action: WireAction; snapshot: S
           placeholder="Leave a comment… (Markdown)"
           className="w-full rounded border border-line bg-card p-3 text-sm focus:border-ink-faint focus:outline-none"
         />
-        <button
-          onClick={submitComment}
-          className="mt-2 rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep disabled:opacity-40"
-          disabled={draft.trim() === "" || sending}
-        >
-          Comment
-        </button>
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            onClick={submitComment}
+            className="rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep disabled:opacity-40"
+            disabled={draft.trim() === "" || sending}
+          >
+            Comment
+          </button>
+          {/* Same done-move as the sidebar's Complete action (PROG-108), but
+              bundled with the comment post. Tinted with the Work-on-this
+              panel's adobe wash — colorful enough to read as an action, still
+              a step below the filled Comment primary; hidden once done. */}
+          {action.status !== "done" && (
+            <button
+              onClick={() => void submitCommentAndClose()}
+              className="rounded border border-adobe-wash bg-adobe-wash/40 px-3 py-1 text-sm text-adobe-deep hover:bg-adobe-wash/70 disabled:opacity-40"
+              disabled={draft.trim() === "" || sending}
+            >
+              Comment &amp; close
+            </button>
+          )}
+        </div>
       </div>
     </section>
   );
