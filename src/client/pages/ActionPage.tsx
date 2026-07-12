@@ -771,12 +771,13 @@ function TimelineSection({ action, snapshot }: { action: WireAction; snapshot: S
             Comment
           </button>
           {/* Same done-move as the sidebar's Complete action (PROG-108), but
-              bundled with the comment post. Bordered-secondary so the cluster
-              keeps one filled primary; hidden once the action is done. */}
+              bundled with the comment post. Tinted with the Work-on-this
+              panel's adobe wash — colorful enough to read as an action, still
+              a step below the filled Comment primary; hidden once done. */}
           {action.status !== "done" && (
             <button
               onClick={() => void submitCommentAndClose()}
-              className="rounded border border-line px-3 py-1 text-sm text-ink-soft hover:border-ink-faint hover:text-ink disabled:opacity-40"
+              className="rounded border border-adobe-wash bg-adobe-wash/40 px-3 py-1 text-sm text-adobe-deep hover:bg-adobe-wash/70 disabled:opacity-40"
               disabled={draft.trim() === "" || sending}
             >
               Comment &amp; close
