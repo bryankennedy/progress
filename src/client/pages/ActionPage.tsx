@@ -258,19 +258,6 @@ export default function ActionPage({
               </div>
             </IconRow>
           </Field>
-          {/* Complete action (PROG-108): one-click move to done, in the same
-              filled primary-CTA style as the Work-on-this button below so
-              finishing work is as prominent as starting it. Hidden once the
-              action is already done — the status select still covers reopen. */}
-          {action.status !== "done" && (
-            <button
-              onClick={() => updateAction(action.id, { status: "done" })}
-              className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-adobe px-3 py-2 text-sm font-medium text-white hover:bg-adobe-deep sm:min-h-0"
-            >
-              Complete action
-              <CheckGlyph />
-            </button>
-          )}
           {/* A Step is an action with a parent (PROG-106 chain), so the label
               names which kind this page is showing (PROG-108). */}
           <Field label={action.parentActionId ? "Step Status" : "Action Status"}>
@@ -282,6 +269,20 @@ export default function ActionPage({
               onChange={(v) => updateAction(action.id, { status: v as ActionStatus })}
             />
           </Field>
+          {/* Complete action (PROG-108): one-click move to done, right under
+              the status field it short-cuts, in the same filled primary-CTA
+              style as the Work-on-this button below so finishing work is as
+              prominent as starting it. Hidden once the action is already
+              done — the status select still covers reopen. */}
+          {action.status !== "done" && (
+            <button
+              onClick={() => updateAction(action.id, { status: "done" })}
+              className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-adobe px-3 py-2 text-sm font-medium text-white hover:bg-adobe-deep sm:min-h-0"
+            >
+              Complete action
+              <CheckGlyph />
+            </button>
+          )}
           <Field label="Due date">
             <IconRow
               icon={
