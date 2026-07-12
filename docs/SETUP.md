@@ -346,14 +346,35 @@ events: Pushes + Pull requests.
 
 ### MCP server
 
-`src/mcp/server.ts` (D34) exposes the production API to Claude Code as MCP
-tools (`get_bundle`, `get_action`, `list_actions`, `create_action`,
-`update_status`, `set_due_date`, `comment`, `move_action`). It is a **local
-stdio** server — it
-runs on your machine and reaches the API with the `PROGRESS_API_TOKEN` bearer
-from §6, so nothing is hosted on the Worker.
+The Progress MCP toolset (`get_bundle`, `get_action`, `list_actions`,
+`create_action`, `update_status`, `set_due_date`, `comment`, `move_action`)
+lives in `src/mcp/tools.ts` and is served over **two transports** — pick by
+where the agent runs:
 
-Smoke-test it standalone (lists tools, runs the read tools against production):
+| | Hosted HTTP (recommended) | Local stdio |
+|---|---|---|
+| Needs | just the URL + bearer token | this repo checked out + Bun + `.env` |
+| Entry | `POST /api/mcp` on the Worker (`src/worker/mcp.ts`) | `bun run mcp` (`src/mcp/server.ts`, D34) |
+| Use from | any machine / cloud agent | this machine |
+
+**Hosted (Streamable HTTP).** The Worker serves the same toolset at
+`/api/mcp`, behind the same bearer auth as the rest of the API (§6). Register
+it on **any** machine — no checkout needed:
+
+```bash
+claude mcp add --transport http --scope user progress \
+  https://progress.bck.dev/api/mcp \
+  --header "Authorization: Bearer <PROGRESS_API_TOKEN>"
+```
+
+(`--scope user` makes it available in every project on that machine.) The
+endpoint is stateless — plain JSON per POST, no sessions — so it also works
+from `curl`, other MCP clients, or SDK `mcpServers` config blocks that accept a
+URL + headers.
+
+**Local stdio.** `src/mcp/server.ts` runs on your machine and reaches the API
+with the `PROGRESS_API_TOKEN` bearer from §6. Smoke-test it standalone (lists
+tools, runs the read tools against production):
 
 ```bash
 bun run mcp   # connects, prints "[progress-mcp] connected to …" on stderr
@@ -368,12 +389,12 @@ claude mcp add progress -- bun --env-file=/ABS/PATH/TO/progress/.env \
   /ABS/PATH/TO/progress/src/mcp/server.ts
 ```
 
-Verify with `claude mcp list` (should show `progress` connected) and `/mcp` in a
-session (lists the eight tools). Override the target with `PROGRESS_BASE_URL`
-(defaults to production) to point the server at a local `bun run dev` instance
-instead. Then in any session: *"pull the bundle for PROG-18 and start working"*
-— the agent calls `get_bundle`, does the work, and reports back via `comment` /
-`update_status` (SPEC §11.3).
+Either way, verify with `claude mcp list` (should show `progress` connected)
+and `/mcp` in a session (lists the eight tools). For the stdio server,
+override the target with `PROGRESS_BASE_URL` (defaults to production) to point
+it at a local `bun run dev` instance instead. Then in any session: *"pull the
+bundle for PROG-18 and start working"* — the agent calls `get_bundle`, does the
+work, and reports back via `comment` / `update_status` (SPEC §11.3).
 
 ### Work CLI (`progress work`)
 

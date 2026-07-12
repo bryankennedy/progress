@@ -28,7 +28,9 @@ below resolve in [`decisions/D1-D49.md`](./decisions/D1-D49.md), issue keys in
 | `src/client/store.ts` | Client store: snapshot cache + every optimistic mutation |
 | `src/shared/` | Wire types (`types.ts`) and fixed vocabularies (`constants.ts`) shared client/server |
 | `src/db/schema.ts` | Drizzle schema — single schema source of truth, generates `drizzle/` migrations |
-| `src/mcp/server.ts` | Progress MCP server — local stdio client of the API (D34) |
+| `src/mcp/tools.ts` | Progress MCP toolset — transport-agnostic client of the API (D34) |
+| `src/mcp/server.ts` | Local stdio MCP transport (`bun run mcp`) |
+| `src/worker/mcp.ts` | Hosted MCP transport — `POST /api/mcp`, Streamable HTTP, stateless |
 | `bin/progress.ts` | `progress work <KEY>` kickoff CLI — bundle → branch → `claude` (D35) |
 | `scripts/` | `seed.sql` (idempotent baseline), `seed-scale.ts` (5k-action synthetic dataset) |
 
@@ -233,6 +235,7 @@ mandatory — renew it before it lapses (an expired file is worse than none).
 | `GET /api/actions/:key/bundle` | Looked up by **key** (alias-aware), not id. Returns `text/markdown` — a deterministic context "work order": action fields + tags, lineage with descriptions (focus incl. optional `gitUrl` → arc, where the arc description carries the "why"), comments, an **Images** list (absolute URLs of every image referenced in the description/comments, so a bearer-authed agent can fetch them — PROG-42), linked PRs/commits, then a stable report-back preamble — **branch off fresh `origin/main`, never another feature branch, and PR with `--base main`** (PROG-95), branch/key auto-linking + status flow, plus a **Committing & PRs** block that embeds a local, key-aware copy of the owner's smart-commit conventions (logical chunks, secret-scan, `type(scope): KEY subject`, no AI attribution) so a handed-off agent commits to the owner's rules (PROG-62). A retired key resolves and renders the current canonical key. 400 malformed key, 404 unknown. Rendered by `src/worker/bundle.ts` (`renderBundle`); shared foundation for the agent surfaces (SPEC §11.1, D33). |
 | `GET /api/arcs/:id/bundle` | Looked up by **id** (the arc page has it). Returns `text/markdown` — the **arc** work order: a single prompt covering **every open action** in the arc (`done`/`canceled` dropped via `isOpenStatus`), each rendered like the action bundle (fields, description, comments, Images, linked PRs/commits) minus its per-action footer, with focus/arc lineage (incl. the focus's optional `gitUrl`) stated once. Ends in **combined-PR** orchestration — fan the actions to sub-agents, share one branch, land **one PR naming every key** — plus the same smart-commit block (keyed per-commit). Deterministic (status-then-number sort). 404 unknown arc. Rendered by `renderArcBundle` in `src/worker/bundle.ts`. |
 | `POST /api/actions/:id/comments` | `{ body }` → 201 `{ comment }`. |
+| `POST /api/mcp` | Hosted MCP endpoint (Streamable HTTP, stateless) — serves the eight-tool Progress MCP toolset (§3 “MCP server” below) straight from the Worker, gated by the same auth middleware; tool calls self-dispatch back into this API with the caller’s credentials. GET/DELETE → 405 (no SSE resume stream, no sessions). Handler: `src/worker/mcp.ts`. |
 | `GET /api/search?q=&offset=` | Comment full-text search (PROG-130) — the one searchable text not in the snapshot payload (D20), so it needs the server; title/description search runs client-side over the store. Case-insensitive substring via SQLite `LIKE`, AND'd across whitespace terms, wildcards escaped (`ESCAPE '\'`) so `100%` matches literally. Returns `{ hits: [{ commentId, actionId, snippet }], truncated }`, most-recent first, one 50-hit page per request; `?offset=` skips past earlier pages (PROG-78 pagination; malformed/negative offsets clamp to 0) and `truncated` is true while more matches remain beyond the returned page **and** the next page is still reachable — offsets cap at 10,000 (`MAX_OFFSET`), where pagination ends rather than re-serving the clamped page. The client resolves `actionId` to the action it already holds; `snippet` is a body window the client re-highlights. Pure helpers in `src/worker/searchComments.ts`. |
 
 **Legacy aliases (PROG-98).** Old URLs keep working: the Worker serves the
@@ -305,14 +308,27 @@ same as the current `act/<KEY>` convention (PROG-98).
   (edit/close/merge/reopen) update title and state in place, silently.
   GitHub's closed+merged flag is normalized to the `merged` state.
 
-### MCP server (D34)
+### MCP server (D34; hosted endpoint: decisions/remote-mcp)
 
-`src/mcp/server.ts` (`bun run mcp`) is a **local stdio MCP server** that wraps
-this API rather than re-implementing the domain — the Worker stays the single
-source of truth. It authenticates with the **`PROGRESS_API_TOKEN`** bearer
-(or the `PROD_PROGRESS_API_TOKEN` fallback) via the `Authorization: Bearer`
-header, the same non-interactive pattern the dogfood scripts and `progress work`
-CLI use (SPEC §11.3/§11.4, PROG-34). Registration: SETUP §7.
+The Progress MCP toolset lives in `src/mcp/tools.ts` — transport-agnostic and
+a **client of this API** rather than a re-implementation of the domain, so the
+Worker stays the single source of truth. Two transports register it:
+
+- **Local stdio** — `src/mcp/server.ts` (`bun run mcp`) runs on your machine
+  and fetches the production API with the **`PROGRESS_API_TOKEN`** bearer (or
+  the `PROD_PROGRESS_API_TOKEN` fallback) via the `Authorization: Bearer`
+  header, the same non-interactive pattern the dogfood scripts and
+  `progress work` CLI use (SPEC §11.3/§11.4, PROG-34).
+- **Hosted Streamable HTTP** — `POST /api/mcp` (`src/worker/mcp.ts`) serves the
+  identical toolset from the Worker itself, so any agent on any machine reaches
+  it with just the URL + the same bearer — no checkout, no Bun. It runs
+  **stateless** (fresh server + transport per request, plain JSON responses, no
+  session ids; GET/DELETE answer 405). It sits under `/api/*` so the auth
+  middleware gates it, and tool calls **self-dispatch** back into the Hono app
+  forwarding the caller's own credentials — the API handlers stay the single
+  enforcement point.
+
+Registration for both: SETUP §7.
 
 Tools are **key-addressed** (alias-aware) and validated against the shared
 vocabularies in `src/shared/constants.ts`:
