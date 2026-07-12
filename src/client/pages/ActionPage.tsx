@@ -36,7 +36,7 @@ import {
   updateAction,
   useTimeline,
 } from "../store";
-import { copyBundleAsPrompt, copyWorkCommand, prefetchBundle } from "../workOn";
+import { copyBundleAsPrompt, prefetchBundle } from "../workOn";
 import { clearDraft, readDraft, writeDraft } from "../drafts";
 import { toastAction } from "../toast";
 
@@ -170,12 +170,49 @@ export default function ActionPage({
             column (and every w-full field in it) past the viewport — horizontal
             overflow on a phone. min-w-0 lets the track constrain it. */}
         <aside className="w-full min-w-0 overflow-hidden space-y-4 md:col-start-2 md:row-start-1 md:row-span-2">
+          {/* The status panel (PROG-108b): the action's state controls in one
+              wash-tinted box leading the sidebar — the status select, the
+              one-click Complete action, and the agent-kickoff Copy as prompt
+              (absorbing the PROG-104 Work-on-this panel; its Copy-CLI-command
+              link is retired). The header names which kind of thing this page
+              shows: a Step is an action with a parent (PROG-106 chain). */}
+          <div className="rounded-lg border border-adobe-wash bg-adobe-wash/30 p-3">
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide font-mono text-adobe-deep">
+              {action.parentActionId ? "Step Status" : "Action Status"}
+            </p>
+            <IconSelect
+              icon={<StatusIndicator status={action.status} />}
+              openLabel="Change status"
+              value={action.status}
+              options={ACTION_STATUSES.map((s) => [s, STATUS_LABELS[s]])}
+              onChange={(v) => updateAction(action.id, { status: v as ActionStatus })}
+            />
+            {/* One-click move to done (PROG-108). Hidden once the action is
+                already done — the select above still covers reopen. */}
+            {action.status !== "done" && (
+              <button
+                onClick={() => updateAction(action.id, { status: "done" })}
+                className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-adobe px-3 py-2 text-sm font-medium text-white hover:bg-adobe-deep sm:min-h-0"
+              >
+                Complete action
+                <CheckGlyph />
+              </button>
+            )}
+            <button
+              onClick={() => void copyBundleAsPrompt(actionKeyOf(snapshot, action))}
+              className="group mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-adobe px-3 py-2 text-sm font-medium text-white hover:bg-adobe-deep sm:min-h-0"
+            >
+              Copy as prompt
+              <ArrowGlyph className="transition-transform group-hover:translate-x-0.5" />
+              <span className="text-white/70">(W)</span>
+            </button>
+          </div>
           {/* Field order + the icon gutter (PROG-101, reworked PROG-104):
               every field carries a glyph on the left and its value in the same
-              text column. Focus + Arc — the container switchers — lead, then
-              status/due/priority/estimate, the standout Work-on-this panel, and
-              Tags last. The Focus/Arc glyphs are buttons that open the move/arc
-              palette (S/P/E/M/A shortcuts still fire regardless). */}
+              text column. After the status panel, Focus + Arc — the container
+              switchers — then due/priority/estimate, and Tags last. The
+              Focus/Arc glyphs are buttons that open the move/arc palette
+              (S/P/E/M/A shortcuts still fire regardless). */}
           <Field label="Focus">
             <IconRow
               icon={
@@ -258,31 +295,6 @@ export default function ActionPage({
               </div>
             </IconRow>
           </Field>
-          {/* A Step is an action with a parent (PROG-106 chain), so the label
-              names which kind this page is showing (PROG-108). */}
-          <Field label={action.parentActionId ? "Step Status" : "Action Status"}>
-            <IconSelect
-              icon={<StatusIndicator status={action.status} />}
-              openLabel="Change status"
-              value={action.status}
-              options={ACTION_STATUSES.map((s) => [s, STATUS_LABELS[s]])}
-              onChange={(v) => updateAction(action.id, { status: v as ActionStatus })}
-            />
-          </Field>
-          {/* Complete action (PROG-108): one-click move to done, right under
-              the status field it short-cuts, in the same filled primary-CTA
-              style as the Work-on-this button below so finishing work is as
-              prominent as starting it. Hidden once the action is already
-              done — the status select still covers reopen. */}
-          {action.status !== "done" && (
-            <button
-              onClick={() => updateAction(action.id, { status: "done" })}
-              className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-adobe px-3 py-2 text-sm font-medium text-white hover:bg-adobe-deep sm:min-h-0"
-            >
-              Complete action
-              <CheckGlyph />
-            </button>
-          )}
           <Field label="Due date">
             <IconRow
               icon={
@@ -347,31 +359,6 @@ export default function ActionPage({
               onChange={(v) => updateAction(action.id, { estimate: v === "" ? null : Number(v) })}
             />
           </Field>
-          {/* Work on this (PROG-104): the agent-kickoff, lifted out of the plain
-              field rhythm into a tinted action panel so it reads as the sidebar's
-              primary call-to-action — hand this action to an agent and jump
-              forward in Progress. The filled adobe button + forward arrow
-              (nudged on hover) is the app's primary-CTA style (cf. the header
-              New button). */}
-          <div className="rounded-lg border border-adobe-wash bg-adobe-wash/30 p-3">
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide font-mono text-adobe-deep">
-              Work on this
-            </p>
-            <button
-              onClick={() => void copyBundleAsPrompt(actionKeyOf(snapshot, action))}
-              className="group flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-adobe px-3 py-2 text-sm font-medium text-white hover:bg-adobe-deep sm:min-h-0"
-            >
-              Copy as prompt
-              <ArrowGlyph className="transition-transform group-hover:translate-x-0.5" />
-              <span className="text-white/70">(W)</span>
-            </button>
-            <button
-              onClick={() => copyWorkCommand(actionKeyOf(snapshot, action))}
-              className="mt-1.5 flex min-h-11 w-full items-center justify-center text-xs text-adobe-deep hover:underline sm:min-h-0"
-            >
-              Copy CLI command
-            </button>
-          </div>
           <Field label="Tags">
             {actionTags.length === 0 ? (
               <span className="text-sm text-ink-faint">—</span>
