@@ -35,6 +35,7 @@ import {
   SEARCH_CAP,
 } from "./searchComments";
 import { renderArcBundle, renderBundle, type ArcActionData } from "./bundle";
+import { handleMcpRequest } from "./mcp";
 import { notAuthorizedPage } from "./pages";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import {
@@ -1390,6 +1391,16 @@ app.get("/api/arcs/:id/bundle", async (c) => {
   const md = renderArcBundle({ arc, focus, actions: actionData, baseUrl });
   return c.body(md, 200, { "Content-Type": "text/markdown; charset=utf-8" });
 });
+
+// Hosted MCP endpoint (Streamable HTTP, stateless — see src/worker/mcp.ts).
+// Under /api/* so run_worker_first routes it here and the auth middleware
+// gates it; the handler then self-dispatches tool calls back into this app
+// with the caller's own credentials (same pattern as the legacy-path rewrite
+// above). `app.all` — the MCP spec speaks POST for messages plus GET/DELETE
+// for session management, which the transport answers per-method.
+app.all("/api/mcp", (c) =>
+  handleMcpRequest(c.req.raw, async (req) => app.fetch(req, c.env, c.executionCtx)),
+);
 
 app.post("/api/actions/:id/comments", async (c) => {
   const id = c.req.param("id");

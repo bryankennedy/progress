@@ -13,6 +13,6 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src/worker", "src/db", "src/shared", "drizzle.config.ts"],
+  "include": ["src/worker", "src/db", "src/shared", "src/mcp/tools.ts", "drizzle.config.ts"],
   "exclude": ["**/*.test.ts"]
 }
