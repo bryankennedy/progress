@@ -120,6 +120,25 @@ export function actionKeyOf(ws: SnapshotPayload, action: WireAction): string {
   return `${prefix}-${action.number}`;
 }
 
+// The Step parents above an action, outermost first (PROG-106). Steps nest to
+// unbounded depth (PROG-124), so the action page's breadcrumb walks the whole
+// chain rather than naming only the immediate parent. A parent missing from the
+// snapshot truncates the chain instead of throwing. The API enforces acyclicity
+// on reparent, but `seen` keeps a corrupt snapshot from spinning forever.
+export function actionAncestors(ws: SnapshotPayload, action: WireAction): WireAction[] {
+  const chain: WireAction[] = [];
+  const seen = new Set<string>([action.id]);
+  let current = action;
+  while (current.parentActionId) {
+    const parent = ws.actions.find((a) => a.id === current.parentActionId);
+    if (!parent || seen.has(parent.id)) break;
+    seen.add(parent.id);
+    chain.push(parent);
+    current = parent;
+  }
+  return chain.reverse();
+}
+
 // Resolves "PROG-123" to an action: current keys first, then the permanent
 // aliases left behind by cross-focus moves (SPEC §3). Returns the action and
 // whether it was reached via an alias (callers redirect to the canonical key).

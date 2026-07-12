@@ -1,10 +1,11 @@
-// Unit tests for the store's pure key resolution (actionKeyOf/findActionByKey)
+// Unit tests for the store's pure key resolution (actionKeyOf/findActionByKey),
+// the Step ancestor walk the action breadcrumb renders (actionAncestors),
 // and the moveAction rollback contract: a failed cross-focus move must restore
 // exactly what the optimistic write touched — including the steps it detached
 // (the server only detaches steps after a move that actually committed).
 import { afterEach, describe, expect, it } from "bun:test";
 import type { SnapshotPayload, WireAction, WireFocus } from "../shared/types";
-import { actionKeyOf, findActionByKey, moveAction, queryClient } from "./store";
+import { actionAncestors, actionKeyOf, findActionByKey, moveAction, queryClient } from "./store";
 
 const NOW = "2026-07-07T00:00:00.000Z";
 const EARLIER = "2026-07-01T00:00:00.000Z";
@@ -76,6 +77,51 @@ describe("actionKeyOf", () => {
 
   it("falls back to ? when the focus is missing", () => {
     expect(actionKeyOf(ws, action({ id: "act_2", focusId: "foc_gone", number: 3 }))).toBe("?-3");
+  });
+});
+
+describe("actionAncestors", () => {
+  // act_1 → act_2 → act_3: a Step of a Step (PROG-124 nests without bound).
+  const ws = snapshot({
+    focuses: [focus({ id: "foc_a", keyPrefix: "PROG" })],
+    actions: [
+      action({ id: "act_1", focusId: "foc_a", number: 1 }),
+      action({ id: "act_2", focusId: "foc_a", number: 2, parentActionId: "act_1" }),
+      action({ id: "act_3", focusId: "foc_a", number: 3, parentActionId: "act_2" }),
+    ],
+  });
+
+  it("is empty for a top-level action, leaving its trail unchanged", () => {
+    expect(actionAncestors(ws, ws.actions[0]!)).toEqual([]);
+  });
+
+  it("returns the immediate parent of a Step", () => {
+    expect(actionAncestors(ws, ws.actions[1]!).map((a) => a.id)).toEqual(["act_1"]);
+  });
+
+  it("walks the whole chain, outermost first", () => {
+    expect(actionAncestors(ws, ws.actions[2]!).map((a) => a.id)).toEqual(["act_1", "act_2"]);
+  });
+
+  it("truncates rather than throwing when a parent is absent from the snapshot", () => {
+    const orphan = action({ id: "act_9", focusId: "foc_a", number: 9, parentActionId: "act_gone" });
+    expect(actionAncestors(snapshot({ actions: [orphan] }), orphan)).toEqual([]);
+  });
+
+  it("terminates on a cycle a corrupt snapshot might contain", () => {
+    const cyclic = snapshot({
+      focuses: [focus({ id: "foc_a", keyPrefix: "PROG" })],
+      actions: [
+        action({ id: "act_1", focusId: "foc_a", number: 1, parentActionId: "act_2" }),
+        action({ id: "act_2", focusId: "foc_a", number: 2, parentActionId: "act_1" }),
+      ],
+    });
+    expect(actionAncestors(cyclic, cyclic.actions[0]!).map((a) => a.id)).toEqual(["act_2"]);
+  });
+
+  it("self-parent does not hang", () => {
+    const self = action({ id: "act_s", focusId: "foc_a", number: 5, parentActionId: "act_s" });
+    expect(actionAncestors(snapshot({ actions: [self] }), self)).toEqual([]);
   });
 });
 

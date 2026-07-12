@@ -599,7 +599,11 @@ so old bookmarks keep working.
   finished treatment (`closedTitleClass`, PROG-100).
 - **Action page** — a structural breadcrumb (Workspace / Focus / Arc / KEY,
   ancestors linked, unset arc omitted — the shared `Breadcrumb` component,
-  PROG-103; container pages use it too, ending in their kind),
+  PROG-103; container pages use it too, ending in their kind). A **Step**
+  continues the trail through its parent actions, outermost first
+  (… / Arc / PROG-4 / PROG-11), each a linked mono key; the walk
+  (`actionAncestors`, `store.ts`) handles unbounded nesting and truncates on a
+  missing or cyclic parent (PROG-106). Also:
   inline-editable title and description, sidebar fields
   (status/due-date/priority/estimate in that order, then focus (its optional
   gitUrl links out), arc, and tags with picker buttons; a **Work on this**
