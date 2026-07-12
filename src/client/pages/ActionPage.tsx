@@ -258,7 +258,22 @@ export default function ActionPage({
               </div>
             </IconRow>
           </Field>
-          <Field label="Status">
+          {/* Complete action (PROG-108): one-click move to done, in the same
+              filled primary-CTA style as the Work-on-this button below so
+              finishing work is as prominent as starting it. Hidden once the
+              action is already done — the status select still covers reopen. */}
+          {action.status !== "done" && (
+            <button
+              onClick={() => updateAction(action.id, { status: "done" })}
+              className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-adobe px-3 py-2 text-sm font-medium text-white hover:bg-adobe-deep sm:min-h-0"
+            >
+              Complete action
+              <CheckGlyph />
+            </button>
+          )}
+          {/* A Step is an action with a parent (PROG-106 chain), so the label
+              names which kind this page is showing (PROG-108). */}
+          <Field label={action.parentActionId ? "Step Status" : "Action Status"}>
             <IconSelect
               icon={<StatusIndicator status={action.status} />}
               openLabel="Change status"
@@ -532,6 +547,23 @@ function ArrowGlyph({ className = "" }: { className?: string }) {
   );
 }
 
+// The "Complete action" check mark (PROG-108) — same 16×16 box and stroke
+// weight as the other button glyphs.
+function CheckGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden className="inline-block h-3.5 w-3.5 shrink-0">
+      <path
+        d="M3 8.5 L6.5 12 L13 4.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
@@ -610,7 +642,7 @@ function TimelineSection({ action, snapshot }: { action: WireAction; snapshot: S
   // text without a stale-closure read. The text stays in the field and in
   // localStorage until the server confirms, then both are cleared — so a failed
   // or in-flight send never loses it.
-  async function sendComment(body: string) {
+  async function sendComment(body: string): Promise<boolean> {
     setSending(true);
     const ok = await addComment(action.id, body);
     setSending(false);
@@ -631,12 +663,24 @@ function TimelineSection({ action, snapshot }: { action: WireAction; snapshot: S
         `comment:${action.id}`,
       );
     }
+    return ok;
   }
 
   function submitComment() {
     const body = draft.trim();
     if (body === "" || sending) return;
     void sendComment(body);
+  }
+
+  // Comment & close (PROG-108): post the comment, then move the action to
+  // done — the "leave a wrap-up note and finish" flow in one click. The close
+  // only follows a confirmed comment; on failure the draft-preserving Retry
+  // toast re-sends just the comment, and the user closes once it lands.
+  async function submitCommentAndClose() {
+    const body = draft.trim();
+    if (body === "" || sending) return;
+    const ok = await sendComment(body);
+    if (ok) void updateAction(action.id, { status: "done" });
   }
 
   const entries = useMemo(() => {
@@ -717,13 +761,27 @@ function TimelineSection({ action, snapshot }: { action: WireAction; snapshot: S
           placeholder="Leave a comment… (Markdown)"
           className="w-full rounded border border-line bg-card p-3 text-sm focus:border-ink-faint focus:outline-none"
         />
-        <button
-          onClick={submitComment}
-          className="mt-2 rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep disabled:opacity-40"
-          disabled={draft.trim() === "" || sending}
-        >
-          Comment
-        </button>
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            onClick={submitComment}
+            className="rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep disabled:opacity-40"
+            disabled={draft.trim() === "" || sending}
+          >
+            Comment
+          </button>
+          {/* Same done-move as the sidebar's Complete action (PROG-108), but
+              bundled with the comment post. Bordered-secondary so the cluster
+              keeps one filled primary; hidden once the action is done. */}
+          {action.status !== "done" && (
+            <button
+              onClick={() => void submitCommentAndClose()}
+              className="rounded border border-line px-3 py-1 text-sm text-ink-soft hover:border-ink-faint hover:text-ink disabled:opacity-40"
+              disabled={draft.trim() === "" || sending}
+            >
+              Comment &amp; close
+            </button>
+          )}
+        </div>
       </div>
     </section>
   );
