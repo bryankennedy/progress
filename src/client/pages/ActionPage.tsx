@@ -6,6 +6,7 @@ import {
   ACTION_ESTIMATES,
   ACTION_PRIORITIES,
   ACTION_STATUSES,
+  isOpenStatus,
   type ActionPriority,
   type ActionStatus,
 } from "../../shared/constants";
@@ -187,25 +188,31 @@ export default function ActionPage({
               options={ACTION_STATUSES.map((s) => [s, STATUS_LABELS[s]])}
               onChange={(v) => updateAction(action.id, { status: v as ActionStatus })}
             />
-            {/* One-click move to done (PROG-108). Hidden once the action is
-                already done — the select above still covers reopen. */}
+            {/* Closed actions (done/canceled) have no work left to hand to an
+                agent, so the kickoff hides with them (PROG-108b). */}
+            {isOpenStatus(action.status) && (
+              <button
+                onClick={() => void copyBundleAsPrompt(actionKeyOf(snapshot, action))}
+                className="group mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-adobe px-3 py-2 text-sm font-medium text-white hover:bg-adobe-deep sm:min-h-0"
+              >
+                Copy as prompt
+                <ArrowGlyph className="transition-transform group-hover:translate-x-0.5" />
+                <span className="text-white/70">(W)</span>
+              </button>
+            )}
+            {/* One-click move to done (PROG-108), in moss — the palette's
+                completed/grounded green — so finishing reads distinctly from
+                the adobe kickoff above. Hidden once the action is already
+                done — the select above still covers reopen. */}
             {action.status !== "done" && (
               <button
                 onClick={() => updateAction(action.id, { status: "done" })}
-                className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-adobe px-3 py-2 text-sm font-medium text-white hover:bg-adobe-deep sm:min-h-0"
+                className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-moss px-3 py-2 text-sm font-medium text-white hover:bg-moss-deep sm:min-h-0"
               >
                 Complete action
                 <CheckGlyph />
               </button>
             )}
-            <button
-              onClick={() => void copyBundleAsPrompt(actionKeyOf(snapshot, action))}
-              className="group mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-adobe px-3 py-2 text-sm font-medium text-white hover:bg-adobe-deep sm:min-h-0"
-            >
-              Copy as prompt
-              <ArrowGlyph className="transition-transform group-hover:translate-x-0.5" />
-              <span className="text-white/70">(W)</span>
-            </button>
           </div>
           {/* Field order + the icon gutter (PROG-101, reworked PROG-104):
               every field carries a glyph on the left and its value in the same
