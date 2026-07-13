@@ -446,9 +446,17 @@ so old bookmarks keep working.
   the same way** (PROG-87): arc sections within a focus, and focus sections
   at workspace scope, each drag as a whole block from the handle in their
   header — sections never change parents by drag; only actions move.
-  A held section is carried by a floating `DragOverlay` preview (capped rows,
-  shadow — the board's pattern) while the in-list source dims and the rest of
-  the outline goes pointer-inert, so nothing hover-highlights under the drag.
+  Anything held — a section **or an action row** — is carried by a floating
+  `DragOverlay` preview (capped rows, shadow; rows add the board card's slight
+  rotation) while the in-list source dims to a ghost and the rest of the
+  outline goes pointer-inert, so nothing hover-highlights under the drag.
+  While a held row hovers a *different* sibling group, an `onDragOver` preview
+  re-homes it there in the rendered list (the board's PROG-59 pattern), so the
+  target group — in any arc or focus — visibly opens the landing slot; the
+  drop then commits exactly what the preview shows. On release the overlay
+  glides into the committed slot (default drop tween, ~180ms) — safe from the
+  old fly-back because PROG-119 made optimistic writes notify synchronously,
+  so the destination is already re-rendered when the tween measures it.
   Container ranks sort `(rank, name)` — alphabetical until first reordered; a
   drag in a still-tied group renumbers the group, after which each drag is one
   write (`containerReorderRanks`, `src/client/containerReorder.ts`). The order

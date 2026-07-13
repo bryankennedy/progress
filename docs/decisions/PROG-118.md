@@ -44,3 +44,35 @@ optimistic/rollback with arc+rank) and two new Playwright specs
 re-key + alias). The pre-existing `e2e/outline-container-reorder.spec.ts` was
 also repaired in passing — its selectors still targeted the pre-PROG-111 grip
 buttons, so it had been red since the handle consolidation.
+
+### PROG-118b — held rows float, foreign groups open a slot, drops settle
+
+The first cut moved rows correctly but read as inert: the grabbed row only
+translated in place, foreign groups never showed where it would land, and the
+release popped. Owner feedback asked for the board's feel. *Decisions within:*
+
+1. **DragOverlay for held rows** — the same floating-card pattern as board
+   cards and the PROG-87 section previews: bullet + title (+ capped step
+   subtree), slight rotation and shadow, width capped to `max-w-md` so a
+   full-width row reads as a card in hand. The in-list source dims to a ghost
+   but **keeps its sorting translate** (exactly `BoardCard`): an untransformed
+   ghost fights the strategy's neighbour displacement and overlaps rows.
+2. **Live cross-group preview** (`onDragOver`, the board's PROG-59 pattern):
+   when the hovered target resolves to a different sibling group, the row is
+   re-homed there in the rendered list (`previewedActions` patches the active
+   row's `focusId`/`arcId`/`parentActionId`/`rank`), so the target group —
+   across arcs and focuses — genuinely opens the landing slot. Within one
+   group the preview stays out (dnd-kit's same-context transforms already
+   animate the gap; re-rendering against them fights). The **drop commits the
+   preview**, not a re-resolution of `over` — after a preview, `over` is
+   usually the active row itself (the PROG-59 lesson); `over` only fine-tunes
+   the position within the previewed group. Requires
+   `MeasuringStrategy.Always` since the preview moves real layout mid-drag.
+3. **Real drop animation** instead of `dropAnimation={null}`: the ~180ms
+   default tween glides the overlay into the committed slot with the shadow
+   easing off. The null was PROG-43's workaround for the tween flying to the
+   *stale* slot; PROG-119's synchronous store notification means the
+   destination row is already re-rendered when the tween measures it, so the
+   workaround (kept on the board, which still has its local mirror) is
+   unnecessary here. Verified frame-by-frame: the landed row is stationary at
+   its final position from frame 0 after mouseup.
