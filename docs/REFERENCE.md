@@ -91,7 +91,7 @@ old container.
 |---|---|
 | Key | `PREFIX-n`, derived (see above) |
 | Title, Description | text / Markdown, both inline-editable |
-| Status | `backlog` · `todo` · `in_progress` · `in_review` · `done` · `canceled` — fixed global set |
+| Status | `backlog` · `todo` · `in_progress` · `in_review` · `done` · `canceled` — fixed global set. New actions default to `backlog` on every creation surface (`DEFAULT_ACTION_STATUS`, PROG-115) |
 | Priority | `urgent` · `high` · `medium` · `low` · `none` (default `none`) |
 | Estimate | 0 / 1 / 2 / 3 / 5 / 8 points, or null |
 | Due date | Optional calendar day, ISO `YYYY-MM-DD` (timezone-safe, not an instant); drives the Agenda (D37) |
@@ -525,7 +525,8 @@ so old bookmarks keep working.
   and status; overdue rows are visually distinct. Filterable by focus/arc/tag
   via URL params (the board pattern), with inline mark-done and bump-due. Renders
   entirely from the store. Each non-Overdue grouping ends in a **quick-add**
-  input (PROG-89): Enter creates a `todo` action pre-dated for that bucket —
+  input (PROG-89): Enter creates a `backlog` action (the shared creation
+  default, PROG-115) pre-dated for that bucket —
   Today → today, This week → the rolling window's last day (today+6), Later →
   the first day beyond it (today+7) (`quickAddDueDate`,
   `src/client/agendaQuickAdd.ts`). The focus comes from an inline picker

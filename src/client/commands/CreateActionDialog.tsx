@@ -9,6 +9,7 @@ import {
   ACTION_ESTIMATES,
   ACTION_PRIORITIES,
   ACTION_STATUSES,
+  DEFAULT_ACTION_STATUS,
   type ActionPriority,
   type ActionStatus,
 } from "../../shared/constants";
@@ -52,7 +53,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
   const [title, setTitle] = useState("");
   const [container, setContainer] = useState("");
   const [arcId, setArcId] = useState("");
-  const [status, setStatus] = useState<ActionStatus>("todo");
+  const [status, setStatus] = useState<ActionStatus>(DEFAULT_ACTION_STATUS);
   const [priority, setPriority] = useState<ActionPriority>("none");
   const [estimate, setEstimate] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -76,7 +77,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
         setContainer(defaults.focusId ?? "");
         setArcId(defaults.arcId ?? "");
         setTitle("");
-        setStatus("todo");
+        setStatus(DEFAULT_ACTION_STATUS);
         setPriority("none");
         setEstimate("");
         setDueDate("");

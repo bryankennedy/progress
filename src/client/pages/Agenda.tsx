@@ -230,14 +230,13 @@ function QuickAddRow({
   const submit = () => {
     const t = title.trim();
     if (!t || !focusId || !due) return;
+    // Status/priority/estimate default in the store (PROG-115): the capture
+    // lands in the backlog — the Agenda shows every non-closed status, so it
+    // stays visible in its bucket.
     createAction({
       title: t,
       focusId,
       arcId: inheritArcId(filters.arc, focusId, snapshot.arcs),
-      parentActionId: null,
-      status: "todo",
-      priority: "none",
-      estimate: null,
       dueDate: due,
       // Inherit the active Tag filter too (PROG-89b) — otherwise the untagged
       // capture is filtered out the instant it's created and silently vanishes.
