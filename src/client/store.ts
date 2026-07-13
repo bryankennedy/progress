@@ -419,13 +419,17 @@ export function createAction(input: ActionCreateInput): string | undefined {
 
 // ---------- action movement ----------
 
-export type MoveTarget = { focusId: string };
+// The optional landing spot (PROG-118): the Outline's cross-focus drag names
+// the arc (of the TARGET focus) and rank where the action was released;
+// palette moves omit both and land loose at the action's current rank.
+export type MoveTarget = { focusId: string; arcId?: string | null; rank?: string };
 
 // Optimistic move (SPEC §3, PROG-102): a move changes the focus (the sole
 // container). The action is re-keyed from the target's sequence, its arc is
-// cleared, and the old key is appended to the alias list — all locally first,
-// so the board and any open action page (which redirects via the alias) update
-// instantly. Rollback restores exactly what this move touched.
+// cleared (or set to the named landing arc, PROG-118), and the old key is
+// appended to the alias list — all locally first, so the board and any open
+// action page (which redirects via the alias) update instantly. Rollback
+// restores exactly what this move touched.
 export function moveAction(id: string, target: MoveTarget) {
   const ws = queryClient.getQueryData<SnapshotPayload>(WS_KEY);
   const before = ws?.actions.find((i) => i.id === id);
@@ -451,11 +455,12 @@ export function moveAction(id: string, target: MoveTarget) {
           ? {
               ...i,
               focusId: target.focusId,
-              arcId: null,
+              arcId: target.arcId ?? null,
               // Cross-focus move drops the parent and detaches children
               // (PROG-124) — mirrors the server's move handler.
               parentActionId: null,
               number: targetFocus.nextActionNumber,
+              ...(target.rank !== undefined ? { rank: target.rank } : {}),
               updatedAt: now,
             }
           : i.parentActionId === id

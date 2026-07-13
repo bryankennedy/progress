@@ -1027,15 +1027,20 @@ app.post("/api/actions", async (c) => {
   return c.json({ action }, 201);
 });
 
-type ActionMoveBody = { focusId?: unknown };
+type ActionMoveBody = { focusId?: unknown; arcId?: unknown; rank?: unknown };
 
 // Action movement (SPEC §3, PROG-102): a move now only changes the focus (the
 // sole container). It re-keys from the target's sequence, clears the arc, and
 // retires the old key into action_key_aliases as a permanent redirect (D18).
+// The Outline's cross-focus drag (PROG-118) may name a landing spot: an arc of
+// the TARGET focus and/or a rank, so the action drops exactly where released
+// instead of always landing loose at the default position.
 app.post("/api/actions/:id/move", async (c) => {
   const id = c.req.param("id");
   const body = (await c.req.json()) as ActionMoveBody;
   if (typeof body.focusId !== "string") return c.json({ error: "focusId is required" }, 400);
+  if (body.rank !== undefined && !isValidRank(body.rank))
+    return c.json({ error: `invalid rank: ${String(body.rank)}` }, 400);
 
   const db = drizzle(c.env.DB);
   const [existing] = await db.select().from(actions).where(eq(actions.id, id)).limit(1);
@@ -1044,6 +1049,15 @@ app.post("/api/actions/:id/move", async (c) => {
   if (!target) return c.json({ error: "focus not found" }, 400);
   if (existing.focusId === target.id)
     return c.json({ error: "action is already in that focus" }, 400);
+
+  let landingArcId: string | null = null;
+  if (body.arcId !== undefined && body.arcId !== null) {
+    if (typeof body.arcId !== "string") return c.json({ error: "arcId must be a string" }, 400);
+    const [arc] = await db.select().from(arcs).where(eq(arcs.id, body.arcId)).limit(1);
+    if (!arc || arc.focusId !== target.id)
+      return c.json({ error: "arc not found in the target focus" }, 400);
+    landingArcId = arc.id;
+  }
 
   const now = new Date();
   const moveData = {
@@ -1067,13 +1081,15 @@ app.post("/api/actions/:id/move", async (c) => {
     db
       .update(actions)
       // arcId and parentActionId reference the old focus, so a cross-focus
-      // move clears both — the action lands at the top level of the target
-      // (PROG-124). Any children keep pointing here and are detached below.
+      // move clears both — unless the caller named a landing arc IN the target
+      // (PROG-118); either way the action lands at the top level (PROG-124).
+      // Any children keep pointing here and are detached below.
       .set({
         focusId: target.id,
-        arcId: null,
+        arcId: landingArcId,
         parentActionId: null,
         number,
+        ...(body.rank !== undefined ? { rank: body.rank as string } : {}),
         updatedAt: now,
       })
       .where(eq(actions.id, id))

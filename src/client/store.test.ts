@@ -217,6 +217,20 @@ describe("moveAction rollback", () => {
     expect(current().actionKeyAliases).toEqual([]);
   });
 
+  it("lands in the named target arc at the named rank (PROG-118 drop), and rolls back", async () => {
+    const ws = seed();
+    globalThis.fetch = (() => Promise.reject(new Error("network down"))) as typeof fetch;
+
+    moveAction("act_parent", { focusId: "foc_b", arcId: "arc_target", rank: "Q7" });
+
+    expect(byId("act_parent").focusId).toBe("foc_b");
+    expect(byId("act_parent").arcId).toBe("arc_target");
+    expect(byId("act_parent").rank).toBe("Q7");
+
+    await settle();
+    expect(byId("act_parent")).toEqual(ws.actions[0]!);
+  });
+
   it("is a no-op when the target focus is the action's current focus", async () => {
     seed();
     let fetched = false;
