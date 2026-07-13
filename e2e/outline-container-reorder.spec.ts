@@ -29,12 +29,16 @@ async function yOrder(page: Page, names: string[]): Promise<string[]> {
   return boxes.sort((a, b) => a.y - b.y).map((b) => b.name);
 }
 
-// Press a grip and clear the 4px drag-activation threshold, glide to the
-// target y in small steps so dnd-kit tracks it, release. Mid-drag, the held
-// section must be carried by a floating DragOverlay preview (the board's
-// pattern — instant pickup + depth) and it must clear on release.
-async function dragGrip(page: Page, gripLabel: string, toY: number) {
-  const grip = (await page.getByRole("button", { name: gripLabel }).boundingBox())!;
+// Press a section's bullet handle (PROG-111: an anchor that dnd-kit's sortable
+// attributes expose as role=button, named "Open <name> — drag to reorder"),
+// clear the 4px drag-activation threshold, glide to the target y in small
+// steps so dnd-kit tracks it, release. Mid-drag, the held section must be
+// carried by a floating DragOverlay preview (the board's pattern — instant
+// pickup + depth) and it must clear on release.
+async function dragGrip(page: Page, name: string, toY: number) {
+  const grip = (await page
+    .getByRole("button", { name: `Open ${name} — drag to reorder`, exact: true })
+    .boundingBox())!;
   const cx = grip.x + grip.width / 2;
   const cy = grip.y + grip.height / 2;
   await page.mouse.move(cx, cy);
@@ -94,7 +98,7 @@ test("arcs list alphabetically by default and drag-reorder within a focus (PROG-
   const alphaBox = (await page
     .getByRole("link", { name: "Alpha e2e", exact: true })
     .boundingBox())!;
-  await dragGrip(page, "Reorder Gamma e2e", alphaBox.y - 10);
+  await dragGrip(page, "Gamma e2e", alphaBox.y - 10);
 
   await expect
     .poll(() => yOrder(page, ["Alpha e2e", "Beta e2e", "Gamma e2e"]))
@@ -154,7 +158,7 @@ test("focuses drag-reorder at workspace scope (PROG-87)", async ({ page }) => {
   const appleBox = (await page
     .getByRole("link", { name: "Apple e2e", exact: true })
     .boundingBox())!;
-  await dragGrip(page, "Reorder Cherry e2e", appleBox.y - 20);
+  await dragGrip(page, "Cherry e2e", appleBox.y - 20);
 
   await expect
     .poll(() => yOrder(page, ["Apple e2e", "Cherry e2e"]))
