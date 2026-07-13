@@ -1,8 +1,9 @@
-// Local draft persistence (PROG-51): unsent text — a comment being composed or
-// an in-progress description edit — is mirrored to localStorage as you type, so
-// it survives a tab close, reload, accidental navigation, or a failed save. The
+// Local draft persistence (PROG-51): unsent text — a comment being composed,
+// an in-progress description edit, or an outline capture bullet typed but not
+// yet Entered (PROG-107) — is mirrored to localStorage as you type, so it
+// survives a tab close, reload, accidental navigation, or a failed save. The
 // draft is the safety net; it's cleared only once the write is confirmed
-// server-side.
+// server-side (or, for capture, once the action is created).
 //
 // Keys are namespaced by the signed-in user (`me.id`) so drafts can't leak
 // across allowlisted accounts that share a browser profile (the single-tenant
@@ -10,7 +11,10 @@
 // per-author by nature). These are plain functions; components own the debounce
 // and the field state, and the store's reconcile path clears on success.
 
-type DraftKind = "comment" | "description";
+// "capture" drafts are keyed by the focus the outline capture input belongs to
+// (one roving capture per focus), not by its position in the tree — the draft
+// follows the input as it roves, and a restored draft surfaces at the top level.
+type DraftKind = "comment" | "description" | "capture";
 
 function storageKey(kind: DraftKind, meId: string, targetId: string): string {
   return `progress:draft:${kind}:${meId}:${targetId}`;
