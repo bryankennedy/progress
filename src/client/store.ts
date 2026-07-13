@@ -4,7 +4,13 @@
 // unchanged slices reference-stable so re-renders stay scoped. Per-action
 // timelines (comments + activity) are separate queries (D20).
 
-import { keepPreviousData, QueryClient, useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  notifyManager,
+  QueryClient,
+  useInfiniteQuery,
+  useQuery,
+} from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import {
   DEFAULT_ACTION_STATUS,
@@ -63,6 +69,19 @@ async function sendWithRetry(
   }
   return null;
 }
+
+// Notify cache subscribers SYNCHRONOUSLY (PROG-119). React Query v5 defers
+// subscriber notification through setTimeout(0), which lets the browser paint
+// between an optimistic write and the re-render it should cause. That gap is
+// invisible on most mutations but breaks drag-drop reorder: dnd-kit clears its
+// drag transforms in the drop event itself, while the store's new order lands
+// a frame later — so the row visibly snaps back to its old slot, then jumps
+// (the PROG-119 flash). A pass-through scheduler restores v4-style immediate
+// notification; React 18 auto-batching still coalesces the setStates from a
+// multi-write drop (e.g. a tied-group renumber) into one commit, and no code
+// path writes the cache during render (all writes live in this file's
+// event/async mutation helpers).
+notifyManager.setScheduler((cb) => cb());
 
 export const queryClient = new QueryClient({
   defaultOptions: {
