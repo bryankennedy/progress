@@ -45,6 +45,7 @@ import {
   updateContainer,
   updateAction,
 } from "../store";
+import { clearDraft, readDraft, writeDraft } from "../drafts";
 import { rankForReorder } from "../outlineReorder";
 import { byRankThenName, containerReorderRanks } from "../containerReorder";
 import { loadHideDone, loadScope, saveHideDone, saveScope } from "../outlinePrefs";
@@ -566,9 +567,16 @@ function FocusCaptureRow({
 
 // ---------- the capture (roving new-bullet) input ----------
 
+// The draft is OWNED BY THE PARENT (PROG-107), not local state: this component
+// unmounts and remounts every time capture roves (Tab/Shift+Tab, "+ action
+// here", "back to top level"), and local state would silently drop whatever was
+// typed. The parent also mirrors the draft to localStorage, so it survives
+// navigation and reloads too.
 function CaptureRow({
   depth,
   placeholder,
+  draft,
+  onDraftChange,
   onCreate,
   onDeepen,
   onShallow,
@@ -576,12 +584,13 @@ function CaptureRow({
 }: {
   depth: number;
   placeholder: string;
+  draft: string;
+  onDraftChange: (next: string) => void;
   onCreate: (title: string) => void;
   onDeepen: () => void;
   onShallow: () => void;
   focusToken: number;
 }) {
-  const [draft, setDraft] = useState("");
   const ref = useRef<HTMLInputElement>(null);
   // Refocus after each create (focusToken bumps) so capture stays continuous.
   useEffect(() => {
@@ -598,15 +607,12 @@ function CaptureRow({
       <input
         ref={ref}
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => onDraftChange(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
             const t = draft.trim();
-            if (t) {
-              onCreate(t);
-              setDraft("");
-            }
+            if (t) onCreate(t); // the parent clears the draft on create
           } else if (e.key === "Tab" && !e.shiftKey) {
             e.preventDefault();
             onDeepen();
@@ -655,6 +661,34 @@ function FocusOutline({
   const [captureParent, setCaptureParent] = useState<string | null>(null);
   const [captureArc, setCaptureArc] = useState<string | null>(null);
   const [focusToken, setFocusToken] = useState(0);
+
+  // The unsent capture text (PROG-107). Lifted out of CaptureRow so it survives
+  // the input remounting as capture roves, and mirrored to localStorage
+  // (debounced — the PROG-51 drafts pattern, same 400ms as comment drafts) so
+  // typed-but-not-Entered text also survives scope switches, navigation, and
+  // reloads. Cleared only once the action is actually created.
+  const meId = ws.me?.id ?? "anon";
+  const [captureDraft, setCaptureDraft] = useState(() => readDraft("capture", meId, focus.id));
+  const captureDebounce = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const captureDraftRef = useRef(captureDraft);
+  useEffect(() => {
+    captureDraftRef.current = captureDraft;
+  }, [captureDraft]);
+  // On unmount, FLUSH the pending mirror write instead of dropping it —
+  // otherwise keystrokes in the last debounce window are lost to an immediate
+  // navigation, the exact loss this exists to prevent.
+  useEffect(
+    () => () => {
+      clearTimeout(captureDebounce.current);
+      writeDraft("capture", meId, focus.id, captureDraftRef.current);
+    },
+    [meId, focus.id],
+  );
+  const onCaptureDraftChange = (next: string) => {
+    setCaptureDraft(next);
+    clearTimeout(captureDebounce.current);
+    captureDebounce.current = setTimeout(() => writeDraft("capture", meId, focus.id, next), 400);
+  };
 
   // Rendered arc order: manual rank first, name tiebreak — so a focus whose
   // arcs nobody has dragged lists them alphabetically (PROG-87).
@@ -811,6 +845,11 @@ function FocusOutline({
       estimate: null,
       dueDate: null,
     });
+    // The draft became an action (optimistic row, store-owned retry/rollback) —
+    // clear it and its mirror so it can't resurrect as a duplicate.
+    clearTimeout(captureDebounce.current);
+    setCaptureDraft("");
+    clearDraft("capture", meId, focus.id);
     setFocusToken((t) => t + 1);
   };
 
@@ -821,6 +860,8 @@ function FocusOutline({
       <CaptureRow
         depth={node.depth + 1}
         placeholder="New step — Enter to add, Shift+Tab to outdent"
+        draft={captureDraft}
+        onDraftChange={onCaptureDraftChange}
         onCreate={(t) => create(t, node.action.id, node.action.arcId)}
         onDeepen={deepen}
         onShallow={shallow}
@@ -889,6 +930,8 @@ function FocusOutline({
             <CaptureRow
               depth={0}
               placeholder="New action — Enter to add, Tab to nest under the one above"
+              draft={captureDraft}
+              onDraftChange={onCaptureDraftChange}
               onCreate={(t) => create(t, null, null)}
               onDeepen={deepen}
               onShallow={shallow}
@@ -927,6 +970,8 @@ function FocusOutline({
                       <CaptureRow
                         depth={1}
                         placeholder={`New action in ${arc.name}`}
+                        draft={captureDraft}
+                        onDraftChange={onCaptureDraftChange}
                         onCreate={(t) => create(t, null, arc.id)}
                         onDeepen={deepen}
                         onShallow={shallow}
