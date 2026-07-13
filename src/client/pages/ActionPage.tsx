@@ -181,38 +181,43 @@ export default function ActionPage({
             <p className="mb-2 text-xs font-medium uppercase tracking-wide font-mono text-adobe-deep">
               {action.parentActionId ? "Step Status" : "Action Status"}
             </p>
+            {/* The buttons live inside IconSelect's control column (PROG-110)
+                so their left edges align with the dropdown rather than
+                stretching under the glyph gutter, and the gutter glyph
+                centers vertically against the whole stack. */}
             <IconSelect
               icon={<StatusIndicator status={action.status} />}
               openLabel="Change status"
               value={action.status}
               options={ACTION_STATUSES.map((s) => [s, STATUS_LABELS[s]])}
               onChange={(v) => updateAction(action.id, { status: v as ActionStatus })}
-            />
-            {/* Closed actions (done/canceled) have no work left to hand to an
-                agent, so the kickoff hides with them (PROG-108b). */}
-            {isOpenStatus(action.status) && (
-              <button
-                onClick={() => void copyBundleAsPrompt(actionKeyOf(snapshot, action))}
-                className="group mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-adobe px-3 py-2 text-sm font-medium text-white hover:bg-adobe-deep sm:min-h-0"
-              >
-                Copy as prompt
-                <ArrowGlyph className="transition-transform group-hover:translate-x-0.5" />
-                <span className="text-white/70">(W)</span>
-              </button>
-            )}
-            {/* One-click move to done (PROG-108), in moss — the palette's
-                completed/grounded green — so finishing reads distinctly from
-                the adobe kickoff above. Hidden once the action is already
-                done — the select above still covers reopen. */}
-            {action.status !== "done" && (
-              <button
-                onClick={() => updateAction(action.id, { status: "done" })}
-                className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-moss px-3 py-2 text-sm font-medium text-white hover:bg-moss-deep sm:min-h-0"
-              >
-                Complete action
-                <CheckGlyph />
-              </button>
-            )}
+            >
+              {/* Closed actions (done/canceled) have no work left to hand to an
+                  agent, so the kickoff hides with them (PROG-108b). */}
+              {isOpenStatus(action.status) && (
+                <button
+                  onClick={() => void copyBundleAsPrompt(actionKeyOf(snapshot, action))}
+                  className="group mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-adobe px-3 py-2 text-sm font-medium text-white hover:bg-adobe-deep sm:min-h-0"
+                >
+                  Copy as prompt
+                  <ArrowGlyph className="transition-transform group-hover:translate-x-0.5" />
+                  <span className="text-white/70">(W)</span>
+                </button>
+              )}
+              {/* One-click move to done (PROG-108), in moss — the palette's
+                  completed/grounded green — so finishing reads distinctly from
+                  the adobe kickoff above. Hidden once the action is already
+                  done — the select above still covers reopen. */}
+              {action.status !== "done" && (
+                <button
+                  onClick={() => updateAction(action.id, { status: "done" })}
+                  className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-moss px-3 py-2 text-sm font-medium text-white hover:bg-moss-deep sm:min-h-0"
+                >
+                  Complete action
+                  <CheckGlyph />
+                </button>
+              )}
+            </IconSelect>
           </div>
           {/* Field order + the icon gutter (PROG-101, reworked PROG-104):
               every field carries a glyph on the left and its value in the same
@@ -422,18 +427,24 @@ const GLYPH_BUTTON_CLS = "-m-1 flex rounded p-1 hover:bg-line";
 // A FieldSelect whose gutter glyph doubles as a picker button (PROG-101b):
 // clicking the glyph pops the select's dropdown, mirroring the due-date
 // calendar button, so the icon column is uniformly actionable.
+// Optional children render below the select in the same control column, so
+// extra controls (the status panel's buttons) share the select's left edge
+// while IconRow's items-center centers the glyph against the full stack
+// (PROG-110).
 function IconSelect({
   icon,
   openLabel,
   value,
   options,
   onChange,
+  children,
 }: {
   icon: React.ReactNode;
   openLabel: string;
   value: string;
   options: [string, string][];
   onChange: (value: string) => void;
+  children?: React.ReactNode;
 }) {
   const ref = useRef<HTMLSelectElement>(null);
   return (
@@ -459,6 +470,7 @@ function IconSelect({
       }
     >
       <FieldSelect ref={ref} value={value} options={options} onChange={onChange} />
+      {children}
     </IconRow>
   );
 }
