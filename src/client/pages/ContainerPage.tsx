@@ -325,12 +325,15 @@ export default function ContainerPage({
   );
 }
 
+// On phones the row keeps only what matters most (PROG-99): the title gets the
+// width; the key, estimate, and priority select wait for `sm:` — the tiny
+// priority indicator and the status select (the core inline edit) stay.
 function ActionRow({ action, snapshot }: { action: WireAction; snapshot: SnapshotPayload }) {
   return (
     <li data-action-id={action.id} className="flex items-center gap-3 px-3 py-2 text-sm">
       <Link
         href={`/action/${actionKeyOf(snapshot, action)}`}
-        className="w-20 shrink-0 font-mono text-xs text-ink-faint hover:text-ink-soft"
+        className="hidden w-20 shrink-0 font-mono text-xs text-ink-faint hover:text-ink-soft sm:block"
       >
         {actionKeyOf(snapshot, action)}
       </Link>
@@ -343,14 +346,16 @@ function ActionRow({ action, snapshot }: { action: WireAction; snapshot: Snapsho
         {action.title}
       </Link>
       {action.estimate !== null && (
-        <span className="rounded bg-line px-1 text-xs text-ink-soft">{action.estimate}</span>
+        <span className="hidden rounded bg-line px-1 text-xs text-ink-soft sm:block">
+          {action.estimate}
+        </span>
       )}
       {/* Inline edits go through the same optimistic template as everywhere. */}
       <PriorityIndicator priority={action.priority} />
       <select
         value={action.priority}
         onChange={(e) => updateAction(action.id, { priority: e.target.value as ActionPriority })}
-        className="rounded border border-line bg-card px-1.5 py-0.5 text-xs text-ink-soft"
+        className="hidden rounded border border-line bg-card px-1.5 py-0.5 text-xs text-ink-soft sm:block"
       >
         {ACTION_PRIORITIES.map((p) => (
           <option key={p} value={p}>
