@@ -867,16 +867,9 @@ function FocusOutline({
   };
 
   const create = (title: string, parentActionId: string | null, arcId: string | null) => {
-    createAction({
-      title,
-      focusId: focus.id,
-      arcId,
-      parentActionId,
-      status: "todo",
-      priority: "none",
-      estimate: null,
-      dueDate: null,
-    });
+    // Status/priority/estimate/due default in the store (PROG-115): a fresh
+    // capture lands in the backlog.
+    createAction({ title, focusId: focus.id, arcId, parentActionId });
     // The draft became an action (optimistic row, store-owned retry/rollback) —
     // clear it and its mirror so it can't resurrect as a duplicate.
     clearTimeout(captureDebounce.current);

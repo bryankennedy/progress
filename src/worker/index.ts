@@ -24,7 +24,7 @@ import {
   type ActionStatus,
   type PrState,
 } from "../db/schema";
-import { CLOSED_ACTION_STATUSES, tagColor } from "../shared/constants";
+import { CLOSED_ACTION_STATUSES, DEFAULT_ACTION_STATUS, tagColor } from "../shared/constants";
 import { isValidRank, rankAfter } from "../shared/rank";
 import { log } from "./log";
 import {
@@ -943,7 +943,7 @@ app.post("/api/actions", async (c) => {
   const description = body.description ?? "";
   if (typeof description !== "string")
     return c.json({ error: "description must be a string" }, 400);
-  const status = (body.status ?? "backlog") as ActionStatus;
+  const status = (body.status ?? DEFAULT_ACTION_STATUS) as ActionStatus;
   if (!ACTION_STATUSES.includes(status))
     return c.json({ error: `invalid status: ${String(body.status)}` }, 400);
   const priority = (body.priority ?? "none") as ActionPriority;
