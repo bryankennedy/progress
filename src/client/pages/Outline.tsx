@@ -10,8 +10,8 @@
 // and keeps focus for the next sibling; Tab on that bullet deepens it under the
 // last sibling (→ step), Shift+Tab pops back up. Existing rows rename on
 // Enter/blur and reparent in place via Tab/Shift+Tab. Nothing here deletes or
-// archives — the far-left `⋯` (a per-row link, tappable on mobile) opens the
-// full action page.
+// archives — each row's bullet is its handle (PROG-111): tap/click opens the
+// full action/arc/focus page, press-and-drag reorders.
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
@@ -96,53 +96,90 @@ function LevelIcon({ kind }: { kind: "focus" | "arc" | "action" | "sub" }) {
   );
 }
 
-// ---------- drag-to-reorder building blocks ----------
+// ---------- the consolidated row handle (PROG-111) ----------
 
-// The 6-dot drag grip that starts a sortable drag (PROG-86/PROG-87). touch-none
-// so a drag from the grip reorders instead of scrolling the page; always shown
-// on mobile (no hover), faint until row hover/focus on desktop to keep the
-// outline calm.
-function GripHandle({
+// ONE handle per row/section header, replacing the old three-icon gutter (the
+// 6-dot drag grip + the far-left ⋯ open-link + a separate level bullet). The
+// glyph IS the level bullet — focus square, arc layers, action ring, step dot —
+// so the handle itself says what the row is, and it answers both gestures:
+// click/tap opens the item's page; press-and-drag starts the sortable move
+// (PointerSensor's 4px activation distance keeps a plain tap from becoming a
+// phantom drag). Rendered as a real <a> so middle/cmd-click open-in-tab
+// survives; navigation is suppressed when the pointer actually travelled —
+// i.e. the trailing "click" was a drag's release, not a tap. touch-none so a
+// touch drag reorders instead of scrolling; draggable={false} +
+// touch-callout none so the anchor's native drag/press behaviors can't hijack
+// the sortable.
+function Handle({
+  kind,
+  href,
   label,
   handleRef,
   handleProps,
 }: {
+  kind: "focus" | "arc" | "action" | "sub";
+  href: string;
   label: string;
   handleRef: (el: HTMLElement | null) => void;
   handleProps: HTMLAttributes<HTMLElement>;
 }) {
+  const [, navigate] = useLocation();
+  const downAt = useRef<{ x: number; y: number } | null>(null);
+  const { onPointerDown: dndPointerDown, onKeyDown: dndKeyDown, ...restHandleProps } = handleProps;
   return (
-    <button
+    <a
       ref={handleRef}
-      {...handleProps}
-      type="button"
+      {...restHandleProps}
+      href={href}
+      draggable={false}
       aria-label={label}
-      title="Drag to reorder"
-      className="flex h-6 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-ink-faint/70 hover:bg-line hover:text-ink-soft active:cursor-grabbing sm:opacity-40 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+      title="Open — drag to reorder"
+      onPointerDown={(e) => {
+        downAt.current = { x: e.clientX, y: e.clientY };
+        dndPointerDown?.(e);
+      }}
+      onKeyDown={(e) => {
+        // Space hands off to the keyboard sensor (pick up, arrow-reorder);
+        // Enter falls through to native link activation → navigate. While a
+        // keyboard drag is live the sensor preventDefaults its own keys, so
+        // dropping with Enter doesn't also navigate.
+        if (e.key === " ") dndKeyDown?.(e);
+      }}
+      onClick={(e) => {
+        const d = downAt.current;
+        downAt.current = null;
+        const moved = d ? Math.hypot(e.clientX - d.x, e.clientY - d.y) : 0;
+        if (moved > 4) {
+          e.preventDefault(); // this "click" was the tail of a drag
+          return;
+        }
+        if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return; // browser default (new tab &c.)
+        e.preventDefault();
+        navigate(href);
+      }}
+      className="flex h-6 w-6 shrink-0 cursor-grab touch-none select-none items-center justify-center rounded [-webkit-touch-callout:none] hover:bg-line active:cursor-grabbing"
     >
-      <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden>
-        <circle cx="6" cy="4" r="1.3" />
-        <circle cx="10" cy="4" r="1.3" />
-        <circle cx="6" cy="8" r="1.3" />
-        <circle cx="10" cy="8" r="1.3" />
-        <circle cx="6" cy="12" r="1.3" />
-        <circle cx="10" cy="12" r="1.3" />
-      </svg>
-    </button>
+      <LevelIcon kind={kind} />
+    </a>
   );
 }
 
 // A container section (an arc's block, or a whole focus at workspace scope)
 // as a sortable unit (PROG-87): the section moves as one block, and only the
-// grip handed to `children` starts a drag, so the header's link and everything
-// inside keep working normally.
+// handle handed to `children` starts a drag, so the header's link and
+// everything inside keep working normally. The handle doubles as the header's
+// level bullet + open-link (PROG-111), hence kind/href.
 function SortableSection({
   id,
+  kind,
+  href,
   label,
   className,
   children,
 }: {
   id: string;
+  kind: "focus" | "arc";
+  href: string;
   label: string;
   className?: string;
   children: (grip: ReactNode) => ReactNode;
@@ -171,7 +208,9 @@ function SortableSection({
       }
     >
       {children(
-        <GripHandle
+        <Handle
+          kind={kind}
+          href={href}
           label={label}
           handleRef={setActivatorNodeRef}
           handleProps={{ ...attributes, ...listeners }}
@@ -323,8 +362,9 @@ function ActionRow({
   arcs: WireArc[];
   onIndent: (action: WireAction) => void;
   onOutdent: (action: WireAction) => void;
-  // Drag-to-reorder handle wiring from the enclosing sortable (PROG-86). Lives on
-  // a dedicated grip, not the whole row, so the title input stays fully editable.
+  // Drag-to-reorder wiring from the enclosing sortable (PROG-86). Lives on the
+  // row's single bullet handle, not the whole row, so the title input stays
+  // fully editable.
   handleRef: (el: HTMLElement | null) => void;
   handleProps: HTMLAttributes<HTMLElement>;
 }) {
@@ -355,26 +395,16 @@ function ActionRow({
       className="group flex items-center gap-1.5 rounded py-0.5 hover:bg-line/30"
       style={{ paddingLeft: depth * 22 }}
     >
-      {/* Drag handle (PROG-86). */}
-      <GripHandle label={`Reorder ${actionKey}`} handleRef={handleRef} handleProps={handleProps} />
-      {/* Jump-to-action affordance, pinned to the far left so it sits in a
-          consistent gutter and — crucially — is reachable on touch, where there
-          is no hover to reveal it (PROG-80). Always shown on mobile; on desktop
-          it rests faint and firms up on row hover/focus to keep the outline
-          calm. Tapping the same three dots that used to hide on the right edge. */}
-      <Link
+      {/* The row's single handle (PROG-111): the level bullet, tappable to open
+          the action page (no hover needed — touch-friendly, PROG-80) and
+          draggable to reorder (PROG-86). */}
+      <Handle
+        kind={depth === 0 ? "action" : "sub"}
         href={`/action/${actionKey}`}
-        title="Open full action"
-        aria-label={`Open action ${actionKey}`}
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-ink-faint hover:bg-line hover:text-ink-soft sm:opacity-40 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 sm:focus-visible:opacity-100"
-      >
-        <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden>
-          <circle cx="3" cy="8" r="1.4" />
-          <circle cx="8" cy="8" r="1.4" />
-          <circle cx="13" cy="8" r="1.4" />
-        </svg>
-      </Link>
-      <LevelIcon kind={depth === 0 ? "action" : "sub"} />
+        label={`Open ${actionKey} — drag to reorder`}
+        handleRef={handleRef}
+        handleProps={handleProps}
+      />
       <input
         ref={inputRef}
         value={draft}
@@ -413,9 +443,9 @@ function ActionRow({
 // One node of the forest as a sortable item (PROG-86). The whole SUBTREE (row +
 // its descendants + the roving capture slot) is the sortable element, so
 // dragging a parent visually carries its children as a block. The activator is
-// the grip inside ActionRow, so only the handle starts a drag — the title input
-// and the ⋯ open-link keep working normally. Reorder is constrained to siblings
-// on drop (see FocusOutline.onDragEnd); reparenting stays on Tab/Shift+Tab.
+// the bullet handle inside ActionRow, so only it starts a drag — the title
+// input keeps working normally. Reorder is constrained to siblings on drop
+// (see FocusOutline.onDragEnd); reparenting stays on Tab/Shift+Tab.
 function OutlineNode({
   node,
   ws,
@@ -516,11 +546,10 @@ function FocusCaptureRow({
 
   return (
     <div className="flex items-center gap-1.5 py-0.5">
-      {/* Match ActionRow's drag-grip + open-link gutters so bullets align
-          (PROG-80/PROG-86). */}
-      <span className="h-6 w-5 shrink-0" aria-hidden />
-      <span className="h-6 w-6 shrink-0" aria-hidden />
-      <LevelIcon kind="focus" />
+      {/* Match the rows' w-6 handle gutter so bullets align (PROG-111). */}
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center" aria-hidden>
+        <LevelIcon kind="focus" />
+      </span>
       <input
         ref={nameRef}
         value={name}
@@ -599,11 +628,14 @@ function CaptureRow({
 
   return (
     <div className="flex items-center gap-1.5 py-0.5" style={{ paddingLeft: depth * 22 }}>
-      {/* Empty gutters matching ActionRow's drag grip + far-left open-link so the
-          ＋ bullet lines up with the action bullets above it (PROG-80/PROG-86). */}
-      <span className="h-6 w-5 shrink-0" aria-hidden />
-      <span className="h-6 w-6 shrink-0" aria-hidden />
-      <span className="text-ink-faint/50">＋</span>
+      {/* The ＋ sits in the same w-6 gutter as the rows' bullet handle so it
+          lines up with the action bullets above it (PROG-111). */}
+      <span
+        className="flex h-6 w-6 shrink-0 items-center justify-center text-ink-faint/50"
+        aria-hidden
+      >
+        ＋
+      </span>
       <input
         ref={ref}
         value={draft}
@@ -905,7 +937,6 @@ function FocusOutline({
       {showHeader && (
         <div className="group mb-1 flex items-center gap-2">
           {grip}
-          <LevelIcon kind="focus" />
           <Link href={`/focus/${focus.id}`} className="font-medium text-ink hover:underline">
             {focus.name}
           </Link>
@@ -950,14 +981,15 @@ function FocusOutline({
               <SortableSection
                 key={arc.id}
                 id={arc.id}
-                label={`Reorder ${arc.name}`}
+                kind="arc"
+                href={`/arc/${arc.id}`}
+                label={`Open ${arc.name} — drag to reorder`}
                 className="mt-2"
               >
                 {(arcGrip) => (
                   <>
                     <div className="group flex items-center gap-1.5">
                       {arcGrip}
-                      <LevelIcon kind="arc" />
                       <Link
                         href={`/arc/${arc.id}`}
                         className="text-sm font-medium text-moss-deep hover:underline"
@@ -1150,8 +1182,8 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
           <h1 className="text-2xl font-semibold tracking-tight">Outline</h1>
           <p className="mt-1 text-xs text-ink-faint">
             Fast capture — type to add actions, <kbd>Enter</kbd> for the next, <kbd>Tab</kbd>/
-            <kbd>Shift+Tab</kbd> to nest. Tap the <code>⋯</code> at the start of a row to open the
-            full action.
+            <kbd>Shift+Tab</kbd> to nest. Each row&apos;s bullet is its handle — tap it to open,
+            drag it to reorder.
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -1227,7 +1259,13 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
                 className={`space-y-4 ${activeFocusId ? "pointer-events-none select-none" : ""}`}
               >
                 {scopedFocuses.map((p) => (
-                  <SortableSection key={p.id} id={p.id} label={`Reorder ${p.name}`}>
+                  <SortableSection
+                    key={p.id}
+                    id={p.id}
+                    kind="focus"
+                    href={`/focus/${p.id}`}
+                    label={`Open ${p.name} — drag to reorder`}
+                  >
                     {(focusGrip) => (
                       <FocusOutline
                         focus={p}

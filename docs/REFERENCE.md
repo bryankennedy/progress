@@ -421,15 +421,19 @@ so old bookmarks keep working.
   beneath the workspace option, both levels selectable (PROG-109). A fresh bullet is always an Action; the trailing "+ new
   bullet" captures continuously (Enter adds a sibling and keeps focus, Tab nests
   it under the last sibling as a step, Shift+Tab outdents). Existing rows
-  rename on Enter/blur and reparent in place via Tab/Shift+Tab. Rows also
-  **drag to reorder** within their sibling group via a far-left grip handle
-  (`@dnd-kit`): the drop mints a new `rank` between the neighbours
+  rename on Enter/blur and reparent in place via Tab/Shift+Tab. Each row and
+  section header has **one far-left handle** — the level bullet itself (focus
+  square / arc layers / action ring / step dot), consolidating the old grip +
+  `⋯` open-link + separate bullet (PROG-111): a click or tap opens the item's
+  page, a press-and-drag **reorders** within the sibling group (`@dnd-kit`):
+  the drop mints a new `rank` between the neighbours
   (`rankForReorder`, `src/client/outlineReorder.ts`) — the **same** fractional
   key the board orders by, so a drag here moves the card on the board and
-  vice-versa. Only the grip starts a drag (the title input stays editable);
+  vice-versa. Only the handle starts a drag (the title input stays editable);
   reparenting stays on Tab/Shift+Tab (PROG-86). **Container sections reorder
   the same way** (PROG-87): arc sections within a focus, and focus sections
-  at workspace scope, each drag as a whole block from a grip in their header.
+  at workspace scope, each drag as a whole block from the handle in their
+  header.
   A held section is carried by a floating `DragOverlay` preview (capped rows,
   shadow — the board's pattern) while the in-list source dims and the rest of
   the outline goes pointer-inert, so nothing hover-highlights under the drag.
@@ -448,9 +452,9 @@ so old bookmarks keep working.
   picker itself is sticky like Hide done: the last scope persists to
   `localStorage` and a bare `/outline` reopens it (URL params still win). Arcs are reached
   only by the explicit per-row "→ arc" control (pick existing or create new);
-  a per-row three-dot link in a fixed **far-left** gutter opens the full action —
-  always visible on mobile (tappable, no hover needed) and faint-until-hover on
-  desktop (PROG-80). Nothing here deletes or archives. All writes
+  tapping a row's bullet handle opens the full action — always visible, no
+  hover needed, so it works on touch (PROG-80/PROG-111). Nothing here deletes
+  or archives. All writes
   reuse the optimistic `createAction`/`updateAction`/`createContainer` paths.
   Completed actions (done/canceled) read as finished — dimmed + struck through
   via the shared closed-action treatment (`closedTitleClass`,
