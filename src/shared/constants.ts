@@ -12,6 +12,12 @@ export const ACTION_STATUSES = [
 ] as const;
 export type ActionStatus = (typeof ACTION_STATUSES)[number];
 
+// Where every newly created action starts unless the creator says otherwise
+// (PROG-115): captures land in the backlog — promotion to "todo" is a
+// deliberate act. One constant shared by the DB default, the API fallback,
+// the client store's optimistic create, and the create dialog's initial pick.
+export const DEFAULT_ACTION_STATUS: ActionStatus = "backlog";
+
 // "Closed" actions are terminal — done (shipped) or canceled (abandoned). The
 // rest (backlog/todo/in_progress/in_review) are still open / in play. The arc
 // work-order ("copy as prompt" for a whole arc) bundles only the open ones.

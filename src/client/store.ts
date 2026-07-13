@@ -6,7 +6,12 @@
 
 import { keepPreviousData, QueryClient, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { tagColor, type ActionPriority, type ActionStatus } from "../shared/constants";
+import {
+  DEFAULT_ACTION_STATUS,
+  tagColor,
+  type ActionPriority,
+  type ActionStatus,
+} from "../shared/constants";
 import { DEFAULT_RANK, rankAfter } from "../shared/rank";
 import type {
   CommentSearchResponse,
@@ -279,15 +284,20 @@ export function setActionStatus(id: string, status: ActionStatus) {
 
 // ---------- action creation ----------
 
+// Only title + focus are required; everything else defaults here (PROG-115),
+// so every creation surface (dialog, outline capture, agenda quick-add) shares
+// one defaulting path instead of each restating the boilerplate. A new action
+// starts in the backlog (DEFAULT_ACTION_STATUS) unless the creator picks
+// otherwise.
 export type ActionCreateInput = {
   title: string;
   focusId: string;
-  arcId: string | null;
-  parentActionId: string | null;
-  status: ActionStatus;
-  priority: ActionPriority;
-  estimate: number | null;
-  dueDate: string | null;
+  arcId?: string | null;
+  parentActionId?: string | null;
+  status?: ActionStatus;
+  priority?: ActionPriority;
+  estimate?: number | null;
+  dueDate?: string | null;
   // Existing tag ids to link at birth (PROG-89b: the Agenda quick-add inherits
   // the active Tag filter so the capture stays visible under it).
   tagIds?: string[];
@@ -303,6 +313,20 @@ export function createAction(input: ActionCreateInput): string | undefined {
   const ws = queryClient.getQueryData<SnapshotPayload>(WS_KEY);
   const focus = ws?.focuses.find((p) => p.id === input.focusId);
   if (!ws || !focus) return undefined;
+
+  // Resolve the omitted fields ONCE, before the optimistic row and the POST
+  // body are built from them — the temp row must show exactly what the server
+  // will store (the API's own fallbacks match, but relying on them would let
+  // the two drift).
+  const full = {
+    ...input,
+    arcId: input.arcId ?? null,
+    parentActionId: input.parentActionId ?? null,
+    status: input.status ?? DEFAULT_ACTION_STATUS,
+    priority: input.priority ?? "none",
+    estimate: input.estimate ?? null,
+    dueDate: input.dueDate ?? null,
+  };
 
   // Birth tags (PROG-89b): deduped and limited to tags the store knows, so the
   // optimistic links and the request body always agree. Linked under the temp
@@ -320,22 +344,22 @@ export function createAction(input: ActionCreateInput): string | undefined {
   const maxRank = ranks.length ? ranks.reduce((a, b) => (a > b ? a : b)) : null;
   const temp: WireAction = {
     id: tempId,
-    focusId: input.focusId,
-    arcId: input.arcId,
-    parentActionId: input.parentActionId,
+    focusId: full.focusId,
+    arcId: full.arcId,
+    parentActionId: full.parentActionId,
     number: focus.nextActionNumber,
-    title: input.title,
+    title: full.title,
     description: "",
-    status: input.status,
-    priority: input.priority,
-    estimate: input.estimate,
-    dueDate: input.dueDate,
+    status: full.status,
+    priority: full.priority,
+    estimate: full.estimate,
+    dueDate: full.dueDate,
     rank: rankAfter(maxRank),
     creatorId: "usr_owner",
     assigneeId: "usr_owner",
     createdAt: now,
     updatedAt: now,
-    completedAt: input.status === "done" ? now : null,
+    completedAt: full.status === "done" ? now : null,
   };
   queryClient.setQueryData<SnapshotPayload>(WS_KEY, (w) =>
     w
@@ -358,7 +382,7 @@ export function createAction(input: ActionCreateInput): string | undefined {
       const res = await fetch("/api/actions", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...input, tagIds }),
+        body: JSON.stringify({ ...full, tagIds }),
       });
       if (res.ok) serverAction = ((await res.json()) as { action: WireAction }).action;
     } catch {
