@@ -13,7 +13,7 @@
 // archives — the far-left `⋯` (a per-row link, tappable on mobile) opens the
 // full action page.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import {
@@ -1126,20 +1126,36 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
               onChange={(e) => setRoot(e.target.value)}
               className="rounded border border-line bg-card px-2 py-1 text-sm text-ink focus:outline-none"
             >
-              <optgroup label="Focuses">
-                {focuses.map((p) => (
-                  <option key={p.id} value={`focus:${p.id}`}>
-                    {p.name}
-                  </option>
-                ))}
-              </optgroup>
-              <optgroup label="Workspaces">
-                {workspaces.map((i) => (
-                  <option key={i.id} value={`workspace:${i.id}`}>
-                    {i.name}
-                  </option>
-                ))}
-              </optgroup>
+              {/* Focuses nest under their workspace (PROG-109) — each workspace
+                  option is followed by its focuses, indented. Both levels stay
+                  selectable; nbsp indentation because <option> padding isn't
+                  styleable cross-browser. */}
+              {workspaces.map((i) => (
+                <Fragment key={i.id}>
+                  <option value={`workspace:${i.id}`}>{i.name}</option>
+                  {focuses
+                    .filter((p) => p.workspaceId === i.id)
+                    .map((p) => (
+                      <option key={p.id} value={`focus:${p.id}`}>
+                        {"\u00a0\u00a0\u00a0"}
+                        {p.name}
+                      </option>
+                    ))}
+                </Fragment>
+              ))}
+              {/* Active focuses whose workspace is archived would otherwise
+                  vanish from the picker — keep them reachable at the end. */}
+              {focuses.some((p) => !workspaces.some((i) => i.id === p.workspaceId)) && (
+                <optgroup label="Other focuses">
+                  {focuses
+                    .filter((p) => !workspaces.some((i) => i.id === p.workspaceId))
+                    .map((p) => (
+                      <option key={p.id} value={`focus:${p.id}`}>
+                        {p.name}
+                      </option>
+                    ))}
+                </optgroup>
+              )}
             </select>
           </label>
         </div>

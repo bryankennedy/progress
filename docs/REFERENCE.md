@@ -417,7 +417,8 @@ so old bookmarks keep working.
 - **Outline (`/outline`, PROG-124)** — a Workflowy-style outliner for fast
   keyboard capture of actions as nested bullets (`src/client/pages/Outline.tsx`).
   A scope picker selects a Workspace or Focus (URL `?focus=`/`?workspace=`)
-  and sets the ceiling. A fresh bullet is always an Action; the trailing "+ new
+  and sets the ceiling; its options nest each workspace's focuses indented
+  beneath the workspace option, both levels selectable (PROG-109). A fresh bullet is always an Action; the trailing "+ new
   bullet" captures continuously (Enter adds a sibling and keeps focus, Tab nests
   it under the last sibling as a step, Shift+Tab outdents). Existing rows
   rename on Enter/blur and reparent in place via Tab/Shift+Tab. Rows also
