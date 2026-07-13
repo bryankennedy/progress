@@ -37,6 +37,9 @@ const handleOf = (page: Page, key: string) =>
 
 // Press an action row's bullet handle, clear the 4px activation threshold,
 // glide to the target point in small steps so dnd-kit tracks it, and release.
+// Mid-drag, the held row must be carried by a floating DragOverlay card
+// (constant grabbed-it feedback that persists across arc/focus sections —
+// PROG-118 polish), and it must clear once the drop settles.
 async function dragActionTo(page: Page, actionKey: string, toX: number, toY: number) {
   const handle = (await handleOf(page, actionKey).boundingBox())!;
   const cx = handle.x + handle.width / 2;
@@ -44,11 +47,15 @@ async function dragActionTo(page: Page, actionKey: string, toX: number, toY: num
   await page.mouse.move(cx, cy);
   await page.mouse.down();
   await page.mouse.move(cx, cy + 6);
+  await expect(page.locator("[data-drag-overlay]")).toHaveCount(1);
   const steps = 20;
   for (let s = 1; s <= steps; s++) {
     await page.mouse.move(cx + ((toX - cx) * s) / steps, cy + 6 + ((toY - cy - 6) * s) / steps);
   }
+  await expect(page.locator("[data-drag-overlay]")).toHaveCount(1);
   await page.mouse.up();
+  // The drop animation (~180ms) removes the overlay when the card lands.
+  await expect(page.locator("[data-drag-overlay]")).toHaveCount(0, { timeout: 1000 });
 }
 
 test.beforeEach(async ({ context }) => {
