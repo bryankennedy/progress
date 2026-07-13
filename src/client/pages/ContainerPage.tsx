@@ -21,6 +21,7 @@ import EditableMarkdown from "../EditableMarkdown";
 import InlineEdit from "../InlineEdit";
 import { PRIORITY_LABELS as SHARED_PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
+import StatusIndicator from "../StatusIndicator";
 import { actionKeyOf, updateContainer, updateAction } from "../store";
 import { copyArcBundleAsPrompt, prefetchArcBundle } from "../workOn";
 
@@ -328,9 +329,12 @@ export default function ContainerPage({
 function ActionRow({ action, snapshot }: { action: WireAction; snapshot: SnapshotPayload }) {
   return (
     <li data-action-id={action.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+      {/* The key is dead weight on a phone (PROG-99): it's fixed-width, low-value,
+          and — with the two inline selects — squeezed the title to nothing. Drop
+          it below sm so the name, the one thing worth reading, keeps the width. */}
       <Link
         href={`/action/${actionKeyOf(snapshot, action)}`}
-        className="w-20 shrink-0 font-mono text-xs text-ink-faint hover:text-ink-soft"
+        className="hidden w-20 shrink-0 font-mono text-xs text-ink-faint hover:text-ink-soft sm:block"
       >
         {actionKeyOf(snapshot, action)}
       </Link>
@@ -345,12 +349,16 @@ function ActionRow({ action, snapshot }: { action: WireAction; snapshot: Snapsho
       {action.estimate !== null && (
         <span className="rounded bg-line px-1 text-xs text-ink-soft">{action.estimate}</span>
       )}
-      {/* Inline edits go through the same optimistic template as everywhere. */}
+      {/* Priority + status. On phones the wide selects are replaced by the compact
+          read-only glyphs, so both stay glanceable without stealing the title's
+          width; inline editing returns at sm+, and mobile edits on the action
+          page. Inline edits go through the same optimistic template as everywhere. */}
       <PriorityIndicator priority={action.priority} />
+      <StatusIndicator status={action.status} className="sm:hidden" />
       <select
         value={action.priority}
         onChange={(e) => updateAction(action.id, { priority: e.target.value as ActionPriority })}
-        className="rounded border border-line bg-card px-1.5 py-0.5 text-xs text-ink-soft"
+        className="hidden rounded border border-line bg-card px-1.5 py-0.5 text-xs text-ink-soft sm:block"
       >
         {ACTION_PRIORITIES.map((p) => (
           <option key={p} value={p}>
@@ -361,7 +369,7 @@ function ActionRow({ action, snapshot }: { action: WireAction; snapshot: Snapsho
       <select
         value={action.status}
         onChange={(e) => updateAction(action.id, { status: e.target.value as ActionStatus })}
-        className="rounded border border-line bg-card px-1.5 py-0.5 text-xs text-ink-soft"
+        className="hidden rounded border border-line bg-card px-1.5 py-0.5 text-xs text-ink-soft sm:block"
       >
         {ACTION_STATUSES.map((s) => (
           <option key={s} value={s}>
