@@ -4,7 +4,13 @@
 // parent's arc) and the hide-done subtree-drop semantics.
 import { describe, expect, it } from "bun:test";
 import type { WireAction } from "../shared/types";
-import { buildForest, byRankThenNumber, siblingsOf, type OutlineNode } from "./outlineTree";
+import {
+  buildForest,
+  byRankThenNumber,
+  inSubtreeOf,
+  siblingsOf,
+  type OutlineNode,
+} from "./outlineTree";
 
 const NOW = "2026-07-07T00:00:00.000Z";
 
@@ -130,5 +136,34 @@ describe("buildForest", () => {
       ["kid_tie_hi", 1],
       ["kid_late", 1],
     ]);
+  });
+});
+
+describe("inSubtreeOf (PROG-118 drop cycle guard)", () => {
+  const actions = [
+    action({ id: "root", number: 1 }),
+    action({ id: "kid", number: 2, parentActionId: "root" }),
+    action({ id: "grandkid", number: 3, parentActionId: "kid" }),
+    action({ id: "sibling", number: 4 }),
+  ];
+
+  it("finds a node inside the subtree at any depth (and the root itself)", () => {
+    expect(inSubtreeOf(actions, "root", "root")).toBe(true);
+    expect(inSubtreeOf(actions, "root", "kid")).toBe(true);
+    expect(inSubtreeOf(actions, "root", "grandkid")).toBe(true);
+  });
+
+  it("rejects nodes outside the subtree", () => {
+    expect(inSubtreeOf(actions, "root", "sibling")).toBe(false);
+    expect(inSubtreeOf(actions, "kid", "root")).toBe(false);
+    expect(inSubtreeOf(actions, "grandkid", "kid")).toBe(false);
+  });
+
+  it("terminates on a malformed (cyclic) parent chain", () => {
+    const cyclic = [
+      action({ id: "x", number: 1, parentActionId: "y" }),
+      action({ id: "y", number: 2, parentActionId: "x" }),
+    ];
+    expect(inSubtreeOf(cyclic, "unrelated", "x")).toBe(false);
   });
 });

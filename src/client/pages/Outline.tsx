@@ -11,7 +11,8 @@
 // last sibling (→ step), Shift+Tab pops back up. Existing rows rename on
 // Enter/blur and reparent in place via Tab/Shift+Tab. Nothing here deletes or
 // archives — each row's bullet is its handle (PROG-111): tap/click opens the
-// full action/arc/focus page, press-and-drag reorders.
+// full action/arc/focus page, press-and-drag reorders — and, dropped outside
+// its own sibling group, MOVES the action into another arc or focus (PROG-118).
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
@@ -42,15 +43,16 @@ import {
   createContainer,
   createAction,
   actionKeyOf,
+  moveAction,
   updateContainer,
   updateAction,
 } from "../store";
 import { clearDraft, readDraft, writeDraft } from "../drafts";
-import { rankForReorder } from "../outlineReorder";
+import { rankForInsert, rankForReorder } from "../outlineReorder";
 import { byRankThenName, containerReorderRanks } from "../containerReorder";
 import { loadHideDone, loadScope, saveHideDone, saveScope } from "../outlinePrefs";
 // Tree model + sibling rules live in outlineTree.ts (pure, unit-tested).
-import { buildForest, siblingsOf, type OutlineNode as Node } from "../outlineTree";
+import { buildForest, inSubtreeOf, siblingsOf, type OutlineNode as Node } from "../outlineTree";
 
 // ---------- level icons ----------
 
@@ -133,7 +135,7 @@ function Handle({
       href={href}
       draggable={false}
       aria-label={label}
-      title="Open — drag to reorder"
+      title="Open — drag to move"
       onPointerDown={(e) => {
         downAt.current = { x: e.clientX, y: e.clientY };
         dndPointerDown?.(e);
@@ -444,8 +446,8 @@ function ActionRow({
 // its descendants + the roving capture slot) is the sortable element, so
 // dragging a parent visually carries its children as a block. The activator is
 // the bullet handle inside ActionRow, so only it starts a drag — the title
-// input keeps working normally. Reorder is constrained to siblings on drop
-// (see FocusOutline.onDragEnd); reparenting stays on Tab/Shift+Tab.
+// input keeps working normally. A drop within the sibling group reorders; a
+// drop outside it moves the action there (see the page's onDragEnd, PROG-118).
 function OutlineNode({
   node,
   ws,
@@ -665,28 +667,24 @@ function CaptureRow({
 function FocusOutline({
   focus,
   ws,
+  visibleActions,
   showHeader,
-  hideDone,
   grip,
 }: {
   focus: WireFocus;
   ws: SnapshotPayload;
+  // What the forest renders: the hide-done-filtered action list, computed once
+  // at page level since the page's drag handlers slot drops into the same
+  // rendered groups (PROG-118). Capture/indent helpers keep working off the
+  // full `ws.actions` list so nesting math is unaffected by what's visible.
+  visibleActions: WireAction[];
   showHeader: boolean;
-  hideDone: boolean;
   // At workspace scope the whole section is sortable (PROG-87); the enclosing
   // SortableSection hands its drag grip down to render in the header.
   grip?: ReactNode;
 }) {
   const actions = ws.actions;
   const arcs = ws.arcs;
-  // What the forest renders. When "hide done" is on, completed (done/canceled)
-  // actions — and their subtrees, since a hidden parent never recurses — drop out
-  // entirely (PROG-77). Capture/indent helpers keep working off the full
-  // `actions` list so nesting math is unaffected by what's currently visible.
-  const visibleActions = useMemo(
-    () => (hideDone ? actions.filter((i) => isOpenStatus(i.status)) : actions),
-    [actions, hideDone],
-  );
   // The roving capture target: which action the next new bullet nests under
   // (null = focus top level, no arc). `captureArc` scopes a top-level new
   // bullet to an arc section. Re-validated against live data each render.
@@ -767,74 +765,6 @@ function FocusOutline({
       parentActionId: parent.parentActionId,
       arcId: parent.arcId,
     });
-  };
-
-  // Drag-to-reorder (PROG-86). One PointerSensor covers mouse + touch from the
-  // grip; the small distance keeps a stray tap on the handle from starting a
-  // phantom drag. KeyboardSensor makes the focused handle arrow-key reorderable.
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-
-  // The arc section currently held by a drag (PROG-87 polish). While set, a
-  // DragOverlay carries a floating preview of the grouping and the rest of the
-  // outline goes pointer-inert, so row hover highlights and inputs can't react
-  // under the drag.
-  const [activeArcId, setActiveArcId] = useState<string | null>(null);
-  const onDragStart = (e: DragStartEvent) => {
-    const id = String(e.active.id);
-    if (focusArcs.some((a) => a.id === id)) setActiveArcId(id);
-  };
-
-  // The visible sibling group an action belongs to, in rendered (rank) order —
-  // exactly the set a drag is allowed to reorder within.
-  const siblingGroup = (action: WireAction): WireAction[] =>
-    siblingsOf(visibleActions, action.focusId, action.parentActionId, action.arcId);
-
-  const onReorder = (e: DragEndEvent) => {
-    setActiveArcId(null);
-    const activeId = String(e.active.id);
-    const overId = e.over ? String(e.over.id) : null;
-    if (!overId || overId === activeId) return;
-
-    // Arc sections share this DndContext with the action rows inside them
-    // (PROG-87) — branch on what is actually being dragged.
-    if (focusArcs.some((a) => a.id === activeId)) {
-      // Resolve the drop target to an arc: with closestCenter the `over` is
-      // often a row inside a neighbouring arc's section rather than its header.
-      const overArcId = focusArcs.some((a) => a.id === overId)
-        ? overId
-        : (actionById.get(overId)?.arcId ?? null);
-      if (!overArcId || overArcId === activeId) return;
-      // One write once ranks are distinct; the first drag in a still-tied
-      // (alphabetical) group renumbers the whole group — see containerReorder.
-      const updates = containerReorderRanks(focusArcs, activeId, overArcId);
-      for (const u of updates ?? []) void updateContainer("arc", u.id, { rank: u.rank });
-      return;
-    }
-
-    const active = actionById.get(activeId);
-    const over = actionById.get(overId);
-    if (!active || !over) return;
-    // Reorder only within one sibling group; a drop onto a row in another group
-    // (a different parent/arc) is a no-op — reparenting stays on Tab/Shift+Tab,
-    // matching the board's rank-only semantics (the action asks for up/down only).
-    const sameGroup =
-      active.focusId === over.focusId &&
-      active.parentActionId === over.parentActionId &&
-      (active.parentActionId !== null || active.arcId === over.arcId);
-    if (!sameGroup) return;
-    const group = siblingGroup(active);
-    const newRank = rankForReorder(
-      group.map((i) => i.id),
-      (id) => actionById.get(id)!.rank,
-      activeId,
-      overId,
-    );
-    // Same shared `rank` the board writes — so this drag also moves the card on
-    // the board, and a board drag moves the row here (PROG-86).
-    if (newRank) void updateAction(activeId, { rank: newRank });
   };
 
   // Capture-input deepen/shallow: move the new-bullet target down/up a level by
@@ -937,132 +867,94 @@ function FocusOutline({
         </div>
       )}
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={onDragStart}
-        onDragEnd={onReorder}
-        onDragCancel={() => setActiveArcId(null)}
+      {/* Focus-level (no-arc) actions + their roving capture row. All sortable
+          wiring registers with the PAGE's single DndContext (PROG-118), so rows
+          can be dropped across arc — and focus — section boundaries. */}
+      {renderForest(looseForest)}
+      {captureParent === null && captureArc === null && (
+        <CaptureRow
+          depth={0}
+          placeholder="New action — Enter to add, Tab to nest under the one above"
+          draft={captureDraft}
+          onDraftChange={onCaptureDraftChange}
+          onCreate={(t) => create(t, null, null)}
+          onDeepen={deepen}
+          onShallow={shallow}
+          focusToken={focusToken}
+        />
+      )}
+
+      {/* Arc sections — themselves drag-to-reorderable as whole blocks via the
+          grip in their header (PROG-87); the page's onDragEnd branches on
+          what's dragged. */}
+      <SortableContext
+        items={arcForests.map(({ arc }) => arc.id)}
+        strategy={verticalListSortingStrategy}
       >
-        {/* While an arc section is held, everything under it goes pointer-inert:
-          no row hover highlights, no accidental input focus — the only live
-          thing is the drag itself (PROG-87 polish). */}
-        <div className={activeArcId ? "pointer-events-none select-none" : undefined}>
-          {/* Focus-level (no-arc) actions + their roving capture row. */}
-          {renderForest(looseForest)}
-          {captureParent === null && captureArc === null && (
-            <CaptureRow
-              depth={0}
-              placeholder="New action — Enter to add, Tab to nest under the one above"
-              draft={captureDraft}
-              onDraftChange={onCaptureDraftChange}
-              onCreate={(t) => create(t, null, null)}
-              onDeepen={deepen}
-              onShallow={shallow}
-              focusToken={focusToken}
-            />
-          )}
-
-          {/* Arc sections — themselves drag-to-reorderable as whole blocks via the
-          grip in their header (PROG-87), inside the same DndContext as the
-          action rows (onReorder branches on what's dragged). */}
-          <SortableContext
-            items={arcForests.map(({ arc }) => arc.id)}
-            strategy={verticalListSortingStrategy}
+        {arcForests.map(({ arc, forest }) => (
+          <SortableSection
+            key={arc.id}
+            id={arc.id}
+            kind="arc"
+            href={`/arc/${arc.id}`}
+            label={`Open ${arc.name} — drag to reorder`}
+            className="mt-2"
           >
-            {arcForests.map(({ arc, forest }) => (
-              <SortableSection
-                key={arc.id}
-                id={arc.id}
-                kind="arc"
-                href={`/arc/${arc.id}`}
-                label={`Open ${arc.name} — drag to reorder`}
-                className="mt-2"
-              >
-                {(arcGrip) => (
-                  <>
-                    <div className="group flex items-center gap-1.5">
-                      {arcGrip}
-                      <Link
-                        href={`/arc/${arc.id}`}
-                        className="text-sm font-medium text-moss-deep hover:underline"
-                      >
-                        {arc.name}
-                      </Link>
-                    </div>
-                    {renderForest(forest)}
-                    {captureParent === null && captureArc === arc.id && (
-                      <CaptureRow
-                        depth={1}
-                        placeholder={`New action in ${arc.name}`}
-                        draft={captureDraft}
-                        onDraftChange={onCaptureDraftChange}
-                        onCreate={(t) => create(t, null, arc.id)}
-                        onDeepen={deepen}
-                        onShallow={shallow}
-                        focusToken={focusToken}
-                      />
-                    )}
-                    {!(captureParent === null && captureArc === arc.id) && (
-                      <button
-                        onClick={() => {
-                          setCaptureParent(null);
-                          setCaptureArc(arc.id);
-                          setFocusToken((t) => t + 1);
-                        }}
-                        className="ml-[22px] rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
-                      >
-                        + action here
-                      </button>
-                    )}
-                  </>
+            {(arcGrip) => (
+              <>
+                <div className="group flex items-center gap-1.5">
+                  {arcGrip}
+                  <Link
+                    href={`/arc/${arc.id}`}
+                    className="text-sm font-medium text-moss-deep hover:underline"
+                  >
+                    {arc.name}
+                  </Link>
+                </div>
+                {renderForest(forest)}
+                {captureParent === null && captureArc === arc.id && (
+                  <CaptureRow
+                    depth={1}
+                    placeholder={`New action in ${arc.name}`}
+                    draft={captureDraft}
+                    onDraftChange={onCaptureDraftChange}
+                    onCreate={(t) => create(t, null, arc.id)}
+                    onDeepen={deepen}
+                    onShallow={shallow}
+                    focusToken={focusToken}
+                  />
                 )}
-              </SortableSection>
-            ))}
-          </SortableContext>
+                {!(captureParent === null && captureArc === arc.id) && (
+                  <button
+                    onClick={() => {
+                      setCaptureParent(null);
+                      setCaptureArc(arc.id);
+                      setFocusToken((t) => t + 1);
+                    }}
+                    className="ml-[22px] rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
+                  >
+                    + action here
+                  </button>
+                )}
+              </>
+            )}
+          </SortableSection>
+        ))}
+      </SortableContext>
 
-          {/* When capture has roved off the top level, offer a way back. */}
-          {!captureAtTopLevel && (
-            <button
-              onClick={() => {
-                setCaptureParent(null);
-                setCaptureArc(null);
-                setFocusToken((t) => t + 1);
-              }}
-              className="mt-1 rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
-            >
-              ↥ back to top level
-            </button>
-          )}
-        </div>
-
-        {/* The floating copy of the held arc section: follows the pointer from
-          the first pixel, lifted above the page (shadow), capped to a few rows.
-          dropAnimation={null} for the same reason as the board (PROG-43): the
-          reorder is committed on drop, so the default tween would fly the card
-          back to its OLD slot before snapping. */}
-        <DragOverlay dropAnimation={null}>
-          {(() => {
-            const held = activeArcId
-              ? arcForests.find(({ arc }) => arc.id === activeArcId)
-              : undefined;
-            if (!held) return null;
-            const rows = forestPreviewRows(held.forest);
-            return (
-              <SectionPreviewCard
-                header={
-                  <>
-                    <LevelIcon kind="arc" />
-                    <span className="text-sm font-medium text-moss-deep">{held.arc.name}</span>
-                  </>
-                }
-                rows={rows}
-                more={rows.length - PREVIEW_ROWS}
-              />
-            );
-          })()}
-        </DragOverlay>
-      </DndContext>
+      {/* When capture has roved off the top level, offer a way back. */}
+      {!captureAtTopLevel && (
+        <button
+          onClick={() => {
+            setCaptureParent(null);
+            setCaptureArc(null);
+            setFocusToken((t) => t + 1);
+          }}
+          className="mt-1 rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
+        >
+          ↥ back to top level
+        </button>
+      )}
     </section>
   );
 }
@@ -1135,28 +1027,223 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
         ? focuses.filter((p) => p.workspaceId === root.id)
         : [];
 
-  // At workspace scope the focus sections are drag-to-reorderable (PROG-87).
-  // This outer DndContext nests around each FocusOutline's own context; the
-  // focus grip is the only activator registered here, so arc/action drags
-  // inside a section never reach this handler.
-  const focusSensors = useSensors(
+  // ---------- the page-wide drag controller (PROG-86/87/118) ----------
+  //
+  // ONE DndContext for the whole page: focus sections, arc sections, and action
+  // rows all register here (they used to be split across nested per-focus
+  // contexts, which made a drag across section boundaries impossible). The
+  // handlers branch on what was picked up: sections reorder among their
+  // siblings as before, while an action row dropped outside its own sibling
+  // group now MOVES there — into another arc, back to the loose level, or into
+  // a whole different focus (PROG-118).
+  const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
-  const [activeFocusId, setActiveFocusId] = useState<string | null>(null);
-  const onFocusReorder = (e: DragEndEvent) => {
-    setActiveFocusId(null);
+
+  // What the forests render (PROG-77): with "hide done" on, completed actions
+  // and their subtrees drop out. Drop targets resolve against this same list so
+  // a drop slots among the rows the user actually sees.
+  const visibleActions = useMemo(
+    () => (hideDone ? snapshot.actions.filter((i) => isOpenStatus(i.status)) : snapshot.actions),
+    [snapshot.actions, hideDone],
+  );
+  const actionById = useMemo(
+    () => new Map(snapshot.actions.map((i) => [i.id, i])),
+    [snapshot.actions],
+  );
+  const arcById = useMemo(() => new Map(snapshot.arcs.map((a) => [a.id, a])), [snapshot.arcs]);
+  const focusById = useMemo(() => new Map(focuses.map((p) => [p.id, p])), [focuses]);
+  const rankOf = (id: string) => actionById.get(id)!.rank;
+
+  // The container section (focus or arc) currently held by a drag. While set, a
+  // DragOverlay carries a floating preview of the grouping and the page goes
+  // pointer-inert, so nothing hover-highlights under the drag (PROG-87 polish).
+  // Action-row drags translate in place instead and don't set this.
+  const [held, setHeld] = useState<{ kind: "focus" | "arc"; id: string } | null>(null);
+  const onDragStart = (e: DragStartEvent) => {
+    const id = String(e.active.id);
+    if (focusById.has(id)) setHeld({ kind: "focus", id });
+    else if (arcById.has(id)) setHeld({ kind: "arc", id });
+  };
+
+  // A cross-focus move always lands top-level (the server detaches steps,
+  // PROG-124) — so a drop over a step slots relative to its top-level root.
+  const rootAncestorOf = (a: WireAction): WireAction => {
+    let cursor = a;
+    for (let hops = 0; cursor.parentActionId !== null && hops < 1000; hops++) {
+      const parent = actionById.get(cursor.parentActionId);
+      if (!parent) break;
+      cursor = parent;
+    }
+    return cursor;
+  };
+
+  const onDragEnd = (e: DragEndEvent) => {
+    setHeld(null);
     const activeId = String(e.active.id);
     const overId = e.over ? String(e.over.id) : null;
     if (!overId || overId === activeId) return;
-    const updates = containerReorderRanks(scopedFocuses, activeId, overId);
-    for (const u of updates ?? []) void updateContainer("focus", u.id, { rank: u.rank });
+
+    // Pointer past the hovered target's vertical middle → land below it (the
+    // board's cross-column rule); within one sibling group the index math
+    // decides the side instead.
+    const translated = e.active.rect.current.translated;
+    const below =
+      translated && e.over ? translated.top > e.over.rect.top + e.over.rect.height / 2 : false;
+
+    // -- A focus section (workspace scope): reorder among the visible focuses.
+    //    With closestCenter the `over` is often a row/arc inside a neighbouring
+    //    section rather than the section itself — resolve it to its focus.
+    if (focusById.has(activeId)) {
+      const overFocusId = focusById.has(overId)
+        ? overId
+        : (arcById.get(overId)?.focusId ?? actionById.get(overId)?.focusId ?? null);
+      if (!overFocusId || overFocusId === activeId) return;
+      // One write once ranks are distinct; the first drag in a still-tied
+      // (alphabetical) group renumbers the whole group — see containerReorder.
+      const updates = containerReorderRanks(scopedFocuses, activeId, overFocusId);
+      for (const u of updates ?? []) void updateContainer("focus", u.id, { rank: u.rank });
+      return;
+    }
+
+    // -- An arc section: reorder among its own focus's arcs. Only actions move
+    //    between containers by drag (PROG-118); an arc dropped outside its
+    //    focus stays put.
+    const activeArc = arcById.get(activeId);
+    if (activeArc) {
+      const overArc = arcById.get(
+        arcById.has(overId) ? overId : (actionById.get(overId)?.arcId ?? ""),
+      );
+      if (!overArc || overArc.focusId !== activeArc.focusId || overArc.id === activeId) return;
+      const focusArcs = snapshot.arcs
+        .filter((a) => a.focusId === activeArc.focusId && !a.archivedAt)
+        .sort(byRankThenName);
+      const updates = containerReorderRanks(focusArcs, activeId, overArc.id);
+      for (const u of updates ?? []) void updateContainer("arc", u.id, { rank: u.rank });
+      return;
+    }
+
+    // -- An action row (PROG-86/PROG-118).
+    const active = actionById.get(activeId);
+    if (!active) return;
+
+    const overAction = actionById.get(overId);
+    if (overAction) {
+      const sameGroup =
+        active.focusId === overAction.focusId &&
+        active.parentActionId === overAction.parentActionId &&
+        (active.parentActionId !== null || active.arcId === overAction.arcId);
+      if (sameGroup) {
+        // Reorder within the sibling group: mint a rank between the new
+        // neighbours — the same shared `rank` the board writes, so this drag
+        // also moves the card there and vice-versa (PROG-86).
+        const group = siblingsOf(
+          visibleActions,
+          active.focusId,
+          active.parentActionId,
+          active.arcId,
+        );
+        const newRank = rankForReorder(
+          group.map((i) => i.id),
+          rankOf,
+          activeId,
+          overId,
+        );
+        if (newRank) void updateAction(activeId, { rank: newRank });
+        return;
+      }
+      // Never drop an action into its own subtree — the reparent would cycle
+      // (the server rejects it too; this guard just skips the doomed write).
+      if (inSubtreeOf(snapshot.actions, activeId, overId)) return;
+      if (overAction.focusId === active.focusId) {
+        // Same focus, different group: join the hovered row's group right where
+        // dropped. One rule covers arc → arc, arc ↔ loose, and step groups.
+        const group = siblingsOf(
+          visibleActions,
+          overAction.focusId,
+          overAction.parentActionId,
+          overAction.arcId,
+        );
+        const rank = rankForInsert(
+          group.map((i) => i.id),
+          rankOf,
+          overId,
+          below,
+        );
+        void updateAction(activeId, {
+          arcId: overAction.arcId,
+          parentActionId: overAction.parentActionId,
+          rank,
+        });
+        return;
+      }
+      // Another focus: a real move (re-key + alias, steps detach — PROG-102/
+      // PROG-124), landing top-level in the hovered row's arc at the drop spot.
+      const root = rootAncestorOf(overAction);
+      const group = siblingsOf(visibleActions, overAction.focusId, null, root.arcId);
+      const rank = rankForInsert(
+        group.map((i) => i.id),
+        rankOf,
+        root.id,
+        below,
+      );
+      moveAction(activeId, { focusId: overAction.focusId, arcId: root.arcId, rank });
+      return;
+    }
+
+    const overArc = arcById.get(overId);
+    if (overArc) {
+      // Dropped on an arc section itself (its header, or an empty arc's body):
+      // append to that arc's top level.
+      const group = siblingsOf(visibleActions, overArc.focusId, null, overArc.id).filter(
+        (i) => i.id !== activeId,
+      );
+      const rank = rankForInsert(
+        group.map((i) => i.id),
+        rankOf,
+        overId,
+        below,
+      );
+      if (overArc.focusId === active.focusId) {
+        void updateAction(activeId, { arcId: overArc.id, parentActionId: null, rank });
+      } else {
+        moveAction(activeId, { focusId: overArc.focusId, arcId: overArc.id, rank });
+      }
+      return;
+    }
+
+    const overFocus = focusById.get(overId);
+    if (overFocus) {
+      // Dropped on a focus section itself: land loose at its top level.
+      if (
+        overFocus.id === active.focusId &&
+        active.arcId === null &&
+        active.parentActionId === null
+      )
+        return; // already exactly there
+      const group = siblingsOf(visibleActions, overFocus.id, null, null).filter(
+        (i) => i.id !== activeId,
+      );
+      const rank = rankForInsert(
+        group.map((i) => i.id),
+        rankOf,
+        overId,
+        below,
+      );
+      if (overFocus.id === active.focusId) {
+        void updateAction(activeId, { arcId: null, parentActionId: null, rank });
+      } else {
+        moveAction(activeId, { focusId: overFocus.id, rank });
+      }
+    }
   };
 
-  // Overlay preview for a held focus section: its arcs as rows (the level a
-  // focus grouping is made of), matching the arc previews' capped card.
-  const heldFocus = activeFocusId ? scopedFocuses.find((p) => p.id === activeFocusId) : undefined;
-  const heldFocusRows = heldFocus
+  // Overlay preview for a held section: a held focus shows its arcs as rows,
+  // a held arc its action forest — matching capped preview cards either way.
+  const heldFocus = held?.kind === "focus" ? focusById.get(held.id) : undefined;
+  const heldArc = held?.kind === "arc" ? arcById.get(held.id) : undefined;
+  const heldRows = heldFocus
     ? [...snapshot.arcs]
         .filter((a) => a.focusId === heldFocus.id && !a.archivedAt)
         .sort(byRankThenName)
@@ -1166,7 +1253,9 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
           icon: <LevelIcon kind="arc" />,
           text: a.name,
         }))
-    : [];
+    : heldArc
+      ? forestPreviewRows(buildForest(visibleActions, heldArc.focusId, heldArc.id, 1))
+      : [];
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -1176,7 +1265,7 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
           <p className="mt-1 text-xs text-ink-faint">
             Fast capture — type to add actions, <kbd>Enter</kbd> for the next, <kbd>Tab</kbd>/
             <kbd>Shift+Tab</kbd> to nest. Each row&apos;s bullet is its handle — tap it to open,
-            drag it to reorder.
+            drag it to reorder or drop it into another arc or focus.
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -1234,23 +1323,22 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
       <div className="mt-5 space-y-4">
         {!root && <p className="text-sm text-ink-faint">No focuses or workspaces yet.</p>}
 
-        {root?.kind === "workspace" ? (
-          <DndContext
-            sensors={focusSensors}
-            collisionDetection={closestCenter}
-            onDragStart={(e: DragStartEvent) => setActiveFocusId(String(e.active.id))}
-            onDragEnd={onFocusReorder}
-            onDragCancel={() => setActiveFocusId(null)}
-          >
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+          onDragCancel={() => setHeld(null)}
+        >
+          {root?.kind === "workspace" ? (
             <SortableContext
               items={scopedFocuses.map((p) => p.id)}
               strategy={verticalListSortingStrategy}
             >
-              {/* Pointer-inert while a focus section is held — see the arc
-                  drag's identical wrapper (PROG-87 polish). */}
-              <div
-                className={`space-y-4 ${activeFocusId ? "pointer-events-none select-none" : ""}`}
-              >
+              {/* Pointer-inert while a section (focus or arc) is held: no row
+                  hover highlights, no accidental input focus — the only live
+                  thing is the drag itself (PROG-87 polish). */}
+              <div className={`space-y-4 ${held ? "pointer-events-none select-none" : ""}`}>
                 {scopedFocuses.map((p) => (
                   <SortableSection
                     key={p.id}
@@ -1263,8 +1351,8 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
                       <FocusOutline
                         focus={p}
                         ws={snapshot}
+                        visibleActions={visibleActions}
                         showHeader
-                        hideDone={hideDone}
                         grip={focusGrip}
                       />
                     )}
@@ -1272,35 +1360,54 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
                 ))}
               </div>
             </SortableContext>
-            <DragOverlay dropAnimation={null}>
-              {heldFocus && (
-                <SectionPreviewCard
-                  header={
-                    <>
-                      <LevelIcon kind="focus" />
-                      <span className="font-medium text-ink">{heldFocus.name}</span>
-                      <span className="font-mono text-[11px] text-ink-faint">
-                        {heldFocus.keyPrefix}
-                      </span>
-                    </>
-                  }
-                  rows={heldFocusRows}
-                  more={heldFocusRows.length - PREVIEW_ROWS}
+          ) : (
+            <div className={held ? "pointer-events-none select-none" : undefined}>
+              {scopedFocuses.map((p) => (
+                <FocusOutline
+                  key={p.id}
+                  focus={p}
+                  ws={snapshot}
+                  visibleActions={visibleActions}
+                  showHeader={false}
                 />
-              )}
-            </DragOverlay>
-          </DndContext>
-        ) : (
-          scopedFocuses.map((p) => (
-            <FocusOutline
-              key={p.id}
-              focus={p}
-              ws={snapshot}
-              showHeader={false}
-              hideDone={hideDone}
-            />
-          ))
-        )}
+              ))}
+            </div>
+          )}
+
+          {/* The floating copy of the held section: follows the pointer from
+              the first pixel, lifted above the page (shadow), capped to a few
+              rows. dropAnimation={null} for the same reason as the board
+              (PROG-43): the reorder is committed on drop, so the default tween
+              would fly the card back to its OLD slot before snapping. */}
+          <DragOverlay dropAnimation={null}>
+            {heldFocus ? (
+              <SectionPreviewCard
+                header={
+                  <>
+                    <LevelIcon kind="focus" />
+                    <span className="font-medium text-ink">{heldFocus.name}</span>
+                    <span className="font-mono text-[11px] text-ink-faint">
+                      {heldFocus.keyPrefix}
+                    </span>
+                  </>
+                }
+                rows={heldRows}
+                more={heldRows.length - PREVIEW_ROWS}
+              />
+            ) : heldArc ? (
+              <SectionPreviewCard
+                header={
+                  <>
+                    <LevelIcon kind="arc" />
+                    <span className="text-sm font-medium text-moss-deep">{heldArc.name}</span>
+                  </>
+                }
+                rows={heldRows}
+                more={heldRows.length - PREVIEW_ROWS}
+              />
+            ) : null}
+          </DragOverlay>
+        </DndContext>
 
         {/* At workspace scope, focuses are the top ceiling — so offer inline
             focus capture (and seed the empty state). Focus scope has no

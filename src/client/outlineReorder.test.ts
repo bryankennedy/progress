@@ -2,7 +2,7 @@
 // Ranks are single decimal digits ("1".."4"), a valid subset of the rank
 // alphabet that sorts the same way as the fractional keys minted in production.
 import { describe, expect, it } from "bun:test";
-import { rankForReorder } from "./outlineReorder";
+import { rankForInsert, rankForReorder } from "./outlineReorder";
 
 const RANKS: Record<string, string> = { a: "1", b: "2", c: "3", d: "4" };
 const rankOf = (id: string) => RANKS[id]!;
@@ -47,5 +47,31 @@ describe("rankForReorder", () => {
   it("returns null when an id is not in the group", () => {
     expect(rankForReorder(group, rankOf, "a", "zzz")).toBeNull();
     expect(rankForReorder(group, rankOf, "zzz", "a")).toBeNull();
+  });
+});
+
+describe("rankForInsert (cross-group drop, PROG-118)", () => {
+  it("lands above the hovered member when the pointer is above its middle", () => {
+    between(rankForInsert(group, rankOf, "b", false), "1", "2");
+  });
+
+  it("lands below the hovered member when the pointer is past its middle", () => {
+    between(rankForInsert(group, rankOf, "b", true), "2", "3");
+  });
+
+  it("lands at the very top (open start)", () => {
+    between(rankForInsert(group, rankOf, "a", false), null, "1");
+  });
+
+  it("lands at the very bottom (open end)", () => {
+    between(rankForInsert(group, rankOf, "d", true), "4", null);
+  });
+
+  it("appends when dropped over the group itself (overId not a member)", () => {
+    between(rankForInsert(group, rankOf, "the-arc-section", false), "4", null);
+  });
+
+  it("mints a first rank for an empty group", () => {
+    between(rankForInsert([], rankOf, "the-arc-section", false), null, null);
   });
 });

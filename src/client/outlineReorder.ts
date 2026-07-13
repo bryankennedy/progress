@@ -40,3 +40,25 @@ export function rankForReorder(
   // and rankBetween never throws.
   return rankBetween(prevId ? rankOf(prevId) : null, nextId ? rankOf(nextId) : null);
 }
+
+/**
+ * Rank for `active` landing in a sibling group it is NOT currently part of — a
+ * cross-group drop (PROG-118: into another arc, the loose level, or another
+ * focus). `groupIds` is the target group in rendered order, without the active
+ * id. Dropped over a member, the action slots before it — or after when
+ * `below` (pointer past the member's vertical middle, the board's cross-column
+ * rule). Dropped over the group itself (its section header / empty body,
+ * `overId` not in the group), it appends to the end.
+ */
+export function rankForInsert(
+  groupIds: string[],
+  rankOf: (id: string) => string,
+  overId: string,
+  below: boolean,
+): string {
+  const overIndex = groupIds.indexOf(overId);
+  const insertAt = overIndex < 0 ? groupIds.length : overIndex + (below ? 1 : 0);
+  const prevId = insertAt > 0 ? groupIds[insertAt - 1]! : null;
+  const nextId = insertAt < groupIds.length ? (groupIds[insertAt] ?? null) : null;
+  return rankBetween(prevId ? rankOf(prevId) : null, nextId ? rankOf(nextId) : null);
+}
