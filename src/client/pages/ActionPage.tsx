@@ -52,12 +52,6 @@ const fmtTime = (iso: string) =>
 const FIELD_ACTION_CLS =
   "flex min-h-11 items-center text-xs text-adobe hover:underline sm:block sm:min-h-0";
 
-// The one sidebar-title treatment (PROG-120): every section header in the
-// right rail — the status panel's and each Field's — shares this string, so
-// the titles can't drift apart again. Centered within the rail; the color is
-// per-use (adobe for the status panel, faint ink for plain fields).
-const SIDEBAR_TITLE_CLS = "text-center text-xs font-medium uppercase tracking-wide font-mono";
-
 export default function ActionPage({
   snapshot,
   keyParam,
@@ -184,7 +178,7 @@ export default function ActionPage({
               link is retired). The header names which kind of thing this page
               shows: a Step is an action with a parent (PROG-106 chain). */}
           <div className="rounded-lg border border-adobe-wash bg-adobe-wash/30 p-3">
-            <p className={`mb-2 ${SIDEBAR_TITLE_CLS} text-adobe-deep`}>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide font-mono text-adobe-deep">
               {action.parentActionId ? "Step Status" : "Action Status"}
             </p>
             {/* The buttons live inside IconSelect's control column (PROG-110)
@@ -580,7 +574,9 @@ function CheckGlyph() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className={`mb-1 ${SIDEBAR_TITLE_CLS} text-ink-faint`}>{label}</p>
+      <p className="mb-1 text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">
+        {label}
+      </p>
       {children}
     </div>
   );
