@@ -74,7 +74,8 @@ old container.
 - An action's container is its **focus** — always exactly one (PROG-102). The
   arc-in-focus invariant is API-enforced (SQLite can't express it cheaply).
 - Actions move between **focuses**. A move re-keys the action from the target's
-  sequence, clears its arc, and writes the old key to `action_key_aliases` as a
+  sequence, clears its arc — or lands it in a caller-named arc **of the target
+  focus** (PROG-118) — and writes the old key to `action_key_aliases` as a
   permanent redirect (D18, D24). A move to the action's current focus is a no-op.
 - Action keys are **derived, never stored**: `focus.keyPrefix + "-" +
   action.number`. Renaming a prefix re-keys everything consistently; alias
@@ -230,7 +231,7 @@ mandatory — renew it before it lapses (an expired file is worse than none).
 | `GET /api/snapshot` | The load-everything payload (`SnapshotPayload`): `me` (the signed-in user, PROG-34), users, workspaces, focuses, arcs, actions, tags, actionTags, actionKeyAliases — eight independent reads run with `Promise.all` (not a `db.batch`/transaction, which 500'd on production D1; D31). Comments/activity are deliberately excluded (D20). |
 | `POST /api/actions` | `{ title, focusId, arcId?, parentActionId?, description?, status?, priority?, estimate?, dueDate?, tagIds? }` → 201 `{ action }`. `dueDate` is `YYYY-MM-DD` or null, validated (impossible dates rejected). `parentActionId` must be an existing action in the same focus (PROG-124). `tagIds` (PROG-89b) links existing tags at birth — every id must exist or the whole create 400s. Number allocated by atomic increment of the focus sequence; gaps from failed creates are harmless (D24). A board `rank` is auto-assigned, appended after the current last action (D44). |
 | `PATCH /api/actions/:id` | Any of `title, description, status, priority, estimate, arcId, parentActionId, dueDate, rank` — validated per field; arc and parent must be same-focus; `parentActionId` reparent is acyclic and not self (PROG-124); `dueDate`/`arcId`/`parentActionId` accept null to clear. `rank` is a fractional-index board key the client computes from the drop site's neighbors (D44). A status change atomically appends a `status_changed` activity row and maintains `completedAt`. |
-| `POST /api/actions/:id/move` | `{ focusId }` — the focus is the sole container (PROG-102). Re-keys from the target focus, clears arc, detaches steps, writes the alias, logs `moved`. 400 if `focusId` is the action's current focus (no-op). |
+| `POST /api/actions/:id/move` | `{ focusId, arcId?, rank? }` — the focus is the sole container (PROG-102). Re-keys from the target focus, clears arc, detaches steps, writes the alias, logs `moved`. `arcId`/`rank` (PROG-118, the Outline's cross-focus drag) name a landing spot: the arc must belong to the **target** focus, `rank` is a validated fractional key. 400 if `focusId` is the action's current focus (no-op). |
 | `GET /api/actions/:id/timeline` | `{ comments, activity, pullRequests, commits }`, each ordered by `createdAt`. |
 | `GET /api/actions/:key/bundle` | Looked up by **key** (alias-aware), not id. Returns `text/markdown` — a deterministic context "work order": action fields + tags, lineage with descriptions (focus incl. optional `gitUrl` → arc, where the arc description carries the "why"), comments, an **Images** list (absolute URLs of every image referenced in the description/comments, so a bearer-authed agent can fetch them — PROG-42), linked PRs/commits, then a stable report-back preamble — **branch off fresh `origin/main`, never another feature branch, and PR with `--base main`** (PROG-95), branch/key auto-linking + status flow, plus a **Committing & PRs** block that embeds a local, key-aware copy of the owner's smart-commit conventions (logical chunks, secret-scan, `type(scope): KEY subject`, no AI attribution) so a handed-off agent commits to the owner's rules (PROG-62). A retired key resolves and renders the current canonical key. 400 malformed key, 404 unknown. Rendered by `src/worker/bundle.ts` (`renderBundle`); shared foundation for the agent surfaces (SPEC §11.1, D33). |
 | `GET /api/arcs/:id/bundle` | Looked up by **id** (the arc page has it). Returns `text/markdown` — the **arc** work order: a single prompt covering **every open action** in the arc (`done`/`canceled` dropped via `isOpenStatus`), each rendered like the action bundle (fields, description, comments, Images, linked PRs/commits) minus its per-action footer, with focus/arc lineage (incl. the focus's optional `gitUrl`) stated once. Ends in **combined-PR** orchestration — fan the actions to sub-agents, share one branch, land **one PR naming every key** — plus the same smart-commit block (keyed per-commit). Deterministic (status-then-number sort). 404 unknown arc. Rendered by `renderArcBundle` in `src/worker/bundle.ts`. |
@@ -430,13 +431,32 @@ so old bookmarks keep working.
   (`rankForReorder`, `src/client/outlineReorder.ts`) — the **same** fractional
   key the board orders by, so a drag here moves the card on the board and
   vice-versa. Only the handle starts a drag (the title input stays editable);
-  reparenting stays on Tab/Shift+Tab (PROG-86). **Container sections reorder
+  reparenting stays on Tab/Shift+Tab (PROG-86). Dropped **outside** its own
+  sibling group, the action **moves** there instead (PROG-118): one page-wide
+  `DndContext` covers every row and section, so a drop onto a row in another
+  group joins that group where released (same-focus: one optimistic
+  `PATCH { arcId, parentActionId, rank }`; `rankForInsert` slots it above or
+  below the hovered row by the pointer-past-middle rule the board uses), a
+  drop onto an arc section/header appends to that arc's top level, and a drop
+  into another focus's section is a real **move** (re-key + alias, steps
+  detach) landing top-level at the drop spot via
+  `POST /api/actions/:id/move { focusId, arcId?, rank? }`. A drop into the
+  action's own subtree is refused client-side (`inSubtreeOf`,
+  `src/client/outlineTree.ts`). **Container sections reorder
   the same way** (PROG-87): arc sections within a focus, and focus sections
   at workspace scope, each drag as a whole block from the handle in their
-  header.
-  A held section is carried by a floating `DragOverlay` preview (capped rows,
-  shadow — the board's pattern) while the in-list source dims and the rest of
-  the outline goes pointer-inert, so nothing hover-highlights under the drag.
+  header — sections never change parents by drag; only actions move.
+  Anything held — a section **or an action row** — is carried by a floating
+  `DragOverlay` preview (capped rows, shadow; rows add the board card's slight
+  rotation) while the in-list source dims to a ghost and the rest of the
+  outline goes pointer-inert, so nothing hover-highlights under the drag.
+  While a held row hovers a *different* sibling group, an `onDragOver` preview
+  re-homes it there in the rendered list (the board's PROG-59 pattern), so the
+  target group — in any arc or focus — visibly opens the landing slot; the
+  drop then commits exactly what the preview shows. On release the overlay
+  glides into the committed slot (default drop tween, ~180ms) — safe from the
+  old fly-back because PROG-119 made optimistic writes notify synchronously,
+  so the destination is already re-rendered when the tween measures it.
   Container ranks sort `(rank, name)` — alphabetical until first reordered; a
   drag in a still-tied group renumbers the group, after which each drag is one
   write (`containerReorderRanks`, `src/client/containerReorder.ts`). The order

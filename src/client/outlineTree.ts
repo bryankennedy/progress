@@ -38,6 +38,20 @@ export function siblingsOf(
     .sort(byRankThenNumber);
 }
 
+// True when `id` sits inside `ancestorId`'s subtree (or IS it) — the client
+// side of the server's cycle check (PROG-124), used to reject a drag that would
+// drop an action into its own descendants (PROG-118) before the write fires.
+// The hop cap mirrors the server guard against malformed parent chains.
+export function inSubtreeOf(actions: WireAction[], ancestorId: string, id: string): boolean {
+  const parentOf = new Map(actions.map((a) => [a.id, a.parentActionId]));
+  let cursor: string | null | undefined = id;
+  for (let hops = 0; cursor != null && hops < 1000; hops++) {
+    if (cursor === ancestorId) return true;
+    cursor = parentOf.get(cursor);
+  }
+  return false;
+}
+
 // Build the rendered forest for one (focus, arc) scope; `depth` is the depth
 // tag for the top level (0 for loose actions, 1 inside an arc section, matching
 // the view's indent math). One pass groups actions by parent, then the tree is
