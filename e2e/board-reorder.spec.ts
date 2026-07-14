@@ -113,9 +113,11 @@ test("dragging a card up settles in place — no fly-back to the old slot", asyn
   await glideY(page, c2.cx, c2.cy + 6, c0.y - 8); // drag the bottom card above the top
   await expect(overlay(page)).toHaveCount(1); // overlay present mid-drag
   await page.mouse.up();
-  // Regression: the buggy default drop animation kept the overlay clone alive
-  // ~250ms flying back to the origin; it must clear well inside that.
-  await expect(overlay(page)).toHaveCount(0, { timeout: 120 });
+  // The settle tween (PROG-118, shared DROP_ANIMATION ~180ms) glides the
+  // overlay into the card's NEW slot, then clears. The old fly-back-to-origin
+  // regression is covered by the frame-sampling spec below ("doesn't flash
+  // back"); here just require the overlay to clear once the tween ends.
+  await expect(overlay(page)).toHaveCount(0, { timeout: 600 });
 
   await expect
     .poll(async () => {
