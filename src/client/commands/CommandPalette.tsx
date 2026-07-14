@@ -9,6 +9,7 @@ import { useLocation } from "wouter";
 import { ACTION_ESTIMATES, ACTION_PRIORITIES, ACTION_STATUSES } from "../../shared/constants";
 import type { WireAction, SnapshotPayload } from "../../shared/types";
 import { sortByName } from "../boardFilters";
+import { byRankThenName, sortContainers } from "../containerReorder";
 import { addDays, formatDueDate, relativeDue, todayISO } from "../dates";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import {
@@ -216,10 +217,14 @@ function buildItems(
       return items;
     }
     case "arc": {
-      // Alphabetical like every picker (PROG-83); "No arc" stays pinned first.
-      const focusArcs = sortByName(
-        ws.arcs.filter((a) => a.focusId === action.focusId && !a.archivedAt),
-      );
+      // Outline order, not alphabetical (PROG-123 supersedes PROG-83 here):
+      // arcs list in the manual rank set on the outline/structure pages, and
+      // each row's hint names the parent focus one level up. "No arc" stays
+      // pinned first.
+      const parentFocus = ws.focuses.find((p) => p.id === action.focusId);
+      const focusArcs = ws.arcs
+        .filter((a) => a.focusId === action.focusId && !a.archivedAt)
+        .sort(byRankThenName);
       // "No arc" filters like any option, so a typed query can't leave it
       // sitting first and steal the Enter.
       return [
@@ -232,7 +237,7 @@ function buildItems(
         ...focusArcs.map((a) => ({
           id: a.id,
           label: a.name,
-          hint: a.id === action.arcId ? "current" : undefined,
+          hint: a.id === action.arcId ? "current" : parentFocus?.name,
           run: () => void updateAction(action.id, { arcId: a.id }),
         })),
       ].filter((item) => matches(item.label));
@@ -240,14 +245,25 @@ function buildItems(
     case "move": {
       // A move now only changes the focus (PROG-102). Archived focuses aren't
       // valid destinations (D26); the action's current focus is excluded.
-      // Alphabetical (PROG-83).
-      return sortByName(ws.focuses.filter((p) => !p.archivedAt))
-        .filter((focus) => focus.id !== action.focusId)
-        .filter((focus) => matches(focus.name))
+      // Structure order, not alphabetical (PROG-123 supersedes PROG-83 here):
+      // focuses group under their workspace in the outline's manual rank, and
+      // the hint names the parent workspace. A typed query also matches the
+      // workspace name, since it's on screen.
+      const workspaceOrder = new Map(sortContainers(ws.workspaces).map((w, i) => [w.id, i]));
+      const workspaceName = (focus: { workspaceId: string }) =>
+        ws.workspaces.find((w) => w.id === focus.workspaceId)?.name;
+      return ws.focuses
+        .filter((focus) => !focus.archivedAt && focus.id !== action.focusId)
+        .sort(
+          (a, b) =>
+            (workspaceOrder.get(a.workspaceId) ?? 0) - (workspaceOrder.get(b.workspaceId) ?? 0) ||
+            byRankThenName(a, b),
+        )
+        .filter((focus) => matches(focus.name) || matches(workspaceName(focus) ?? ""))
         .map((focus) => ({
           id: focus.id,
           label: focus.name,
-          hint: "Focus",
+          hint: workspaceName(focus) ?? "Focus",
           run: () => moveAction(action.id, { focusId: focus.id }),
         }));
     }

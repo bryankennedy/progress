@@ -464,8 +464,10 @@ so old bookmarks keep working.
   the shared `sortContainers` (active first, archived last, rank-then-name;
   PROG-83) — the child lists on container pages. **Every other container/tag
   list is deterministic too** (PROG-83): pickers and selects (create dialogs,
-  palette arc/move/tag pickers, palette container quick-jump, filter
-  dropdowns per PROG-66) list alphabetically by name, tag chips on action
+  palette tag picker, palette container quick-jump, filter
+  dropdowns per PROG-66) list alphabetically by name — except the palette
+  **move/arc pickers**, which follow this same outline order and hint each row
+  with its parent container (PROG-123) — tag chips on action
   pages and board/Agenda cards sort alphabetically (shared `tagsByAction`,
   `src/client/tags.ts`), and Archive groups sort by name. Board **actions**
   keep pure `rank` order — never alphabetized. The scope
@@ -653,7 +655,10 @@ so old bookmarks keep working.
   actions by key (retired alias keys included) or title and containers by
   name, and lists commands (create action/workspace/focus/arc,
   pickers for the current action). Picker modes are filterable lists; tag
-  toggles keep the palette open for multi-edit.
+  toggles keep the palette open for multi-edit. The move picker lists focuses
+  grouped by workspace in outline rank order with the parent workspace as the
+  row hint (a typed query matches it too); the arc picker lists the focus's
+  arcs in outline rank order, hinting the parent focus (PROG-123).
 - **Create dialogs** — action and container creation; parents/containers
   default from the current view (open container page, viewed action's
   container, or active board filters). New actions default to **Todo** so
