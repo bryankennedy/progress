@@ -34,6 +34,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { ACTION_STATUSES, type ActionStatus } from "../../shared/constants";
 import { rankBetween } from "../../shared/rank";
+import { DROP_ANIMATION } from "../dropAnimation";
 import { reorder, type ColumnMap } from "../boardOrder";
 import { BOARD_FILTERS_KEY, FILTER_NONE, matchesNullableId } from "../boardFilters";
 import FilterBar, { useStickyFilterUrl } from "../FilterBar";
@@ -416,13 +417,12 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
             />
           ))}
         </div>
-        {/* dropAnimation={null}: skip the default drop tween. It animates the
-            overlay back to the *original* dragged node, but the reorder is
-            already committed to state by onDragEnd, so the tween flies the card
-            to its old slot before the re-render snaps it to the new one
-            (PROG-43). Dropping it makes the card settle in place instantly —
-            on-brand with the instant-UI rule. */}
-        <DragOverlay dropAnimation={null}>
+        {/* On release the overlay glides into the card's committed slot
+            (PROG-118 polish, shared DROP_ANIMATION): onDragEnd sets `columns`
+            synchronously, so the tween measures the card at its NEW position —
+            the old fly-back that dropAnimation={null} worked around (PROG-43)
+            can't happen. */}
+        <DragOverlay dropAnimation={DROP_ANIMATION}>
           {draggingAction && (
             <div data-drag-overlay>
               <CardView

@@ -73,6 +73,19 @@ release popped. Owner feedback asked for the board's feel. *Decisions within:*
    easing off. The null was PROG-43's workaround for the tween flying to the
    *stale* slot; PROG-119's synchronous store notification means the
    destination row is already re-rendered when the tween measures it, so the
-   workaround (kept on the board, which still has its local mirror) is
-   unnecessary here. Verified frame-by-frame: the landed row is stationary at
-   its final position from frame 0 after mouseup.
+   workaround is unnecessary. Verified frame-by-frame: the landed row is
+   stationary at its final position from frame 0 after mouseup. The owner then
+   asked for the same feel on the **board**, so the tween lives in
+   `src/client/dropAnimation.ts`, shared by both surfaces — the board was
+   never exposed to the fly-back anyway (its `columns` mirror commits
+   synchronously in `onDragEnd`, PROG-59), and its "doesn't flash back"
+   frame-sampling e2e spec still passes with the tween on.
+
+While wiring the board tween, its PROG-59 e2e spec turned out to be failing
+for an unrelated reason: `outline-move.spec.ts` archived its focuses but left
+their **actions** open, and archiving a focus does not close its actions — so
+every run leaked open actions onto the board, and `isolateColumn` herded the
+growing pile between columns until the drag targets slid off-screen. The spec
+now cancels its actions before archiving, and the board spec's overlay-clear
+assertion was retimed for the settle tween (the fly-back regression it guarded
+is covered by the frame-sampling spec).

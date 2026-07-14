@@ -11,7 +11,12 @@ import { signInAsOwner } from "./auth";
 //
 // Each test creates its OWN containers/actions via the API (unique names and
 // prefixes), so it is independent of the ambient dev DB and of other specs; it
-// archives the containers again at the end to keep the ambient views clean.
+// cancels its actions and archives the containers again at the end. The cancel
+// matters: archiving a focus does NOT close its actions, and the board specs
+// herd every ambient open action around with isolateColumn — leaked e2e
+// actions accumulate across runs until those columns overflow the viewport and
+// the board drags miss their targets (how PROG-118's leftovers broke
+// board-reorder's PROG-59 spec).
 
 const tag = () => Math.random().toString(36).slice(2, 8);
 const prefix = (lead: string) =>
@@ -122,6 +127,8 @@ test("an action drags from one arc into another (PROG-118)", async ({ page }) =>
     ).arcId,
   ).toBe(dst.id);
 
+  for (const a of [mover, anchor])
+    await page.request.patch(`/api/actions/${a.id}`, { data: { status: "canceled" } });
   await page.request.patch(`/api/focuses/${focus.id}`, { data: { archived: true } });
 });
 
@@ -187,6 +194,8 @@ test("an action drags into another focus and is re-keyed (PROG-118)", async ({ p
   await page.reload();
   await handleOf(page, `${to.keyPrefix}-${moved.number}`).waitFor();
 
+  for (const a of [mover, anchor])
+    await page.request.patch(`/api/actions/${a.id}`, { data: { status: "canceled" } });
   for (const p of [from, to])
     await page.request.patch(`/api/focuses/${p.id}`, { data: { archived: true } });
   await page.request.patch(`/api/workspaces/${workspace.id}`, { data: { archived: true } });
