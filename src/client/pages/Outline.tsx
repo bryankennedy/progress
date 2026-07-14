@@ -19,7 +19,6 @@ import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import {
   closestCenter,
-  defaultDropAnimationSideEffects,
   DndContext,
   DragOverlay,
   KeyboardSensor,
@@ -30,7 +29,6 @@ import {
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
-  type DropAnimation,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -52,6 +50,7 @@ import {
   updateAction,
 } from "../store";
 import { clearDraft, readDraft, writeDraft } from "../drafts";
+import { DROP_ANIMATION } from "../dropAnimation";
 import { rankForInsert, rankForReorder } from "../outlineReorder";
 import { byRankThenName, containerReorderRanks } from "../containerReorder";
 import { loadHideDone, loadScope, saveHideDone, saveScope } from "../outlinePrefs";
@@ -323,19 +322,6 @@ function actionSubtreeRows(
   walk(rootId, 0);
   return rows;
 }
-
-// Settle-on-drop (PROG-118 polish): the default drop tween glides the floating
-// card from the release point into the row's final slot while the shadow eases
-// off, and keeps the in-list source ghosted until it lands. Safe now that
-// PROG-119 made optimistic writes notify synchronously — by the time the
-// overlay measures its destination the row has ALREADY re-rendered at the drop
-// position. (Pre-PROG-119 this measured the stale slot and the card flew back
-// to it, which is why the board and the old section overlays used
-// dropAnimation={null} — PROG-43.)
-const DROP_ANIMATION: DropAnimation = {
-  duration: 180,
-  sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: "0.3" } } }),
-};
 
 // ---------- arc promotion control ----------
 

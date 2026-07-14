@@ -598,6 +598,10 @@ so old bookmarks keep working.
   vertically
   within a column (a manual work order) and moves them between columns to set
   status; both persist as one optimistic write via the card's `rank` (D44).
+  On release the floating card glides into its committed slot (the shared
+  settle tween, `src/client/dropAnimation.ts` — PROG-118; the pre-PROG-119
+  fly-back that forced `dropAnimation={null}` can't recur because the drop is
+  committed to `columns` synchronously in `onDragEnd`).
   Mouse drags activate after 4px of movement (plain clicks navigate), touch
   drags after a 250ms press-and-hold (plain swipes scroll the board) — D30. When
   the columns overflow (a phone, where they hit their `min-w-72` floor) the row
