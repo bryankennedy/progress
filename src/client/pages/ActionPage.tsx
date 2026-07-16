@@ -26,7 +26,7 @@ import { useRegisterPageAction } from "../commands/currentAction";
 import EditableMarkdown from "../EditableMarkdown";
 import InlineEdit from "../InlineEdit";
 import EstimateIndicator from "../EstimateIndicator";
-import { ArcGlyph, FocusGlyph } from "../glyphs";
+import { ArcGlyph, FocusGlyph, WorkspaceGlyph } from "../glyphs";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
 import StatusIndicator from "../StatusIndicator";
@@ -223,13 +223,17 @@ export default function ActionPage({
           {/* Field order + the icon gutter (PROG-101, reworked PROG-104):
               every field carries a glyph on the left and its value in the same
               text column. After the status panel, Location — the action's
-              whole outline position, Focus → Arc, one field since setting the
-              focus is what limits the arcs (PROG-123b replaced the separate
-              Focus + Arc switchers) — then due/priority/estimate, and Tags
-              last. The Focus glyph is a button that opens the location
-              palette (S/P/E/L shortcuts still fire regardless). */}
+              whole outline position as a Workspace → Focus → Arc mini-tree,
+              one field since setting the focus is what limits the arcs
+              (PROG-123b replaced the separate Focus + Arc switchers) — then
+              due/priority/estimate, and Tags last. Each tree line leads with
+              its level's glyph, matching the location picker; the workspace's
+              doubles as the field's gutter button (start-aligned so it sits
+              on the workspace line), opening the location palette (S/P/E/L
+              shortcuts still fire regardless). */}
           <Field label="Location">
             <IconRow
+              align="start"
               icon={
                 <button
                   type="button"
@@ -237,19 +241,30 @@ export default function ActionPage({
                   onClick={() => openPalette({ kind: "location", actionId: action.id })}
                   className={`${GLYPH_BUTTON_CLS} text-ink-faint hover:text-ink-soft`}
                 >
-                  <FocusGlyph />
+                  <WorkspaceGlyph />
                 </button>
               }
             >
               {/* pl-2 aligns the value text with the select/input fields below,
                   whose text sits inside a border + px-2 gutter (PROG-104). */}
               <div className="min-w-0 pl-2">
+                {workspace && (
+                  <Link
+                    href={`/workspace/${workspace.id}`}
+                    className="block truncate text-sm hover:text-adobe-deep"
+                  >
+                    {workspace.name}
+                  </Link>
+                )}
                 {focus ? (
                   <Link
                     href={`/focus/${focus.id}`}
-                    className="block truncate text-sm hover:text-adobe-deep"
+                    className="flex items-center gap-1.5 text-sm hover:text-adobe-deep"
                   >
-                    {focus.name}
+                    <span className="text-ink-faint">
+                      <FocusGlyph />
+                    </span>
+                    <span className="truncate">{focus.name}</span>
                   </Link>
                 ) : (
                   <span className="text-sm text-ink-faint">?</span>
@@ -259,14 +274,14 @@ export default function ActionPage({
                     href={focus.gitUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="block truncate font-mono text-xs text-ink-faint hover:text-ink-soft hover:underline"
+                    className="block truncate pl-5 font-mono text-xs text-ink-faint hover:text-ink-soft hover:underline"
                   >
                     {focus.gitUrl.replace(/^https?:\/\//, "")}
                   </a>
                 )}
                 {/* The arc nests under its focus like the location picker and
-                    outline render it — the field reads as the Focus → Arc
-                    path. No arc → the focus line alone is the location. */}
+                    outline render it — the field reads as the Workspace →
+                    Focus → Arc path. No arc → the focus line ends the path. */}
                 {arc && (
                   <Link
                     href={`/arc/${arc.id}`}
@@ -395,10 +410,21 @@ export default function ActionPage({
 
 // The shared icon gutter for the sidebar's editable fields (PROG-101): glyph
 // on the left, control filling the rest, so the four rows align vertically.
-function IconRow({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+function IconRow({
+  icon,
+  children,
+  align = "center",
+}: {
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  align?: "center" | "start";
+}) {
   return (
-    <div className="flex items-center gap-2">
-      {icon}
+    <div className={`flex gap-2 ${align === "start" ? "items-start" : "items-center"}`}>
+      {/* start: the glyph anchors to the first content line instead of the
+          stack's middle (the Location tree, PROG-123) — the 3px nudge centers
+          the 14px glyph on the 20px text-sm line box. */}
+      {align === "start" ? <div className="pt-[3px]">{icon}</div> : icon}
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );

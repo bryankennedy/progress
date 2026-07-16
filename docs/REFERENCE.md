@@ -638,8 +638,10 @@ so old bookmarks keep working.
   missing or cyclic parent (PROG-106). Also:
   inline-editable title and description, sidebar fields
   (status/due-date/priority/estimate in that order, then **Location** — one
-  field for the Focus → Arc position, the arc nested under its focus, opening
-  the location picker (PROG-123b; its optional gitUrl links out) — and tags
+  field showing the Workspace → Focus → Arc position as a mini-tree, each
+  line led by its level's glyph (the workspace's doubles as the gutter
+  button) and linking to its page, opening the location picker (PROG-123b;
+  the focus's optional gitUrl links out) — and tags
   with picker buttons; a **Work on this**
   field — D35), a Git section
   (linked PRs with state badges, commits with short shas, linking out to
