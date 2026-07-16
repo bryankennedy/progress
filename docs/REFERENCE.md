@@ -661,7 +661,9 @@ so old bookmarks keep working.
   (PROG-123) owns the action's whole outline position in one surface: it
   renders the Workspace → Focus → Arc tree in outline rank order — workspaces
   as greyed, inert headers that keyboard selection skips, focuses and arcs
-  indented beneath. Picking a focus means "this focus, no arc" (there is no
+  indented beneath, each row led by its level's glyph (the shared
+  workspace-grid/focus-target/arc marks, `src/client/glyphs.tsx` — the same
+  iconography as the sidebar Location field). Picking a focus means "this focus, no arc" (there is no
   separate "No arc" row); picking an arc sets focus + arc in one step
   (same-focus picks are a plain arc update, cross-focus picks ride
   `moveAction`, which accepts the landing arc per PROG-118). The current

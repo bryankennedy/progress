@@ -4,12 +4,13 @@
 // in a picker mode scoped to the current action, so there's exactly one
 // keyboard-driven surface to learn.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { ACTION_ESTIMATES, ACTION_PRIORITIES, ACTION_STATUSES } from "../../shared/constants";
 import type { WireAction, SnapshotPayload } from "../../shared/types";
 import { sortByName } from "../boardFilters";
 import { byRankThenName, sortContainers } from "../containerReorder";
+import { ArcGlyph, FocusGlyph, WorkspaceGlyph } from "../glyphs";
 import { addDays, formatDueDate, relativeDue, todayISO } from "../dates";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import {
@@ -32,11 +33,13 @@ import {
 // switch it into a picker mode, and by the tag toggles). `header` rows are
 // inert group labels (the workspace level of the location tree, PROG-123b):
 // greyed out, skipped by keyboard selection, no run. `indent` nests tree
-// levels visually (1 = focus, 2 = arc).
+// levels visually (1 = focus, 2 = arc); `icon` leads the label (the location
+// tree carries the shared container glyphs, matching the sidebar field).
 type Item = {
   id: string;
   label: string;
   hint?: string;
+  icon?: ReactNode;
   indent?: 1 | 2;
 } & ({ header: true; run?: undefined } | { header?: undefined; run: () => void | "keep" });
 
@@ -138,7 +141,10 @@ export default function CommandPalette({ snapshot }: { snapshot: SnapshotPayload
           {items.map((item) =>
             item.header ? (
               <li key={item.id}>
-                <div className="truncate py-1.5 pl-3 pr-3 text-sm text-ink-faint">{item.label}</div>
+                <div className="flex items-center gap-1.5 py-1.5 pl-3 pr-3 text-sm text-ink-faint">
+                  {item.icon}
+                  <span className="truncate">{item.label}</span>
+                </div>
               </li>
             ) : (
               <li key={item.id}>
@@ -151,7 +157,10 @@ export default function CommandPalette({ snapshot }: { snapshot: SnapshotPayload
                     item.indent === 2 ? "pl-11" : item.indent === 1 ? "pl-7" : "pl-3"
                   }`}
                 >
-                  <span className="truncate">{item.label}</span>
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    {item.icon && <span className="shrink-0 text-ink-faint">{item.icon}</span>}
+                    <span className="truncate">{item.label}</span>
+                  </span>
                   {item.hint && (
                     <span className="shrink-0 text-xs text-ink-faint">{item.hint}</span>
                   )}
@@ -264,6 +273,7 @@ function buildItems(
           group.push({
             id: focus.id,
             label: focus.name,
+            icon: <FocusGlyph />,
             indent: 1,
             hint: focus.id === action.focusId && action.arcId === null ? "current" : undefined,
             run: () =>
@@ -275,6 +285,7 @@ function buildItems(
             ...visibleArcs.map((a): Item => ({
               id: a.id,
               label: a.name,
+              icon: <ArcGlyph />,
               indent: 2,
               hint: a.id === action.arcId ? "current" : undefined,
               run: () =>
@@ -285,7 +296,10 @@ function buildItems(
           );
         }
         if (group.length > 0)
-          items.push({ id: workspace.id, label: workspace.name, header: true }, ...group);
+          items.push(
+            { id: workspace.id, label: workspace.name, icon: <WorkspaceGlyph />, header: true },
+            ...group,
+          );
       }
       return items;
     }

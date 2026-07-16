@@ -26,6 +26,7 @@ import { useRegisterPageAction } from "../commands/currentAction";
 import EditableMarkdown from "../EditableMarkdown";
 import InlineEdit from "../InlineEdit";
 import EstimateIndicator from "../EstimateIndicator";
+import { ArcGlyph, FocusGlyph } from "../glyphs";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
 import StatusIndicator from "../StatusIndicator";
@@ -483,35 +484,6 @@ function CalendarGlyph() {
       <circle cx="5.5" cy="9.5" r="1" fill="currentColor" />
       <circle cx="8" cy="9.5" r="1" fill="currentColor" />
       <circle cx="10.5" cy="9.5" r="1" fill="currentColor" />
-    </svg>
-  );
-}
-
-// Focus gutter glyph (PROG-104): a target/crosshair — the focus is the thing
-// the action is "focused" on. Same 16×16 box as the other gutter glyphs.
-function FocusGlyph() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden className="inline-block h-3.5 w-3.5 shrink-0">
-      <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="8" cy="8" r="2.25" fill="currentColor" />
-    </svg>
-  );
-}
-
-// Arc gutter glyph (PROG-104): a rainbow-like arc between two endpoints — the
-// milestone trajectory an arc groups actions along.
-function ArcGlyph() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden className="inline-block h-3.5 w-3.5 shrink-0">
-      <path
-        d="M2.75 11.5 A 5.25 5.25 0 0 1 13.25 11.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-      <circle cx="2.75" cy="11.5" r="1.4" fill="currentColor" />
-      <circle cx="13.25" cy="11.5" r="1.4" fill="currentColor" />
     </svg>
   );
 }
