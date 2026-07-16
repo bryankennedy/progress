@@ -2,7 +2,8 @@
 //   ⌘K / Ctrl+K  command palette
 //   /            search (PROG-130 — title/description instantly, comments stream)
 //   C            create action (container defaults from the current view)
-//   S / P / E / M / T / A  status / priority / estimate / move / tag / arc
+//   S / P / E / L / T  status / priority / estimate / location / tag
+//                  (L replaced the pre-PROG-123b M move + A arc pair)
 //   D            due date (quick relative options or a typed YYYY-MM-DD)
 //   W            work on this (copy bundle as prompt / CLI one-liner)
 //                  picker for the current action (action page, or the
@@ -17,9 +18,8 @@ const PICKER_KEYS = {
   s: "status",
   p: "priority",
   e: "estimate",
-  m: "move",
+  l: "location",
   t: "tag",
-  a: "arc",
   d: "due",
   w: "workon",
 } as const;

@@ -26,6 +26,7 @@ import { useRegisterPageAction } from "../commands/currentAction";
 import EditableMarkdown from "../EditableMarkdown";
 import InlineEdit from "../InlineEdit";
 import EstimateIndicator from "../EstimateIndicator";
+import { ArcGlyph, FocusGlyph, WorkspaceGlyph } from "../glyphs";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
 import StatusIndicator from "../StatusIndicator";
@@ -221,32 +222,49 @@ export default function ActionPage({
           </div>
           {/* Field order + the icon gutter (PROG-101, reworked PROG-104):
               every field carries a glyph on the left and its value in the same
-              text column. After the status panel, Focus + Arc — the container
-              switchers — then due/priority/estimate, and Tags last. The
-              Focus/Arc glyphs are buttons that open the move/arc palette
-              (S/P/E/M/A shortcuts still fire regardless). */}
-          <Field label="Focus">
+              text column. After the status panel, Location — the action's
+              whole outline position as a Workspace → Focus → Arc mini-tree,
+              one field since setting the focus is what limits the arcs
+              (PROG-123b replaced the separate Focus + Arc switchers) — then
+              due/priority/estimate, and Tags last. Each tree line leads with
+              its level's glyph, matching the location picker; the workspace's
+              doubles as the field's gutter button (start-aligned so it sits
+              on the workspace line), opening the location palette (S/P/E/L
+              shortcuts still fire regardless). */}
+          <Field label="Location">
             <IconRow
+              align="start"
               icon={
                 <button
                   type="button"
-                  aria-label="Move to another focus (M)"
-                  onClick={() => openPalette({ kind: "move", actionId: action.id })}
+                  aria-label="Change location (L)"
+                  onClick={() => openPalette({ kind: "location", actionId: action.id })}
                   className={`${GLYPH_BUTTON_CLS} text-ink-faint hover:text-ink-soft`}
                 >
-                  <FocusGlyph />
+                  <WorkspaceGlyph />
                 </button>
               }
             >
               {/* pl-2 aligns the value text with the select/input fields below,
                   whose text sits inside a border + px-2 gutter (PROG-104). */}
               <div className="min-w-0 pl-2">
+                {workspace && (
+                  <Link
+                    href={`/workspace/${workspace.id}`}
+                    className="block truncate text-sm hover:text-adobe-deep"
+                  >
+                    {workspace.name}
+                  </Link>
+                )}
                 {focus ? (
                   <Link
                     href={`/focus/${focus.id}`}
-                    className="block truncate text-sm hover:text-adobe-deep"
+                    className="flex items-center gap-1.5 text-sm hover:text-adobe-deep"
                   >
-                    {focus.name}
+                    <span className="text-ink-faint">
+                      <FocusGlyph />
+                    </span>
+                    <span className="truncate">{focus.name}</span>
                   </Link>
                 ) : (
                   <span className="text-sm text-ink-faint">?</span>
@@ -256,53 +274,34 @@ export default function ActionPage({
                     href={focus.gitUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="block truncate font-mono text-xs text-ink-faint hover:text-ink-soft hover:underline"
+                    className="block truncate pl-5 font-mono text-xs text-ink-faint hover:text-ink-soft hover:underline"
                   >
                     {focus.gitUrl.replace(/^https?:\/\//, "")}
                   </a>
                 )}
-                {/* Explicit "change" affordance (PROG-105): the gutter glyph
-                    also opens this palette, but a modal-backed field needs a
-                    visible trigger — the name itself links to the focus page.
-                    Mirrors the Tags field's "Edit… (T)". */}
-                <button
-                  onClick={() => openPalette({ kind: "move", actionId: action.id })}
-                  className={`mt-0.5 ${FIELD_ACTION_CLS}`}
-                >
-                  Change… <span className="ml-1 text-ink-faint">(M)</span>
-                </button>
-              </div>
-            </IconRow>
-          </Field>
-          <Field label="Arc">
-            <IconRow
-              icon={
-                <button
-                  type="button"
-                  aria-label="Change arc (A)"
-                  onClick={() => openPalette({ kind: "arc", actionId: action.id })}
-                  className={`${GLYPH_BUTTON_CLS} text-ink-faint hover:text-ink-soft`}
-                >
-                  <ArcGlyph />
-                </button>
-              }
-            >
-              <div className="min-w-0 pl-2">
-                {arc ? (
+                {/* The arc nests under its focus like the location picker and
+                    outline render it — the field reads as the Workspace →
+                    Focus → Arc path. No arc → the focus line ends the path. */}
+                {arc && (
                   <Link
                     href={`/arc/${arc.id}`}
-                    className="block truncate text-sm hover:text-adobe-deep"
+                    className="flex items-center gap-1.5 pl-3 text-sm hover:text-adobe-deep"
                   >
-                    {arc.name}
+                    <span className="text-ink-faint">
+                      <ArcGlyph />
+                    </span>
+                    <span className="truncate">{arc.name}</span>
                   </Link>
-                ) : (
-                  <span className="text-sm text-ink-faint">—</span>
                 )}
+                {/* Explicit "change" affordance (PROG-105): the gutter glyph
+                    also opens this palette, but a modal-backed field needs a
+                    visible trigger — the names themselves link to the focus
+                    and arc pages. Mirrors the Tags field's "Edit… (T)". */}
                 <button
-                  onClick={() => openPalette({ kind: "arc", actionId: action.id })}
+                  onClick={() => openPalette({ kind: "location", actionId: action.id })}
                   className={`mt-0.5 ${FIELD_ACTION_CLS}`}
                 >
-                  Change… <span className="ml-1 text-ink-faint">(A)</span>
+                  Change… <span className="ml-1 text-ink-faint">(L)</span>
                 </button>
               </div>
             </IconRow>
@@ -411,10 +410,21 @@ export default function ActionPage({
 
 // The shared icon gutter for the sidebar's editable fields (PROG-101): glyph
 // on the left, control filling the rest, so the four rows align vertically.
-function IconRow({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+function IconRow({
+  icon,
+  children,
+  align = "center",
+}: {
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  align?: "center" | "start";
+}) {
   return (
-    <div className="flex items-center gap-2">
-      {icon}
+    <div className={`flex gap-2 ${align === "start" ? "items-start" : "items-center"}`}>
+      {/* start: the glyph anchors to the first content line instead of the
+          stack's middle (the Location tree, PROG-123) — the 3px nudge centers
+          the 14px glyph on the 20px text-sm line box. */}
+      {align === "start" ? <div className="pt-[3px]">{icon}</div> : icon}
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
@@ -500,35 +510,6 @@ function CalendarGlyph() {
       <circle cx="5.5" cy="9.5" r="1" fill="currentColor" />
       <circle cx="8" cy="9.5" r="1" fill="currentColor" />
       <circle cx="10.5" cy="9.5" r="1" fill="currentColor" />
-    </svg>
-  );
-}
-
-// Focus gutter glyph (PROG-104): a target/crosshair — the focus is the thing
-// the action is "focused" on. Same 16×16 box as the other gutter glyphs.
-function FocusGlyph() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden className="inline-block h-3.5 w-3.5 shrink-0">
-      <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="8" cy="8" r="2.25" fill="currentColor" />
-    </svg>
-  );
-}
-
-// Arc gutter glyph (PROG-104): a rainbow-like arc between two endpoints — the
-// milestone trajectory an arc groups actions along.
-function ArcGlyph() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden className="inline-block h-3.5 w-3.5 shrink-0">
-      <path
-        d="M2.75 11.5 A 5.25 5.25 0 0 1 13.25 11.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-      <circle cx="2.75" cy="11.5" r="1.4" fill="currentColor" />
-      <circle cx="13.25" cy="11.5" r="1.4" fill="currentColor" />
     </svg>
   );
 }
