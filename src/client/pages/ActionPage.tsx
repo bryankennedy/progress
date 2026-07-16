@@ -221,17 +221,19 @@ export default function ActionPage({
           </div>
           {/* Field order + the icon gutter (PROG-101, reworked PROG-104):
               every field carries a glyph on the left and its value in the same
-              text column. After the status panel, Focus + Arc — the container
-              switchers — then due/priority/estimate, and Tags last. The
-              Focus/Arc glyphs are buttons that open the move/arc palette
-              (S/P/E/M/A shortcuts still fire regardless). */}
-          <Field label="Focus">
+              text column. After the status panel, Location — the action's
+              whole outline position, Focus → Arc, one field since setting the
+              focus is what limits the arcs (PROG-123b replaced the separate
+              Focus + Arc switchers) — then due/priority/estimate, and Tags
+              last. The Focus glyph is a button that opens the location
+              palette (S/P/E/L shortcuts still fire regardless). */}
+          <Field label="Location">
             <IconRow
               icon={
                 <button
                   type="button"
-                  aria-label="Move to another focus (M)"
-                  onClick={() => openPalette({ kind: "move", actionId: action.id })}
+                  aria-label="Change location (L)"
+                  onClick={() => openPalette({ kind: "location", actionId: action.id })}
                   className={`${GLYPH_BUTTON_CLS} text-ink-faint hover:text-ink-soft`}
                 >
                   <FocusGlyph />
@@ -261,48 +263,29 @@ export default function ActionPage({
                     {focus.gitUrl.replace(/^https?:\/\//, "")}
                   </a>
                 )}
-                {/* Explicit "change" affordance (PROG-105): the gutter glyph
-                    also opens this palette, but a modal-backed field needs a
-                    visible trigger — the name itself links to the focus page.
-                    Mirrors the Tags field's "Edit… (T)". */}
-                <button
-                  onClick={() => openPalette({ kind: "move", actionId: action.id })}
-                  className={`mt-0.5 ${FIELD_ACTION_CLS}`}
-                >
-                  Change… <span className="ml-1 text-ink-faint">(M)</span>
-                </button>
-              </div>
-            </IconRow>
-          </Field>
-          <Field label="Arc">
-            <IconRow
-              icon={
-                <button
-                  type="button"
-                  aria-label="Change arc (A)"
-                  onClick={() => openPalette({ kind: "arc", actionId: action.id })}
-                  className={`${GLYPH_BUTTON_CLS} text-ink-faint hover:text-ink-soft`}
-                >
-                  <ArcGlyph />
-                </button>
-              }
-            >
-              <div className="min-w-0 pl-2">
-                {arc ? (
+                {/* The arc nests under its focus like the location picker and
+                    outline render it — the field reads as the Focus → Arc
+                    path. No arc → the focus line alone is the location. */}
+                {arc && (
                   <Link
                     href={`/arc/${arc.id}`}
-                    className="block truncate text-sm hover:text-adobe-deep"
+                    className="flex items-center gap-1.5 pl-3 text-sm hover:text-adobe-deep"
                   >
-                    {arc.name}
+                    <span className="text-ink-faint">
+                      <ArcGlyph />
+                    </span>
+                    <span className="truncate">{arc.name}</span>
                   </Link>
-                ) : (
-                  <span className="text-sm text-ink-faint">—</span>
                 )}
+                {/* Explicit "change" affordance (PROG-105): the gutter glyph
+                    also opens this palette, but a modal-backed field needs a
+                    visible trigger — the names themselves link to the focus
+                    and arc pages. Mirrors the Tags field's "Edit… (T)". */}
                 <button
-                  onClick={() => openPalette({ kind: "arc", actionId: action.id })}
+                  onClick={() => openPalette({ kind: "location", actionId: action.id })}
                   className={`mt-0.5 ${FIELD_ACTION_CLS}`}
                 >
-                  Change… <span className="ml-1 text-ink-faint">(A)</span>
+                  Change… <span className="ml-1 text-ink-faint">(L)</span>
                 </button>
               </div>
             </IconRow>

@@ -1,6 +1,6 @@
 // The command palette (SPEC §4): ⌘K jumps to anything (actions by key —
 // including retired alias keys — or title, containers by name) and exposes
-// commands. The single-key actions (s/p/e/m) open the same palette directly
+// commands. The single-key actions (s/p/e/l) open the same palette directly
 // in a picker mode scoped to the current action, so there's exactly one
 // keyboard-driven surface to learn.
 
@@ -29,16 +29,23 @@ import {
 } from "./controller";
 
 // run() returning "keep" leaves the palette open (used by commands that
-// switch it into a picker mode, and by the tag toggles).
-type Item = { id: string; label: string; hint?: string; run: () => void | "keep" };
+// switch it into a picker mode, and by the tag toggles). `header` rows are
+// inert group labels (the workspace level of the location tree, PROG-123b):
+// greyed out, skipped by keyboard selection, no run. `indent` nests tree
+// levels visually (1 = focus, 2 = arc).
+type Item = {
+  id: string;
+  label: string;
+  hint?: string;
+  indent?: 1 | 2;
+} & ({ header: true; run?: undefined } | { header?: undefined; run: () => void | "keep" });
 
 const MODE_TITLES: Record<Exclude<PaletteMode["kind"], "root">, string> = {
   status: "Change status",
   priority: "Set priority",
   estimate: "Set estimate",
-  move: "Move to",
+  location: "Set location",
   tag: "Tags",
-  arc: "Set arc",
   due: "Set due date",
   workon: "Work on this",
 };
@@ -64,7 +71,10 @@ export default function CommandPalette({ snapshot }: { snapshot: SnapshotPayload
     [snapshot, mode, query, navigate],
   );
 
-  const sel = Math.min(selected, Math.max(items.length - 1, 0));
+  // Keyboard selection walks only the actionable rows — inert group headers
+  // (PROG-123b) render in place but can't be landed on.
+  const selectables = useMemo(() => items.filter((it) => !it.header), [items]);
+  const sel = Math.min(selected, Math.max(selectables.length - 1, 0));
 
   useEffect(() => {
     listRef.current?.querySelector("[data-selected]")?.scrollIntoView({ block: "nearest" });
@@ -74,7 +84,7 @@ export default function CommandPalette({ snapshot }: { snapshot: SnapshotPayload
 
   const close = () => setMode(null);
   const execute = (item: Item) => {
-    if (item.run() !== "keep") close();
+    if (item.run && item.run() !== "keep") close();
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -83,13 +93,13 @@ export default function CommandPalette({ snapshot }: { snapshot: SnapshotPayload
       close();
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
-      setSelected(Math.min(sel + 1, items.length - 1));
+      setSelected(Math.min(sel + 1, selectables.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setSelected(Math.max(sel - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      const item = items[sel];
+      const item = selectables[sel];
       if (item) execute(item);
     } else if (e.key === "Backspace" && query === "" && mode.kind !== "root") {
       e.preventDefault();
@@ -125,21 +135,31 @@ export default function CommandPalette({ snapshot }: { snapshot: SnapshotPayload
           className="w-full border-b border-line px-4 py-3 text-sm focus:outline-none"
         />
         <ul ref={listRef} className="max-h-80 overflow-y-auto p-1">
-          {items.map((item, i) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                onClick={() => execute(item)}
-                onMouseMove={() => setSelected(i)}
-                data-selected={i === sel || undefined}
-                className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm data-selected:bg-line"
-              >
-                <span className="truncate">{item.label}</span>
-                {item.hint && <span className="shrink-0 text-xs text-ink-faint">{item.hint}</span>}
-              </button>
-            </li>
-          ))}
-          {items.length === 0 && (
+          {items.map((item) =>
+            item.header ? (
+              <li key={item.id}>
+                <div className="truncate py-1.5 pl-3 pr-3 text-sm text-ink-faint">{item.label}</div>
+              </li>
+            ) : (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => execute(item)}
+                  onMouseMove={() => setSelected(selectables.indexOf(item))}
+                  data-selected={item === selectables[sel] || undefined}
+                  className={`flex w-full items-center justify-between gap-3 rounded-md py-2 pr-3 text-left text-sm data-selected:bg-line ${
+                    item.indent === 2 ? "pl-11" : item.indent === 1 ? "pl-7" : "pl-3"
+                  }`}
+                >
+                  <span className="truncate">{item.label}</span>
+                  {item.hint && (
+                    <span className="shrink-0 text-xs text-ink-faint">{item.hint}</span>
+                  )}
+                </button>
+              </li>
+            ),
+          )}
+          {selectables.length === 0 && (
             <li className="px-3 py-6 text-center text-sm text-ink-faint">No matches.</li>
           )}
         </ul>
@@ -216,56 +236,58 @@ function buildItems(
       }
       return items;
     }
-    case "arc": {
-      // Outline order, not alphabetical (PROG-123 supersedes PROG-83 here):
-      // arcs list in the manual rank set on the outline/structure pages, and
-      // each row's hint names the parent focus one level up. "No arc" stays
-      // pinned first.
-      const parentFocus = ws.focuses.find((p) => p.id === action.focusId);
-      const focusArcs = ws.arcs
-        .filter((a) => a.focusId === action.focusId && !a.archivedAt)
-        .sort(byRankThenName);
-      // "No arc" filters like any option, so a typed query can't leave it
-      // sitting first and steal the Enter.
-      return [
-        {
-          id: "arc:none",
-          label: "No arc",
-          hint: action.arcId === null ? "current" : undefined,
-          run: () => void updateAction(action.id, { arcId: null }),
-        },
-        ...focusArcs.map((a) => ({
-          id: a.id,
-          label: a.name,
-          hint: a.id === action.arcId ? "current" : parentFocus?.name,
-          run: () => void updateAction(action.id, { arcId: a.id }),
-        })),
-      ].filter((item) => matches(item.label));
-    }
-    case "move": {
-      // A move now only changes the focus (PROG-102). Archived focuses aren't
-      // valid destinations (D26); the action's current focus is excluded.
-      // Structure order, not alphabetical (PROG-123 supersedes PROG-83 here):
-      // focuses group under their workspace in the outline's manual rank, and
-      // the hint names the parent workspace. A typed query also matches the
-      // workspace name, since it's on screen.
-      const workspaceOrder = new Map(sortContainers(ws.workspaces).map((w, i) => [w.id, i]));
-      const workspaceName = (focus: { workspaceId: string }) =>
-        ws.workspaces.find((w) => w.id === focus.workspaceId)?.name;
-      return ws.focuses
-        .filter((focus) => !focus.archivedAt && focus.id !== action.focusId)
-        .sort(
-          (a, b) =>
-            (workspaceOrder.get(a.workspaceId) ?? 0) - (workspaceOrder.get(b.workspaceId) ?? 0) ||
-            byRankThenName(a, b),
-        )
-        .filter((focus) => matches(focus.name) || matches(workspaceName(focus) ?? ""))
-        .map((focus) => ({
-          id: focus.id,
-          label: focus.name,
-          hint: workspaceName(focus) ?? "Focus",
-          run: () => moveAction(action.id, { focusId: focus.id }),
-        }));
+    case "location": {
+      // One picker owns the whole outline position (PROG-123b, replacing the
+      // separate move + arc modes): the tree renders Workspace (inert, greyed
+      // header) → Focus → Arc in the manual rank order set on the
+      // outline/structure pages (supersedes PROG-83's alphabetical rule
+      // here). Picking a focus row means "this focus, no arc" — there's no
+      // separate "No arc" row — and picking an arc lands focus + arc in one
+      // step (moveAction already carries an arcId, PROG-118). Same-focus
+      // picks are a plain field update; the current location hints "current".
+      // Archived containers aren't destinations (D26). A query matches a row
+      // or any ancestor (an ancestor match keeps its whole subtree), and
+      // ancestors of a match stay visible as context.
+      const items: Item[] = [];
+      for (const workspace of sortContainers(ws.workspaces)) {
+        const wsMatch = matches(workspace.name);
+        const group: Item[] = [];
+        for (const focus of ws.focuses
+          .filter((p) => p.workspaceId === workspace.id && !p.archivedAt)
+          .sort(byRankThenName)) {
+          const focusMatch = wsMatch || matches(focus.name);
+          const visibleArcs = ws.arcs
+            .filter((a) => a.focusId === focus.id && !a.archivedAt)
+            .sort(byRankThenName)
+            .filter((a) => focusMatch || matches(a.name));
+          if (!focusMatch && visibleArcs.length === 0) continue;
+          group.push({
+            id: focus.id,
+            label: focus.name,
+            indent: 1,
+            hint: focus.id === action.focusId && action.arcId === null ? "current" : undefined,
+            run: () =>
+              focus.id === action.focusId
+                ? void updateAction(action.id, { arcId: null })
+                : moveAction(action.id, { focusId: focus.id }),
+          });
+          group.push(
+            ...visibleArcs.map((a): Item => ({
+              id: a.id,
+              label: a.name,
+              indent: 2,
+              hint: a.id === action.arcId ? "current" : undefined,
+              run: () =>
+                focus.id === action.focusId
+                  ? void updateAction(action.id, { arcId: a.id })
+                  : moveAction(action.id, { focusId: focus.id, arcId: a.id }),
+            })),
+          );
+        }
+        if (group.length > 0)
+          items.push({ id: workspace.id, label: workspace.name, header: true }, ...group);
+      }
+      return items;
     }
     case "due": {
       const today = todayISO();
@@ -371,9 +393,8 @@ function rootItems(
       picker("status", "S"),
       picker("priority", "P"),
       picker("estimate", "E"),
-      picker("move", "M"),
+      picker("location", "L"),
       picker("tag", "T"),
-      picker("arc", "A"),
       picker("due", "D"),
       picker("workon", "W"),
     );

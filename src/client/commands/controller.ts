@@ -5,7 +5,7 @@
 export type PaletteMode =
   | { kind: "root"; actionId: string | null }
   | {
-      kind: "status" | "priority" | "estimate" | "move" | "tag" | "arc" | "due" | "workon";
+      kind: "status" | "priority" | "estimate" | "location" | "tag" | "due" | "workon";
       actionId: string;
     };
 

@@ -466,8 +466,8 @@ so old bookmarks keep working.
   list is deterministic too** (PROG-83): pickers and selects (create dialogs,
   palette tag picker, palette container quick-jump, filter
   dropdowns per PROG-66) list alphabetically by name — except the palette
-  **move/arc pickers**, which follow this same outline order and hint each row
-  with its parent container (PROG-123) — tag chips on action
+  **location picker**, which renders the Workspace → Focus → Arc tree in this
+  same outline order (PROG-123) — tag chips on action
   pages and board/Agenda cards sort alphabetically (shared `tagsByAction`,
   `src/client/tags.ts`), and Archive groups sort by name. Board **actions**
   keep pure `rank` order — never alphabetized. The scope
@@ -637,8 +637,10 @@ so old bookmarks keep working.
   (`actionAncestors`, `store.ts`) handles unbounded nesting and truncates on a
   missing or cyclic parent (PROG-106). Also:
   inline-editable title and description, sidebar fields
-  (status/due-date/priority/estimate in that order, then focus (its optional
-  gitUrl links out), arc, and tags with picker buttons; a **Work on this**
+  (status/due-date/priority/estimate in that order, then **Location** — one
+  field for the Focus → Arc position, the arc nested under its focus, opening
+  the location picker (PROG-123b; its optional gitUrl links out) — and tags
+  with picker buttons; a **Work on this**
   field — D35), a Git section
   (linked PRs with state badges, commits with short shas, linking out to
   GitHub), and comments + activity interleaved into one timeline. Each
@@ -655,10 +657,17 @@ so old bookmarks keep working.
   actions by key (retired alias keys included) or title and containers by
   name, and lists commands (create action/workspace/focus/arc,
   pickers for the current action). Picker modes are filterable lists; tag
-  toggles keep the palette open for multi-edit. The move picker lists focuses
-  grouped by workspace in outline rank order with the parent workspace as the
-  row hint (a typed query matches it too); the arc picker lists the focus's
-  arcs in outline rank order, hinting the parent focus (PROG-123).
+  toggles keep the palette open for multi-edit. The **location picker**
+  (PROG-123) owns the action's whole outline position in one surface: it
+  renders the Workspace → Focus → Arc tree in outline rank order — workspaces
+  as greyed, inert headers that keyboard selection skips, focuses and arcs
+  indented beneath. Picking a focus means "this focus, no arc" (there is no
+  separate "No arc" row); picking an arc sets focus + arc in one step
+  (same-focus picks are a plain arc update, cross-focus picks ride
+  `moveAction`, which accepts the landing arc per PROG-118). The current
+  location hints "current". A typed query matches a row or any ancestor — an
+  ancestor match keeps its whole subtree visible, and ancestors of a match
+  stay as context.
 - **Create dialogs** — action and container creation; parents/containers
   default from the current view (open container page, viewed action's
   container, or active board filters). New actions default to **Todo** so
@@ -674,7 +683,7 @@ so old bookmarks keep working.
 | `/` | Search modal (PROG-130) — separate from the palette; title/description hits paint instantly, comment hits stream in |
 | `C` | Create action |
 | `S` / `P` / `E` | Status / priority / estimate picker for the current action |
-| `M` / `A` / `T` | Move / arc / tag picker for the current action |
+| `L` / `T` | Location / tag picker for the current action (`L` replaced the pre-PROG-123b `M` move + `A` arc pair) |
 | `D` | Due-date picker for the current action (relative quick-picks or a typed `YYYY-MM-DD`; clear) |
 | `W` | Work on this — copy the bundle as a prompt or the `progress work` CLI line (D35) |
 | `↑↓`, `Enter`, `Esc`, `Backspace` | Navigate / run / close / back-to-root inside the palette |
