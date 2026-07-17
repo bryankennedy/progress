@@ -674,10 +674,16 @@ so old bookmarks keep working.
   stay as context.
 - **Create dialogs** — action and container creation; parents/containers
   default from the current view (open container page, viewed action's
-  container, or active board filters). New actions default to **Todo** so
-  they're visible on the default board, and carry an optional **due date**. The
-  action dialog offers inline **"+ New focus / + New arc"** so structure can be
-  spun up without leaving the flow (SPEC v2 §4).
+  container, or active board filters). The action dialog mirrors the
+  action-page sidebar (PROG-117): the same labeled, icon-guttered fields in
+  the same order (Status, Location, Due date, Priority, Estimate), built from
+  the shared primitives in `src/client/fields.tsx`, with **Location** shown
+  as the sidebar's glyphed mini-tree and set via an inline filterable
+  Workspace → Focus → Arc tree picker — the same rows as the palette's `L`
+  picker (shared `src/client/locationRows.ts`; focus row = "this focus, no
+  arc", arc row sets both). New actions carry an optional **due date**, and
+  inline **"+ New focus / + New arc"** panels under the Location field spin
+  up structure without leaving the flow (SPEC v2 §4).
 
 ### Keyboard map (D25, D27)
 
