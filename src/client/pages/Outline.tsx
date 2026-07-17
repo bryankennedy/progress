@@ -50,6 +50,8 @@ import {
   updateAction,
 } from "../store";
 import { clearDraft, readDraft, writeDraft } from "../drafts";
+import PriorityIndicator from "../PriorityIndicator";
+import StatusIndicator from "../StatusIndicator";
 import { DROP_ANIMATION } from "../dropAnimation";
 import { rankForInsert, rankForReorder } from "../outlineReorder";
 import { byRankThenName, containerReorderRanks } from "../containerReorder";
@@ -476,6 +478,15 @@ function ActionRow({
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
         {depth === 0 && <ArcMenu action={action} arcs={arcs} />}
       </div>
+      {/* At-a-glance state, right-aligned (PROG-124): the shared priority +
+          status glyphs every other view uses. Status is on every row, so it
+          holds the outermost column and the right edge stays flush; priority
+          sits just inside it and, as on the board, "none" renders nothing
+          rather than a faint zero-bar glyph on every fresh capture. */}
+      <span className="flex shrink-0 items-center gap-1.5">
+        {action.priority !== "none" && <PriorityIndicator priority={action.priority} />}
+        <StatusIndicator status={action.status} />
+      </span>
     </div>
   );
 }
