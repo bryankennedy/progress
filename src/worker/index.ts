@@ -35,6 +35,7 @@ import {
   SEARCH_CAP,
 } from "./searchComments";
 import { renderArcBundle, renderBundle, type ArcActionData } from "./bundle";
+import { computeSyncCursors } from "./syncCursors";
 import { handleMcpRequest } from "./mcp";
 import { notAuthorizedPage } from "./pages";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
@@ -184,14 +185,19 @@ app.use("*", async (c, next) => {
 // back to the dashboard's request trace) and fall back to a uuid in local dev.
 // The id is echoed as `x-request-id` for client-side correlation and stashed on
 // the context so any error logged mid-request carries the same id (see log.ts).
-// Health checks are skipped to keep uptime-monitor polling out of the logs.
+// Health checks and the background-sync version probe (PROG-128) are skipped
+// to keep uptime-monitor and client polling out of the logs.
 app.use("*", async (c, next) => {
   const requestId = c.req.header("cf-ray") ?? crypto.randomUUID();
   c.set("requestId", requestId);
   c.header("x-request-id", requestId);
   const start = Date.now();
   await next();
-  if (c.req.path.startsWith("/api/") && c.req.path !== "/api/health") {
+  if (
+    c.req.path.startsWith("/api/") &&
+    c.req.path !== "/api/health" &&
+    c.req.path !== "/api/snapshot/version"
+  ) {
     log("info", "request", {
       requestId,
       method: c.req.method,
@@ -412,6 +418,10 @@ app.get("/api/health", async (c) => {
 // page loads them per action.
 app.get("/api/snapshot", async (c) => {
   const db = drizzle(c.env.DB);
+  // Computed BEFORE the table reads (PROG-128): a write landing mid-request
+  // then leaves the data newer than the cursor, so the client's next version
+  // poll refetches (harmless) instead of missing the change forever.
+  const syncCursors = await computeSyncCursors(db);
   const [
     allUsers,
     allWorkspaces,
@@ -458,7 +468,18 @@ app.get("/api/snapshot", async (c) => {
     tags: allTags,
     actionTags: allActionTags,
     actionKeyAliases: allKeyAliases,
+    syncCursors,
   });
+});
+
+// Background-sync change probe (PROG-128): the client polls this tiny endpoint
+// (route change, window focus, a slow interval) and refetches the full
+// snapshot / invalidates open timelines only when a cursor moved — so edits
+// from another session (an agent working an action, a second tab) show up
+// without a manual reload, at the cost of one aggregate SELECT per poll.
+// Skipped in the access log below, like /api/health.
+app.get("/api/snapshot/version", async (c) => {
+  return c.json({ cursors: await computeSyncCursors(drizzle(c.env.DB)) });
 });
 
 // Comment search (PROG-130). Comments are the only searchable text excluded
