@@ -457,6 +457,15 @@ so old bookmarks keep working.
   glides into the committed slot (default drop tween, ~180ms) — safe from the
   old fly-back because PROG-119 made optimistic writes notify synchronously,
   so the destination is already re-rendered when the tween measures it.
+  Drag stays responsive at hundreds of rows by **render isolation** (PROG-125):
+  dnd-kit re-renders every sortable on each drag tick, so rows are memoized and
+  read their environment + the roving capture state from per-focus contexts
+  with drag-stable identities, sibling-group `items` arrays and each focus's
+  action slice are identity-cached (a preview hop re-renders only the focuses
+  it touches), droppables measure only while dragging (dnd-kit's default
+  strategy), rows skip the per-row FLIP layout animation (rows below a
+  cross-group insertion snap rather than glide), and edge auto-scroll uses the
+  board's tamed acceleration (PROG-79).
   Container ranks sort `(rank, name)` — alphabetical until first reordered; a
   drag in a still-tied group renumbers the group, after which each drag is one
   write (`containerReorderRanks`, `src/client/containerReorder.ts`). The order
