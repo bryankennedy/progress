@@ -40,6 +40,16 @@ export function rankBetween(before: string | null, after: string | null): string
       `rankBetween: ${JSON.stringify(before)} does not sort before ${JSON.stringify(after)}`,
     );
   }
+  // A true append (open top, real predecessor) takes the SMALLEST key above
+  // `before` instead of bisecting toward the alphabet's ceiling. Bisecting is
+  // right between two keys — it leaves room on both sides — but on an append
+  // there is nothing above to leave room for, and the midpoint-of-(d, top)
+  // ladder collapses to the top digit in ~6 steps, growing keys by one "z" per
+  // handful of appends. Every action create appends after the global max
+  // (PROG-43), so that ladder is what turned real ranks into 38-char z-walls
+  // (PROG-129). +1 stepping reaches the ceiling in up-to-61 steps per digit
+  // instead.
+  const appending = after === null && before !== null;
   let b: string | null = after;
   let prefix = "";
   // The interval shrinks by at least one digit per step, so this terminates
@@ -49,8 +59,8 @@ export function rankBetween(before: string | null, after: string | null): string
     const hi = b === null ? BASE : i < b.length ? val(b[i]!) : 0;
 
     // Room for a digit strictly between the bounds at this position: place the
-    // midpoint and we're done.
-    if (hi - lo >= 2) return prefix + digit(lo + Math.floor((hi - lo) / 2));
+    // midpoint (or the appending +1 step) and we're done.
+    if (hi - lo >= 2) return prefix + digit(appending ? lo + 1 : lo + Math.floor((hi - lo) / 2));
 
     if (i >= a.length) {
       // `a` is exhausted, so any extension of `prefix` already exceeds it; we
@@ -58,7 +68,7 @@ export function rankBetween(before: string | null, after: string | null): string
       // non-zero digit so two stored keys are never an unsubdividable a / a+"0"
       // pair — assuming inputs are likewise zero-terminated-free (canonical),
       // which both the migration backfill and this function guarantee.
-      if (b === null) return prefix + digit(MID);
+      if (b === null) return prefix + digit(appending ? 1 : MID);
       if (hi === 1) return prefix + digit(0) + digit(MID); // dip one level below b
       // hi === 0: b runs along a zero digit here. Descend (a non-zero digit of
       // b lies ahead, since b is canonical) so the final emitted digit is

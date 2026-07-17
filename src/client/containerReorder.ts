@@ -70,13 +70,15 @@ export function containerReorderRanks(
 
   const distinct = new Set(group.map((g) => g.rank)).size === group.length;
   if (distinct) {
-    const rank = rankForReorder(
+    // Distinct ranks mean the drop's neighbours are strictly ordered, so the
+    // placement never needs heal writes — it's the single-update fast path.
+    const placed = rankForReorder(
       group.map((g) => g.id),
       (id) => group.find((g) => g.id === id)!.rank,
       activeId,
       overId,
     );
-    return rank ? [{ id: activeId, rank }] : null;
+    return placed ? [{ id: activeId, rank: placed.rank }] : null;
   }
 
   // Tied group: freeze the current visual order with the move applied, minting
