@@ -82,11 +82,11 @@ export function browseActions(ws: SnapshotPayload): ActionHit[] {
     .sort((a, b) => byRecency(a.action, b.action));
 }
 
-// Column sorting for the search page's action table (PROG-78). The sortable
-// keys are exactly the displayed columns; `null` means "no explicit sort" and
-// leaves the caller's default order (relevance for a query, recency for
-// browse) untouched.
-export type ActionSortKey = "key" | "title" | "focus" | "status" | "priority" | "updated";
+// Column sorting for the shared action table (PROG-78, generalized by
+// PROG-126). The sortable keys are exactly the displayable columns; `null`
+// means "no explicit sort" and leaves the caller's default order (relevance
+// for a query, recency for browse, rank on container pages) untouched.
+export type ActionSortKey = "key" | "title" | "focus" | "status" | "priority" | "due" | "updated";
 export type ActionSort = { key: ActionSortKey; dir: "asc" | "desc" };
 
 export const ACTION_SORT_KEYS: readonly ActionSortKey[] = [
@@ -95,6 +95,7 @@ export const ACTION_SORT_KEYS: readonly ActionSortKey[] = [
   "focus",
   "status",
   "priority",
+  "due",
   "updated",
 ];
 
@@ -130,6 +131,14 @@ export function sortActionHits(
         return ACTION_STATUSES.indexOf(a.status) - ACTION_STATUSES.indexOf(b.status);
       case "priority":
         return ACTION_PRIORITIES.indexOf(a.priority) - ACTION_PRIORITIES.indexOf(b.priority);
+      case "due": {
+        // Calendar-day strings compare lexically; undated rows always sink to
+        // the end regardless of direction (a missing date isn't "latest").
+        if (!a.dueDate && !b.dueDate) return 0;
+        if (!a.dueDate) return sort.dir === "desc" ? -1 : 1;
+        if (!b.dueDate) return sort.dir === "desc" ? 1 : -1;
+        return a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0;
+      }
       case "updated":
         return a.updatedAt < b.updatedAt ? -1 : a.updatedAt > b.updatedAt ? 1 : 0;
     }
@@ -138,6 +147,25 @@ export function sortActionHits(
   return hits
     .slice()
     .sort((a, b) => dir * cmp(a.action, b.action) || byRecency(a.action, b.action));
+}
+
+// Header-click sort cycling, shared by every ActionTable surface (PROG-78/126):
+// new column → asc, same column → flip, third click → back to the caller's
+// default order (relevance on search, rank on container pages, due-order on
+// the Agenda).
+export function cycleActionSort(sort: ActionSort | null, key: ActionSortKey): ActionSort | null {
+  if (sort?.key !== key) return { key, dir: "asc" };
+  if (sort.dir === "asc") return { key, dir: "desc" };
+  return null;
+}
+
+// Does an action match every query term (title or description)? The embedded
+// quick-search on container/agenda tables (PROG-126) filters an already-scoped
+// list in place — same matching rule as the search page, but keeping the
+// caller's order instead of relevance-ranking.
+export function actionMatches(terms: string[], action: WireAction): boolean {
+  if (terms.length === 0) return true;
+  return scoreFields(terms, action.title, action.description) !== null;
 }
 
 export type ContainerKind = "workspace" | "focus" | "arc";

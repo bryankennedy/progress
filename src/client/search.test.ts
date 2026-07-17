@@ -4,7 +4,9 @@
 import { describe, expect, it } from "bun:test";
 import type { SnapshotPayload } from "../shared/types";
 import {
+  actionMatches,
   browseActions,
+  cycleActionSort,
   highlight,
   queryTerms,
   searchContainers,
@@ -237,5 +239,51 @@ describe("highlight", () => {
 
   it("returns the whole string unmatched when there are no terms", () => {
     expect(highlight("anything", [])).toEqual([{ text: "anything", match: false }]);
+  });
+});
+
+// PROG-126: the shared-table helpers added for the container/Agenda embeds.
+describe("cycleActionSort", () => {
+  it("cycles new column → asc, same column → desc, third click → default", () => {
+    expect(cycleActionSort(null, "title")).toEqual({ key: "title", dir: "asc" });
+    expect(cycleActionSort({ key: "title", dir: "asc" }, "title")).toEqual({
+      key: "title",
+      dir: "desc",
+    });
+    expect(cycleActionSort({ key: "title", dir: "desc" }, "title")).toBeNull();
+  });
+
+  it("switching columns starts ascending regardless of the old direction", () => {
+    expect(cycleActionSort({ key: "title", dir: "desc" }, "status")).toEqual({
+      key: "status",
+      dir: "asc",
+    });
+  });
+});
+
+describe("actionMatches", () => {
+  const a = action({ title: "Fix the roof", description: "before winter" });
+  it("matches every term across title and description (AND)", () => {
+    expect(actionMatches(["fix", "winter"], a as never)).toBe(true);
+    expect(actionMatches(["fix", "summer"], a as never)).toBe(false);
+  });
+  it("no terms matches everything", () => {
+    expect(actionMatches([], a as never)).toBe(true);
+  });
+});
+
+describe("sortActionHits — due column (PROG-126)", () => {
+  const hitsOf = (rows: Record<string, unknown>[]): ActionHit[] =>
+    rows.map((r) => ({ action: action(r) as never, score: 0, inTitle: true }));
+  it("sorts by calendar day and always sinks undated rows", () => {
+    const hits = hitsOf([
+      { id: "none", dueDate: null },
+      { id: "late", dueDate: "2026-08-01" },
+      { id: "soon", dueDate: "2026-07-01" },
+    ]);
+    const asc = sortActionHits(ws({}), hits, { key: "due", dir: "asc" });
+    expect(asc.map((h) => h.action.id)).toEqual(["soon", "late", "none"]);
+    const desc = sortActionHits(ws({}), hits, { key: "due", dir: "desc" });
+    expect(desc.map((h) => h.action.id)).toEqual(["late", "soon", "none"]);
   });
 });
