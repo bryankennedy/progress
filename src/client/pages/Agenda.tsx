@@ -12,6 +12,8 @@
 import { useMemo, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import type { WireAction, WireTag, SnapshotPayload } from "../../shared/types";
+import { ViewModeToggle } from "../ActionListView";
+import ActionTable from "../ActionTable";
 import {
   inheritArcId,
   loadQuickAddFocus,
@@ -20,10 +22,18 @@ import {
 } from "../agendaQuickAdd";
 import { sortByName } from "../boardFilters";
 import { type AgendaBucket, bucketOf, formatDueDate, relativeDue, todayISO } from "../dates";
+import {
+  actionMatches,
+  cycleActionSort,
+  queryTerms,
+  sortActionHits,
+  type ActionSort,
+} from "../search";
 import { tagsByAction as buildTagsByAction } from "../tags";
 import { STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
 import { createAction, actionKeyOf, setActionStatus, updateAction } from "../store";
+import { loadViewMode, saveViewMode, type ActionViewMode } from "../viewPrefs";
 
 const FILTER_KEYS = ["focus", "arc", "tag"] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
@@ -52,6 +62,20 @@ export default function Agenda({ snapshot }: { snapshot: SnapshotPayload }) {
   const [, navigate] = useLocation();
   const filters = useMemo(() => parseFilters(search), [search]);
   const today = todayISO();
+
+  // List ⇄ table switch (PROG-126): the buckets and their quick-adds stay in
+  // both modes; table mode swaps each bucket's rows for the shared sortable
+  // ActionTable (plus a quick search over the dated set). Sticky per surface.
+  const [mode, setMode] = useState<ActionViewMode>(() => loadViewMode("agenda", "outline"));
+  const setModeSticky = (next: ActionViewMode) => {
+    setMode(next);
+    saveViewMode("agenda", next);
+  };
+  const [q, setQ] = useState("");
+  const terms = useMemo(() => queryTerms(q), [q]);
+  // One sort shared by every bucket's table, cycling like the search page's
+  // headers; unsorted keeps the agenda's own due-then-key order.
+  const [sort, setSort] = useState<ActionSort | null>(null);
 
   const setParam = (key: string, value: string | null) => {
     const params = new URLSearchParams(search);
@@ -134,31 +158,86 @@ export default function Agenda({ snapshot }: { snapshot: SnapshotPayload }) {
             Clear filters
           </button>
         )}
+        <span className="ml-auto">
+          <ViewModeToggle mode={mode} onChange={setModeSticky} outlineLabel="List" />
+        </span>
       </div>
+
+      {mode === "table" && (
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Quick search…"
+          aria-label="Quick search the agenda"
+          className="mt-3 w-full rounded border border-line bg-card px-3 py-1.5 text-sm focus:border-ink-faint focus:outline-none"
+        />
+      )}
 
       <div className="mt-6 space-y-8">
         {BUCKETS.map((bucket) => {
           const actions = grouped.get(bucket.key)!;
-          if (actions.length === 0) return null;
+          // Table mode's quick search narrows within each bucket — the
+          // groupings themselves never change (PROG-126).
+          const shown = mode === "table" ? actions.filter((a) => actionMatches(terms, a)) : actions;
+          if (actions.length === 0 || (mode === "table" && shown.length === 0)) return null;
           return (
             <section key={bucket.key}>
               <h2
                 className={`text-sm font-medium uppercase tracking-wide font-mono ${bucket.accent}`}
               >
-                {bucket.label} · {actions.length}
+                {bucket.label} · {shown.length}
               </h2>
-              <ul className="mt-3 divide-y divide-line rounded-lg border border-line bg-card">
-                {actions.map((action) => (
-                  <AgendaRow
-                    key={action.id}
-                    action={action}
+              {mode === "table" ? (
+                <div className="mt-3">
+                  <ActionTable
                     snapshot={snapshot}
-                    tags={tagsByAction.get(action.id) ?? []}
-                    overdue={bucket.key === "overdue"}
-                    today={today}
+                    rows={sortActionHits(
+                      snapshot,
+                      shown.map((action) => ({ action, score: 0, inTitle: true })),
+                      sort,
+                    )}
+                    sort={sort}
+                    onCycleSort={(key) => setSort((s) => cycleActionSort(s, key))}
+                    columns={["key", "title", "focus", "status", "priority", "due"]}
+                    terms={terms}
+                    // The agenda's inline controls survive the table switch
+                    // (PROG-126): bump the due date, mark done.
+                    trailing={(action) => (
+                      <span className="flex items-center gap-2">
+                        <input
+                          type="date"
+                          value={action.dueDate ?? ""}
+                          onChange={(e) =>
+                            updateAction(action.id, { dueDate: e.target.value || null })
+                          }
+                          title="Bump the due date"
+                          className="rounded border border-line bg-card px-1.5 py-0.5 text-ink-soft hover:border-ink-faint"
+                        />
+                        <button
+                          onClick={() => setActionStatus(action.id, "done")}
+                          title="Mark done"
+                          className="rounded border border-line bg-card px-2 py-0.5 text-ink-soft hover:border-moss hover:text-moss-deep"
+                        >
+                          ✓ Done
+                        </button>
+                      </span>
+                    )}
                   />
-                ))}
-              </ul>
+                </div>
+              ) : (
+                <ul className="mt-3 divide-y divide-line rounded-lg border border-line bg-card">
+                  {actions.map((action) => (
+                    <AgendaRow
+                      key={action.id}
+                      action={action}
+                      snapshot={snapshot}
+                      tags={tagsByAction.get(action.id) ?? []}
+                      overdue={bucket.key === "overdue"}
+                      today={today}
+                    />
+                  ))}
+                </ul>
+              )}
               {/* Quick-add (PROG-89): capture straight into this date bucket.
                   Not on Overdue — an action can't be born already late. */}
               {bucket.key !== "overdue" && (
