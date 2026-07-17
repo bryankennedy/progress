@@ -30,3 +30,24 @@ A Workflowy-style outliner (`/outline`) for fast keyboard capture, confirmed via
   On: sub-issues render nested under their parent card with a distinct indented
   style. Reuses the existing `rank` for ordering; `parentIssueId` is orthogonal
   to `rank`.
+
+### PROG-124b — Outline rows carry the shared status + priority glyphs, right-aligned
+
+(The key was reused by the tracker: the entry above is the original outline
+capture view; this one is the v04.3 "Experience consistency" action of the same
+number.)
+
+Outline action rows now end in the same `StatusIndicator` + `PriorityIndicator`
+every other view uses — no outline-specific glyphs. Layout decisions:
+
+- **Status holds the outermost column.** Every action has a status, so pinning
+  it at the far right keeps the edge flush and scannable down a long list;
+  priority sits just inside it.
+- **Priority `none` renders nothing** — the board card's convention (PROG-61),
+  not Agenda's always-render — because most fresh captures are priority-none
+  and a faint zero-bar glyph on every row would be pure noise in a capture
+  view. No placeholder slot is needed: with status always rendered outermost,
+  columns align whether or not priority shows.
+- **Read-only glyphs.** Editing status/priority stays on the action page,
+  board, and palette; the outline's row affordances remain the bullet handle
+  and the title input.

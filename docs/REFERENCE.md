@@ -478,6 +478,10 @@ so old bookmarks keep working.
   hover needed, so it works on touch (PROG-80/PROG-111). Nothing here deletes
   or archives. All writes
   reuse the optimistic `createAction`/`updateAction`/`createContainer` paths.
+  Each action row ends in the shared at-a-glance glyphs, right-aligned
+  (PROG-124): `StatusIndicator` holds the outermost column (always present, so
+  the right edge stays flush) with `PriorityIndicator` just inside it —
+  priority `none` renders nothing, the board card's convention.
   Completed actions (done/canceled) read as finished — dimmed + struck through
   via the shared closed-action treatment (`closedTitleClass`,
   `src/client/actionDone.ts`, PROG-100) — and a page-level **Hide done** toggle
