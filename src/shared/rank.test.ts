@@ -1,6 +1,6 @@
 // Tests for the board-ordering rank keys (PROG-43). Run with `bun test`.
 import { describe, expect, it } from "bun:test";
-import { isValidRank, rankAfter, rankBetween } from "./rank";
+import { DEFAULT_RANK, isValidRank, rankAfter, rankBetween } from "./rank";
 
 // Deterministic PRNG so any failure reproduces.
 const prng = (s: number) => () => {
@@ -64,6 +64,19 @@ describe("rankBetween", () => {
       expect(hi < a).toBe(true);
       hi = a;
     }
+  });
+
+  it("append keys grow slowly — ~61 appends per digit, not ~6 (PROG-129)", () => {
+    // Every create appends after the global max, so append growth is the rate
+    // real keys degrade. The old midpoint-toward-top ladder hit 38 chars in a
+    // few hundred creates; +1 stepping keeps 1000 appends under 18.
+    let key = rankAfter(null);
+    for (let i = 0; i < 1000; i++) key = rankAfter(key);
+    expect(key.length).toBeLessThanOrEqual(18);
+  });
+
+  it("keeps DEFAULT_RANK as the untouched midpoint", () => {
+    expect(rankBetween(null, null)).toBe(DEFAULT_RANK);
   });
 });
 
