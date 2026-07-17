@@ -526,7 +526,9 @@ so old bookmarks keep working.
   more" control (the full hit lists stay in memory — only the DOM is capped),
   and the comments section pulls further 50-hit pages from the server via
   `?offset=`, its header reading "50+" while more remain. Actions render as a
-  **table** (Key · Title · Focus · Status · Priority · Updated) whose column headers
+  **table** (Key · Title · Focus · Status · Priority · Updated — the shared
+  `ActionTable`, `src/client/ActionTable.tsx`, which the container pages and
+  Agenda table modes also render, PROG-126) whose column headers
   **sort**: click a header for ascending, again for descending, a third time to
   restore the default order (relevance for a query, recency for browse). Key
   sorts numerically within a focus prefix, status by workflow order, priority
@@ -570,7 +572,12 @@ so old bookmarks keep working.
   Tag filters are inherited (PROG-89b), so the capture stays visible under the
   filters it was typed into. Groups still hide when empty, so the input appears
   only under populated groups; Overdue never gets one (an action can't be born
-  late).
+  late). A **List/Table toggle** (PROG-126, sticky per surface) swaps each
+  bucket's rows for the shared sortable `ActionTable` — same columns as search
+  plus **Due**, one header-sort shared across buckets (unsorted keeps the
+  agenda's due-then-key order), a quick-search box narrowing within the
+  buckets, and the bump-due input + **✓ Done** button riding in a trailing
+  cell. The groupings and quick-adds persist in both modes.
 - **Structure (`/structure`)** — the Workspace → Focus → Arc tree
   with an inline "+ add" on each node (D40); a dedicated home for curating
   structure that keeps the board uncluttered. A focus's optional git repo
@@ -638,10 +645,20 @@ so old bookmarks keep working.
   "↳ PARENT-KEY" breadcrumb (PROG-124). Columns still sort everything by `rank`.
 - **Container pages** — description-on-top open page (inline-editable name,
   Markdown description, key prefix / git URL where applicable, archive
-  toggle), child-container chips with "+ New" buttons, and a
-  sortable/filterable action list with inline status/priority edits; a closed
-  action (done or canceled) shows its title dimmed + struck through, the shared
-  finished treatment (`closedTitleClass`, PROG-100).
+  toggle), child-container chips with "+ New" buttons, and the **shared
+  action list** (`ActionListView`, PROG-126) switchable between two modes via
+  a segmented Outline/Table toggle (sticky per surface,
+  `src/client/viewPrefs.ts`): **outline** embeds the real outline view
+  (`OutlineView`, exported from `pages/Outline.tsx`) scoped to the container —
+  nested steps, capture rows, and drag reorder/move exactly as on `/outline`
+  (an arc page renders just its arc's forest via FocusOutline's `arcOnly`
+  mode); **table** is the search page's sortable table (`ActionTable`) with a
+  quick-search box, defaulting to the shared fractional `rank` order (the
+  outline/board manual order) until a column sort is applied. A **Hide done**
+  checkbox (the outline page's sticky PROG-77 preference, same key) drops
+  done/canceled actions from either mode. A closed action shows its title
+  dimmed + struck through, the shared finished treatment (`closedTitleClass`,
+  PROG-100).
 - **Action page** — a structural breadcrumb (Workspace / Focus / Arc / KEY,
   ancestors linked, unset arc omitted — the shared `Breadcrumb` component,
   PROG-103; container pages use it too, ending in their kind). A **Step**
