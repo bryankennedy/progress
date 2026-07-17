@@ -36,6 +36,17 @@ export type WirePrLink = Serialized<PrLink>;
 export type WireCommitLink = Serialized<CommitLink>;
 export type WireAllowedEmail = Serialized<AllowedEmail>;
 
+// Change cursors for background sync (PROG-128). Two opaque strings the client
+// compares for equality — never parses. `snapshot` covers every table in the
+// snapshot payload (row counts + max updated_at, so creates, edits, and
+// deletes all move it); `timeline` covers the per-action data (comments,
+// activity, PR/commit links). Served by GET /api/snapshot/version and embedded
+// in the snapshot payload itself as the client's baseline.
+export type SyncCursors = {
+  snapshot: string;
+  timeline: string;
+};
+
 // GET /api/snapshot — the load-everything payload (SPEC §8.2, D20: comments
 // and activity are excluded and load per action page).
 export type SnapshotPayload = {
@@ -57,6 +68,11 @@ export type SnapshotPayload = {
   tags: WireTag[];
   actionTags: WireActionTag[];
   actionKeyAliases: WireActionKeyAlias[];
+  // Baseline change cursors for background sync (PROG-128). Computed BEFORE
+  // the table reads, so a write that lands mid-request makes the data newer
+  // than the cursor — the next version poll then refetches (harmless) instead
+  // of missing the change. Optional only for fixtures/older payload shapes.
+  syncCursors?: SyncCursors;
 };
 
 // GET /api/search?q= — comment full-text search (PROG-130). Comments are the

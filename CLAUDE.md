@@ -100,7 +100,11 @@ the **Repo→Focus fold** (PROG-102, migration `0011`) — **Repo** is no longer
 container but an optional `gitUrl` field on **Focus**, so a focus is an action's
 sole container; `repos` table + `actions.repoId` dropped, repo gone from the
 structure page / board + search filters / container switcher / MCP, move is now
-focus-only (docs/decisions/PROG-102.md).
+focus-only (docs/decisions/PROG-102.md); and **background sync** (PROG-128) —
+the client polls a cheap `GET /api/snapshot/version` change cursor (route
+change, focus, 60s interval) and refetches the snapshot only when another
+session actually wrote, so agent-made changes appear without a reload
+(docs/decisions/PROG-128.md).
 Likely next
 step per SPEC §8: **recurring due dates** (chores repeat); the due-date model +
 Agenda were built not to preclude it. Also pending: reminders/digests, start
