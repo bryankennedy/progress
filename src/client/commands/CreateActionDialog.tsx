@@ -14,7 +14,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import {
-  ACTION_ESTIMATES,
   ACTION_PRIORITIES,
   ACTION_STATUSES,
   DEFAULT_ACTION_STATUS,
@@ -23,7 +22,6 @@ import {
 } from "../../shared/constants";
 import type { SnapshotPayload } from "../../shared/types";
 import { sortByName } from "../boardFilters";
-import EstimateIndicator from "../EstimateIndicator";
 import {
   Field,
   FIELD_ACTION_CLS,
@@ -76,7 +74,6 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
   const [arcId, setArcId] = useState("");
   const [status, setStatus] = useState<ActionStatus>(DEFAULT_ACTION_STATUS);
   const [priority, setPriority] = useState<ActionPriority>("none");
-  const [estimate, setEstimate] = useState("");
   const [dueDate, setDueDate] = useState("");
   // The Location field's inline tree picker (PROG-117): null = closed, else
   // the current filter query — the same tree the palette's L picker lists.
@@ -103,7 +100,6 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
         setTitle("");
         setStatus(DEFAULT_ACTION_STATUS);
         setPriority("none");
-        setEstimate("");
         setDueDate("");
         setPickerQuery(null);
         setNewFocus(null);
@@ -197,7 +193,9 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
       parentActionId: null,
       status,
       priority,
-      estimate: estimate === "" ? null : Number(estimate),
+      // No estimate at creation (PROG-117b) — it starts unset and gets sized
+      // on the action page.
+      estimate: null,
       dueDate: dueDate || null,
     });
     setOpen(false);
@@ -230,20 +228,17 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
           className="mt-2 w-full rounded border border-line px-3 py-2 text-sm focus:border-ink-faint focus:outline-none"
         />
 
-        {/* The sidebar's field order (PROG-117): status, location, due date,
-            priority, estimate — each with its glyph in the shared gutter. */}
-        <div className="mt-4 space-y-4">
-          <Field label="Status">
-            <IconSelect
-              icon={<StatusIndicator status={status} />}
-              openLabel="Change status"
-              value={status}
-              options={ACTION_STATUSES.map((s) => [s, STATUS_LABELS[s]])}
-              onChange={(v) => setStatus(v as ActionStatus)}
-            />
-          </Field>
-
-          <Field label="Location">
+        {/* The sidebar's field anatomy in a creation-first order (PROG-117b):
+            Location leads — where the action lands is the creation decision —
+            with Status beside it, then Due date + Priority. Desktop is a
+            two-column grid (Location | Status / Due date | Priority); mobile
+            stacks the same DOM order in one column, Location on top.
+            items-start keeps Status pinned to its row when the Location cell
+            grows (picker or create panels open); min-w-0 lets long names
+            truncate instead of stretching a column. No Estimate at creation —
+            it defaults unset, sized later on the action page. */}
+        <div className="mt-4 grid grid-cols-1 items-start gap-4 sm:grid-cols-2 sm:gap-x-6">
+          <Field label="Location" className="min-w-0">
             <IconRow
               align="start"
               icon={
@@ -460,30 +455,27 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
             )}
           </Field>
 
-          <Field label="Due date">
+          <Field label="Status" className="min-w-0">
+            <IconSelect
+              icon={<StatusIndicator status={status} />}
+              openLabel="Change status"
+              value={status}
+              options={ACTION_STATUSES.map((s) => [s, STATUS_LABELS[s]])}
+              onChange={(v) => setStatus(v as ActionStatus)}
+            />
+          </Field>
+
+          <Field label="Due date" className="min-w-0">
             <IconDateInput value={dueDate} onChange={setDueDate} />
           </Field>
 
-          <Field label="Priority">
+          <Field label="Priority" className="min-w-0">
             <IconSelect
               icon={<PriorityIndicator priority={priority} />}
               openLabel="Change priority"
               value={priority}
               options={ACTION_PRIORITIES.map((p) => [p, PRIORITY_LABELS[p]])}
               onChange={(v) => setPriority(v as ActionPriority)}
-            />
-          </Field>
-
-          <Field label="Estimate">
-            <IconSelect
-              icon={<EstimateIndicator estimate={estimate === "" ? null : Number(estimate)} />}
-              openLabel="Change estimate"
-              value={estimate}
-              options={[
-                ["", "—"],
-                ...ACTION_ESTIMATES.map((e): [string, string] => [String(e), String(e)]),
-              ]}
-              onChange={setEstimate}
             />
           </Field>
         </div>

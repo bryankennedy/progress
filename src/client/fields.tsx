@@ -17,9 +17,20 @@ export const FIELD_ACTION_CLS =
 // target, a hover wash for affordance.
 export const GLYPH_BUTTON_CLS = "-m-1 flex rounded p-1 hover:bg-line";
 
-export function Field({ label, children }: { label: string; children: React.ReactNode }) {
+export function Field({
+  label,
+  children,
+  className = "",
+}: {
+  label: string;
+  children: React.ReactNode;
+  // Layout hook for grid placements (the create dialog's two-column field
+  // grid, PROG-117b) — e.g. min-w-0 so a grid cell truncates instead of
+  // stretching to its content's intrinsic width.
+  className?: string;
+}) {
   return (
-    <div>
+    <div className={className}>
       <p className="mb-1 text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">
         {label}
       </p>

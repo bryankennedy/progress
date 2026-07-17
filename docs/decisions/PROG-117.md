@@ -32,3 +32,19 @@ this is it). Settled:
 Not touched: the container-creation dialog (no sidebar counterpart to mirror)
 and `DEFAULT_ACTION_STATUS` (backlog) — the labeled Status field just makes
 the existing default visible.
+
+### PROG-117b — creation-first field order: Location leads, no Estimate
+
+Owner review of PROG-117 (above) adjusted the mirror: the sidebar's order is
+tuned for *operating* an existing action, but at creation the first decision
+is where the action lands. Settled:
+
+- **Location leads.** Desktop lays the fields out as a two-column grid —
+  Location top-left with Status beside it, then Due date | Priority — and
+  mobile keeps one column in the same DOM order, Location on top. The
+  sidebar's field *anatomy* (labels, glyph gutters, shared fields.tsx
+  primitives) is still the shared language; only the dialog's ordering
+  diverges, deliberately.
+- **No Estimate at creation.** The field is gone from the dialog on all
+  viewports; new actions start unsized (`estimate: null`) and get sized on
+  the action page. Supersedes PROG-117's five-field list.

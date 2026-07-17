@@ -675,15 +675,18 @@ so old bookmarks keep working.
 - **Create dialogs** — action and container creation; parents/containers
   default from the current view (open container page, viewed action's
   container, or active board filters). The action dialog mirrors the
-  action-page sidebar (PROG-117): the same labeled, icon-guttered fields in
-  the same order (Status, Location, Due date, Priority, Estimate), built from
-  the shared primitives in `src/client/fields.tsx`, with **Location** shown
-  as the sidebar's glyphed mini-tree and set via an inline filterable
-  Workspace → Focus → Arc tree picker — the same rows as the palette's `L`
-  picker (shared `src/client/locationRows.ts`; focus row = "this focus, no
-  arc", arc row sets both). New actions carry an optional **due date**, and
-  inline **"+ New focus / + New arc"** panels under the Location field spin
-  up structure without leaving the flow (SPEC v2 §4).
+  action-page sidebar's field anatomy (PROG-117) in a creation-first order
+  (PROG-117b): labeled, icon-guttered fields from the shared primitives in
+  `src/client/fields.tsx`, laid out as a two-column grid on desktop —
+  **Location | Status**, then **Due date | Priority** — and a single column
+  on mobile with Location on top. No Estimate field — it starts unset and is
+  sized later on the action page. **Location** shows the sidebar's glyphed
+  mini-tree and is set via an inline filterable Workspace → Focus → Arc tree
+  picker — the same rows as the palette's `L` picker (shared
+  `src/client/locationRows.ts`; focus row = "this focus, no arc", arc row
+  sets both). New actions carry an optional **due date**, and inline
+  **"+ New focus / + New arc"** panels under the Location field spin up
+  structure without leaving the flow (SPEC v2 §4).
 
 ### Keyboard map (D25, D27)
 
