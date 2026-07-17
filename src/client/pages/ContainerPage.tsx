@@ -4,24 +4,16 @@
 // only in how their action scope and child links derive from the snapshot.
 // A focus additionally edits its key prefix and optional git repo (PROG-102).
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { Link } from "wouter";
-import {
-  ACTION_PRIORITIES,
-  ACTION_STATUSES,
-  type ActionPriority,
-  type ActionStatus,
-} from "../../shared/constants";
 import type { WireAction, SnapshotPayload } from "../../shared/types";
+import ActionListView from "../ActionListView";
 import { openCreateContainer } from "../commands/controller";
-import { closedTitleClass } from "../actionDone";
 import Breadcrumb from "../Breadcrumb";
 import { sortContainers } from "../containerReorder";
 import EditableMarkdown from "../EditableMarkdown";
 import InlineEdit from "../InlineEdit";
-import { PRIORITY_LABELS as SHARED_PRIORITY_LABELS, STATUS_LABELS } from "../labels";
-import PriorityIndicator from "../PriorityIndicator";
-import { actionKeyOf, updateContainer, updateAction } from "../store";
+import { updateContainer } from "../store";
 import { copyArcBundleAsPrompt, prefetchArcBundle } from "../workOn";
 
 export type ContainerType = "workspace" | "focus" | "arc";
@@ -30,11 +22,6 @@ const TYPE_LABELS: Record<ContainerType, string> = {
   workspace: "Workspace",
   focus: "Focus",
   arc: "Arc",
-};
-// Compact "none" for the narrow inline row selects.
-const PRIORITY_LABELS: Record<ActionPriority, string> = {
-  ...SHARED_PRIORITY_LABELS,
-  none: "—",
 };
 
 type ChildGroup = {
@@ -131,9 +118,6 @@ function ancestorCrumbs(
   ];
 }
 
-type SortMode = "status" | "number" | "updated";
-const STATUS_ORDER = new Map(ACTION_STATUSES.map((s, i) => [s, i]));
-
 export default function ContainerPage({
   snapshot,
   type,
@@ -143,21 +127,7 @@ export default function ContainerPage({
   type: ContainerType;
   id: string;
 }) {
-  const [sort, setSort] = useState<SortMode>("status");
-  const [statusFilter, setStatusFilter] = useState<ActionStatus | "">("");
-
   const resolved = useMemo(() => resolve(snapshot, type, id), [snapshot, type, id]);
-
-  const actions = useMemo(() => {
-    if (!resolved) return [];
-    const list = resolved.actions.filter((i) => !statusFilter || i.status === statusFilter);
-    return list.sort((a, b) => {
-      if (sort === "updated") return b.updatedAt.localeCompare(a.updatedAt);
-      if (sort === "status")
-        return STATUS_ORDER.get(a.status)! - STATUS_ORDER.get(b.status)! || a.number - b.number;
-      return a.number - b.number;
-    });
-  }, [resolved, sort, statusFilter]);
 
   // Warm the arc work-order cache on mount and whenever this arc's actions
   // change, so "Copy arc as prompt" copies instantly with the latest state.
@@ -273,107 +243,37 @@ export default function ContainerPage({
           ),
       )}
 
-      <div className="mt-8 flex flex-wrap items-center gap-2 text-sm">
-        <h2 className="mr-auto text-sm font-medium uppercase tracking-wide font-mono text-ink-faint">
-          Actions · {actions.length}
-        </h2>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as ActionStatus | "")}
-          className="rounded border border-line bg-card px-2 py-1 text-xs text-ink-soft"
-        >
-          <option value="">Status: all</option>
-          {ACTION_STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {STATUS_LABELS[s]}
-            </option>
-          ))}
-        </select>
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value as SortMode)}
-          className="rounded border border-line bg-card px-2 py-1 text-xs text-ink-soft"
-        >
-          <option value="status">Sort: status</option>
-          <option value="number">Sort: number</option>
-          <option value="updated">Sort: recently updated</option>
-        </select>
-        {type === "arc" && (
-          <button
-            onClick={() => void copyArcBundleAsPrompt(id, resolved.name)}
-            title="Copy a single prompt covering every open action in this arc, for handing to an agent"
-            className="text-xs text-adobe hover:underline"
-          >
-            Copy arc as prompt →
-          </button>
-        )}
-        <Link
-          href={`/?${resolved.boardParam}&backlog=1`}
-          className="text-xs text-adobe hover:underline"
-        >
-          Open on board →
-        </Link>
+      {/* The shared outline/table action list (PROG-126): outline mode is the
+          real OutlineView scoped to this container; table mode is the search
+          page's sortable table (rank order by default) with a quick search.
+          Hide-done and the mode itself are sticky preferences. */}
+      <div className="mt-8">
+        <ActionListView
+          snapshot={snapshot}
+          scope={{ kind: type, id }}
+          actions={resolved.actions}
+          surface="container"
+          toolbarExtras={
+            <>
+              {type === "arc" && (
+                <button
+                  onClick={() => void copyArcBundleAsPrompt(id, resolved.name)}
+                  title="Copy a single prompt covering every open action in this arc, for handing to an agent"
+                  className="text-xs text-adobe hover:underline"
+                >
+                  Copy arc as prompt →
+                </button>
+              )}
+              <Link
+                href={`/?${resolved.boardParam}&backlog=1`}
+                className="text-xs text-adobe hover:underline"
+              >
+                Open on board →
+              </Link>
+            </>
+          }
+        />
       </div>
-
-      <ul className="mt-3 divide-y divide-line rounded-lg border border-line bg-card">
-        {actions.map((action) => (
-          <ActionRow key={action.id} action={action} snapshot={snapshot} />
-        ))}
-        {actions.length === 0 && <li className="p-4 text-sm text-ink-faint">No actions here.</li>}
-      </ul>
     </div>
-  );
-}
-
-// On phones the row keeps only what matters most (PROG-99): the title gets the
-// width; the key, estimate, and priority select wait for `sm:` — the tiny
-// priority indicator and the status select (the core inline edit) stay.
-function ActionRow({ action, snapshot }: { action: WireAction; snapshot: SnapshotPayload }) {
-  return (
-    <li data-action-id={action.id} className="flex items-center gap-3 px-3 py-2 text-sm">
-      <Link
-        href={`/action/${actionKeyOf(snapshot, action)}`}
-        className="hidden w-20 shrink-0 font-mono text-xs text-ink-faint hover:text-ink-soft sm:block"
-      >
-        {actionKeyOf(snapshot, action)}
-      </Link>
-      <Link
-        href={`/action/${actionKeyOf(snapshot, action)}`}
-        className={`min-w-0 flex-1 truncate font-medium hover:text-adobe-deep ${closedTitleClass(
-          action.status,
-        )}`}
-      >
-        {action.title}
-      </Link>
-      {action.estimate !== null && (
-        <span className="hidden rounded bg-line px-1 text-xs text-ink-soft sm:block">
-          {action.estimate}
-        </span>
-      )}
-      {/* Inline edits go through the same optimistic template as everywhere. */}
-      <PriorityIndicator priority={action.priority} />
-      <select
-        value={action.priority}
-        onChange={(e) => updateAction(action.id, { priority: e.target.value as ActionPriority })}
-        className="hidden rounded border border-line bg-card px-1.5 py-0.5 text-xs text-ink-soft sm:block"
-      >
-        {ACTION_PRIORITIES.map((p) => (
-          <option key={p} value={p}>
-            {PRIORITY_LABELS[p]}
-          </option>
-        ))}
-      </select>
-      <select
-        value={action.status}
-        onChange={(e) => updateAction(action.id, { status: e.target.value as ActionStatus })}
-        className="rounded border border-line bg-card px-1.5 py-0.5 text-xs text-ink-soft"
-      >
-        {ACTION_STATUSES.map((s) => (
-          <option key={s} value={s}>
-            {STATUS_LABELS[s]}
-          </option>
-        ))}
-      </select>
-    </li>
   );
 }
