@@ -19,6 +19,7 @@ import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { ACTION_STATUSES } from "../../shared/constants";
 import type { WireAction, SnapshotPayload } from "../../shared/types";
+import ActionTable, { Highlighted } from "../ActionTable";
 import { FILTER_NONE, matchesNullableId, SEARCH_FILTERS_KEY } from "../boardFilters";
 import FilterBar, { useStickyFilterUrl } from "../FilterBar";
 import FilterSelect from "../FilterSelect";
@@ -33,21 +34,13 @@ import {
   sortActionHits,
   type ActionSort,
   type ActionSortKey,
-  type Segment,
 } from "../search";
-import { localDayOfInstant, relativeDue, todayISO } from "../dates";
-import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
-import { closedTitleClass } from "../actionDone";
-import PriorityIndicator from "../PriorityIndicator";
-import { actionKeyOf, useCommentSearch } from "../store";
+import { STATUS_LABELS } from "../labels";
+import { useCommentSearch } from "../store";
+import { actionKeyOf } from "../store";
 
 // Rows rendered per section before a "Show more" click (PROG-78 pagination).
 const PAGE = 50;
-
-// Full local timestamp for the Updated cell's tooltip (PROG-96) — the same
-// format the action page's "Updated …" footer uses.
-const fmtUpdated = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 const FILTER_KEYS = ["workspace", "focus", "arc", "tag", "priority", "status"] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
@@ -56,17 +49,6 @@ type Filters = Partial<Record<FilterKey, string>>;
 // `q` is content, not a selection — it never sticks (PROG-92). Module-level so
 // the sticky effect's dependency stays reference-stable.
 const VOLATILE_KEYS = ["q"] as const;
-
-// The action table's columns (PROG-78): one per displayed dimension, each
-// header click-sortable. Order here is the column order.
-const COLUMNS: { key: ActionSortKey; label: string }[] = [
-  { key: "key", label: "Key" },
-  { key: "title", label: "Title" },
-  { key: "focus", label: "Focus" },
-  { key: "status", label: "Status" },
-  { key: "priority", label: "Priority" },
-  { key: "updated", label: "Updated" },
-];
 
 function parseFilters(search: string): { q: string; filters: Filters; sort: ActionSort | null } {
   const params = new URLSearchParams(search);
@@ -193,10 +175,6 @@ export default function Search({ snapshot }: { snapshot: SnapshotPayload }) {
     setContainerLimit(PAGE);
   }
 
-  // Local "today" for the Updated column's relative phrasing (PROG-96) — one
-  // read per render, same pattern as the Agenda.
-  const today = todayISO();
-
   const { data: comments, isFetching, hasMore, fetchMore, isFetchingMore } = useCommentSearch(q);
   // Resolve comment hits to actions and apply the same filters.
   const commentHits = useMemo(() => {
@@ -274,103 +252,15 @@ export default function Search({ snapshot }: { snapshot: SnapshotPayload }) {
           {actionHits.length === 0 ? (
             <Empty>No actions match.</Empty>
           ) : (
-            <div className="overflow-x-auto rounded-md border border-line bg-card">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-line">
-                    {COLUMNS.map((col) => (
-                      <th
-                        key={col.key}
-                        aria-sort={
-                          sort?.key === col.key
-                            ? sort.dir === "asc"
-                              ? "ascending"
-                              : "descending"
-                            : undefined
-                        }
-                        className="px-3 py-2 text-left"
-                      >
-                        <button
-                          onClick={() => cycleSort(col.key)}
-                          className={`flex items-center gap-1 text-xs font-medium uppercase tracking-wide hover:text-ink-soft ${
-                            sort?.key === col.key ? "text-ink-soft" : "text-ink-faint"
-                          }`}
-                        >
-                          {col.label}
-                          {sort?.key === col.key && (
-                            <span aria-hidden>{sort.dir === "asc" ? "▲" : "▼"}</span>
-                          )}
-                        </button>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {actionHits.slice(0, actionLimit).map((hit) => {
-                    const key = actionKeyOf(snapshot, hit.action);
-                    const focus = focusById.get(hit.action.focusId);
-                    return (
-                      // The whole row navigates (it's the click target the old
-                      // card rows offered); the title stays a real link for
-                      // middle-click / open-in-new-tab.
-                      <tr
-                        key={hit.action.id}
-                        onClick={() => navigate(`/action/${key}`)}
-                        className="cursor-pointer border-t border-line first:border-t-0 hover:bg-line/40"
-                      >
-                        <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-ink-faint">
-                          {key}
-                        </td>
-                        <td className="w-full min-w-56 px-3 py-2">
-                          <Link
-                            href={`/action/${key}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className={`hover:underline ${closedTitleClass(hit.action.status)}`}
-                          >
-                            <Highlighted segments={highlight(hit.action.title, terms)} />
-                          </Link>
-                          {!hit.inTitle && hit.action.description && (
-                            <p className="mt-0.5 truncate text-xs text-ink-soft">
-                              <Highlighted
-                                segments={highlight(
-                                  descSnippet(hit.action.description, terms),
-                                  terms,
-                                )}
-                              />
-                            </p>
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2 text-xs text-ink-faint">
-                          {focus?.name}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2 text-xs text-ink-faint">
-                          {STATUS_LABELS[hit.action.status]}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2 text-xs text-ink-faint">
-                          {hit.action.priority !== "none" ? (
-                            <span className="flex items-center gap-1.5">
-                              <PriorityIndicator priority={hit.action.priority} />
-                              {PRIORITY_LABELS[hit.action.priority]}
-                            </span>
-                          ) : (
-                            <span aria-label={PRIORITY_LABELS.none}>—</span>
-                          )}
-                        </td>
-                        {/* Relative phrase ("today", "3 days ago") answers the
-                            "what moved recently?" question at a glance (PROG-96);
-                            the exact timestamp rides in the tooltip. */}
-                        <td
-                          title={fmtUpdated(hit.action.updatedAt)}
-                          className="whitespace-nowrap px-3 py-2 text-xs text-ink-faint"
-                        >
-                          {relativeDue(localDayOfInstant(hit.action.updatedAt), today)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            // The shared sortable table (PROG-126) — the same component the
+            // container pages and the Agenda's table mode render.
+            <ActionTable
+              snapshot={snapshot}
+              rows={actionHits.slice(0, actionLimit)}
+              sort={sort}
+              onCycleSort={cycleSort}
+              terms={terms}
+            />
           )}
           {actionHits.length > actionLimit && (
             <ShowMore onClick={() => setActionLimit((n) => n + PAGE)}>
@@ -435,21 +325,6 @@ function ShowMore({ onClick, children }: { onClick: () => void; children: React.
   );
 }
 
-// A ~140-char window of the description around the first matched term, so a
-// description-only hit shows WHY it matched without dumping the whole field.
-function descSnippet(description: string, terms: string[]): string {
-  const lower = description.toLowerCase();
-  let first = -1;
-  for (const term of terms) {
-    const idx = lower.indexOf(term);
-    if (idx !== -1 && (first === -1 || idx < first)) first = idx;
-  }
-  if (first === -1) return description.slice(0, 140);
-  const start = Math.max(0, first - 50);
-  const slice = description.slice(start, start + 140).trim();
-  return `${start > 0 ? "… " : ""}${slice}${start + 140 < description.length ? " …" : ""}`;
-}
-
 function Section({
   title,
   count,
@@ -484,21 +359,5 @@ function Empty({ children }: { children: React.ReactNode }) {
     <p className="rounded-md border border-dashed border-line px-3 py-3 text-xs text-ink-faint">
       {children}
     </p>
-  );
-}
-
-function Highlighted({ segments }: { segments: Segment[] }) {
-  return (
-    <>
-      {segments.map((seg, i) =>
-        seg.match ? (
-          <mark key={i} className="rounded bg-adobe-wash px-0.5 text-adobe-deep">
-            {seg.text}
-          </mark>
-        ) : (
-          <span key={i}>{seg.text}</span>
-        ),
-      )}
-    </>
   );
 }
