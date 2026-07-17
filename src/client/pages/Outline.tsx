@@ -804,6 +804,7 @@ const FocusOutline = memo(function FocusOutline({
   focusActions,
   showHeader,
   grip,
+  arcOnly,
 }: {
   focus: WireFocus;
   ws: SnapshotPayload;
@@ -818,6 +819,11 @@ const FocusOutline = memo(function FocusOutline({
   // At workspace scope the whole section is sortable (PROG-87); the enclosing
   // SortableSection hands its drag grip down to render in the header.
   grip?: ReactNode;
+  // Arc-page embed (PROG-126): render ONLY this arc's forest — no loose level,
+  // no arc section chrome, top level at depth 0 — with capture pinned inside
+  // the arc. Everything else (drag, indent, roving capture below the top
+  // level) behaves exactly like the arc's section on the outline page.
+  arcOnly?: WireArc;
 }) {
   const actions = ws.actions;
   const arcs = ws.arcs;
@@ -825,7 +831,7 @@ const FocusOutline = memo(function FocusOutline({
   // (null = focus top level, no arc). `captureArc` scopes a top-level new
   // bullet to an arc section. Re-validated against live data each render.
   const [captureParent, setCaptureParent] = useState<string | null>(null);
-  const [captureArc, setCaptureArc] = useState<string | null>(null);
+  const [captureArc, setCaptureArc] = useState<string | null>(arcOnly ? arcOnly.id : null);
   const [focusToken, setFocusToken] = useState(0);
 
   // The unsent capture text (PROG-107). Lifted out of CaptureRow so it survives
@@ -834,7 +840,10 @@ const FocusOutline = memo(function FocusOutline({
   // typed-but-not-Entered text also survives scope switches, navigation, and
   // reloads. Cleared only once the action is actually created.
   const meId = ws.me?.id ?? "anon";
-  const [captureDraft, setCaptureDraft] = useState(() => readDraft("capture", meId, focus.id));
+  // Arc-page embeds draft under the arc id, so an arc capture and the outline
+  // page's focus capture never clobber each other's saved text.
+  const draftId = arcOnly ? arcOnly.id : focus.id;
+  const [captureDraft, setCaptureDraft] = useState(() => readDraft("capture", meId, draftId));
   const captureDebounce = useRef<ReturnType<typeof setTimeout>>(undefined);
   const captureDraftRef = useRef(captureDraft);
   useEffect(() => {
@@ -846,17 +855,17 @@ const FocusOutline = memo(function FocusOutline({
   useEffect(
     () => () => {
       clearTimeout(captureDebounce.current);
-      writeDraft("capture", meId, focus.id, captureDraftRef.current);
+      writeDraft("capture", meId, draftId, captureDraftRef.current);
     },
-    [meId, focus.id],
+    [meId, draftId],
   );
   const onCaptureDraftChange = useCallback(
     (next: string) => {
       setCaptureDraft(next);
       clearTimeout(captureDebounce.current);
-      captureDebounce.current = setTimeout(() => writeDraft("capture", meId, focus.id, next), 400);
+      captureDebounce.current = setTimeout(() => writeDraft("capture", meId, draftId, next), 400);
     },
-    [meId, focus.id],
+    [meId, draftId],
   );
 
   // Rendered arc order: manual rank first, name tiebreak — so a focus whose
@@ -866,18 +875,22 @@ const FocusOutline = memo(function FocusOutline({
     [arcs, focus.id],
   );
 
-  // Top-level (no-arc) forest, and one forest per arc.
+  // Top-level (no-arc) forest, and one forest per arc. An arc-only embed
+  // renders just its arc's forest, promoted to depth 0 (there's no section
+  // header to indent under).
   const looseForest = useMemo(
-    () => buildForest(focusActions, focus.id, null, 0),
-    [focusActions, focus.id],
+    () => (arcOnly ? [] : buildForest(focusActions, focus.id, null, 0)),
+    [focusActions, focus.id, arcOnly],
   );
   const arcForests = useMemo(
     () =>
-      focusArcs.map((a) => ({
-        arc: a,
-        forest: buildForest(focusActions, focus.id, a.id, 1),
-      })),
-    [focusActions, focus.id, focusArcs],
+      arcOnly
+        ? [{ arc: arcOnly, forest: buildForest(focusActions, focus.id, arcOnly.id, 0) }]
+        : focusArcs.map((a) => ({
+            arc: a,
+            forest: buildForest(focusActions, focus.id, a.id, 1),
+          })),
+    [focusActions, focus.id, focusArcs, arcOnly],
   );
   const arcItems = useMemo(() => focusArcs.map((a) => a.id), [focusArcs]);
 
@@ -927,8 +940,9 @@ const FocusOutline = memo(function FocusOutline({
   const shallow = useCallback(() => {
     if (captureParent === null) {
       // Arc-scoped top-level capture: Shift+Tab pops out of the arc section to
-      // the focus's loose level, completing the deepen/shallow ladder.
-      if (captureArc !== null) {
+      // the focus's loose level, completing the deepen/shallow ladder. In an
+      // arc-only embed the arc IS the ceiling, so there's nowhere to pop to.
+      if (captureArc !== null && !arcOnly) {
         setCaptureArc(null);
         setFocusToken((t) => t + 1);
       }
@@ -938,7 +952,7 @@ const FocusOutline = memo(function FocusOutline({
     setCaptureParent(parent ? parent.parentActionId : null);
     if (parent && parent.parentActionId === null) setCaptureArc(parent.arcId);
     setFocusToken((t) => t + 1);
-  }, [actionById, captureParent, captureArc]);
+  }, [actionById, captureParent, captureArc, arcOnly]);
 
   const create = useCallback(
     (title: string, parentActionId: string | null, arcId: string | null) => {
@@ -949,10 +963,10 @@ const FocusOutline = memo(function FocusOutline({
       // clear it and its mirror so it can't resurrect as a duplicate.
       clearTimeout(captureDebounce.current);
       setCaptureDraft("");
-      clearDraft("capture", meId, focus.id);
+      clearDraft("capture", meId, draftId);
       setFocusToken((t) => t + 1);
     },
-    [focus.id, meId],
+    [focus.id, meId, draftId],
   );
 
   // The render-isolation contexts (PROG-125): rows read their environment and
@@ -983,8 +997,46 @@ const FocusOutline = memo(function FocusOutline({
   // "Back to top level" shows whenever capture has roved anywhere off the
   // focus's loose level — under an action OR into an arc section (previously an
   // arc-scoped capture stranded the user: the loose capture row was hidden and
-  // no affordance led back).
-  const captureAtTopLevel = captureParent === null && captureArc === null;
+  // no affordance led back). An arc-only embed's top level is the arc itself.
+  const captureAtTopLevel = arcOnly
+    ? captureParent === null
+    : captureParent === null && captureArc === null;
+  const resetCapture = () => {
+    setCaptureParent(null);
+    setCaptureArc(arcOnly ? arcOnly.id : null);
+    setFocusToken((t) => t + 1);
+  };
+
+  if (arcOnly) {
+    const forest = arcForests[0]!.forest;
+    return (
+      <RowEnvContext.Provider value={rowEnv}>
+        <CaptureContext.Provider value={captureEnv}>
+          <Forest nodes={forest} />
+          {captureParent === null && (
+            <CaptureRow
+              depth={0}
+              placeholder={`New action in ${arcOnly.name} — Enter to add, Tab to nest`}
+              draft={captureDraft}
+              onDraftChange={onCaptureDraftChange}
+              onCreate={(t) => create(t, null, arcOnly.id)}
+              onDeepen={deepen}
+              onShallow={shallow}
+              focusToken={focusToken}
+            />
+          )}
+          {!captureAtTopLevel && (
+            <button
+              onClick={resetCapture}
+              className="mt-1 rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
+            >
+              ↥ back to top level
+            </button>
+          )}
+        </CaptureContext.Provider>
+      </RowEnvContext.Provider>
+    );
+  }
 
   return (
     // The providers sit at the section root so both the loose forest and every
@@ -1077,11 +1129,7 @@ const FocusOutline = memo(function FocusOutline({
           {/* When capture has roved off the top level, offer a way back. */}
           {!captureAtTopLevel && (
             <button
-              onClick={() => {
-                setCaptureParent(null);
-                setCaptureArc(null);
-                setFocusToken((t) => t + 1);
-              }}
+              onClick={resetCapture}
               className="mt-1 rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
             >
               ↥ back to top level
@@ -1093,73 +1141,42 @@ const FocusOutline = memo(function FocusOutline({
   );
 });
 
-// ---------- root picker + page ----------
+// ---------- the embeddable outline view (PROG-126) ----------
 
-type Root = { kind: "focus"; id: string } | { kind: "workspace"; id: string };
+// The whole outline experience — nested forests, capture rows, the drag
+// controller and its DragOverlay — for one scope, extracted from the /outline
+// page so container pages embed the exact same component instead of a
+// lookalike. A workspace scope renders its focuses as sortable sections
+// (PROG-87); a focus scope renders that focus's loose level + arc sections;
+// an arc scope renders just that arc's forest (FocusOutline's arcOnly mode).
+export type OutlineViewScope =
+  { kind: "workspace"; id: string } | { kind: "focus"; id: string } | { kind: "arc"; id: string };
 
-export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
-  const search = useSearch();
-  const [, navigate] = useLocation();
-  const params = new URLSearchParams(search);
-  const [focusFocus, setFocusFocus] = useState(0);
-
-  // "Hide done" is a sticky per-user view preference (PROG-77): seed from
-  // localStorage on mount, mirror back on every change so it survives navigating
-  // away and returning.
-  const [hideDone, setHideDone] = useState(loadHideDone);
-  useEffect(() => saveHideDone(hideDone), [hideDone]);
-
-  // Every focus's prefix, for client-side dedupe of new-focus keys.
-  const existingPrefixes = useMemo(
-    () => new Set(snapshot.focuses.map((p) => p.keyPrefix.toUpperCase())),
-    [snapshot.focuses],
-  );
-
+export function OutlineView({
+  snapshot,
+  scope,
+  hideDone,
+}: {
+  snapshot: SnapshotPayload;
+  scope: OutlineViewScope;
+  hideDone: boolean;
+}) {
   // Manual rank first, name tiebreak (PROG-87) — alphabetical until the owner
   // starts dragging sections around, then the dragged order wins everywhere.
   const focuses = useMemo(
     () => [...snapshot.focuses].filter((p) => !p.archivedAt).sort(byRankThenName),
     [snapshot.focuses],
   );
-  const workspaces = useMemo(
-    () => [...snapshot.workspaces].filter((i) => !i.archivedAt).sort(byRankThenName),
-    [snapshot.workspaces],
-  );
 
-  // Resolve the active root: URL params win (links stay shareable), then the
-  // sticky last-used scope (localStorage — so navigating away and back lands on
-  // the same scope), then the first focus. Every id is validated against
-  // live data so a stale saved scope falls through instead of blanking the view.
-  const root: Root | null = useMemo(() => {
-    const prd = params.get("focus");
-    const ini = params.get("workspace");
-    if (prd && focuses.some((p) => p.id === prd)) return { kind: "focus", id: prd };
-    if (ini && workspaces.some((i) => i.id === ini)) return { kind: "workspace", id: ini };
-    const saved = loadScope();
-    if (saved?.kind === "focus" && focuses.some((p) => p.id === saved.id)) return saved;
-    if (saved?.kind === "workspace" && workspaces.some((i) => i.id === saved.id)) return saved;
-    if (focuses[0]) return { kind: "focus", id: focuses[0].id };
-    if (workspaces[0]) return { kind: "workspace", id: workspaces[0].id };
-    return null;
-  }, [search, focuses, workspaces]);
-
-  // Mirror the resolved scope back to storage on every change — picking from
-  // the dropdown, following a scoped link, or the fallback itself.
-  useEffect(() => {
-    if (root) saveScope(root);
-  }, [root?.kind, root?.id]);
-
-  const setRoot = (value: string) => {
-    const [kind, id] = value.split(":");
-    navigate(`/outline?${kind}=${id}`);
-  };
-
+  const arcOnly = scope.kind === "arc" ? snapshot.arcs.find((a) => a.id === scope.id) : undefined;
   const scopedFocuses =
-    root?.kind === "focus"
-      ? focuses.filter((p) => p.id === root.id)
-      : root?.kind === "workspace"
-        ? focuses.filter((p) => p.workspaceId === root.id)
-        : [];
+    scope.kind === "focus"
+      ? focuses.filter((p) => p.id === scope.id)
+      : scope.kind === "workspace"
+        ? focuses.filter((p) => p.workspaceId === scope.id)
+        : // Arc scope: the arc's focus, even if archived — the arc page still
+          // shows its actions, so its embed should too.
+          snapshot.focuses.filter((p) => p.id === arcOnly?.focusId);
 
   // ---------- the page-wide drag controller (PROG-86/87/118) ----------
   //
@@ -1481,6 +1498,196 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
         : [];
 
   return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      // The cross-group preview moves REAL layout mid-drag (rows re-home,
+      // groups open a slot) — but the default WhileDragging measuring
+      // already covers it: a hop remounts the moved subtree (the droppable
+      // registry changes) and swaps the affected groups' SortableContext
+      // items, both of which queue a re-measure, so later collisions see
+      // the shifted rects. The previous MeasuringStrategy.Always only
+      // added full re-measures of every row at mount and on idle
+      // re-renders — pure overhead at outline scale (PROG-125).
+      //
+      // Tame the edge auto-scroll the same way the board does (PROG-79):
+      // the default acceleration (10) fires scroll steps every 5ms, and at
+      // outline scale each step's scroll-offset bookkeeping re-enters
+      // before the last one finished — the drag "gets stuck" whenever the
+      // pointer nears the viewport edge (PROG-125). acceleration 2 keeps
+      // the scroll deliberate and the main thread breathing.
+      autoScroll={{ acceleration: 2 }}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragEnd={onDragEnd}
+      onDragCancel={clearDrag}
+    >
+      {scope.kind === "workspace" ? (
+        <SortableContext
+          items={scopedFocuses.map((p) => p.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {/* Pointer-inert while anything is held: no row hover
+                  highlights, no accidental input focus — the only live thing
+                  is the drag itself (PROG-87 polish). */}
+          <div className={`space-y-4 ${activeDrag ? "pointer-events-none select-none" : ""}`}>
+            {scopedFocuses.map((p) => (
+              <SortableSection
+                key={p.id}
+                id={p.id}
+                kind="focus"
+                href={`/focus/${p.id}`}
+                label={`Open ${p.name} — drag to reorder`}
+              >
+                {(focusGrip) => (
+                  <FocusOutline
+                    focus={p}
+                    ws={snapshot}
+                    focusActions={actionsByFocus.get(p.id) ?? EMPTY_ACTIONS}
+                    showHeader
+                    grip={focusGrip}
+                  />
+                )}
+              </SortableSection>
+            ))}
+          </div>
+        </SortableContext>
+      ) : (
+        <div className={activeDrag ? "pointer-events-none select-none" : undefined}>
+          {scopedFocuses.map((p) => (
+            <FocusOutline
+              key={p.id}
+              focus={p}
+              ws={snapshot}
+              focusActions={actionsByFocus.get(p.id) ?? EMPTY_ACTIONS}
+              showHeader={false}
+              arcOnly={scope.kind === "arc" ? arcOnly : undefined}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* The floating copy of whatever is held — section or action row:
+              follows the pointer from the first pixel, lifted above the page
+              (shadow), capped to a few rows. On release DROP_ANIMATION glides
+              it into the committed slot (see its comment for why that no
+              longer bounces back). */}
+      <DragOverlay dropAnimation={DROP_ANIMATION}>
+        {heldFocus ? (
+          <SectionPreviewCard
+            header={
+              <>
+                <LevelIcon kind="focus" />
+                <span className="font-medium text-ink">{heldFocus.name}</span>
+                <span className="font-mono text-[11px] text-ink-faint">{heldFocus.keyPrefix}</span>
+              </>
+            }
+            rows={heldRows}
+            more={heldRows.length - PREVIEW_ROWS}
+          />
+        ) : heldArc ? (
+          <SectionPreviewCard
+            header={
+              <>
+                <LevelIcon kind="arc" />
+                <span className="text-sm font-medium text-moss-deep">{heldArc.name}</span>
+              </>
+            }
+            rows={heldRows}
+            more={heldRows.length - PREVIEW_ROWS}
+          />
+        ) : heldAction ? (
+          // The board card's held look (rotate + lift) on the row's own
+          // anatomy, so what you grabbed is unmistakably in hand. Width
+          // capped: the sortable node is a full-width row, but the thing
+          // in hand should read as a card, not a page-wide slab.
+          <div className="max-w-md rotate-1">
+            <SectionPreviewCard
+              header={
+                <>
+                  <LevelIcon kind={heldAction.parentActionId ? "sub" : "action"} />
+                  <span
+                    className={`truncate text-sm ${
+                      isOpenStatus(heldAction.status) ? "text-ink" : CLOSED_TITLE_CLASS
+                    }`}
+                  >
+                    {heldAction.title}
+                  </span>
+                </>
+              }
+              rows={heldRows}
+              more={heldRows.length - PREVIEW_ROWS}
+            />
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+// ---------- root picker + page ----------
+
+type Root = { kind: "focus"; id: string } | { kind: "workspace"; id: string };
+
+export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
+  const search = useSearch();
+  const [, navigate] = useLocation();
+  const params = new URLSearchParams(search);
+  const [focusFocus, setFocusFocus] = useState(0);
+
+  // "Hide done" is a sticky per-user view preference (PROG-77): seed from
+  // localStorage on mount, mirror back on every change so it survives navigating
+  // away and returning. The key is shared with the container pages' embedded
+  // views (PROG-126) — one preference everywhere.
+  const [hideDone, setHideDone] = useState(loadHideDone);
+  useEffect(() => saveHideDone(hideDone), [hideDone]);
+
+  // Every focus's prefix, for client-side dedupe of new-focus keys.
+  const existingPrefixes = useMemo(
+    () => new Set(snapshot.focuses.map((p) => p.keyPrefix.toUpperCase())),
+    [snapshot.focuses],
+  );
+
+  // Manual rank first, name tiebreak (PROG-87) — alphabetical until the owner
+  // starts dragging sections around, then the dragged order wins everywhere.
+  const focuses = useMemo(
+    () => [...snapshot.focuses].filter((p) => !p.archivedAt).sort(byRankThenName),
+    [snapshot.focuses],
+  );
+  const workspaces = useMemo(
+    () => [...snapshot.workspaces].filter((i) => !i.archivedAt).sort(byRankThenName),
+    [snapshot.workspaces],
+  );
+
+  // Resolve the active root: URL params win (links stay shareable), then the
+  // sticky last-used scope (localStorage — so navigating away and back lands on
+  // the same scope), then the first focus. Every id is validated against
+  // live data so a stale saved scope falls through instead of blanking the view.
+  const root: Root | null = useMemo(() => {
+    const prd = params.get("focus");
+    const ini = params.get("workspace");
+    if (prd && focuses.some((p) => p.id === prd)) return { kind: "focus", id: prd };
+    if (ini && workspaces.some((i) => i.id === ini)) return { kind: "workspace", id: ini };
+    const saved = loadScope();
+    if (saved?.kind === "focus" && focuses.some((p) => p.id === saved.id)) return saved;
+    if (saved?.kind === "workspace" && workspaces.some((i) => i.id === saved.id)) return saved;
+    if (focuses[0]) return { kind: "focus", id: focuses[0].id };
+    if (workspaces[0]) return { kind: "workspace", id: workspaces[0].id };
+    return null;
+  }, [search, focuses, workspaces]);
+
+  // Mirror the resolved scope back to storage on every change — picking from
+  // the dropdown, following a scoped link, or the fallback itself.
+  useEffect(() => {
+    if (root) saveScope(root);
+  }, [root?.kind, root?.id]);
+
+  const setRoot = (value: string) => {
+    const [kind, id] = value.split(":");
+    navigate("/outline?" + kind + "=" + id);
+  };
+
+  return (
     <div className="mx-auto max-w-3xl">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
@@ -1546,138 +1753,14 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
       <div className="mt-5 space-y-4">
         {!root && <p className="text-sm text-ink-faint">No focuses or workspaces yet.</p>}
 
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          // The cross-group preview moves REAL layout mid-drag (rows re-home,
-          // groups open a slot) — but the default WhileDragging measuring
-          // already covers it: a hop remounts the moved subtree (the droppable
-          // registry changes) and swaps the affected groups' SortableContext
-          // items, both of which queue a re-measure, so later collisions see
-          // the shifted rects. The previous MeasuringStrategy.Always only
-          // added full re-measures of every row at mount and on idle
-          // re-renders — pure overhead at outline scale (PROG-125).
-          //
-          // Tame the edge auto-scroll the same way the board does (PROG-79):
-          // the default acceleration (10) fires scroll steps every 5ms, and at
-          // outline scale each step's scroll-offset bookkeeping re-enters
-          // before the last one finished — the drag "gets stuck" whenever the
-          // pointer nears the viewport edge (PROG-125). acceleration 2 keeps
-          // the scroll deliberate and the main thread breathing.
-          autoScroll={{ acceleration: 2 }}
-          onDragStart={onDragStart}
-          onDragOver={onDragOver}
-          onDragEnd={onDragEnd}
-          onDragCancel={clearDrag}
-        >
-          {root?.kind === "workspace" ? (
-            <SortableContext
-              items={scopedFocuses.map((p) => p.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              {/* Pointer-inert while anything is held: no row hover
-                  highlights, no accidental input focus — the only live thing
-                  is the drag itself (PROG-87 polish). */}
-              <div className={`space-y-4 ${activeDrag ? "pointer-events-none select-none" : ""}`}>
-                {scopedFocuses.map((p) => (
-                  <SortableSection
-                    key={p.id}
-                    id={p.id}
-                    kind="focus"
-                    href={`/focus/${p.id}`}
-                    label={`Open ${p.name} — drag to reorder`}
-                  >
-                    {(focusGrip) => (
-                      <FocusOutline
-                        focus={p}
-                        ws={snapshot}
-                        focusActions={actionsByFocus.get(p.id) ?? EMPTY_ACTIONS}
-                        showHeader
-                        grip={focusGrip}
-                      />
-                    )}
-                  </SortableSection>
-                ))}
-              </div>
-            </SortableContext>
-          ) : (
-            <div className={activeDrag ? "pointer-events-none select-none" : undefined}>
-              {scopedFocuses.map((p) => (
-                <FocusOutline
-                  key={p.id}
-                  focus={p}
-                  ws={snapshot}
-                  focusActions={actionsByFocus.get(p.id) ?? EMPTY_ACTIONS}
-                  showHeader={false}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* The floating copy of whatever is held — section or action row:
-              follows the pointer from the first pixel, lifted above the page
-              (shadow), capped to a few rows. On release DROP_ANIMATION glides
-              it into the committed slot (see its comment for why that no
-              longer bounces back). */}
-          <DragOverlay dropAnimation={DROP_ANIMATION}>
-            {heldFocus ? (
-              <SectionPreviewCard
-                header={
-                  <>
-                    <LevelIcon kind="focus" />
-                    <span className="font-medium text-ink">{heldFocus.name}</span>
-                    <span className="font-mono text-[11px] text-ink-faint">
-                      {heldFocus.keyPrefix}
-                    </span>
-                  </>
-                }
-                rows={heldRows}
-                more={heldRows.length - PREVIEW_ROWS}
-              />
-            ) : heldArc ? (
-              <SectionPreviewCard
-                header={
-                  <>
-                    <LevelIcon kind="arc" />
-                    <span className="text-sm font-medium text-moss-deep">{heldArc.name}</span>
-                  </>
-                }
-                rows={heldRows}
-                more={heldRows.length - PREVIEW_ROWS}
-              />
-            ) : heldAction ? (
-              // The board card's held look (rotate + lift) on the row's own
-              // anatomy, so what you grabbed is unmistakably in hand. Width
-              // capped: the sortable node is a full-width row, but the thing
-              // in hand should read as a card, not a page-wide slab.
-              <div className="max-w-md rotate-1">
-                <SectionPreviewCard
-                  header={
-                    <>
-                      <LevelIcon kind={heldAction.parentActionId ? "sub" : "action"} />
-                      <span
-                        className={`truncate text-sm ${
-                          isOpenStatus(heldAction.status) ? "text-ink" : CLOSED_TITLE_CLASS
-                        }`}
-                      >
-                        {heldAction.title}
-                      </span>
-                    </>
-                  }
-                  rows={heldRows}
-                  more={heldRows.length - PREVIEW_ROWS}
-                />
-              </div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+        {root && <OutlineView snapshot={snapshot} scope={root} hideDone={hideDone} />}
 
         {/* At workspace scope, focuses are the top ceiling — so offer inline
             focus capture (and seed the empty state). Focus scope has no
             level above the arc/action ceiling, so it shows nothing here. */}
         {root?.kind === "workspace" && (
           <section className="rounded-lg border border-dashed border-line bg-card/40 p-3">
-            {scopedFocuses.length === 0 && (
+            {!focuses.some((p) => p.workspaceId === root.id) && (
               <p className="mb-1 text-sm text-ink-faint">
                 No focuses yet — add the first one to start capturing.
               </p>
