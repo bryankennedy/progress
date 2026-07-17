@@ -14,7 +14,17 @@
 // full action/arc/focus page, press-and-drag reorders — and, dropped outside
 // its own sibling group, MOVES the action into another arc or focus (PROG-118).
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  Fragment,
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import {
@@ -22,7 +32,6 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
-  MeasuringStrategy,
   PointerSensor,
   useSensor,
   useSensors,
@@ -212,6 +221,23 @@ function SortableSection({
   const style: CSSProperties | undefined = isDragging
     ? undefined
     : { transform: CSS.Translate.toString(transform), transition };
+  // A stable grip element (PROG-125): useSortable re-renders this component on
+  // every drag tick (it subscribes to dnd-kit's contexts), and `children(grip)`
+  // re-runs each time. dnd-kit's attributes/listeners are identity-stable, so
+  // memoizing the grip keeps the element — and thus everything a memoized child
+  // derives from it — unchanged across those ticks.
+  const grip = useMemo(
+    () => (
+      <Handle
+        kind={kind}
+        href={href}
+        label={label}
+        handleRef={setActivatorNodeRef}
+        handleProps={{ ...attributes, ...listeners }}
+      />
+    ),
+    [kind, href, label, setActivatorNodeRef, attributes, listeners],
+  );
   return (
     <div
       ref={setNodeRef}
@@ -220,15 +246,7 @@ function SortableSection({
         [className, isDragging ? "opacity-30" : undefined].filter(Boolean).join(" ") || undefined
       }
     >
-      {children(
-        <Handle
-          kind={kind}
-          href={href}
-          label={label}
-          handleRef={setActivatorNodeRef}
-          handleProps={{ ...attributes, ...listeners }}
-        />,
-      )}
+      {children(grip)}
     </div>
   );
 }
@@ -390,28 +408,81 @@ function ArcMenu({ action, arcs }: { action: WireAction; arcs: WireArc[] }) {
   );
 }
 
-// ---------- a single editable action row ----------
+// ---------- render-isolation contexts (PROG-125) ----------
 
-function ActionRow({
-  node,
-  ws,
-  arcs,
-  onIndent,
-  onOutdent,
-  handleRef,
-  handleProps,
-}: {
-  node: Node;
+// The outline renders every row in scope as a dnd-kit sortable, and dnd-kit
+// re-renders EVERY sortable on each drag tick (each row the pointer crosses,
+// each droppable re-measure — its contexts carry `over`/rect maps). With ~100+
+// rows, re-rendering each row's full subtree (input, indicators, arc menu) on
+// every tick froze pickup for over a second and stalled mid-drag. The fix is
+// render isolation: rows are memoized, and everything they need beyond their
+// own node travels through these two contexts with drag-stable identities, so
+// a tick re-runs only the cheap sortable wrappers.
+
+// Per-focus row environment: stable for the whole life of a snapshot.
+type RowEnv = {
   ws: SnapshotPayload;
   arcs: WireArc[];
   onIndent: (action: WireAction) => void;
   onOutdent: (action: WireAction) => void;
+};
+const RowEnvContext = createContext<RowEnv | null>(null);
+
+// The roving capture state. Only the slot whose node matches `parentId`
+// renders anything, so a keystroke in the capture input re-renders N trivial
+// null-returning slots instead of every row subtree (the pre-PROG-125 shape
+// passed a fresh renderCapture closure to every row on every keystroke).
+type CaptureEnv = {
+  parentId: string | null;
+  draft: string;
+  focusToken: number;
+  onDraftChange: (next: string) => void;
+  onCreateUnder: (title: string, parent: WireAction) => void;
+  onDeepen: () => void;
+  onShallow: () => void;
+};
+const CaptureContext = createContext<CaptureEnv | null>(null);
+
+function CaptureSlot({ node }: { node: Node }) {
+  const cap = useContext(CaptureContext);
+  if (!cap || cap.parentId !== node.action.id) return null;
+  return (
+    <CaptureRow
+      depth={node.depth + 1}
+      placeholder="New step — Enter to add, Shift+Tab to outdent"
+      draft={cap.draft}
+      onDraftChange={cap.onDraftChange}
+      onCreate={(t) => cap.onCreateUnder(t, node.action)}
+      onDeepen={cap.onDeepen}
+      onShallow={cap.onShallow}
+      focusToken={cap.focusToken}
+    />
+  );
+}
+
+// ---------- a single editable action row ----------
+
+// Memoized (PROG-125): dnd-kit context ticks re-render the enclosing
+// OutlineNode on every drag step; this memo stops the row's real content from
+// re-rendering with it. dnd-kit's `listeners`/`attributes` are identity-stable
+// (attributes changes only for the held row), so the props only change when
+// the row's data actually does.
+const ActionRow = memo(function ActionRow({
+  node,
+  handleRef,
+  handleAttributes,
+  handleListeners,
+}: {
+  node: Node;
   // Drag-to-reorder wiring from the enclosing sortable (PROG-86). Lives on the
   // row's single bullet handle, not the whole row, so the title input stays
-  // fully editable.
+  // fully editable. Attributes/listeners ride as separate props (not a merged
+  // object) so their stable identities keep the memo effective.
   handleRef: (el: HTMLElement | null) => void;
-  handleProps: HTMLAttributes<HTMLElement>;
+  handleAttributes: HTMLAttributes<HTMLElement>;
+  handleListeners: HTMLAttributes<HTMLElement> | undefined;
 }) {
+  const { ws, arcs, onIndent, onOutdent } = useContext(RowEnvContext)!;
   const { action, depth } = node;
   // Completed (done/canceled) actions stay visible but read as "finished": lower
   // contrast + strikethrough (PROG-77). The whole-page "hide done" toggle drops
@@ -447,7 +518,7 @@ function ActionRow({
         href={`/action/${actionKey}`}
         label={`Open ${actionKey} — drag to reorder`}
         handleRef={handleRef}
-        handleProps={handleProps}
+        handleProps={{ ...handleAttributes, ...handleListeners }}
       />
       <input
         ref={inputRef}
@@ -489,7 +560,7 @@ function ActionRow({
       </span>
     </div>
   );
-}
+});
 
 // ---------- sortable subtree block ----------
 
@@ -499,23 +570,16 @@ function ActionRow({
 // the bullet handle inside ActionRow, so only it starts a drag — the title
 // input keeps working normally. A drop within the sibling group reorders; a
 // drop outside it moves the action there (see the page's onDragEnd, PROG-118).
-function OutlineNode({
-  node,
-  ws,
-  arcs,
-  onIndent,
-  onOutdent,
-  renderForest,
-  renderCapture,
-}: {
-  node: Node;
-  ws: SnapshotPayload;
-  arcs: WireArc[];
-  onIndent: (action: WireAction) => void;
-  onOutdent: (action: WireAction) => void;
-  renderForest: (forest: Node[]) => ReactNode;
-  renderCapture: (node: Node) => ReactNode;
-}) {
+// No FLIP layout animation on rows (PROG-125): dnd-kit's default re-measures
+// every row in a group (a getBoundingClientRect each, in per-row layout
+// effects) whenever a group's membership changes mid-drag — i.e. on every
+// cross-group preview hop, the outline's signature move. The within-group
+// slide is transform-based (verticalListSortingStrategy) and keeps animating;
+// what's lost is only the brief glide of rows BELOW a cross-group insertion
+// point, which now snap to their new spot — a fair trade at hundreds of rows.
+const noLayoutAnimation = () => false;
+
+const OutlineNode = memo(function OutlineNode({ node }: { node: Node }) {
   const {
     attributes,
     listeners,
@@ -524,7 +588,7 @@ function OutlineNode({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: node.action.id });
+  } = useSortable({ id: node.action.id, animateLayoutChanges: noLayoutAnimation });
   // The grabbed subtree is carried by the page's DragOverlay (the board-card
   // pattern, PROG-118 polish): the in-list source dims to a ghost but KEEPS
   // its sorting translate (exactly like BoardCard), so it slides in step with
@@ -537,18 +601,33 @@ function OutlineNode({
     <div ref={setNodeRef} style={style} className={isDragging ? "opacity-30" : undefined}>
       <ActionRow
         node={node}
-        ws={ws}
-        arcs={arcs}
-        onIndent={onIndent}
-        onOutdent={onOutdent}
         handleRef={setActivatorNodeRef}
-        handleProps={{ ...attributes, ...listeners }}
+        handleAttributes={attributes}
+        handleListeners={listeners}
       />
-      {renderForest(node.children)}
-      {renderCapture(node)}
+      <Forest nodes={node.children} />
+      <CaptureSlot node={node} />
     </div>
   );
-}
+});
+
+// A sibling group as a SortableContext so its rows reorder within it (PROG-86);
+// recurses through each node's children (their own group/context). Memoized,
+// with a memoized `items` array: SortableContext treats a fresh items identity
+// as "the list changed" and queues a re-measure of every droppable in the
+// group, so identity stability here is load-bearing for drag performance
+// (PROG-125), not just a render micro-optimization.
+const Forest = memo(function Forest({ nodes }: { nodes: Node[] }) {
+  const items = useMemo(() => nodes.map((n) => n.action.id), [nodes]);
+  if (nodes.length === 0) return null;
+  return (
+    <SortableContext items={items} strategy={verticalListSortingStrategy}>
+      {nodes.map((node) => (
+        <OutlineNode key={node.action.id} node={node} />
+      ))}
+    </SortableContext>
+  );
+});
 
 // ---------- focus capture (workspace scope only) ----------
 
@@ -715,20 +794,26 @@ function CaptureRow({
 
 // ---------- one focus's outline (forest + capture) ----------
 
-function FocusOutline({
+// Memoized (PROG-125): at workspace scope every drag tick re-renders the
+// enclosing SortableSection, and a preview hop re-slices only the affected
+// focuses — so with stable props (the page's per-focus identity cache + the
+// section's memoized grip) untouched focuses skip re-rendering entirely.
+const FocusOutline = memo(function FocusOutline({
   focus,
   ws,
-  visibleActions,
+  focusActions,
   showHeader,
   grip,
 }: {
   focus: WireFocus;
   ws: SnapshotPayload;
-  // What the forest renders: the hide-done-filtered action list, computed once
-  // at page level since the page's drag handlers slot drops into the same
-  // rendered groups (PROG-118). Capture/indent helpers keep working off the
-  // full `ws.actions` list so nesting math is unaffected by what's visible.
-  visibleActions: WireAction[];
+  // What the forest renders: THIS focus's slice of the hide-done-filtered (and
+  // preview-patched) action list, computed at page level since the page's drag
+  // handlers slot drops into the same rendered groups (PROG-118). Identity is
+  // cached per focus (PROG-125) so a drag preview only re-renders the focuses
+  // it touches. Capture/indent helpers keep working off the full `ws.actions`
+  // list so nesting math is unaffected by what's visible.
+  focusActions: WireAction[];
   showHeader: boolean;
   // At workspace scope the whole section is sortable (PROG-87); the enclosing
   // SortableSection hands its drag grip down to render in the header.
@@ -765,11 +850,14 @@ function FocusOutline({
     },
     [meId, focus.id],
   );
-  const onCaptureDraftChange = (next: string) => {
-    setCaptureDraft(next);
-    clearTimeout(captureDebounce.current);
-    captureDebounce.current = setTimeout(() => writeDraft("capture", meId, focus.id, next), 400);
-  };
+  const onCaptureDraftChange = useCallback(
+    (next: string) => {
+      setCaptureDraft(next);
+      clearTimeout(captureDebounce.current);
+      captureDebounce.current = setTimeout(() => writeDraft("capture", meId, focus.id, next), 400);
+    },
+    [meId, focus.id],
+  );
 
   // Rendered arc order: manual rank first, name tiebreak — so a focus whose
   // arcs nobody has dragged lists them alphabetically (PROG-87).
@@ -780,17 +868,18 @@ function FocusOutline({
 
   // Top-level (no-arc) forest, and one forest per arc.
   const looseForest = useMemo(
-    () => buildForest(visibleActions, focus.id, null, 0),
-    [visibleActions, focus.id],
+    () => buildForest(focusActions, focus.id, null, 0),
+    [focusActions, focus.id],
   );
   const arcForests = useMemo(
     () =>
       focusArcs.map((a) => ({
         arc: a,
-        forest: buildForest(visibleActions, focus.id, a.id, 1),
+        forest: buildForest(focusActions, focus.id, a.id, 1),
       })),
-    [visibleActions, focus.id, focusArcs],
+    [focusActions, focus.id, focusArcs],
   );
+  const arcItems = useMemo(() => focusArcs.map((a) => a.id), [focusArcs]);
 
   const actionById = useMemo(() => {
     const m = new Map<string, WireAction>();
@@ -799,39 +888,43 @@ function FocusOutline({
   }, [actions]);
 
   // Indent an existing action: nest it under its nearest preceding sibling.
-  const indent = (action: WireAction) => {
-    const siblings = siblingsOf(actions, action.focusId, action.parentActionId, action.arcId);
-    const idx = siblings.findIndex((i) => i.id === action.id);
-    const prev = siblings[idx - 1];
-    if (!prev) return; // nothing to nest under
-    void updateAction(action.id, { parentActionId: prev.id, arcId: prev.arcId });
-  };
+  const indent = useCallback(
+    (action: WireAction) => {
+      const siblings = siblingsOf(actions, action.focusId, action.parentActionId, action.arcId);
+      const idx = siblings.findIndex((i) => i.id === action.id);
+      const prev = siblings[idx - 1];
+      if (!prev) return; // nothing to nest under
+      void updateAction(action.id, { parentActionId: prev.id, arcId: prev.arcId });
+    },
+    [actions],
+  );
 
   // Outdent an existing action: hop up to its grandparent (or to top level).
-  const outdent = (action: WireAction) => {
-    if (action.parentActionId === null) return; // already at the ceiling
-    const parent = actionById.get(action.parentActionId);
-    if (!parent) return;
-    void updateAction(action.id, {
-      parentActionId: parent.parentActionId,
-      arcId: parent.arcId,
-    });
-  };
+  const outdent = useCallback(
+    (action: WireAction) => {
+      if (action.parentActionId === null) return; // already at the ceiling
+      const parent = actionById.get(action.parentActionId);
+      if (!parent) return;
+      void updateAction(action.id, {
+        parentActionId: parent.parentActionId,
+        arcId: parent.arcId,
+      });
+    },
+    [actionById],
+  );
 
   // Capture-input deepen/shallow: move the new-bullet target down/up a level by
   // pointing it at the last action of the current sibling group.
-  const lastSiblingOf = (parentId: string | null, arcId: string | null): WireAction | undefined =>
-    siblingsOf(actions, focus.id, parentId, arcId).at(-1);
-  const deepen = () => {
-    const last = lastSiblingOf(captureParent, captureArc);
+  const deepen = useCallback(() => {
+    const last = siblingsOf(actions, focus.id, captureParent, captureArc).at(-1);
     if (last) {
       setCaptureParent(last.id);
       setCaptureArc(last.arcId);
       // The capture input remounts at its new spot — keep the keyboard on it.
       setFocusToken((t) => t + 1);
     }
-  };
-  const shallow = () => {
+  }, [actions, focus.id, captureParent, captureArc]);
+  const shallow = useCallback(() => {
     if (captureParent === null) {
       // Arc-scoped top-level capture: Shift+Tab pops out of the arc section to
       // the focus's loose level, completing the deepen/shallow ladder.
@@ -845,60 +938,47 @@ function FocusOutline({
     setCaptureParent(parent ? parent.parentActionId : null);
     if (parent && parent.parentActionId === null) setCaptureArc(parent.arcId);
     setFocusToken((t) => t + 1);
-  };
+  }, [actionById, captureParent, captureArc]);
 
-  const create = (title: string, parentActionId: string | null, arcId: string | null) => {
-    // Status/priority/estimate/due default in the store (PROG-115): a fresh
-    // capture lands in the backlog.
-    createAction({ title, focusId: focus.id, arcId, parentActionId });
-    // The draft became an action (optimistic row, store-owned retry/rollback) —
-    // clear it and its mirror so it can't resurrect as a duplicate.
-    clearTimeout(captureDebounce.current);
-    setCaptureDraft("");
-    clearDraft("capture", meId, focus.id);
-    setFocusToken((t) => t + 1);
-  };
+  const create = useCallback(
+    (title: string, parentActionId: string | null, arcId: string | null) => {
+      // Status/priority/estimate/due default in the store (PROG-115): a fresh
+      // capture lands in the backlog.
+      createAction({ title, focusId: focus.id, arcId, parentActionId });
+      // The draft became an action (optimistic row, store-owned retry/rollback) —
+      // clear it and its mirror so it can't resurrect as a duplicate.
+      clearTimeout(captureDebounce.current);
+      setCaptureDraft("");
+      clearDraft("capture", meId, focus.id);
+      setFocusToken((t) => t + 1);
+    },
+    [focus.id, meId],
+  );
 
-  // The roving capture input, dropped after the subtree of whichever action the
-  // capture currently targets.
-  const renderCapture = (node: Node) =>
-    captureParent === node.action.id ? (
-      <CaptureRow
-        depth={node.depth + 1}
-        placeholder="New step — Enter to add, Shift+Tab to outdent"
-        draft={captureDraft}
-        onDraftChange={onCaptureDraftChange}
-        onCreate={(t) => create(t, node.action.id, node.action.arcId)}
-        onDeepen={deepen}
-        onShallow={shallow}
-        focusToken={focusToken}
-      />
-    ) : null;
-
-  // Render a sibling group as a SortableContext so its rows reorder within it
-  // (PROG-86); recurses through each node's children (their own group/context).
-  const renderForest = (forest: Node[]): ReactNode => {
-    if (forest.length === 0) return null;
-    return (
-      <SortableContext
-        items={forest.map((n) => n.action.id)}
-        strategy={verticalListSortingStrategy}
-      >
-        {forest.map((node) => (
-          <OutlineNode
-            key={node.action.id}
-            node={node}
-            ws={ws}
-            arcs={arcs}
-            onIndent={indent}
-            onOutdent={outdent}
-            renderForest={renderForest}
-            renderCapture={renderCapture}
-          />
-        ))}
-      </SortableContext>
-    );
-  };
+  // The render-isolation contexts (PROG-125): rows read their environment and
+  // the roving capture state from here, so their memoization holds across drag
+  // ticks and capture keystrokes. Both values are stable while a drag is live —
+  // nothing in them changes mid-drag.
+  const rowEnv = useMemo(
+    () => ({ ws, arcs, onIndent: indent, onOutdent: outdent }),
+    [ws, arcs, indent, outdent],
+  );
+  const onCreateUnder = useCallback(
+    (title: string, parent: WireAction) => create(title, parent.id, parent.arcId),
+    [create],
+  );
+  const captureEnv = useMemo(
+    () => ({
+      parentId: captureParent,
+      draft: captureDraft,
+      focusToken,
+      onDraftChange: onCaptureDraftChange,
+      onCreateUnder,
+      onDeepen: deepen,
+      onShallow: shallow,
+    }),
+    [captureParent, captureDraft, focusToken, onCaptureDraftChange, onCreateUnder, deepen, shallow],
+  );
 
   // "Back to top level" shows whenever capture has roved anywhere off the
   // focus's loose level — under an action OR into an arc section (previously an
@@ -907,108 +987,111 @@ function FocusOutline({
   const captureAtTopLevel = captureParent === null && captureArc === null;
 
   return (
-    <section className={showHeader ? "rounded-lg border border-line bg-card p-3" : ""}>
-      {showHeader && (
-        <div className="group mb-1 flex items-center gap-2">
-          {grip}
-          <Link href={`/focus/${focus.id}`} className="font-medium text-ink hover:underline">
-            {focus.name}
-          </Link>
-          <span className="font-mono text-[11px] text-ink-faint">{focus.keyPrefix}</span>
-        </div>
-      )}
+    // The providers sit at the section root so both the loose forest and every
+    // arc forest read the same per-focus environment (PROG-125).
+    <RowEnvContext.Provider value={rowEnv}>
+      <CaptureContext.Provider value={captureEnv}>
+        <section className={showHeader ? "rounded-lg border border-line bg-card p-3" : ""}>
+          {showHeader && (
+            <div className="group mb-1 flex items-center gap-2">
+              {grip}
+              <Link href={`/focus/${focus.id}`} className="font-medium text-ink hover:underline">
+                {focus.name}
+              </Link>
+              <span className="font-mono text-[11px] text-ink-faint">{focus.keyPrefix}</span>
+            </div>
+          )}
 
-      {/* Focus-level (no-arc) actions + their roving capture row. All sortable
+          {/* Focus-level (no-arc) actions + their roving capture row. All sortable
           wiring registers with the PAGE's single DndContext (PROG-118), so rows
           can be dropped across arc — and focus — section boundaries. */}
-      {renderForest(looseForest)}
-      {captureParent === null && captureArc === null && (
-        <CaptureRow
-          depth={0}
-          placeholder="New action — Enter to add, Tab to nest under the one above"
-          draft={captureDraft}
-          onDraftChange={onCaptureDraftChange}
-          onCreate={(t) => create(t, null, null)}
-          onDeepen={deepen}
-          onShallow={shallow}
-          focusToken={focusToken}
-        />
-      )}
+          <Forest nodes={looseForest} />
+          {captureParent === null && captureArc === null && (
+            <CaptureRow
+              depth={0}
+              placeholder="New action — Enter to add, Tab to nest under the one above"
+              draft={captureDraft}
+              onDraftChange={onCaptureDraftChange}
+              onCreate={(t) => create(t, null, null)}
+              onDeepen={deepen}
+              onShallow={shallow}
+              focusToken={focusToken}
+            />
+          )}
 
-      {/* Arc sections — themselves drag-to-reorderable as whole blocks via the
+          {/* Arc sections — themselves drag-to-reorderable as whole blocks via the
           grip in their header (PROG-87); the page's onDragEnd branches on
           what's dragged. */}
-      <SortableContext
-        items={arcForests.map(({ arc }) => arc.id)}
-        strategy={verticalListSortingStrategy}
-      >
-        {arcForests.map(({ arc, forest }) => (
-          <SortableSection
-            key={arc.id}
-            id={arc.id}
-            kind="arc"
-            href={`/arc/${arc.id}`}
-            label={`Open ${arc.name} — drag to reorder`}
-            className="mt-2"
-          >
-            {(arcGrip) => (
-              <>
-                <div className="group flex items-center gap-1.5">
-                  {arcGrip}
-                  <Link
-                    href={`/arc/${arc.id}`}
-                    className="text-sm font-medium text-moss-deep hover:underline"
-                  >
-                    {arc.name}
-                  </Link>
-                </div>
-                {renderForest(forest)}
-                {captureParent === null && captureArc === arc.id && (
-                  <CaptureRow
-                    depth={1}
-                    placeholder={`New action in ${arc.name}`}
-                    draft={captureDraft}
-                    onDraftChange={onCaptureDraftChange}
-                    onCreate={(t) => create(t, null, arc.id)}
-                    onDeepen={deepen}
-                    onShallow={shallow}
-                    focusToken={focusToken}
-                  />
+          <SortableContext items={arcItems} strategy={verticalListSortingStrategy}>
+            {arcForests.map(({ arc, forest }) => (
+              <SortableSection
+                key={arc.id}
+                id={arc.id}
+                kind="arc"
+                href={`/arc/${arc.id}`}
+                label={`Open ${arc.name} — drag to reorder`}
+                className="mt-2"
+              >
+                {(arcGrip) => (
+                  <>
+                    <div className="group flex items-center gap-1.5">
+                      {arcGrip}
+                      <Link
+                        href={`/arc/${arc.id}`}
+                        className="text-sm font-medium text-moss-deep hover:underline"
+                      >
+                        {arc.name}
+                      </Link>
+                    </div>
+                    <Forest nodes={forest} />
+                    {captureParent === null && captureArc === arc.id && (
+                      <CaptureRow
+                        depth={1}
+                        placeholder={`New action in ${arc.name}`}
+                        draft={captureDraft}
+                        onDraftChange={onCaptureDraftChange}
+                        onCreate={(t) => create(t, null, arc.id)}
+                        onDeepen={deepen}
+                        onShallow={shallow}
+                        focusToken={focusToken}
+                      />
+                    )}
+                    {!(captureParent === null && captureArc === arc.id) && (
+                      <button
+                        onClick={() => {
+                          setCaptureParent(null);
+                          setCaptureArc(arc.id);
+                          setFocusToken((t) => t + 1);
+                        }}
+                        className="ml-[22px] rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
+                      >
+                        + action here
+                      </button>
+                    )}
+                  </>
                 )}
-                {!(captureParent === null && captureArc === arc.id) && (
-                  <button
-                    onClick={() => {
-                      setCaptureParent(null);
-                      setCaptureArc(arc.id);
-                      setFocusToken((t) => t + 1);
-                    }}
-                    className="ml-[22px] rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
-                  >
-                    + action here
-                  </button>
-                )}
-              </>
-            )}
-          </SortableSection>
-        ))}
-      </SortableContext>
+              </SortableSection>
+            ))}
+          </SortableContext>
 
-      {/* When capture has roved off the top level, offer a way back. */}
-      {!captureAtTopLevel && (
-        <button
-          onClick={() => {
-            setCaptureParent(null);
-            setCaptureArc(null);
-            setFocusToken((t) => t + 1);
-          }}
-          className="mt-1 rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
-        >
-          ↥ back to top level
-        </button>
-      )}
-    </section>
+          {/* When capture has roved off the top level, offer a way back. */}
+          {!captureAtTopLevel && (
+            <button
+              onClick={() => {
+                setCaptureParent(null);
+                setCaptureArc(null);
+                setFocusToken((t) => t + 1);
+              }}
+              className="mt-1 rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
+            >
+              ↥ back to top level
+            </button>
+          )}
+        </section>
+      </CaptureContext.Provider>
+    </RowEnvContext.Provider>
   );
-}
+});
 
 // ---------- root picker + page ----------
 
@@ -1145,6 +1228,28 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
     if (!preview || activeDrag?.kind !== "action") return visibleActions;
     return visibleActions.map((a) => (a.id === activeDrag.id ? { ...a, ...preview } : a));
   }, [visibleActions, activeDrag, preview]);
+
+  // Each FocusOutline gets only ITS actions, with per-focus identity caching
+  // (PROG-125): a preview hop patches one action, so only the source and
+  // target focus get a fresh array — every other memoized FocusOutline keeps
+  // its slice identity and skips re-rendering (and re-building forests).
+  const sliceCache = useRef(new Map<string, WireAction[]>());
+  const actionsByFocus = useMemo(() => {
+    const next = new Map<string, WireAction[]>();
+    for (const a of previewedActions) {
+      const slice = next.get(a.focusId);
+      if (slice) slice.push(a);
+      else next.set(a.focusId, [a]);
+    }
+    for (const [focusId, slice] of next) {
+      const prev = sliceCache.current.get(focusId);
+      if (prev && prev.length === slice.length && prev.every((x, i) => x === slice[i]))
+        next.set(focusId, prev);
+    }
+    sliceCache.current = next;
+    return next;
+  }, [previewedActions]);
+  const EMPTY_ACTIONS = useRef<WireAction[]>([]).current;
 
   // A cross-focus move always lands top-level (the server detaches steps,
   // PROG-124) — so a drop over a step slots relative to its top-level root.
@@ -1445,9 +1550,21 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
           sensors={sensors}
           collisionDetection={closestCenter}
           // The cross-group preview moves REAL layout mid-drag (rows re-home,
-          // groups open a slot) — keep re-measuring droppables so later
-          // collisions see the shifted rects, not the drag-start snapshot.
-          measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+          // groups open a slot) — but the default WhileDragging measuring
+          // already covers it: a hop remounts the moved subtree (the droppable
+          // registry changes) and swaps the affected groups' SortableContext
+          // items, both of which queue a re-measure, so later collisions see
+          // the shifted rects. The previous MeasuringStrategy.Always only
+          // added full re-measures of every row at mount and on idle
+          // re-renders — pure overhead at outline scale (PROG-125).
+          //
+          // Tame the edge auto-scroll the same way the board does (PROG-79):
+          // the default acceleration (10) fires scroll steps every 5ms, and at
+          // outline scale each step's scroll-offset bookkeeping re-enters
+          // before the last one finished — the drag "gets stuck" whenever the
+          // pointer nears the viewport edge (PROG-125). acceleration 2 keeps
+          // the scroll deliberate and the main thread breathing.
+          autoScroll={{ acceleration: 2 }}
           onDragStart={onDragStart}
           onDragOver={onDragOver}
           onDragEnd={onDragEnd}
@@ -1474,7 +1591,7 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
                       <FocusOutline
                         focus={p}
                         ws={snapshot}
-                        visibleActions={previewedActions}
+                        focusActions={actionsByFocus.get(p.id) ?? EMPTY_ACTIONS}
                         showHeader
                         grip={focusGrip}
                       />
@@ -1490,7 +1607,7 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
                   key={p.id}
                   focus={p}
                   ws={snapshot}
-                  visibleActions={previewedActions}
+                  focusActions={actionsByFocus.get(p.id) ?? EMPTY_ACTIONS}
                   showHeader={false}
                 />
               ))}
