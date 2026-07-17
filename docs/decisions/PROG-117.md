@@ -48,3 +48,16 @@ is where the action lands. Settled:
 - **No Estimate at creation.** The field is gone from the dialog on all
   viewports; new actions start unsized (`estimate: null`) and get sized on
   the action page. Supersedes PROG-117's five-field list.
+
+### PROG-117c — structure creation lives inside the location picker
+
+Owner review of PROG-117b (above): "+ New focus" and "+ New arc" as
+always-visible links under the Location value offered structure creation as
+a standing field control, when it's really part of *choosing a location* —
+you discover the place is missing while looking for it. Settled: the
+Location field's only always-visible trigger is **Change…**; the two create
+links move into the picker pane it opens, as a footer under the tree, and
+swap the pane to the existing create form in place (the pane already shows
+exactly one of picker / new-focus form / new-arc form). "+ New arc" keeps
+its scope condition — it only appears when a focus is selected. Supersedes
+PROG-117's "housed under the Location field" placement.

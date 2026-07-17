@@ -688,9 +688,11 @@ so old bookmarks keep working.
   mini-tree and is set via an inline filterable Workspace → Focus → Arc tree
   picker — the same rows as the palette's `L` picker (shared
   `src/client/locationRows.ts`; focus row = "this focus, no arc", arc row
-  sets both). New actions carry an optional **due date**, and inline
-  **"+ New focus / + New arc"** panels under the Location field spin up
-  structure without leaving the flow (SPEC v2 §4).
+  sets both). New actions carry an optional **due date**. Inline
+  **"+ New focus / + New arc"** links sit in the picker pane's footer
+  (PROG-117c) — structure creation is offered while choosing a location, not
+  as standing field controls — and swap the pane to a create form without
+  leaving the flow (SPEC v2 §4).
 
 ### Keyboard map (D25, D27)
 

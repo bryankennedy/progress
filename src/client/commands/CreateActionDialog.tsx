@@ -269,7 +269,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
                     <span className="truncate">{focus.name}</span>
                   </p>
                 ) : (
-                  <p className="text-sm text-ink-faint">No focus yet — create one below.</p>
+                  <p className="text-sm text-ink-faint">No focus yet — Change… to create one.</p>
                 )}
                 {arc && (
                   <p className="flex items-center gap-1.5 pl-3 text-sm">
@@ -279,19 +279,17 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
                     <span className="truncate">{arc.name}</span>
                   </p>
                 )}
-                <div className="mt-0.5 flex flex-wrap gap-x-4">
-                  <button type="button" onClick={togglePicker} className={FIELD_ACTION_CLS}>
-                    Change…
-                  </button>
-                  <button type="button" onClick={toggleNewFocus} className={FIELD_ACTION_CLS}>
-                    + New focus
-                  </button>
-                  {selectedFocusId && (
-                    <button type="button" onClick={toggleNewArc} className={FIELD_ACTION_CLS}>
-                      + New arc
-                    </button>
-                  )}
-                </div>
+                {/* Change… is the field's only always-visible trigger; the
+                    + New focus / + New arc links live inside the picker pane
+                    it opens (PROG-117c) — creating structure is part of
+                    choosing a location, not a standing offer. */}
+                <button
+                  type="button"
+                  onClick={togglePicker}
+                  className={`mt-0.5 ${FIELD_ACTION_CLS}`}
+                >
+                  Change…
+                </button>
               </div>
             </IconRow>
           </Field>
@@ -361,6 +359,20 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
                       <li className="px-3 py-4 text-center text-sm text-ink-faint">No matches.</li>
                     )}
                   </ul>
+                  {/* Creation footer (PROG-117c): when the tree doesn't have
+                      the place you need, mint it here — the pane swaps to the
+                      create form in place (the toggles are mutually
+                      exclusive). New arc stays scoped to the selected focus. */}
+                  <div className="flex flex-wrap gap-x-4 border-t border-line px-3 py-1">
+                    <button type="button" onClick={toggleNewFocus} className={FIELD_ACTION_CLS}>
+                      + New focus
+                    </button>
+                    {selectedFocusId && (
+                      <button type="button" onClick={toggleNewArc} className={FIELD_ACTION_CLS}>
+                        + New arc
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
 
