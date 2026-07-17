@@ -9,8 +9,8 @@ import { useLocation } from "wouter";
 import { ACTION_ESTIMATES, ACTION_PRIORITIES, ACTION_STATUSES } from "../../shared/constants";
 import type { WireAction, SnapshotPayload } from "../../shared/types";
 import { sortByName } from "../boardFilters";
-import { byRankThenName, sortContainers } from "../containerReorder";
 import { ArcGlyph, FocusGlyph, WorkspaceGlyph } from "../glyphs";
+import { locationRows } from "../locationRows";
 import { addDays, formatDueDate, relativeDue, todayISO } from "../dates";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../labels";
 import {
@@ -247,61 +247,44 @@ function buildItems(
     }
     case "location": {
       // One picker owns the whole outline position (PROG-123b, replacing the
-      // separate move + arc modes): the tree renders Workspace (inert, greyed
-      // header) → Focus → Arc in the manual rank order set on the
-      // outline/structure pages (supersedes PROG-83's alphabetical rule
-      // here). Picking a focus row means "this focus, no arc" — there's no
-      // separate "No arc" row — and picking an arc lands focus + arc in one
-      // step (moveAction already carries an arcId, PROG-118). Same-focus
-      // picks are a plain field update; the current location hints "current".
-      // Archived containers aren't destinations (D26). A query matches a row
-      // or any ancestor (an ancestor match keeps its whole subtree), and
-      // ancestors of a match stay visible as context.
-      const items: Item[] = [];
-      for (const workspace of sortContainers(ws.workspaces)) {
-        const wsMatch = matches(workspace.name);
-        const group: Item[] = [];
-        for (const focus of ws.focuses
-          .filter((p) => p.workspaceId === workspace.id && !p.archivedAt)
-          .sort(byRankThenName)) {
-          const focusMatch = wsMatch || matches(focus.name);
-          const visibleArcs = ws.arcs
-            .filter((a) => a.focusId === focus.id && !a.archivedAt)
-            .sort(byRankThenName)
-            .filter((a) => focusMatch || matches(a.name));
-          if (!focusMatch && visibleArcs.length === 0) continue;
-          group.push({
-            id: focus.id,
-            label: focus.name,
-            icon: <FocusGlyph />,
-            indent: 1,
-            hint: focus.id === action.focusId && action.arcId === null ? "current" : undefined,
-            run: () =>
-              focus.id === action.focusId
-                ? void updateAction(action.id, { arcId: null })
-                : moveAction(action.id, { focusId: focus.id }),
-          });
-          group.push(
-            ...visibleArcs.map((a): Item => ({
-              id: a.id,
-              label: a.name,
+      // separate move + arc modes). The tree itself — rank order, archived
+      // exclusion, tree-aware filtering — is the shared locationRows helper
+      // (PROG-117, also behind the create dialog's Location field); here it
+      // maps to palette items. Workspaces are inert, greyed headers. Picking
+      // a focus row means "this focus, no arc" — there's no separate "No arc"
+      // row — and picking an arc lands focus + arc in one step (moveAction
+      // already carries an arcId, PROG-118). Same-focus picks are a plain
+      // field update; the current location hints "current".
+      return locationRows(ws, query).map((row): Item => {
+        switch (row.kind) {
+          case "workspace":
+            return { id: row.id, label: row.name, icon: <WorkspaceGlyph />, header: true };
+          case "focus":
+            return {
+              id: row.id,
+              label: row.name,
+              icon: <FocusGlyph />,
+              indent: 1,
+              hint: row.id === action.focusId && action.arcId === null ? "current" : undefined,
+              run: () =>
+                row.id === action.focusId
+                  ? void updateAction(action.id, { arcId: null })
+                  : moveAction(action.id, { focusId: row.id }),
+            };
+          case "arc":
+            return {
+              id: row.id,
+              label: row.name,
               icon: <ArcGlyph />,
               indent: 2,
-              hint: a.id === action.arcId ? "current" : undefined,
+              hint: row.id === action.arcId ? "current" : undefined,
               run: () =>
-                focus.id === action.focusId
-                  ? void updateAction(action.id, { arcId: a.id })
-                  : moveAction(action.id, { focusId: focus.id, arcId: a.id }),
-            })),
-          );
+                row.focusId === action.focusId
+                  ? void updateAction(action.id, { arcId: row.id })
+                  : moveAction(action.id, { focusId: row.focusId, arcId: row.id }),
+            };
         }
-        if (group.length > 0)
-          items.push(
-            { id: workspace.id, label: workspace.name, icon: <WorkspaceGlyph />, header: true },
-            ...group,
-          );
-      }
-      return items;
+      });
     }
     case "due": {
       const today = todayISO();
