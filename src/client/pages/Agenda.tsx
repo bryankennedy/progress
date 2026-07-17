@@ -116,7 +116,11 @@ export default function Agenda({ snapshot }: { snapshot: SnapshotPayload }) {
   const filtersActive = FILTER_KEYS.some((k) => filters[k]);
 
   return (
-    <div className="mx-auto max-w-3xl">
+    // Table mode needs the elbow room: the full column set (+ Due + the
+    // bump/Done cell) is ~1100px, so the reading-width container that suits
+    // the list rows would force a horizontal scroll on every bucket. Widen to
+    // 6xl for tables only; list mode keeps its comfortable measure.
+    <div className={`mx-auto ${mode === "table" ? "max-w-6xl" : "max-w-3xl"}`}>
       <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Agenda</h1>
         <p className="text-xs text-ink-faint">
