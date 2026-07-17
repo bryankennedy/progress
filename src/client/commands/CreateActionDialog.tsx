@@ -232,13 +232,18 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
             Location leads — where the action lands is the creation decision —
             with Status beside it, then Due date + Priority. Desktop is a
             two-column grid (Location | Status / Due date | Priority); mobile
-            stacks the same DOM order in one column, Location on top.
-            items-start keeps Status pinned to its row when the Location cell
-            grows (picker or create panels open); min-w-0 lets long names
-            truncate instead of stretching a column. No Estimate at creation —
-            it defaults unset, sized later on the action page. */}
+            stacks one column, Location on top. The Location panels (tree
+            picker / create forms) live in their own conditional cell that
+            spans both columns on desktop — the tree gets the horizontal
+            space under Status — while the `order-*` classes tuck it directly
+            beneath the Location field in the mobile column (every cell
+            carries an explicit order so the two sequences stay deliberate).
+            items-start keeps a row's short cell pinned when its neighbour
+            grows; min-w-0 lets long names truncate instead of stretching a
+            column. No Estimate at creation — it defaults unset, sized later
+            on the action page. */}
         <div className="mt-4 grid grid-cols-1 items-start gap-4 sm:grid-cols-2 sm:gap-x-6">
-          <Field label="Location" className="min-w-0">
+          <Field label="Location" className="order-1 min-w-0">
             <IconRow
               align="start"
               icon={
@@ -289,173 +294,180 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
                 </div>
               </div>
             </IconRow>
+          </Field>
 
-            {/* The inline tree picker: the same rows as the palette's L
+          {/* The Location field's open panel — exactly one of the tree
+              picker and the two create forms (they're mutually exclusive) —
+              in its own full-width row on desktop. */}
+          {(pickerQuery !== null || newFocus !== null || newArc !== null) && (
+            <div className="order-2 min-w-0 sm:order-3 sm:col-span-2">
+              {/* The inline tree picker: the same rows as the palette's L
                 picker — inert workspace headers, focuses and arcs indented,
                 rank-ordered, tree-aware filter. Escape closes just the
                 picker; Enter picks the first (topmost) actionable row. */}
-            {pickerQuery !== null && (
-              <div className="mt-2 overflow-hidden rounded-md border border-line bg-paper">
-                <input
-                  autoFocus
-                  value={pickerQuery}
-                  onChange={(e) => setPickerQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") {
-                      e.stopPropagation();
-                      setPickerQuery(null);
-                    } else if (e.key === "Enter") {
-                      e.preventDefault();
-                      const first = rows.find((r) => r.kind !== "workspace");
-                      if (first) pickLocation(first);
-                    }
-                  }}
-                  placeholder="Filter…"
-                  className="w-full border-b border-line bg-transparent px-3 py-2 text-sm focus:outline-none"
-                />
-                <ul className="max-h-44 overflow-y-auto p-1">
-                  {rows.map((row) =>
-                    row.kind === "workspace" ? (
-                      <li key={row.id}>
-                        <div className="flex items-center gap-1.5 px-2 py-1 text-sm text-ink-faint">
-                          <WorkspaceGlyph />
-                          <span className="truncate">{row.name}</span>
-                        </div>
-                      </li>
-                    ) : (
-                      <li key={row.id}>
-                        <button
-                          type="button"
-                          onClick={() => pickLocation(row)}
-                          className={`flex w-full items-center justify-between gap-3 rounded py-1.5 pr-2 text-left text-sm hover:bg-line ${
-                            row.kind === "arc" ? "pl-10" : "pl-6"
-                          }`}
-                        >
-                          <span className="flex min-w-0 items-center gap-1.5">
-                            <span className="shrink-0 text-ink-faint">
-                              {row.kind === "arc" ? <ArcGlyph /> : <FocusGlyph />}
-                            </span>
+              {pickerQuery !== null && (
+                <div className="overflow-hidden rounded-md border border-line bg-paper">
+                  <input
+                    autoFocus
+                    value={pickerQuery}
+                    onChange={(e) => setPickerQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") {
+                        e.stopPropagation();
+                        setPickerQuery(null);
+                      } else if (e.key === "Enter") {
+                        e.preventDefault();
+                        const first = rows.find((r) => r.kind !== "workspace");
+                        if (first) pickLocation(first);
+                      }
+                    }}
+                    placeholder="Filter…"
+                    className="w-full border-b border-line bg-transparent px-3 py-2 text-sm focus:outline-none"
+                  />
+                  <ul className="max-h-44 overflow-y-auto p-1">
+                    {rows.map((row) =>
+                      row.kind === "workspace" ? (
+                        <li key={row.id}>
+                          <div className="flex items-center gap-1.5 px-2 py-1 text-sm text-ink-faint">
+                            <WorkspaceGlyph />
                             <span className="truncate">{row.name}</span>
-                          </span>
-                          {(row.kind === "focus"
-                            ? row.id === selectedFocusId && arcId === ""
-                            : row.id === arcId) && (
-                            <span className="shrink-0 text-xs text-ink-faint">current</span>
-                          )}
-                        </button>
-                      </li>
-                    ),
-                  )}
-                  {rows.every((r) => r.kind === "workspace") && (
-                    <li className="px-3 py-4 text-center text-sm text-ink-faint">No matches.</li>
-                  )}
-                </ul>
-              </div>
-            )}
+                          </div>
+                        </li>
+                      ) : (
+                        <li key={row.id}>
+                          <button
+                            type="button"
+                            onClick={() => pickLocation(row)}
+                            className={`flex w-full items-center justify-between gap-3 rounded py-1.5 pr-2 text-left text-sm hover:bg-line ${
+                              row.kind === "arc" ? "pl-10" : "pl-6"
+                            }`}
+                          >
+                            <span className="flex min-w-0 items-center gap-1.5">
+                              <span className="shrink-0 text-ink-faint">
+                                {row.kind === "arc" ? <ArcGlyph /> : <FocusGlyph />}
+                              </span>
+                              <span className="truncate">{row.name}</span>
+                            </span>
+                            {(row.kind === "focus"
+                              ? row.id === selectedFocusId && arcId === ""
+                              : row.id === arcId) && (
+                              <span className="shrink-0 text-xs text-ink-faint">current</span>
+                            )}
+                          </button>
+                        </li>
+                      ),
+                    )}
+                    {rows.every((r) => r.kind === "workspace") && (
+                      <li className="px-3 py-4 text-center text-sm text-ink-faint">No matches.</li>
+                    )}
+                  </ul>
+                </div>
+              )}
 
-            {/* Inline focus create (SPEC v2 §4): name + key prefix + workspace,
+              {/* Inline focus create (SPEC v2 §4): name + key prefix + workspace,
                 created and selected without leaving the dialog. */}
-            {newFocus && (
-              <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-line bg-paper p-2">
-                <input
-                  autoFocus
-                  value={newFocus.name}
-                  onChange={(e) =>
-                    setNewFocus((p) =>
-                      p
-                        ? {
-                            ...p,
-                            name: e.target.value,
-                            prefix: p.prefix || suggestPrefix(e.target.value),
-                          }
-                        : p,
-                    )
-                  }
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      submitNewFocus();
+              {newFocus && (
+                <div className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-paper p-2">
+                  <input
+                    autoFocus
+                    value={newFocus.name}
+                    onChange={(e) =>
+                      setNewFocus((p) =>
+                        p
+                          ? {
+                              ...p,
+                              name: e.target.value,
+                              prefix: p.prefix || suggestPrefix(e.target.value),
+                            }
+                          : p,
+                      )
                     }
-                  }}
-                  placeholder="Focus name"
-                  className="min-w-40 flex-1 rounded border border-line px-2 py-1 text-xs focus:border-ink-faint focus:outline-none"
-                />
-                <input
-                  value={newFocus.prefix}
-                  onChange={(e) =>
-                    setNewFocus((p) =>
-                      p
-                        ? {
-                            ...p,
-                            prefix: e.target.value
-                              .toUpperCase()
-                              .replaceAll(/[^A-Z]/g, "")
-                              .slice(0, 8),
-                          }
-                        : p,
-                    )
-                  }
-                  placeholder="KEY"
-                  title="Action-key prefix: 2–8 letters"
-                  className="w-20 rounded border border-line px-2 py-1 font-mono text-xs uppercase focus:border-ink-faint focus:outline-none"
-                />
-                <select
-                  value={newFocus.workspaceId}
-                  onChange={(e) =>
-                    setNewFocus((p) => (p ? { ...p, workspaceId: e.target.value } : p))
-                  }
-                  className="rounded border border-line bg-card px-2 py-1 text-xs text-ink-soft hover:border-ink-faint"
-                >
-                  {activeWorkspaces.map((i) => (
-                    <option key={i.id} value={i.id}>
-                      {i.name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={submitNewFocus}
-                  disabled={
-                    newFocus.name.trim() === "" ||
-                    !/^[A-Z]{2,8}$/.test(newFocus.prefix) ||
-                    !newFocus.workspaceId
-                  }
-                  className="rounded bg-adobe px-2 py-1 text-xs text-white hover:bg-adobe-deep disabled:opacity-40"
-                >
-                  Add
-                </button>
-              </div>
-            )}
-
-            {/* Inline arc create (SPEC v2 §4): a name within the selected focus. */}
-            {newArc !== null && (
-              <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-line bg-paper p-2">
-                <input
-                  autoFocus
-                  value={newArc}
-                  onChange={(e) => setNewArc(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      submitNewArc();
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        submitNewFocus();
+                      }
+                    }}
+                    placeholder="Focus name"
+                    className="min-w-40 flex-1 rounded border border-line px-2 py-1 text-xs focus:border-ink-faint focus:outline-none"
+                  />
+                  <input
+                    value={newFocus.prefix}
+                    onChange={(e) =>
+                      setNewFocus((p) =>
+                        p
+                          ? {
+                              ...p,
+                              prefix: e.target.value
+                                .toUpperCase()
+                                .replaceAll(/[^A-Z]/g, "")
+                                .slice(0, 8),
+                            }
+                          : p,
+                      )
                     }
-                  }}
-                  placeholder="Arc name"
-                  className="min-w-40 flex-1 rounded border border-line px-2 py-1 text-xs focus:border-ink-faint focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={submitNewArc}
-                  disabled={newArc.trim() === "" || !selectedFocusId}
-                  className="rounded bg-adobe px-2 py-1 text-xs text-white hover:bg-adobe-deep disabled:opacity-40"
-                >
-                  Add
-                </button>
-              </div>
-            )}
-          </Field>
+                    placeholder="KEY"
+                    title="Action-key prefix: 2–8 letters"
+                    className="w-20 rounded border border-line px-2 py-1 font-mono text-xs uppercase focus:border-ink-faint focus:outline-none"
+                  />
+                  <select
+                    value={newFocus.workspaceId}
+                    onChange={(e) =>
+                      setNewFocus((p) => (p ? { ...p, workspaceId: e.target.value } : p))
+                    }
+                    className="rounded border border-line bg-card px-2 py-1 text-xs text-ink-soft hover:border-ink-faint"
+                  >
+                    {activeWorkspaces.map((i) => (
+                      <option key={i.id} value={i.id}>
+                        {i.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={submitNewFocus}
+                    disabled={
+                      newFocus.name.trim() === "" ||
+                      !/^[A-Z]{2,8}$/.test(newFocus.prefix) ||
+                      !newFocus.workspaceId
+                    }
+                    className="rounded bg-adobe px-2 py-1 text-xs text-white hover:bg-adobe-deep disabled:opacity-40"
+                  >
+                    Add
+                  </button>
+                </div>
+              )}
 
-          <Field label="Status" className="min-w-0">
+              {/* Inline arc create (SPEC v2 §4): a name within the selected focus. */}
+              {newArc !== null && (
+                <div className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-paper p-2">
+                  <input
+                    autoFocus
+                    value={newArc}
+                    onChange={(e) => setNewArc(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        submitNewArc();
+                      }
+                    }}
+                    placeholder="Arc name"
+                    className="min-w-40 flex-1 rounded border border-line px-2 py-1 text-xs focus:border-ink-faint focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={submitNewArc}
+                    disabled={newArc.trim() === "" || !selectedFocusId}
+                    className="rounded bg-adobe px-2 py-1 text-xs text-white hover:bg-adobe-deep disabled:opacity-40"
+                  >
+                    Add
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          <Field label="Status" className="order-3 min-w-0 sm:order-2">
             <IconSelect
               icon={<StatusIndicator status={status} />}
               openLabel="Change status"
@@ -465,11 +477,11 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
             />
           </Field>
 
-          <Field label="Due date" className="min-w-0">
+          <Field label="Due date" className="order-4 min-w-0">
             <IconDateInput value={dueDate} onChange={setDueDate} />
           </Field>
 
-          <Field label="Priority" className="min-w-0">
+          <Field label="Priority" className="order-5 min-w-0">
             <IconSelect
               icon={<PriorityIndicator priority={priority} />}
               openLabel="Change priority"
