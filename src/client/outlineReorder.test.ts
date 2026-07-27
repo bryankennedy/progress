@@ -2,18 +2,20 @@
 // Ranks are single decimal digits ("1".."4"), a valid subset of the rank
 // alphabet that sorts the same way as the fractional keys minted in production.
 import { describe, expect, it } from "bun:test";
-import { rankForInsert, rankForReorder } from "./outlineReorder";
+import { rankForInsert, rankForReorder, type ReorderPlacement } from "./outlineReorder";
 
 const RANKS: Record<string, string> = { a: "1", b: "2", c: "3", d: "4" };
 const rankOf = (id: string) => RANKS[id]!;
 const group = ["a", "b", "c", "d"];
 
 // Assert the minted rank lands strictly between the two neighbour ranks
-// (null = open end), so a re-sort places the row exactly where intended.
-function between(rank: string | null, lo: string | null, hi: string | null) {
-  expect(rank).not.toBeNull();
-  if (lo !== null) expect(rank! > lo).toBe(true);
-  if (hi !== null) expect(rank! < hi).toBe(true);
+// (null = open end), so a re-sort places the row exactly where intended —
+// and that the drop needed no heal writes (all neighbour ranks distinct).
+function between(placed: ReorderPlacement | null, lo: string | null, hi: string | null) {
+  expect(placed).not.toBeNull();
+  expect(placed!.heal).toEqual([]);
+  if (lo !== null) expect(placed!.rank > lo).toBe(true);
+  if (hi !== null) expect(placed!.rank < hi).toBe(true);
 }
 
 describe("rankForReorder", () => {
@@ -48,6 +50,22 @@ describe("rankForReorder", () => {
     expect(rankForReorder(group, rankOf, "a", "zzz")).toBeNull();
     expect(rankForReorder(group, rankOf, "zzz", "a")).toBeNull();
   });
+
+  it("heals a tied run instead of throwing (PROG-129)", () => {
+    // b, c and d share one duplicate key — the racing-create shape that used
+    // to crash the page: dropping a between two equal ranks has no gap.
+    const dupRanks: Record<string, string> = { a: "1", b: "7", c: "7", d: "7" };
+    const dupOf = (id: string) => dupRanks[id]!;
+    const placed = rankForReorder(group, dupOf, "a", "b");
+    expect(placed).not.toBeNull();
+    // a lands after b; the whole tied run is re-spaced strictly between the
+    // outer bounds ("1" and the open end), preserving b < a < c < d.
+    const rankAt = (id: string) =>
+      id === "a" ? placed!.rank : (placed!.heal.find((h) => h.id === id)?.rank ?? dupOf(id));
+    const order = ["b", "a", "c", "d"].map(rankAt);
+    expect([...order].every((r, i) => i === 0 || order[i - 1]! < r)).toBe(true);
+    expect(order.every((r) => r > "1")).toBe(true);
+  });
 });
 
 describe("rankForInsert (cross-group drop, PROG-118)", () => {
@@ -73,5 +91,15 @@ describe("rankForInsert (cross-group drop, PROG-118)", () => {
 
   it("mints a first rank for an empty group", () => {
     between(rankForInsert([], rankOf, "the-arc-section", false), null, null);
+  });
+
+  it("heals a tied run at the insertion point (PROG-129)", () => {
+    const dupRanks: Record<string, string> = { a: "1", b: "5", c: "5", d: "9" };
+    const dupOf = (id: string) => dupRanks[id]!;
+    // Insert before c: the b/c duplicate pair around the slot is re-spaced.
+    const placed = rankForInsert(group, dupOf, "c", false);
+    const rankAt = (id: string) => placed.heal.find((h) => h.id === id)?.rank ?? dupOf(id);
+    const order = [rankAt("a"), rankAt("b"), placed.rank, rankAt("c"), rankAt("d")];
+    expect(order.every((r, i) => i === 0 || order[i - 1]! < r)).toBe(true);
   });
 });

@@ -8,23 +8,33 @@
 // optimistic PATCH, no renumbering, and because the key is shared a drag here
 // moves the card on the board too (and vice-versa), which is the whole point of
 // the action.
+//
+// "Strictly between" needs strictly ordered neighbours, and real data has ties
+// (racing creates mint duplicate keys — PROG-129). placementRanks handles
+// them: a drop into a tied run also returns `heal` ranks re-spacing the run's
+// existing rows, so the caller writes a few extra one-row PATCHes and the
+// degenerate keys repair themselves.
 
 import { arrayMove } from "@dnd-kit/sortable";
-import { rankBetween } from "../shared/rank";
+import { placementRanks } from "./rankPlacement";
+
+/** A drop's outcome: the active row's rank + heal writes for tied neighbours. */
+export type ReorderPlacement = { rank: string; heal: Array<{ id: string; rank: string }> };
 
 /**
- * New rank for `activeId` after it is dropped over `overId` within one sibling
- * group. `siblingIds` is the group in rendered (rank-sorted) order; `rankOf`
- * returns a sibling's current rank. Returns `null` for a no-op or an invalid
- * drop (either id not in the group, or dropped on itself) so the caller can
- * skip the write.
+ * Placement for `activeId` after it is dropped over `overId` within one sibling
+ * group: the active row's new rank, plus heal ranks for its neighbours when the
+ * drop hit a tied run (see placementRanks). `siblingIds` is the group in
+ * rendered (rank-sorted) order; `rankOf` returns a sibling's current rank.
+ * Returns `null` for a no-op or an invalid drop (either id not in the group, or
+ * dropped on itself) so the caller can skip the write.
  */
 export function rankForReorder(
   siblingIds: string[],
   rankOf: (id: string) => string,
   activeId: string,
   overId: string,
-): string | null {
+): ReorderPlacement | null {
   const from = siblingIds.indexOf(activeId);
   const to = siblingIds.indexOf(overId);
   if (from < 0 || to < 0 || from === to) return null;
@@ -33,19 +43,19 @@ export function rankForReorder(
   // index shift when moving down (the boardOrder within-column subtlety).
   const next = arrayMove(siblingIds, from, to);
   const pos = next.indexOf(activeId);
-  const prevId = pos > 0 ? next[pos - 1]! : null;
-  const nextId = pos < next.length - 1 ? next[pos + 1]! : null;
-
-  // The other siblings keep their sorted order, so prev.rank < next.rank holds
-  // and rankBetween never throws.
-  return rankBetween(prevId ? rankOf(prevId) : null, nextId ? rankOf(nextId) : null);
+  const others = next.filter((id) => id !== activeId);
+  const placed = placementRanks(others.map(rankOf), pos);
+  return {
+    rank: placed.rank,
+    heal: placed.heal.map((h) => ({ id: others[h.index]!, rank: h.rank })),
+  };
 }
 
 /**
- * Rank for `active` landing in a sibling group it is NOT currently part of — a
- * cross-group drop (PROG-118: into another arc, the loose level, or another
- * focus). `groupIds` is the target group in rendered order, without the active
- * id. Dropped over a member, the action slots before it — or after when
+ * Placement for `active` landing in a sibling group it is NOT currently part
+ * of — a cross-group drop (PROG-118: into another arc, the loose level, or
+ * another focus). `groupIds` is the target group in rendered order, without the
+ * active id. Dropped over a member, the action slots before it — or after when
  * `below` (pointer past the member's vertical middle, the board's cross-column
  * rule). Dropped over the group itself (its section header / empty body,
  * `overId` not in the group), it appends to the end.
@@ -55,10 +65,12 @@ export function rankForInsert(
   rankOf: (id: string) => string,
   overId: string,
   below: boolean,
-): string {
+): ReorderPlacement {
   const overIndex = groupIds.indexOf(overId);
   const insertAt = overIndex < 0 ? groupIds.length : overIndex + (below ? 1 : 0);
-  const prevId = insertAt > 0 ? groupIds[insertAt - 1]! : null;
-  const nextId = insertAt < groupIds.length ? (groupIds[insertAt] ?? null) : null;
-  return rankBetween(prevId ? rankOf(prevId) : null, nextId ? rankOf(nextId) : null);
+  const placed = placementRanks(groupIds.map(rankOf), insertAt);
+  return {
+    rank: placed.rank,
+    heal: placed.heal.map((h) => ({ id: groupIds[h.index]!, rank: h.rank })),
+  };
 }

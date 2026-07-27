@@ -62,7 +62,7 @@ import { clearDraft, readDraft, writeDraft } from "../drafts";
 import PriorityIndicator from "../PriorityIndicator";
 import StatusIndicator from "../StatusIndicator";
 import { DROP_ANIMATION } from "../dropAnimation";
-import { rankForInsert, rankForReorder } from "../outlineReorder";
+import { rankForInsert, rankForReorder, type ReorderPlacement } from "../outlineReorder";
 import { byRankThenName, containerReorderRanks } from "../containerReorder";
 import { loadHideDone, loadScope, saveHideDone, saveScope } from "../outlinePrefs";
 // Tree model + sibling rules live in outlineTree.ts (pure, unit-tested).
@@ -1226,6 +1226,9 @@ export function OutlineView({
     arcId: string | null;
     parentActionId: string | null;
     rank: string;
+    // Rank rewrites for tied neighbours at the previewed slot (PROG-129),
+    // carried along so the drop can apply them; never written during preview.
+    heal: Array<{ id: string; rank: string }>;
   } | null>(null);
   const clearDrag = () => {
     setActiveDrag(null);
@@ -1243,7 +1246,10 @@ export function OutlineView({
   // the pending drop.
   const previewedActions = useMemo(() => {
     if (!preview || activeDrag?.kind !== "action") return visibleActions;
-    return visibleActions.map((a) => (a.id === activeDrag.id ? { ...a, ...preview } : a));
+    const { focusId, arcId, parentActionId, rank } = preview;
+    return visibleActions.map((a) =>
+      a.id === activeDrag.id ? { ...a, focusId, arcId, parentActionId, rank } : a,
+    );
   }, [visibleActions, activeDrag, preview]);
 
   // Each FocusOutline gets only ITS actions, with per-focus identity caching
@@ -1305,6 +1311,7 @@ export function OutlineView({
     arcId: string | null;
     parentActionId: string | null;
     rank: string;
+    heal: Array<{ id: string; rank: string }>;
   } | null => {
     const target = (() => {
       const overAction = actionById.get(overId);
@@ -1344,15 +1351,13 @@ export function OutlineView({
       target.arcId,
     ).filter((i) => i.id !== active.id);
     const { anchorId, ...fields } = target;
-    return {
-      ...fields,
-      rank: rankForInsert(
-        group.map((i) => i.id),
-        rankOf,
-        anchorId,
-        below,
-      ),
-    };
+    const placed = rankForInsert(
+      group.map((i) => i.id),
+      rankOf,
+      anchorId,
+      below,
+    );
+    return { ...fields, rank: placed.rank, heal: placed.heal };
   };
 
   // Pointer past the hovered target's vertical middle → land below it (the
@@ -1383,7 +1388,19 @@ export function OutlineView({
     setPreview(targetKey === homeKey ? null : resolved);
   };
 
+  // Guarded (PROG-129): a drop that fails to compute must land as a no-op,
+  // never as an uncaught throw inside dnd-kit's drag-end batch — that left the
+  // DndContext mid-flight and cascaded into a render loop that unmounted the
+  // whole page.
   const onDragEnd = (e: DragEndEvent) => {
+    try {
+      onDragEndInner(e);
+    } catch (err) {
+      console.error("drop failed", err);
+    }
+  };
+
+  const onDragEndInner = (e: DragEndEvent) => {
     const dropPreview = activeDrag?.kind === "action" ? preview : null;
     clearDrag();
     const activeId = String(e.active.id);
@@ -1439,14 +1456,25 @@ export function OutlineView({
     // The landing group as rendered at release (active row at its previewed
     // spot), so the within-group reorder math sees what the user saw.
     const listAtDrop = dropPreview
-      ? visibleActions.map((a) => (a.id === activeId ? { ...a, ...dropPreview } : a))
+      ? visibleActions.map((a) =>
+          a.id === activeId
+            ? {
+                ...a,
+                focusId: dropPreview.focusId,
+                arcId: dropPreview.arcId,
+                parentActionId: dropPreview.parentActionId,
+                rank: dropPreview.rank,
+              }
+            : a,
+        )
       : visibleActions;
     const group = siblingsOf(listAtDrop, target.focusId, target.parentActionId, target.arcId);
-    let reordered: string | null = null;
+    let reordered: ReorderPlacement | null = null;
     if (overId !== activeId && group.some((i) => i.id === overId)) {
       // Released over a sibling: mint a rank between its new neighbours — the
       // same shared `rank` the board writes, so this drag also moves the card
-      // there and vice-versa (PROG-86).
+      // there and vice-versa (PROG-86). Recomputed from the group's REAL
+      // stored ranks, so this also supersedes any hover-time heal.
       reordered = rankForReorder(
         group.map((i) => i.id),
         (id) => group.find((i) => i.id === id)!.rank,
@@ -1454,12 +1482,16 @@ export function OutlineView({
         overId,
       );
     }
+    // Tied neighbours at the slot (PROG-129): re-space them first, so the
+    // active row's rank lands strictly between real, distinct keys.
+    const heal = reordered?.heal ?? (dropPreview ? dropPreview.heal : []);
+    for (const h of heal) void updateAction(h.id, { rank: h.rank });
     if (!dropPreview) {
       // Never left home: a plain same-group reorder, or a no-op click.
-      if (reordered) void updateAction(activeId, { rank: reordered });
+      if (reordered) void updateAction(activeId, { rank: reordered.rank });
       return;
     }
-    const rank = reordered ?? dropPreview.rank;
+    const rank = reordered?.rank ?? dropPreview.rank;
     if (dropPreview.focusId === active.focusId) {
       // Same focus: join the previewed group right where shown — one
       // optimistic PATCH covers arc → arc, arc ↔ loose, and step groups.

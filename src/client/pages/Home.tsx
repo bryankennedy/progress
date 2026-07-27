@@ -33,7 +33,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { ACTION_STATUSES, type ActionStatus } from "../../shared/constants";
-import { rankBetween } from "../../shared/rank";
+import { placementRanks } from "../rankPlacement";
 import { DROP_ANIMATION } from "../dropAnimation";
 import { reorder, type ColumnMap } from "../boardOrder";
 import { BOARD_FILTERS_KEY, FILTER_NONE, matchesNullableId } from "../boardFilters";
@@ -239,7 +239,19 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
     });
   };
 
+  // Guarded (PROG-129): a drop whose rank math fails must reset to the stored
+  // order, never throw out of dnd-kit's drag-end batch — that unmounted the
+  // whole page.
   const onDragEnd = (e: DragEndEvent) => {
+    try {
+      onDragEndInner(e);
+    } catch (err) {
+      console.error("drop failed", err);
+      setColumns(sourceColumns);
+    }
+  };
+
+  const onDragEndInner = (e: DragEndEvent) => {
     setActive(null);
     const id = String(e.active.id);
     const overId = e.over ? String(e.over.id) : null;
@@ -280,11 +292,16 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
     const srcNext = sIdx < src.length - 1 ? src[sIdx + 1]! : null;
     if (to === action.status && srcPrev === prevId && srcNext === nextId) return;
 
-    const newRank = rankBetween(
-      prevId ? (actionsById.get(prevId)?.rank ?? null) : null,
-      nextId ? (actionsById.get(nextId)?.rank ?? null) : null,
+    // Place among the column's OTHER cards (PROG-129): placementRanks mints the
+    // dropped card's rank, plus heal rewrites when the slot's neighbours carry
+    // tied duplicate keys — the case that used to throw and blank the page.
+    const others = targetItems.filter((x) => x !== id && actionsById.has(x));
+    const placed = placementRanks(
+      others.map((x) => actionsById.get(x)!.rank),
+      pos > others.length ? others.length : pos,
     );
-    const patch: ActionPatch = { rank: newRank };
+    for (const h of placed.heal) updateAction(others[h.index]!, { rank: h.rank });
+    const patch: ActionPatch = { rank: placed.rank };
     if (to !== action.status) patch.status = to;
     updateAction(id, patch);
   };
