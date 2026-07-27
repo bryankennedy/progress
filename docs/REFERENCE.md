@@ -228,7 +228,8 @@ mandatory — renew it before it lapses (an expired file is worse than none).
 | Route | Behavior |
 |---|---|
 | `GET /api/health` | Readiness probe: round-trips D1 (`select 1`). `{ ok: true, db: "ok" }` (200) when reachable, `{ ok: false, db: "error" }` (503) when not — so it reflects database reachability, not just that the Worker booted. The only `/api/*` route never access-logged. |
-| `GET /api/snapshot` | The load-everything payload (`SnapshotPayload`): `me` (the signed-in user, PROG-34), users, workspaces, focuses, arcs, actions, tags, actionTags, actionKeyAliases — eight independent reads run with `Promise.all` (not a `db.batch`/transaction, which 500'd on production D1; D31). Comments/activity are deliberately excluded (D20). |
+| `GET /api/snapshot` | The load-everything payload (`SnapshotPayload`): `me` (the signed-in user, PROG-34), users, workspaces, focuses, arcs, actions, tags, actionTags, actionKeyAliases — eight independent reads run with `Promise.all` (not a `db.batch`/transaction, which 500'd on production D1; D31). Comments/activity are deliberately excluded (D20). Also carries `syncCursors` (PROG-128), computed **before** the table reads so a write landing mid-request is never skipped by the background sync. |
+| `GET /api/snapshot/version` | Background-sync change probe (PROG-128): `{ cursors: { snapshot, timeline } }` — two opaque strings built from per-table row counts + max `updated_at` (one aggregate `SELECT`, `src/worker/syncCursors.ts`). The client compares them for equality and refetches the snapshot / invalidates timelines only when one moved. Excluded from the access log, like `/api/health`. |
 | `POST /api/actions` | `{ title, focusId, arcId?, parentActionId?, description?, status?, priority?, estimate?, dueDate?, tagIds? }` → 201 `{ action }`. `dueDate` is `YYYY-MM-DD` or null, validated (impossible dates rejected). `parentActionId` must be an existing action in the same focus (PROG-124). `tagIds` (PROG-89b) links existing tags at birth — every id must exist or the whole create 400s. Number allocated by atomic increment of the focus sequence; gaps from failed creates are harmless (D24). A board `rank` is auto-assigned, appended after the current last action (D44). |
 | `PATCH /api/actions/:id` | Any of `title, description, status, priority, estimate, arcId, parentActionId, dueDate, rank` — validated per field; arc and parent must be same-focus; `parentActionId` reparent is acyclic and not self (PROG-124); `dueDate`/`arcId`/`parentActionId` accept null to clear. `rank` is a fractional-index board key the client computes from the drop site's neighbors (D44). A status change atomically appends a `status_changed` activity row and maintains `completedAt`. |
 | `POST /api/actions/:id/move` | `{ focusId, arcId?, rank? }` — the focus is the sole container (PROG-102). Re-keys from the target focus, clears arc, detaches steps, writes the alias, logs `moved`. `arcId`/`rank` (PROG-118, the Outline's cross-focus drag) name a landing spot: the arc must belong to the **target** focus, `rank` is a validated fractional key. 400 if `focusId` is the action's current focus (no-op). |
@@ -376,13 +377,26 @@ arc-page load. In-app only for now (no CLI/MCP arc kickoff yet).
 ### The store (`src/client/store.ts`)
 
 - One TanStack Query cache entry `['snapshot']` holds the entire snapshot
-  (`useSnapshot()`), fetched once with `staleTime: Infinity` — this client is
-  the only writer, so nothing goes stale on its own (D21). Components
-  subscribe to slices via `useSnapshotSlice`; structural sharing keeps
-  re-renders scoped.
+  (`useSnapshot()`), fetched once with `staleTime: Infinity` — nothing goes
+  stale on time alone (D21). Components subscribe to slices via
+  `useSnapshotSlice`; structural sharing keeps re-renders scoped.
 - Per-action timelines are separate `['action', id, 'timeline']` queries,
   loaded when an action page opens and invalidated by mutations that append
   activity.
+- **Background sync (`src/client/sync.ts`, PROG-128)** — changes made by
+  *other* sessions (agents on the API/MCP, a second tab) land without a
+  reload. The client probes `GET /api/snapshot/version` on route change,
+  window focus/online, and a 60 s visible-tab interval (throttled to one
+  probe per 10 s); only when the returned change cursor differs from the one
+  adopted with the last snapshot payload does it refetch the full snapshot
+  (and invalidate timeline queries when the timeline cursor moved). Every
+  store mutation's server sync runs inside `trackedWrite`, which pauses
+  cursor application and cancels an in-flight background refetch so a refresh
+  never clobbers optimistic state; a deferred change is re-detected on the
+  next probe because the local cursor only advances when fresh data lands.
+  Own writes move the server cursor too, so at most one redundant background
+  refetch follows local edits per interval — accepted (structural sharing
+  keeps the re-render cost scoped to changed rows).
 - **Every mutation is optimistic** (SPEC §8.2 is a hard requirement): write
   the cache synchronously, sync in the background, and on failure restore
   exactly the touched state and raise a toast. No interaction ever waits on
