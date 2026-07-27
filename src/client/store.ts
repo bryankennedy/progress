@@ -2,7 +2,12 @@
 // cache entry, loaded once and rendered from memory (SPEC §8.2). Components
 // subscribe to slices via `useSnapshotSlice`; structural sharing keeps
 // unchanged slices reference-stable so re-renders stay scoped. Per-action
-// timelines (comments + activity) are separate queries (D20).
+// timelines (comments + activity) are separate queries (D20). Changes made by
+// OTHER sessions (agents, a second tab) land via the background sync module
+// (PROG-128, ./sync.ts), which refetches the snapshot when a cheap server-side
+// change cursor moves; every mutation's server sync is wrapped in
+// `trackedWrite` so a background refresh never clobbers an in-flight
+// optimistic write.
 
 import {
   keepPreviousData,
@@ -33,6 +38,7 @@ import type {
   WireTag,
   SnapshotPayload,
 } from "../shared/types";
+import { adoptSyncCursors, trackedWrite } from "./sync";
 import { toast } from "./toast";
 import { prefetchBundle } from "./workOn";
 
@@ -85,14 +91,18 @@ notifyManager.setScheduler((cb) => cb());
 
 export const queryClient = new QueryClient({
   defaultOptions: {
-    // Nothing goes stale on its own: this client is the only writer
-    // (single-user v1), so background refetching is pure churn. Mutations
-    // invalidate exactly what they touched.
+    // Nothing goes stale on its own. Mutations invalidate exactly what they
+    // touched, and cross-session changes (agent sessions, other tabs) are
+    // picked up by the background sync module (PROG-128, ./sync.ts), which
+    // refetches only when the server's change cursor actually moved — React
+    // Query's own time-based refetching would re-ship the full snapshot to
+    // find out nothing changed.
     queries: { staleTime: Infinity, gcTime: Infinity, refetchOnWindowFocus: false },
   },
 });
 
-const WS_KEY = ["snapshot"] as const;
+export const SNAPSHOT_KEY = ["snapshot"] as const;
+const WS_KEY = SNAPSHOT_KEY;
 const timelineKey = (actionId: string) => ["action", actionId, "timeline"] as const;
 
 // Initial app load is the one permitted loading state; surface its cost.
@@ -108,15 +118,22 @@ export class UnauthenticatedError extends Error {
   }
 }
 
-async function fetchSnapshot(): Promise<SnapshotPayload> {
+async function fetchSnapshot({ signal }: { signal?: AbortSignal } = {}): Promise<SnapshotPayload> {
   const t0 = performance.now();
-  const res = await fetch("/api/snapshot");
+  // The signal makes a background refresh (PROG-128) cancelable when a write
+  // starts mid-flight; the initial load is never canceled.
+  const res = await fetch("/api/snapshot", { signal });
   // Not signed in: surface as a distinct error so App can show the landing page
   // with a "Sign in with Google" CTA instead of silently redirecting.
   if (res.status === 401) throw new UnauthenticatedError();
   if (!res.ok) throw new Error(`snapshot load failed: HTTP ${res.status}`);
   const ws = (await res.json()) as SnapshotPayload;
-  loadStats.fetchMs = performance.now() - t0;
+  // Keep the footer's load-cost readout about the INITIAL load, not whichever
+  // background refresh ran last.
+  if (loadStats.fetchMs === 0) loadStats.fetchMs = performance.now() - t0;
+  // Every payload carries its own change cursors; adopting them here keeps the
+  // sync module's baseline current no matter who triggered the fetch.
+  adoptSyncCursors(ws.syncCursors);
   return ws;
 }
 
@@ -223,7 +240,7 @@ async function optimisticActionMutation(
   // PATCH is idempotent, so transient D1 resets can be retried safely (PROG-51).
   // Fast backoff: the optimistic value is on screen, so revert quickly on a true
   // failure rather than holding a wrong value through a long retry.
-  const res = await sendWithRetry(send, MUTATION_BACKOFF_MS);
+  const res = await trackedWrite(() => sendWithRetry(send, MUTATION_BACKOFF_MS));
   const ok = res?.ok ?? false;
   if (!ok) {
     writeAction(id, () => before);
@@ -395,7 +412,7 @@ export function createAction(input: ActionCreateInput): string | undefined {
       : w,
   );
 
-  void (async () => {
+  void trackedWrite(async () => {
     let serverAction: WireAction | undefined;
     try {
       const res = await fetch("/api/actions", {
@@ -431,7 +448,7 @@ export function createAction(input: ActionCreateInput): string | undefined {
       };
     });
     if (!serverAction) toast("Couldn't create that action — removed.");
-  })();
+  });
 
   return `${focus.keyPrefix}-${temp.number}`;
 }
@@ -493,7 +510,7 @@ export function moveAction(id: string, target: MoveTarget) {
     };
   });
 
-  void (async () => {
+  void trackedWrite(async () => {
     let serverAction: WireAction | undefined;
     try {
       const res = await fetch(`/api/actions/${id}/move`, {
@@ -536,7 +553,7 @@ export function moveAction(id: string, target: MoveTarget) {
       };
     });
     toast("Couldn't move that action — reverted.");
-  })();
+  });
 }
 
 // ---------- containers (D26) ----------
@@ -605,7 +622,7 @@ export function createContainer(input: ContainerCreateInput): string {
   const collection = CONTAINER_COLLECTIONS[input.kind];
   writeContainers(collection, (list) => [...list, temp]);
 
-  void (async () => {
+  void trackedWrite(async () => {
     let server: WireContainer | undefined;
     let message = "";
     try {
@@ -629,7 +646,7 @@ export function createContainer(input: ContainerCreateInput): string {
       writeContainers(collection, (list) => list.filter((x) => x.id !== id));
       toast(`Couldn't create that ${input.kind} — removed.${message ? ` (${message})` : ""}`);
     }
-  })();
+  });
 
   return id;
 }
@@ -676,14 +693,16 @@ export function updateContainer(
   // PATCH is idempotent, so retry transient D1 resets (PROG-51). Fast backoff:
   // the optimistic value is visible, so revert quickly on a true failure.
   return (async () => {
-    const res = await sendWithRetry(
-      () =>
-        fetch(`/api/${collection}/${id}`, {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(patch),
-        }),
-      MUTATION_BACKOFF_MS,
+    const res = await trackedWrite(() =>
+      sendWithRetry(
+        () =>
+          fetch(`/api/${collection}/${id}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(patch),
+          }),
+        MUTATION_BACKOFF_MS,
+      ),
     );
     const ok = res?.ok ?? false;
     if (!ok) {
@@ -737,7 +756,7 @@ export function tagAction(actionId: string, tag: { tagId: string } | { name: str
       : w,
   );
 
-  void (async () => {
+  void trackedWrite(async () => {
     let serverTag: WireTag | undefined;
     try {
       const res = await fetch(`/api/actions/${actionId}/tags`, {
@@ -779,7 +798,7 @@ export function tagAction(actionId: string, tag: { tagId: string } | { name: str
       );
       toast("Couldn't add that tag — removed.");
     }
-  })();
+  });
 }
 
 export function untagAction(actionId: string, tagId: string) {
@@ -795,7 +814,7 @@ export function untagAction(actionId: string, tagId: string) {
       : w,
   );
 
-  void (async () => {
+  void trackedWrite(async () => {
     let ok = false;
     try {
       ok = (await fetch(`/api/actions/${actionId}/tags/${tagId}`, { method: "DELETE" })).ok;
@@ -810,7 +829,7 @@ export function untagAction(actionId: string, tagId: string) {
     } else {
       refreshBundle(actionId);
     }
-  })();
+  });
 }
 
 // ---------- comment search (PROG-130) ----------
@@ -914,12 +933,14 @@ export async function addComment(actionId: string, body: string): Promise<boolea
     t ? { ...t, comments: [...t.comments, temp] } : t,
   );
 
-  const res = await sendWithRetry(() =>
-    fetch(`/api/actions/${actionId}/comments`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id, body }),
-    }),
+  const res = await trackedWrite(() =>
+    sendWithRetry(() =>
+      fetch(`/api/actions/${actionId}/comments`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id, body }),
+      }),
+    ),
   );
   if (res?.ok) {
     void queryClient.invalidateQueries({ queryKey: timelineKey(actionId) });
@@ -968,7 +989,7 @@ export function addAllowedEmail(email: string, note: string) {
   };
   writeAllowedEmails((list) => [...list, temp].sort(byEmail));
 
-  void (async () => {
+  void trackedWrite(async () => {
     let saved: WireAllowedEmail | undefined;
     let conflict = false;
     try {
@@ -989,7 +1010,7 @@ export function addAllowedEmail(email: string, note: string) {
       writeAllowedEmails((list) => list.filter((e) => e.id !== tempId));
       toast(conflict ? "That email is already on the list." : "Couldn't add that email — removed.");
     }
-  })();
+  });
 }
 
 export function updateAllowedEmailNote(id: string, note: string) {
@@ -1001,7 +1022,7 @@ export function updateAllowedEmailNote(id: string, note: string) {
   if (trimmed === before.note) return;
   writeAllowedEmails((list) => list.map((e) => (e.id === id ? { ...e, note: trimmed } : e)));
 
-  void (async () => {
+  void trackedWrite(async () => {
     let ok = false;
     try {
       ok = (
@@ -1018,7 +1039,7 @@ export function updateAllowedEmailNote(id: string, note: string) {
       writeAllowedEmails((list) => list.map((e) => (e.id === id ? before : e)));
       toast("Couldn't save that note — reverted.");
     }
-  })();
+  });
 }
 
 export function removeAllowedEmail(id: string) {
@@ -1028,7 +1049,7 @@ export function removeAllowedEmail(id: string) {
   if (!before) return;
   writeAllowedEmails((list) => list.filter((e) => e.id !== id));
 
-  void (async () => {
+  void trackedWrite(async () => {
     let ok = false;
     try {
       ok = (await fetch(`/api/admin/allowlist/${id}`, { method: "DELETE" })).ok;
@@ -1039,5 +1060,5 @@ export function removeAllowedEmail(id: string) {
       writeAllowedEmails((list) => [...list, before].sort(byEmail));
       toast("Couldn't remove that email — restored.");
     }
-  })();
+  });
 }

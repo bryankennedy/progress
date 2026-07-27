@@ -1,10 +1,12 @@
-import { Link, Redirect, Route, Switch } from "wouter";
+import { useEffect } from "react";
+import { Link, Redirect, Route, Switch, useLocation } from "wouter";
 import CommandLayer from "./commands/CommandLayer";
 import Header from "./Header";
 import MobileTabBar from "./MobileTabBar";
 import InstallPrompt from "./pwa/InstallPrompt";
 import SignIn from "./SignIn";
 import { UnauthenticatedError, useSnapshot } from "./store";
+import { requestSyncCheck } from "./sync";
 import { Toasts } from "./toast";
 import Admin from "./pages/Admin";
 import Agenda from "./pages/Agenda";
@@ -35,6 +37,14 @@ const LEGACY_REDIRECTS: { path: string; to: (id: string) => string }[] = [
 
 export default function App() {
   const { data: snapshot, isPending, error } = useSnapshot();
+
+  // Route changes are when the user most expects fresh data ("clicking a link
+  // loads the latest") — probe the change cursor on every navigation
+  // (PROG-128). Throttled internally, so link-hopping stays cheap.
+  const [location] = useLocation();
+  useEffect(() => {
+    requestSyncCheck();
+  }, [location]);
 
   // Not signed in: the landing page is the whole screen (no header/shell).
   if (error instanceof UnauthenticatedError) return <SignIn />;
