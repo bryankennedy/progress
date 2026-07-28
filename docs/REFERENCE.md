@@ -448,7 +448,10 @@ so old bookmarks keep working.
   mint duplicates) additionally re-spaces the tied run with a few one-row
   writes (`placementRanks`, `src/client/rankPlacement.ts`) — degenerate keys
   self-heal on the first drag that lands on them (PROG-129); the board's drop
-  handler shares the same math. Only the handle starts a drag (the title input stays editable);
+  handler shares the same math. The synthesized click mobile browsers fire at
+  the release point after a touch drag is swallowed (a one-shot window-capture
+  listener armed on drag end, PROG-130) — without it the ghost click
+  native-navigated whatever handle link sat under the finger. Only the handle starts a drag (the title input stays editable);
   reparenting stays on Tab/Shift+Tab (PROG-86). Dropped **outside** its own
   sibling group, the action **moves** there instead (PROG-118): one page-wide
   `DndContext` covers every row and section, so a drop onto a row in another

@@ -35,6 +35,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  type DragCancelEvent,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
@@ -120,6 +121,27 @@ function LevelIcon({ kind }: { kind: "focus" | "arc" | "action" | "sub" }) {
 
 // ---------- the consolidated row handle (PROG-111) ----------
 
+// Swallow the browser's synthesized post-drag click (PROG-130). After a touch
+// drag, iOS Safari fires a simulated `click` at the RELEASE point — and by
+// then the drop has re-sorted the rows, so that click lands on some OTHER
+// row's handle. dnd-kit guards clicks with a document-capture stopPropagation
+// (so no React handler — including Handle's own moved-distance guard — ever
+// runs), but stopPropagation doesn't cancel a click's DEFAULT action, and the
+// handle is a real <a href>: the browser navigated natively to whatever row
+// slid under the finger. A window-capture listener runs before dnd-kit's
+// document one, so this can preventDefault the ghost click first. One-shot,
+// disarmed after the first click or 400ms, whichever comes first.
+function swallowNextClick() {
+  const swallow = (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    disarm();
+  };
+  const disarm = () => window.removeEventListener("click", swallow, true);
+  window.addEventListener("click", swallow, true);
+  setTimeout(disarm, 400);
+}
+
 // ONE handle per row/section header, replacing the old three-icon gutter (the
 // 6-dot drag grip + the far-left ⋯ open-link + a separate level bullet). The
 // glyph IS the level bullet — focus square, arc layers, action ring, step dot —
@@ -170,6 +192,14 @@ function Handle({
       onClick={(e) => {
         const d = downAt.current;
         downAt.current = null;
+        // A pointer click we never saw the pointerdown for is a post-drag
+        // ghost that landed here after the rows re-sorted (PROG-130) — never
+        // a navigation intent. Keyboard activation (Enter) has detail 0 and
+        // no pointerdown; it falls through to navigate.
+        if (!d && e.detail > 0) {
+          e.preventDefault();
+          return;
+        }
         const moved = d ? Math.hypot(e.clientX - d.x, e.clientY - d.y) : 0;
         if (moved > 4) {
           e.preventDefault(); // this "click" was the tail of a drag
@@ -1388,11 +1418,20 @@ export function OutlineView({
     setPreview(targetKey === homeKey ? null : resolved);
   };
 
+  // Any POINTER drag that activated may be tailed by a synthesized click at
+  // the release point (PROG-130) — swallow it before it native-navigates. A
+  // keyboard drag (Space pickup) is excluded: no click follows an Enter/Space
+  // drop, and arming the swallower would eat the user's next real click.
+  const guardDragTail = (e: DragEndEvent | DragCancelEvent) => {
+    if (!(e.activatorEvent instanceof KeyboardEvent)) swallowNextClick();
+  };
+
   // Guarded (PROG-129): a drop that fails to compute must land as a no-op,
   // never as an uncaught throw inside dnd-kit's drag-end batch — that left the
   // DndContext mid-flight and cascaded into a render loop that unmounted the
   // whole page.
   const onDragEnd = (e: DragEndEvent) => {
+    guardDragTail(e);
     try {
       onDragEndInner(e);
     } catch (err) {
@@ -1552,7 +1591,10 @@ export function OutlineView({
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
-      onDragCancel={clearDrag}
+      onDragCancel={(e) => {
+        guardDragTail(e);
+        clearDrag();
+      }}
     >
       {scope.kind === "workspace" ? (
         <SortableContext
