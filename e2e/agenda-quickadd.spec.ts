@@ -89,7 +89,8 @@ test("quick-add under Today creates an action due today (PROG-89)", async ({ pag
   await expect(section.getByText(title)).toBeVisible();
   await expect(input).toHaveValue("");
 
-  // Server-confirmed: right focus, due today, todo.
+  // Server-confirmed: right focus, due today, default status — quick-adds
+  // stopped hardcoding `todo` when the store took over defaults (PROG-115).
   await expect
     .poll(async () => {
       const ws = await (await page.request.get("/api/snapshot")).json();
@@ -98,7 +99,7 @@ test("quick-add under Today creates an action due today (PROG-89)", async ({ pag
       );
       return action && { dueDate: action.dueDate, status: action.status };
     })
-    .toEqual({ dueDate: today, status: "todo" });
+    .toEqual({ dueDate: today, status: "backlog" });
 
   await cleanupFocus(page, focus.id);
 });
