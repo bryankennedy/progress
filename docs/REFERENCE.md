@@ -604,11 +604,11 @@ so old bookmarks keep working.
   inline picker that follows the active Focus filter, else the last focus
   quick-added into (localStorage); active Arc (when it belongs to the chosen
   focus) and Tag filters are inherited (PROG-89b), so the capture stays visible
-  under the filters it was typed into. Groups still hide when empty, so the
-  input appears only under populated groups — except **Tomorrow**, which always
-  renders so adding for tomorrow is always possible (PROG-97, narrowly
-  superseding PROG-89's hide-when-empty); Overdue never gets one (an action
-  can't be born late). A **List/Table toggle** (PROG-126, sticky per surface) swaps each
+  under the filters it was typed into. Every forward-looking group (Today ·
+  Tomorrow · This week · Later) always renders — empty means the bare heading
+  plus the quick-add, so each window is always capturable (PROG-97b,
+  superseding PROG-89's hide-when-empty); only Overdue hides when empty, and
+  it never gets an input (an action can't be born late). A **List/Table toggle** (PROG-126, sticky per surface) swaps each
   bucket's rows for the shared sortable `ActionTable` — same columns as search
   plus **Due**, one header-sort shared across buckets (unsorted keeps the
   agenda's due-then-key order), a quick-search box narrowing within the

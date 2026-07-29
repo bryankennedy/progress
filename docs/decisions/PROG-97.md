@@ -30,3 +30,26 @@ lands back in its own bucket (unit-tested round trip, as with the other
 buckets). Covered by `e2e/agenda-quickadd.spec.ts` (renders-when-empty +
 creates-due-tomorrow) and `src/client/agendaQuickAdd.test.ts` (boundaries:
 today+1 → tomorrow, today+2 and today+6 → week, today+7 → later).
+
+### PROG-97b — every forward-looking group always renders; only Overdue hides
+
+**Date:** 2026-07-29 · **Status:** decided (owner-directed)
+
+Seeing the always-visible Tomorrow section, the owner widened the call: Today,
+Tomorrow, This week, and Later should **all** stay present when empty, each
+keeping its quick-add reachable — the Agenda doubles as the capture surface
+for every window, not just tomorrow's. This fully supersedes PROG-89 (4)
+("empty groups keep hiding") and the narrow single-bucket carve-out of
+PROG-97 (2) above.
+
+**Overdue is the one exception and still hides when empty**: it has no
+quick-add (an action can't be born late, PROG-89 (3)), so an empty Overdue
+heading would be pure noise — and its absence is good news worth keeping
+visible by omission.
+
+An empty group renders as the bare heading (no `· 0` count) plus the
+quick-add row, no empty bordered list box. The page-level "nothing due" hint
+now points at the quick-adds instead of only the action pages. Covered by
+`e2e/agenda-quickadd.spec.ts`: a fresh focus with zero dated actions shows
+all four groups with inputs and no Overdue, and capturing into the empty
+Tomorrow group creates an action due today+1.
