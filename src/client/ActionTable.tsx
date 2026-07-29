@@ -11,8 +11,8 @@ import { Link, useLocation } from "wouter";
 import type { WireAction, SnapshotPayload } from "../shared/types";
 import { closedTitleClass } from "./actionDone";
 import { localDayOfInstant, relativeDue, todayISO } from "./dates";
-import { PRIORITY_LABELS, STATUS_LABELS } from "./labels";
-import PriorityIndicator from "./PriorityIndicator";
+import { STATUS_LABELS } from "./labels";
+import PriorityPicker from "./PriorityPicker";
 import { highlight, type ActionSort, type ActionSortKey, type Segment } from "./search";
 import { actionKeyOf } from "./store";
 
@@ -200,14 +200,14 @@ export default function ActionTable({
                           key={col}
                           className="whitespace-nowrap px-3 py-2 text-xs text-ink-faint"
                         >
-                          {action.priority !== "none" ? (
-                            <span className="flex items-center gap-1.5">
-                              <PriorityIndicator priority={action.priority} />
-                              {PRIORITY_LABELS[action.priority]}
-                            </span>
-                          ) : (
-                            <span aria-label={PRIORITY_LABELS.none}>—</span>
-                          )}
+                          {/* Editable in place (PROG-132): the shared picker
+                              stops propagation itself, so a priority change
+                              never doubles as row navigation. */}
+                          <PriorityPicker
+                            actionId={action.id}
+                            priority={action.priority}
+                            showLabel
+                          />
                         </td>
                       );
                     case "due":

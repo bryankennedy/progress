@@ -554,7 +554,11 @@ so old bookmarks keep working.
   restore the default order (relevance for a query, recency for browse). Key
   sorts numerically within a focus prefix, status by workflow order, priority
   by urgency, updated chronologically (pure `sortActionHits`, unit-tested);
-  ties break by recency. The Updated cell shows a relative phrase ("today",
+  ties break by recency. The Priority cell is the shared inline
+  **`PriorityPicker`** (PROG-132) — the indicator glyph with a native select
+  stretched invisibly over it, so priority changes in place (optimistic
+  `updateAction`) without opening the action; the picker swallows the click so
+  it never doubles as row navigation. The Updated cell shows a relative phrase ("today",
   "3 days ago") with the full local timestamp in its tooltip (PROG-96). The
   sort is a URL param (`?sort=&dir=`) like the filters, so sorted views are
   bookmarkable; whole rows navigate, the title stays a real link. A closed
@@ -580,7 +584,10 @@ so old bookmarks keep working.
   D39, redesigned as on-palette signal bars in D47 — one reusable
   `PriorityIndicator` shared by the board card, action page, and container lists),
   key, title, the due date as a relative phrase ("in 3 days"), focus/arc
-  and status; overdue rows are visually distinct. Filterable by focus/arc/tag
+  and status; overdue rows are visually distinct. The row's indicator is the
+  editable **`PriorityPicker`** (PROG-132, `src/client/PriorityPicker.tsx`) —
+  click/tap it and the platform's native select pops to change priority in
+  place, no navigation to the action needed. Filterable by focus/arc/tag
   via URL params (the board pattern), with inline mark-done and bump-due. Renders
   entirely from the store. Each non-Overdue grouping ends in a **quick-add**
   input (PROG-89): Enter creates a `backlog` action (the shared creation

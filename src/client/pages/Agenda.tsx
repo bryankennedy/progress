@@ -31,7 +31,7 @@ import {
 } from "../search";
 import { tagsByAction as buildTagsByAction } from "../tags";
 import { STATUS_LABELS } from "../labels";
-import PriorityIndicator from "../PriorityIndicator";
+import PriorityPicker from "../PriorityPicker";
 import { createAction, actionKeyOf, setActionStatus, updateAction } from "../store";
 import { loadViewMode, saveViewMode, type ActionViewMode } from "../viewPrefs";
 
@@ -424,7 +424,8 @@ function AgendaRow({
       className={`px-3 py-2.5 text-sm ${overdue ? "bg-danger-bg/50" : ""}`}
     >
       <div className="flex items-center gap-2.5">
-        <PriorityIndicator priority={action.priority} />
+        {/* Editable in place (PROG-132) — same picker as the table's cell. */}
+        <PriorityPicker actionId={action.id} priority={action.priority} />
         <Link
           href={`/action/${key}`}
           className="shrink-0 font-mono text-xs text-ink-faint hover:text-ink-soft"
