@@ -10,15 +10,18 @@ import { addDays, type AgendaBucket } from "./dates";
 /**
  * The due date a quick-added action gets for a bucket, relative to local
  * `today`. Buckets are rolling windows (D38), so the defaults are the window's
- * edges: Today → today; This week → today+6 (the last day of the rolling
- * window, "by end of week"); Later → today+7 (the first day beyond it). Each
- * lands the new action in the bucket it was typed under. Overdue has no input —
- * an action can't be born already late — so it maps to null.
+ * edges: Today → today; Tomorrow → today+1 (its window is the single day,
+ * PROG-97); This week → today+6 (the last day of the rolling window, "by end
+ * of week"); Later → today+7 (the first day beyond it). Each lands the new
+ * action in the bucket it was typed under. Overdue has no input — an action
+ * can't be born already late — so it maps to null.
  */
 export function quickAddDueDate(bucket: AgendaBucket, today: string): string | null {
   switch (bucket) {
     case "today":
       return today;
+    case "tomorrow":
+      return addDays(today, 1);
     case "week":
       return addDays(today, 6);
     case "later":

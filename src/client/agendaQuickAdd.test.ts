@@ -11,6 +11,10 @@ describe("quickAddDueDate", () => {
     expect(quickAddDueDate("today", TODAY)).toBe("2026-07-06");
   });
 
+  it("Tomorrow → due tomorrow (today+1, PROG-97)", () => {
+    expect(quickAddDueDate("tomorrow", TODAY)).toBe("2026-07-07");
+  });
+
   it("This week → the last day of the rolling window (today+6)", () => {
     expect(quickAddDueDate("week", TODAY)).toBe("2026-07-12");
   });
@@ -21,6 +25,7 @@ describe("quickAddDueDate", () => {
 
   it("crosses month ends correctly", () => {
     expect(quickAddDueDate("week", "2026-07-28")).toBe("2026-08-03");
+    expect(quickAddDueDate("tomorrow", "2026-07-31")).toBe("2026-08-01");
     expect(quickAddDueDate("later", "2026-12-28")).toBe("2027-01-04");
   });
 
@@ -29,10 +34,29 @@ describe("quickAddDueDate", () => {
   });
 
   it("every minted date lands back in the bucket it was typed under", () => {
-    for (const bucket of ["today", "week", "later"] as const) {
+    for (const bucket of ["today", "tomorrow", "week", "later"] as const) {
       const due = quickAddDueDate(bucket, TODAY)!;
       expect(bucketOf(due, TODAY)).toBe(bucket);
     }
+  });
+});
+
+// Tomorrow is carved out of the front of the rolling week (PROG-97): the
+// boundaries around it must not drift.
+describe("bucketOf around the Tomorrow bucket", () => {
+  it("today+1 is tomorrow, not this week", () => {
+    expect(bucketOf("2026-07-07", TODAY)).toBe("tomorrow");
+  });
+
+  it("this week starts at today+2 and still ends at today+6 (D38)", () => {
+    expect(bucketOf("2026-07-08", TODAY)).toBe("week");
+    expect(bucketOf("2026-07-12", TODAY)).toBe("week");
+    expect(bucketOf("2026-07-13", TODAY)).toBe("later");
+  });
+
+  it("today and overdue are untouched", () => {
+    expect(bucketOf(TODAY, TODAY)).toBe("today");
+    expect(bucketOf("2026-07-05", TODAY)).toBe("overdue");
   });
 });
 

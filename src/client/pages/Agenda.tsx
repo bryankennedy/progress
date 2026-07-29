@@ -1,8 +1,9 @@
 // The Agenda view (SPEC v2 §6): the time-driven cut of the snapshot. Every
 // action that has a due date and is still pending, sorted by due date ascending,
-// grouped Overdue · Today · This week · Later (buckets from the owner's *local*
-// today, since due dates are calendar days). Undated actions live on the board;
-// done/canceled actions are never pending, so neither appears here.
+// grouped Overdue · Today · Tomorrow · This week · Later (buckets from the
+// owner's *local* today, since due dates are calendar days). Undated actions
+// live on the board; done/canceled actions are never pending, so neither
+// appears here.
 //
 // Filterable by focus · arc · tag via URL params — the v1 board pattern — so
 // "household tasks due this week" is one bookmark. Everything renders from the
@@ -49,10 +50,11 @@ function parseFilters(search: string): Filters {
   return filters;
 }
 
-// Order and presentation of the four buckets. Overdue is visually distinct.
+// Order and presentation of the five buckets. Overdue is visually distinct.
 const BUCKETS: { key: AgendaBucket; label: string; accent: string }[] = [
   { key: "overdue", label: "Overdue", accent: "text-danger" },
   { key: "today", label: "Today", accent: "text-ink" },
+  { key: "tomorrow", label: "Tomorrow", accent: "text-ink" },
   { key: "week", label: "This week", accent: "text-ink" },
   { key: "later", label: "Later", accent: "text-ink-soft" },
 ];
@@ -183,15 +185,21 @@ export default function Agenda({ snapshot }: { snapshot: SnapshotPayload }) {
           // Table mode's quick search narrows within each bucket — the
           // groupings themselves never change (PROG-126).
           const shown = mode === "table" ? actions.filter((a) => actionMatches(terms, a)) : actions;
-          if (actions.length === 0 || (mode === "table" && shown.length === 0)) return null;
+          // Empty groups hide (PROG-89) — except Tomorrow, which always
+          // renders so its quick-add stays reachable: "add new things for
+          // tomorrow" is the point of the section (PROG-97, superseding
+          // PROG-89's hide-when-empty for this one bucket).
+          const empty = shown.length === 0;
+          if (empty && bucket.key !== "tomorrow") return null;
           return (
             <section key={bucket.key}>
               <h2
                 className={`text-sm font-medium uppercase tracking-wide font-mono ${bucket.accent}`}
               >
-                {bucket.label} · {shown.length}
+                {bucket.label}
+                {!empty && <> · {shown.length}</>}
               </h2>
-              {mode === "table" ? (
+              {empty ? null : mode === "table" ? (
                 <div className="mt-3">
                   <ActionTable
                     snapshot={snapshot}
@@ -345,7 +353,13 @@ function QuickAddRow({
         }}
         placeholder={
           due
-            ? `New action — due ${bucket === "today" ? "today" : formatDueDate(due)}, Enter to add`
+            ? `New action — due ${
+                bucket === "today"
+                  ? "today"
+                  : bucket === "tomorrow"
+                    ? "tomorrow"
+                    : formatDueDate(due)
+              }, Enter to add`
             : ""
         }
         aria-label={`New action due ${due ?? ""}`}
