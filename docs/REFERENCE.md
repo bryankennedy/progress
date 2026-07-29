@@ -515,8 +515,13 @@ so old bookmarks keep working.
   reuse the optimistic `createAction`/`updateAction`/`createContainer` paths.
   Each action row ends in the shared at-a-glance glyphs, right-aligned
   (PROG-124): `StatusIndicator` holds the outermost column (always present, so
-  the right edge stays flush) with `PriorityIndicator` just inside it —
-  priority `none` renders nothing, the board card's convention.
+  the right edge stays flush) with the editable **`PriorityPicker`** just
+  inside it (PROG-136 — the same in-place control as the table cell and
+  Agenda rows, so priority is settable from any outline, including the
+  focus/arc container pages). Priority `none` still reads as nothing at a
+  glance, the board card's convention: its glyph fades in on row hover/focus,
+  and the picker stays hit-testable while transparent so a tap still works on
+  touch.
   Completed actions (done/canceled) read as finished — dimmed + struck through
   via the shared closed-action treatment (`closedTitleClass`,
   `src/client/actionDone.ts`, PROG-100) — and a page-level **Hide done** toggle
