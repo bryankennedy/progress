@@ -185,12 +185,13 @@ export default function Agenda({ snapshot }: { snapshot: SnapshotPayload }) {
           // Table mode's quick search narrows within each bucket — the
           // groupings themselves never change (PROG-126).
           const shown = mode === "table" ? actions.filter((a) => actionMatches(terms, a)) : actions;
-          // Empty groups hide (PROG-89) — except Tomorrow, which always
-          // renders so its quick-add stays reachable: "add new things for
-          // tomorrow" is the point of the section (PROG-97, superseding
-          // PROG-89's hide-when-empty for this one bucket).
+          // Every forward-looking group always renders, even empty, so its
+          // quick-add is always reachable — the Agenda doubles as the capture
+          // surface for each window (PROG-97b, superseding PROG-89's
+          // hide-when-empty). Only Overdue still hides: it has no quick-add
+          // (an action can't be born late), so an empty Overdue is pure noise.
           const empty = shown.length === 0;
-          if (empty && bucket.key !== "tomorrow") return null;
+          if (empty && bucket.key === "overdue") return null;
           return (
             <section key={bucket.key}>
               <h2
@@ -265,8 +266,8 @@ export default function Agenda({ snapshot }: { snapshot: SnapshotPayload }) {
         })}
         {dated.length === 0 && (
           <p className="text-sm text-ink-faint">
-            Nothing due{filtersActive ? " for this filter" : ""}. Add a due date to an action and it
-            shows up here.
+            Nothing due{filtersActive ? " for this filter" : ""} yet — type under a section above to
+            capture into its window, or add a due date to an existing action.
           </p>
         )}
       </div>
