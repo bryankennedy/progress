@@ -584,8 +584,9 @@ so old bookmarks keep working.
   their destinations from one shared `nav.tsx` list so they can't drift.
 - **Agenda (`/agenda`)** — the time-driven cut: every action with a due date
   that isn't done/canceled, sorted by due date ascending and grouped **Overdue ·
-  Today · This week · Later** (computed from the owner's local day; "this week"
-  is a rolling 7 days, D38). Each row carries the **priority indicator** (§7.2 /
+  Today · Tomorrow · This week · Later** (computed from the owner's local day;
+  Tomorrow is today+1 carved from the front of the rolling 7-day week, PROG-97;
+  "this week" is the window's remaining days 2–6, D38). Each row carries the **priority indicator** (§7.2 /
   D39, redesigned as on-palette signal bars in D47 — one reusable
   `PriorityIndicator` shared by the board card, action page, and container lists),
   key, title, the due date as a relative phrase ("in 3 days"), focus/arc
@@ -597,15 +598,17 @@ so old bookmarks keep working.
   entirely from the store. Each non-Overdue grouping ends in a **quick-add**
   input (PROG-89): Enter creates a `backlog` action (the shared creation
   default, PROG-115) pre-dated for that bucket —
-  Today → today, This week → the rolling window's last day (today+6), Later →
-  the first day beyond it (today+7) (`quickAddDueDate`,
-  `src/client/agendaQuickAdd.ts`). The focus comes from an inline picker
-  that follows the active Focus filter, else the last focus quick-added
-  into (localStorage); active Arc (when it belongs to the chosen focus) and
-  Tag filters are inherited (PROG-89b), so the capture stays visible under the
-  filters it was typed into. Groups still hide when empty, so the input appears
-  only under populated groups; Overdue never gets one (an action can't be born
-  late). A **List/Table toggle** (PROG-126, sticky per surface) swaps each
+  Today → today, Tomorrow → today+1 (PROG-97), This week → the rolling window's
+  last day (today+6), Later → the first day beyond it (today+7)
+  (`quickAddDueDate`, `src/client/agendaQuickAdd.ts`). The focus comes from an
+  inline picker that follows the active Focus filter, else the last focus
+  quick-added into (localStorage); active Arc (when it belongs to the chosen
+  focus) and Tag filters are inherited (PROG-89b), so the capture stays visible
+  under the filters it was typed into. Groups still hide when empty, so the
+  input appears only under populated groups — except **Tomorrow**, which always
+  renders so adding for tomorrow is always possible (PROG-97, narrowly
+  superseding PROG-89's hide-when-empty); Overdue never gets one (an action
+  can't be born late). A **List/Table toggle** (PROG-126, sticky per surface) swaps each
   bucket's rows for the shared sortable `ActionTable` — same columns as search
   plus **Due**, one header-sort shared across buckets (unsorted keeps the
   agenda's due-then-key order), a quick-search box narrowing within the

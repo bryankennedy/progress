@@ -42,15 +42,17 @@ export function addDays(iso: string, n: number): string {
   return new Date(Date.parse(`${iso}T00:00:00.000Z`) + n * 86_400_000).toISOString().slice(0, 10);
 }
 
-export type AgendaBucket = "overdue" | "today" | "week" | "later";
+export type AgendaBucket = "overdue" | "today" | "tomorrow" | "week" | "later";
 
 // Which Agenda group a due date falls into, relative to local `today`.
-// Overdue = strictly before today; Today = today; This week = the next 6 days
-// (rolling 7-day window including today's neighbors); Later = beyond that.
+// Overdue = strictly before today; Today = today; Tomorrow = today+1
+// (PROG-97, carved out of the front of the rolling week); This week = the
+// remaining days 2–6 of the rolling 7-day window (D38); Later = beyond that.
 export function bucketOf(due: string, today: string): AgendaBucket {
   const diff = dayDiff(today, due);
   if (diff < 0) return "overdue";
   if (diff === 0) return "today";
+  if (diff === 1) return "tomorrow";
   if (diff <= 6) return "week";
   return "later";
 }
