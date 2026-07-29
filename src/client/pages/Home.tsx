@@ -513,6 +513,19 @@ function BoardColumn({
               />
             );
           })}
+          {/* Ghost card (PROG-127): a dashed card-shaped button below the last
+              card that creates an action right here — the dialog opens with
+              this column's status and the board's container filters (via its
+              route-derived defaults), and `stay` keeps you on the board where
+              the new card appears (new actions rank last, i.e. just above this
+              button). Not a sortable/droppable, so drags ignore it. */}
+          <button
+            type="button"
+            onClick={() => openCreateAction({ status, stay: true })}
+            className="min-h-11 rounded-md border border-dashed border-ink-faint/40 p-2.5 text-left text-sm text-ink-faint hover:border-ink-faint hover:text-ink-soft sm:min-h-0"
+          >
+            + New action
+          </button>
         </div>
       </SortableContext>
     </section>
