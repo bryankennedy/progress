@@ -9,9 +9,13 @@
 // dangerous schemes (javascript:, etc.). Long URLs wrap via `.prose-lite`'s
 // overflow-wrap rather than being truncated, so the full address stays visible
 // and copyable.
+//
+// With a `gitUrl` (the enclosing focus's repo), bare PR refs like `#107` also
+// become links (PROG-121) — see prRefs.ts.
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkPrRefs, { prRefBase } from "./prRefs";
 
 // Inline display width (CSS still caps to the container); the link opens full.
 const DISPLAY_WIDTH = 900;
@@ -26,10 +30,18 @@ function variants(src: string | undefined): { display: string; full: string } {
   return { display: src, full: src };
 }
 
-export default function Markdown({ children }: { children: string }) {
+export default function Markdown({
+  children,
+  gitUrl,
+}: {
+  children: string;
+  /** Repo URL PR refs resolve against; omit to leave `#123` as plain text. */
+  gitUrl?: string | null;
+}) {
+  const base = prRefBase(gitUrl);
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
+      remarkPlugins={base ? [remarkGfm, [remarkPrRefs, { base }]] : [remarkGfm]}
       components={{
         a({ href, children }) {
           // Open links (markdown + autolinked URLs) in a new tab; noopener

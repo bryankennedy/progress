@@ -262,6 +262,11 @@ Descriptions/comments reference images as `/api/images/<id>` markdown; the share
 `Markdown` renderer requests a `?w=` display variant and links to the original,
 and `MarkdownTextarea` handles paste + the "+ Image" button in both editors.
 
+The same renderer autolinks bare URLs (remark-gfm, PROG-72) and — when the
+enclosing focus has a `gitUrl` — bare PR refs like `#107` to
+`<gitUrl>/pull/107` at render time (`src/client/prRefs.ts`, PROG-121); code
+spans, existing links, and hex colors are left alone.
+
 ### Tags
 
 | Route | Behavior |

@@ -158,6 +158,7 @@ export default function ActionPage({
             value={action.description}
             placeholder="Add a description…"
             draftScope={{ meId: snapshot.me?.id ?? "anon", targetId: action.id }}
+            gitUrl={focus?.gitUrl}
             onSave={(description) =>
               updateAction(action.id, { description }, { toastOnError: false })
             }
@@ -428,6 +429,8 @@ function TimelineSection({ action, snapshot }: { action: WireAction; snapshot: S
     draftRef.current = draft;
   }, [draft]);
   const userName = (id: string) => snapshot.users.find((u) => u.id === id)?.name ?? id;
+  // Bare `#123` PR refs in comments link against the focus's repo (PROG-121).
+  const gitUrl = snapshot.focuses.find((f) => f.id === action.focusId)?.gitUrl;
 
   // Re-hydrate when navigating between actions (this section is keyed by action id
   // but remounts may reuse state) or once the signed-in user resolves.
@@ -546,7 +549,7 @@ function TimelineSection({ action, snapshot }: { action: WireAction; snapshot: S
                 · {fmtTime(entry.comment.createdAt)}
               </p>
               <div className="prose-lite mt-2 text-sm">
-                <Markdown>{entry.comment.body}</Markdown>
+                <Markdown gitUrl={gitUrl}>{entry.comment.body}</Markdown>
               </div>
             </li>
           ) : (

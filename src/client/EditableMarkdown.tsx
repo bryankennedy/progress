@@ -19,6 +19,7 @@ export default function EditableMarkdown({
   placeholder,
   onSave,
   draftScope,
+  gitUrl,
 }: {
   value: string;
   placeholder: string;
@@ -27,6 +28,8 @@ export default function EditableMarkdown({
   // success for callers that don't track it.
   onSave: (next: string) => void | Promise<boolean>;
   draftScope?: { meId: string; targetId: string };
+  // Repo URL that bare PR refs (`#123`) link against (PROG-121).
+  gitUrl?: string | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -139,7 +142,7 @@ export default function EditableMarkdown({
         <p className="text-ink-faint">{placeholder}</p>
       ) : (
         <div className="prose-lite">
-          <Markdown>{value}</Markdown>
+          <Markdown gitUrl={gitUrl}>{value}</Markdown>
         </div>
       )}
     </section>

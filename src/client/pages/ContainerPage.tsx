@@ -205,6 +205,7 @@ export default function ContainerPage({
             value={resolved.description}
             placeholder="Add a description…"
             draftScope={{ meId: snapshot.me?.id ?? "anon", targetId: id }}
+            gitUrl={resolved.gitUrl}
             onSave={(description) =>
               updateContainer(type, id, { description }, { toastOnError: false })
             }
