@@ -7,9 +7,9 @@ import { signInAsOwner } from "./auth";
 // populated group, Enter creates optimistically into the picked focus, and
 // the server-confirmed action carries the bucket's due date.
 //
-// Each test creates its own focus + a seed action via the API (groups are
-// hidden when empty, so the seed makes the target group render), and archives
-// the focus at the end.
+// Each test creates its own focus (usually + a seed action) via the API and
+// archives the focus at the end. Forward-looking groups render even when
+// empty (PROG-97b); a seed is only needed to put rows in a group.
 
 const tag = () => Math.random().toString(36).slice(2, 8);
 
@@ -26,9 +26,9 @@ function localISO(plusDays = 0): string {
 // board card prints the focus name inside the card link, so a focus named
 // "… agenda …" makes bare nav-link selectors ambiguous for every later spec
 // sharing the dev DB.
-async function makeFocusWithSeed(page: Page, seedDue: string) {
+async function makeFocus(page: Page) {
   const ws = await (await page.request.get("/api/snapshot")).json();
-  const focus = (
+  return (
     await (
       await page.request.post("/api/focuses", {
         data: {
@@ -43,6 +43,10 @@ async function makeFocusWithSeed(page: Page, seedDue: string) {
       })
     ).json()
   ).container as { id: string };
+}
+
+async function makeFocusWithSeed(page: Page, seedDue: string) {
+  const focus = await makeFocus(page);
   const seed = (
     await (
       await page.request.post("/api/actions", {
@@ -144,27 +148,32 @@ test("quick-add under an active Tag filter inherits the tag and stays visible (P
   await cleanupFocus(page, focus.id);
 });
 
-test("Tomorrow renders even when empty and its quick-add dates to today+1 (PROG-97)", async ({
+test("every forward-looking group renders even on an empty agenda; Overdue hides (PROG-97b)", async ({
   page,
 }) => {
-  // Seed only an action due today: the Tomorrow group starts empty, yet must
-  // still render with its quick-add — PROG-97 supersedes hide-when-empty for
-  // this one bucket so "add new things for tomorrow" is always possible.
-  const { focus } = await makeFocusWithSeed(page, localISO());
+  // No seed at all: the filtered agenda is empty, yet Today / Tomorrow /
+  // This week / Later must all render with a reachable quick-add — the
+  // Agenda doubles as the capture surface for each window. Overdue has no
+  // quick-add, so empty means hidden.
+  const focus = await makeFocus(page);
   await page.goto(`/agenda?focus=${focus.id}`);
-  const section = page.locator("section", {
-    has: page.getByRole("heading", { name: /^Tomorrow/ }),
-  });
-  await expect(section).toBeVisible();
 
+  const sectionFor = (name: RegExp) =>
+    page.locator("section", { has: page.getByRole("heading", { name }) });
+  for (const name of [/^Today/, /^Tomorrow/, /^This week/, /^Later/]) {
+    const section = sectionFor(name);
+    await expect(section).toBeVisible();
+    await expect(section.locator("input[type=text], input:not([type])")).toHaveCount(1);
+  }
+  await expect(page.getByRole("heading", { name: /^Overdue/ })).toHaveCount(0);
+
+  // Capture into the empty Tomorrow group: the action is born due today+1.
   const tomorrow = localISO(1);
   const title = `Quick tomorrow ${tag()}`;
-  const input = section.getByLabel(`New action due ${tomorrow}`);
+  const input = sectionFor(/^Tomorrow/).getByLabel(`New action due ${tomorrow}`);
   await input.fill(title);
   await input.press("Enter");
-
-  // Appears in the (previously empty) Tomorrow group instantly.
-  await expect(section.getByText(title)).toBeVisible();
+  await expect(sectionFor(/^Tomorrow/).getByText(title)).toBeVisible();
 
   await expect
     .poll(async () => {
