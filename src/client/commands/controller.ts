@@ -2,6 +2,8 @@
 // palette itself all open overlays through these functions, so callers don't
 // need a React context to reach the singleton palette/dialog in CommandLayer.
 
+import type { ActionStatus } from "../../shared/constants";
+
 export type PaletteMode =
   | { kind: "root"; actionId: string | null }
   | {
@@ -12,6 +14,11 @@ export type PaletteMode =
 export type CreateDefaults = {
   focusId?: string;
   arcId?: string | null;
+  status?: ActionStatus;
+  // Stay on the current view after creating instead of navigating to the new
+  // action's page — the board's ghost-card buttons (PROG-127) drop the card
+  // into its column and keep you on the board.
+  stay?: boolean;
 };
 
 type Listener<T> = (value: T) => void;

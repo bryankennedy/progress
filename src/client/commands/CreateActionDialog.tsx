@@ -64,6 +64,12 @@ function deriveDefaults(ws: SnapshotPayload, path: string, search: string): Crea
   if (arc) return { focusId: arc.focusId, arcId: arc.id };
   const focus = ws.focuses.find((p) => p.id === params.get("focus"));
   if (focus) return { focusId: focus.id };
+  // Workspace-only filter (PROG-127): land the action inside that workspace
+  // rather than falling through to the global first-focus default.
+  const wsFocus = ws.focuses.find(
+    (p) => p.workspaceId === params.get("workspace") && !p.archivedAt,
+  );
+  if (wsFocus) return { focusId: wsFocus.id };
   return {};
 }
 
@@ -75,6 +81,9 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
   const [status, setStatus] = useState<ActionStatus>(DEFAULT_ACTION_STATUS);
   const [priority, setPriority] = useState<ActionPriority>("none");
   const [dueDate, setDueDate] = useState("");
+  // Skip the post-create navigation when the opener asked to stay put (the
+  // board's ghost-card buttons, PROG-127).
+  const [stay, setStay] = useState(false);
   // The Location field's inline tree picker (PROG-117): null = closed, else
   // the current filter query — the same tree the palette's L picker lists.
   const [pickerQuery, setPickerQuery] = useState<string | null>(null);
@@ -98,9 +107,10 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
         setContainer(defaults.focusId ?? "");
         setArcId(defaults.arcId ?? "");
         setTitle("");
-        setStatus(DEFAULT_ACTION_STATUS);
+        setStatus(defaults.status ?? DEFAULT_ACTION_STATUS);
         setPriority("none");
         setDueDate("");
+        setStay(defaults.stay ?? false);
         setPickerQuery(null);
         setNewFocus(null);
         setNewArc(null);
@@ -199,7 +209,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
       dueDate: dueDate || null,
     });
     setOpen(false);
-    if (key) navigate(`/action/${key}`);
+    if (key && !stay) navigate(`/action/${key}`);
   };
 
   return (
