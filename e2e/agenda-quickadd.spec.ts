@@ -89,7 +89,8 @@ test("quick-add under Today creates an action due today (PROG-89)", async ({ pag
   await expect(section.getByText(title)).toBeVisible();
   await expect(input).toHaveValue("");
 
-  // Server-confirmed: right focus, due today, todo.
+  // Server-confirmed: right focus, due today, default status — quick-adds
+  // stopped hardcoding `todo` when the store took over defaults (PROG-115).
   await expect
     .poll(async () => {
       const ws = await (await page.request.get("/api/snapshot")).json();
@@ -98,7 +99,7 @@ test("quick-add under Today creates an action due today (PROG-89)", async ({ pag
       );
       return action && { dueDate: action.dueDate, status: action.status };
     })
-    .toEqual({ dueDate: today, status: "todo" });
+    .toEqual({ dueDate: today, status: "backlog" });
 
   await cleanupFocus(page, focus.id);
 });
@@ -139,6 +140,38 @@ test("quick-add under an active Tag filter inherits the tag and stays visible (P
       );
     })
     .toBe(true);
+
+  await cleanupFocus(page, focus.id);
+});
+
+test("Tomorrow renders even when empty and its quick-add dates to today+1 (PROG-97)", async ({
+  page,
+}) => {
+  // Seed only an action due today: the Tomorrow group starts empty, yet must
+  // still render with its quick-add — PROG-97 supersedes hide-when-empty for
+  // this one bucket so "add new things for tomorrow" is always possible.
+  const { focus } = await makeFocusWithSeed(page, localISO());
+  await page.goto(`/agenda?focus=${focus.id}`);
+  const section = page.locator("section", {
+    has: page.getByRole("heading", { name: /^Tomorrow/ }),
+  });
+  await expect(section).toBeVisible();
+
+  const tomorrow = localISO(1);
+  const title = `Quick tomorrow ${tag()}`;
+  const input = section.getByLabel(`New action due ${tomorrow}`);
+  await input.fill(title);
+  await input.press("Enter");
+
+  // Appears in the (previously empty) Tomorrow group instantly.
+  await expect(section.getByText(title)).toBeVisible();
+
+  await expect
+    .poll(async () => {
+      const ws = await (await page.request.get("/api/snapshot")).json();
+      return ws.actions.find((i: { title: string }) => i.title === title)?.dueDate;
+    })
+    .toBe(tomorrow);
 
   await cleanupFocus(page, focus.id);
 });
