@@ -60,7 +60,7 @@ import {
   updateAction,
 } from "../store";
 import { clearDraft, readDraft, writeDraft } from "../drafts";
-import PriorityIndicator from "../PriorityIndicator";
+import PriorityPicker from "../PriorityPicker";
 import StatusIndicator from "../StatusIndicator";
 import { DROP_ANIMATION } from "../dropAnimation";
 import { rankForInsert, rankForReorder, type ReorderPlacement } from "../outlineReorder";
@@ -582,10 +582,22 @@ const ActionRow = memo(function ActionRow({
       {/* At-a-glance state, right-aligned (PROG-124): the shared priority +
           status glyphs every other view uses. Status is on every row, so it
           holds the outermost column and the right edge stays flush; priority
-          sits just inside it and, as on the board, "none" renders nothing
-          rather than a faint zero-bar glyph on every fresh capture. */}
+          sits just inside it. The glyph is the shared editable PriorityPicker
+          (PROG-136) — same in-place control as the table cell and Agenda
+          rows. "None" still reads as nothing at a glance (PROG-124): its
+          hollow ring only fades in on row hover / focus, but the picker stays
+          hit-testable even while transparent, so a tap where the glyph sits
+          works on touch too. */}
       <span className="flex shrink-0 items-center gap-1.5">
-        {action.priority !== "none" && <PriorityIndicator priority={action.priority} />}
+        <span
+          className={
+            action.priority === "none"
+              ? "opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+              : ""
+          }
+        >
+          <PriorityPicker actionId={action.id} priority={action.priority} />
+        </span>
         <StatusIndicator status={action.status} />
       </span>
     </div>
