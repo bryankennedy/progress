@@ -37,6 +37,7 @@ import {
 import { renderArcBundle, renderBundle, type ArcActionData } from "./bundle";
 import { computeSyncCursors } from "./syncCursors";
 import { handleMcpRequest } from "./mcp";
+import { POSTHOG_PROXY_PREFIX, proxyPosthog } from "./posthog";
 import { notAuthorizedPage } from "./pages";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import {
@@ -230,6 +231,13 @@ app.onError((err, c) => {
   });
   return c.json({ error: "internal_error" }, 500);
 });
+
+// PostHog analytics proxy (PROG-137) — first-party path the client SDK talks
+// to; see src/worker/posthog.ts. Deliberately outside the /api/* auth gate:
+// pageviews start before sign-in, and the upstream authenticates by the public
+// project key inside the payload. `/ph/*` is in wrangler.jsonc's
+// run_worker_first so it reaches the Worker instead of the SPA fallback.
+app.all(`${POSTHOG_PROXY_PREFIX}/*`, (c) => proxyPosthog(c.req.raw));
 
 // ---------- authentication (PROG-34, supersedes the Cloudflare Access gate D12) ----------
 //

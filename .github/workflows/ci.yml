@@ -15,6 +15,9 @@
 # Required repo secrets (Settings → Secrets and variables → Actions):
 #   CLOUDFLARE_API_TOKEN   — "Edit Cloudflare Workers" template + Account › D1:Edit
 #   CLOUDFLARE_ACCOUNT_ID  — from `bunx wrangler whoami`
+#   VITE_POSTHOG_KEY       — PostHog project API key (public phc_… token); baked
+#                            into the client bundle at build time (PROG-137).
+#                            Unset → the deployed app simply sends no analytics.
 # `wrangler deploy` never touches existing `wrangler secret`s, so prod
 # GITHUB_WEBHOOK_SECRET is preserved.
 name: CI
@@ -50,6 +53,8 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # Read by Vite during `bun run deploy`'s build step (PROG-137).
+      VITE_POSTHOG_KEY: ${{ secrets.VITE_POSTHOG_KEY }}
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
