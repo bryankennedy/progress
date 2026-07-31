@@ -191,11 +191,23 @@ carrying the same `requestId`. `observability` is enabled in `wrangler.jsonc`, s
 the logs are queryable in the dashboard. Operational detail — tailing, querying,
 and alert setup — is in `docs/SETUP.md` §6.
 
+**Web analytics — PostHog** (PROG-137). The client captures pageviews and
+pageleaves only (`src/client/analytics.ts`: SPA-aware `defaults: "2025-05-24"`,
+autocapture off, exceptions left to Sentry, anonymous events only — nothing
+calls `identify()`). It initializes only when a `VITE_POSTHOG_KEY` was baked in
+at build time; CI's deploy job supplies it from an Actions secret, so local
+dev/test builds send nothing. Events travel **first-party** through a Worker
+reverse proxy at `/ph/*` (`src/worker/posthog.ts`, listed in
+`run_worker_first`, outside the `/api/*` auth gate) to PostHog US Cloud — which
+keeps the CSP at `connect-src 'self'` and survives content blockers — and the
+proxy strips the `Cookie` header so the session token never leaves the origin.
+One-time setup: `docs/SETUP.md` §6.
+
 ### Security headers (PROG-65)
 
-Two complementary layers, because the Worker only runs for `/api/*`
-(`run_worker_first`) while the SPA document, JS, CSS, and fonts are served
-straight from Cloudflare's asset handler:
+Two complementary layers, because the Worker only runs for `/api/*` and the
+`/ph/*` analytics proxy (`run_worker_first`) while the SPA document, JS, CSS,
+and fonts are served straight from Cloudflare's asset handler:
 
 - **`public/_headers`** (ships to the asset root) carries the full set for the
   statically-served app, including a **Content-Security-Policy** tuned to exactly

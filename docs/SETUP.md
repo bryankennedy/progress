@@ -286,6 +286,30 @@ One-time account setup (owner):
    first real 500) → the issue appears in Sentry with the `requestId` tag, and the
    same `requestId` finds the `unhandled_error` line in Workers Logs.
 
+#### Web analytics — PostHog (PROG-137)
+
+Pageview analytics for the deployed app (visitors, paths, referrers, devices in
+PostHog's **Web Analytics** dashboard). The client SDK only initializes when a
+`VITE_POSTHOG_KEY` was present at build time, and events flow through the
+first-party `/ph/*` Worker proxy (`src/worker/posthog.ts`) — see
+`docs/REFERENCE.md` § Observability for the as-built shape. One-time setup
+(owner; assumes a **US Cloud** PostHog project — for EU, change the two hosts in
+`src/worker/posthog.ts` and `ui_host` in `src/client/analytics.ts`):
+
+1. In PostHog: **Settings → Project → General**, copy the **Project API key**
+   (`phc_…`). It's a public browser token, not a secret — it ships in the JS
+   bundle by design.
+2. In the repo: **Settings → Secrets and variables → Actions** → new secret
+   **`VITE_POSTHOG_KEY`** with that value. That's the whole config: the CI
+   deploy job exports it to Vite's build (`.github/workflows/ci.yml`).
+3. Deploy (push to `main`), load the production app, and confirm the pageview
+   appears under **Web Analytics** in PostHog. In DevTools you should see the
+   capture POSTs going to `/ph/e/` on the app's own origin.
+
+Local dev never sends analytics: dev-mode builds bail out of `initAnalytics()`
+even if a key is set, and local `bun run build` bundles have no key unless you
+put one in `.env` deliberately.
+
 **v2 shipped 2026-06-17** (migration `0003_breezy_spot.sql` — the nullable
 `issues.due_date`): due dates, the Agenda view, the Structure route, and the
 header New menu. The remote migration + `bun run deploy` were applied; the build
