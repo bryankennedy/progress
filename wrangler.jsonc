@@ -12,8 +12,9 @@
     // Client routes are handled by the SPA; anything that isn't a real asset
     // falls back to index.html.
     "not_found_handling": "single-page-application",
-    // API routes must reach the Worker, never the asset handler.
-    "run_worker_first": ["/api/*"],
+    // API routes must reach the Worker, never the asset handler. `/ph/*` is
+    // the PostHog analytics proxy (PROG-137, src/worker/posthog.ts).
+    "run_worker_first": ["/api/*", "/ph/*"],
   },
   "d1_databases": [
     {
