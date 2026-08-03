@@ -111,13 +111,9 @@ export const NAV: NavItem[] = [
     primary: true,
   },
   {
-    href: "/search",
-    label: "Search",
-    match: (p) => p.startsWith("/search"),
-    icon: SearchIcon,
-    primary: true,
-  },
-  {
+    // Sits between Agenda and Search: the time-driven pair (what's due, what
+    // happened) reads together. Order here drives the desktop inline nav and
+    // the More sheet; the bottom tab bar only takes `primary` items.
     href: "/diary",
     label: "Diary",
     match: (p) => p.startsWith("/diary"),
@@ -125,6 +121,13 @@ export const NAV: NavItem[] = [
     // The bottom bar keeps its four primary tabs (iOS 5-slot pattern); the
     // Diary is a reading surface, reached from More on a phone.
     primary: false,
+  },
+  {
+    href: "/search",
+    label: "Search",
+    match: (p) => p.startsWith("/search"),
+    icon: SearchIcon,
+    primary: true,
   },
   {
     href: "/structure",
