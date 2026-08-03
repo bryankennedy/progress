@@ -26,6 +26,8 @@ import {
 import { DEFAULT_RANK, rankAfter } from "../shared/rank";
 import type {
   CommentSearchResponse,
+  DiaryDayPayload,
+  DiarySummaryResponse,
   WireActivity,
   WireAllowedEmail,
   WireArc,
@@ -914,6 +916,70 @@ export function useTimeline(actionId: string) {
       return res.json() as Promise<Timeline>;
     },
   });
+}
+
+// ---------- diary (PROG-113) ----------
+
+// The Diary's server wave: one local day's cross-action activity, comments,
+// and git links (not in the snapshot, D20). Keyed under ["diary"] so the
+// background sync's timeline invalidation refreshes an open Diary too.
+export function useDiaryDay(day: string, bounds: { from: number; to: number }) {
+  return useQuery({
+    queryKey: ["diary", "day", day],
+    queryFn: async (): Promise<DiaryDayPayload> => {
+      const res = await fetch(`/api/diary?from=${bounds.from}&to=${bounds.to}`);
+      if (!res.ok) throw new Error(`diary load failed: HTTP ${res.status}`);
+      return res.json() as Promise<DiaryDayPayload>;
+    },
+  });
+}
+
+// 503 = no ANTHROPIC_API_KEY configured server-side — a quiet, expected state
+// (the Diary renders without an entry), not an error to toast about.
+export type DiarySummary = DiarySummaryResponse & { unavailable?: boolean };
+
+async function fetchDiarySummary(
+  day: string,
+  bounds: { from: number; to: number },
+  refresh: boolean,
+): Promise<DiarySummary> {
+  const params = new URLSearchParams({
+    date: day,
+    from: String(bounds.from),
+    to: String(bounds.to),
+    // The viewer's UTC offset so the server-side digest phrases event times in
+    // the owner's local clock.
+    tz: String(new Date().getTimezoneOffset()),
+  });
+  if (refresh) params.set("refresh", "1");
+  const res = await fetch(`/api/diary/summary?${params}`);
+  if (res.status === 503) return { summary: null, unavailable: true };
+  if (!res.ok) throw new Error(`diary summary failed: HTTP ${res.status}`);
+  return res.json() as Promise<DiarySummary>;
+}
+
+// The AI entry for a day. The server caches by digest hash, so a refetch of an
+// unchanged day is one cheap round-trip, not a model call.
+export function useDiarySummary(day: string, bounds: { from: number; to: number }) {
+  return useQuery({
+    queryKey: ["diary", "summary", day],
+    queryFn: () => fetchDiarySummary(day, bounds, false),
+  });
+}
+
+// Force a rewrite (the entry's ↻): bypasses the digest-hash cache server-side
+// and replaces the cached query data when the fresh entry lands.
+export async function rewriteDiarySummary(
+  day: string,
+  bounds: { from: number; to: number },
+): Promise<boolean> {
+  try {
+    const data = await fetchDiarySummary(day, bounds, true);
+    queryClient.setQueryData(["diary", "summary", day], data);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // Posts a comment optimistically and reports whether the server confirmed it.

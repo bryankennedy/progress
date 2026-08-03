@@ -124,6 +124,10 @@ const controller = createSyncController({
     // refetch now (in the background — data stays on screen), the rest are
     // marked stale and refetch on their next mount.
     void queryClient.invalidateQueries({ queryKey: ["action"] });
+    // The Diary's day/summary queries read the same timeline-cursor data
+    // (PROG-113). The summary endpoint caches by digest hash server-side, so
+    // this only costs a model call when the day's events actually changed.
+    void queryClient.invalidateQueries({ queryKey: ["diary"] });
   },
   hasSnapshot: () => queryClient.getQueryData(SNAPSHOT_KEY) !== undefined,
   cancelSnapshotRefetch: () => {
