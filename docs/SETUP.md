@@ -333,6 +333,7 @@ falls back to the owner so `bun run dev` never hits a login wall.
 | `SESSION_SECRET` | HS256 key signing the session + OAuth-state cookies |
 | `PROGRESS_API_TOKEN` | bearer for non-interactive clients (→ owner) |
 | `SUPER_ADMIN_EMAILS` | comma-separated super-admins (currently `bryan@mysteryexperience.com`): manage the allowlist on the Admin page, always allowed. Everyone else is added via that page (stored in D1). Old name `ALLOWED_EMAILS` is read as a fallback (D44) |
+| `ANTHROPIC_API_KEY` | Claude API key for the Diary's AI day summary (PROG-113). Optional: unset ⇒ `GET /api/diary/summary` answers 503 and the Diary renders without a written entry |
 
 **Google OAuth client**: Google Cloud Console → APIs & Services → Credentials →
 **Create OAuth client ID** → *Web application*. Authorized redirect URIs:

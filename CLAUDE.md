@@ -100,11 +100,16 @@ the **Repo→Focus fold** (PROG-102, migration `0011`) — **Repo** is no longer
 container but an optional `gitUrl` field on **Focus**, so a focus is an action's
 sole container; `repos` table + `actions.repoId` dropped, repo gone from the
 structure page / board + search filters / container switcher / MCP, move is now
-focus-only (docs/decisions/PROG-102.md); and **background sync** (PROG-128) —
+focus-only (docs/decisions/PROG-102.md); **background sync** (PROG-128) —
 the client polls a cheap `GET /api/snapshot/version` change cursor (route
 change, focus, 60s interval) and refetches the snapshot only when another
 session actually wrote, so agent-made changes appear without a reload
-(docs/decisions/PROG-128.md).
+(docs/decisions/PROG-128.md); and the **Diary view** (PROG-113) — a `/diary`
+per-day recap (instant snapshot recap + five-week progress strip, a
+`GET /api/diary` day-activity wave, and an AI-written entry via
+`GET /api/diary/summary`, cached by event digest in `diary_summaries`,
+migration `0012`; needs the optional `ANTHROPIC_API_KEY` secret — unset means
+no entry, everything else works; docs/decisions/PROG-113.md).
 Likely next
 step per SPEC §8: **recurring due dates** (chores repeat); the due-date model +
 Agenda were built not to preclude it. Also pending: reminders/digests, start
