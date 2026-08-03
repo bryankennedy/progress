@@ -1525,11 +1525,18 @@ app.get("/api/actions/:key/bundle", async (c) => {
   if (!action) return c.json({ error: `no action for key ${key}` }, 404);
 
   // Independent reads (no transaction needed) — Promise.all per D31.
-  const [focus, arc, tagRows, commentRows, prRows, commitRows] = await Promise.all([
+  const [focus, arc, childRows, tagRows, commentRows, prRows, commitRows] = await Promise.all([
     db.select().from(focuses).where(eq(focuses.id, action.focusId)).limit(1),
     action.arcId
       ? db.select().from(arcs).where(eq(arcs.id, action.arcId)).limit(1)
       : Promise.resolve([]),
+    // Direct child Steps (PROG-112) — all statuses, so the agent sees what's
+    // already handled alongside what's open.
+    db
+      .select({ number: actions.number, title: actions.title, status: actions.status })
+      .from(actions)
+      .where(eq(actions.parentActionId, actionId))
+      .orderBy(asc(actions.number)),
     db
       .select({ name: tags.name })
       .from(actionTags)
@@ -1550,6 +1557,21 @@ app.get("/api/actions/:key/bundle", async (c) => {
       .orderBy(asc(commitLinks.createdAt)),
   ]);
 
+  // Ancestor Step chain (PROG-112): walk parentActionId to the root, outermost
+  // first. Same-focus is API-enforced, so ancestor keys share this prefix.
+  // Degrade, never throw (mirrors the client's actionAncestors, PROG-106): a
+  // missing parent truncates the chain, a cycle terminates via `seen`.
+  const parents: { key: string; title: string }[] = [];
+  const seen = new Set<string>([action.id]);
+  let parentId = action.parentActionId;
+  while (parentId && !seen.has(parentId) && parents.length < 10) {
+    seen.add(parentId);
+    const [p] = await db.select().from(actions).where(eq(actions.id, parentId)).limit(1);
+    if (!p) break;
+    parents.unshift({ key: `${focus[0]!.keyPrefix}-${p.number}`, title: p.title });
+    parentId = p.parentActionId;
+  }
+
   const md = renderBundle({
     // Canonical current key (normalizes an alias request), from the focus
     // prefix + action number — keys are derived, never stored (D18).
@@ -1557,6 +1579,12 @@ app.get("/api/actions/:key/bundle", async (c) => {
     action,
     focus: focus[0]!,
     arc: arc[0] ?? null,
+    parents,
+    steps: childRows.map((s) => ({
+      key: `${focus[0]!.keyPrefix}-${s.number}`,
+      title: s.title,
+      status: s.status,
+    })),
     tags: tagRows.map((t) => t.name),
     comments: commentRows,
     pullRequests: prRows,
@@ -1593,6 +1621,27 @@ app.get("/api/arcs/:id/bundle", async (c) => {
     (a, b) => statusRank.get(a.status)! - statusRank.get(b.status)! || a.number - b.number,
   );
 
+  // Step parents (PROG-112): resolve each open action's parent so the lead
+  // agent can group a Step with its parent. Parents already in the open list
+  // are reused; the rest (closed, or outside the arc) come in one batched
+  // fetch. Same-focus is API-enforced, so keys share the focus prefix.
+  const actionById = new Map(openActions.map((a) => [a.id, a]));
+  const missingParentIds = [
+    ...new Set(
+      openActions
+        .map((a) => a.parentActionId)
+        .filter((id): id is string => !!id && !actionById.has(id)),
+    ),
+  ];
+  const parentRows = missingParentIds.length
+    ? await db.select().from(actions).where(inArray(actions.id, missingParentIds))
+    : [];
+  const parentById = new Map([...openActions, ...parentRows].map((a) => [a.id, a]));
+  const stepOfFor = (a: (typeof openActions)[number]) => {
+    const p = a.parentActionId ? parentById.get(a.parentActionId) : undefined;
+    return p ? { key: `${focus.keyPrefix}-${p.number}`, title: p.title } : null;
+  };
+
   const baseUrl = new URL(c.req.url).origin;
   // Per-action context (tags, comments, PRs, commits), gathered in parallel
   // across actions — independent reads, no transaction (D31).
@@ -1625,6 +1674,7 @@ app.get("/api/arcs/:id/bundle", async (c) => {
       return {
         key: `${focus.keyPrefix}-${action.number}`,
         action,
+        stepOf: stepOfFor(action),
         tags: tagRows.map((t) => t.name),
         comments: commentRows,
         pullRequests: prRows,
