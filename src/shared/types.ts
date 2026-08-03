@@ -95,3 +95,29 @@ export type CommentSearchResponse = {
   // next page with ?offset= (PROG-78) or say "more matches" (the `/` modal).
   truncated: boolean;
 };
+
+// GET /api/diary?from=&to= — one local calendar day's cross-action history
+// (PROG-113). Comments/activity/git links aren't in the snapshot (D20), so the
+// Diary's second wave fetches everything that happened in the [from, to)
+// window in one round trip. Rows are raw table rows: the client already holds
+// every action in the store, so it resolves actionIds itself (the search
+// pattern). Pull requests carry rows *touched* in the window — created OR
+// updated (a merge updates in place, D29) — the client tells them apart by
+// timestamp.
+export type DiaryDayPayload = {
+  activity: WireActivity[];
+  comments: WireComment[];
+  pullRequests: WirePrLink[];
+  commits: WireCommitLink[];
+};
+
+// GET /api/diary/summary — the AI-written diary entry for one day (PROG-113).
+// `summary` is null when the day had no events (nothing to write about).
+// `cached` reports whether this came from the diary_summaries cache or a fresh
+// model call — display metadata only.
+export type DiarySummaryResponse = {
+  summary: string | null;
+  model?: string;
+  generatedAt?: string;
+  cached?: boolean;
+};

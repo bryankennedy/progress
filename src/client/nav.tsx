@@ -59,6 +59,15 @@ const SearchIcon = (
   </svg>
 );
 
+// A notebook with a margin rule — the daily diary.
+const DiaryIcon = (
+  <svg {...ICON}>
+    <rect x="5" y="3.5" width="14" height="17" rx="2" />
+    <path d="M8.5 3.5v17" />
+    <path d="M11.5 8h4.5M11.5 11.5h4.5" />
+  </svg>
+);
+
 const StructureIcon = (
   <svg {...ICON}>
     <rect x="9" y="3.5" width="6" height="4" rx="1" />
@@ -100,6 +109,18 @@ export const NAV: NavItem[] = [
     match: (p) => p.startsWith("/agenda"),
     icon: AgendaIcon,
     primary: true,
+  },
+  {
+    // Sits between Agenda and Search: the time-driven pair (what's due, what
+    // happened) reads together. Order here drives the desktop inline nav and
+    // the More sheet; the bottom tab bar only takes `primary` items.
+    href: "/diary",
+    label: "Diary",
+    match: (p) => p.startsWith("/diary"),
+    icon: DiaryIcon,
+    // The bottom bar keeps its four primary tabs (iOS 5-slot pattern); the
+    // Diary is a reading surface, reached from More on a phone.
+    primary: false,
   },
   {
     href: "/search",

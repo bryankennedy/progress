@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/cloudflare";
+import Anthropic from "@anthropic-ai/sdk";
 import { Hono, type Context } from "hono";
-import { and, asc, desc, eq, inArray, max, notInArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, max, notInArray, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import {
   activity,
@@ -8,6 +9,7 @@ import {
   arcs,
   comments,
   commitLinks,
+  diarySummaries,
   images,
   workspaces,
   ACTION_ESTIMATES,
@@ -27,6 +29,16 @@ import {
 import { CLOSED_ACTION_STATUSES, DEFAULT_ACTION_STATUS, tagColor } from "../shared/constants";
 import { isValidRank, rankAfter } from "../shared/rank";
 import { log } from "./log";
+import {
+  DIARY_MODEL,
+  DIARY_SYSTEM_PROMPT,
+  diaryDigest,
+  diaryUserPrompt,
+  digestHash,
+  isValidDiaryDay,
+  parseDiaryWindow,
+  type DiaryDayData,
+} from "./diary";
 import {
   commentSnippet,
   escapeLike,
@@ -67,6 +79,11 @@ type Bindings = AuthEnv & {
   // Sentry error tracking (PROG-60). Unset → the SDK is a no-op, so local dev
   // and tests never send. Production: `wrangler secret put SENTRY_DSN`.
   SENTRY_DSN?: string;
+  // Claude API key for the Diary's AI day summary (PROG-113). Unset → the
+  // summary endpoint answers 503 ai_unavailable and the Diary renders without
+  // an entry; everything else is unaffected. Local dev: .dev.vars; production:
+  // `wrangler secret put ANTHROPIC_API_KEY`.
+  ANTHROPIC_API_KEY?: string;
   // Tags events so prod errors are separable from any local testing. Defaults
   // to "production"; the DSN being unset already keeps dev silent.
   SENTRY_ENVIRONMENT?: string;
@@ -1303,6 +1320,189 @@ app.get("/api/actions/:id/timeline", async (c) => {
     pullRequests: actionPrs,
     commits: actionCommits,
   });
+});
+
+// ---------- Diary (PROG-113) ----------
+
+// One local calendar day's cross-action history — the Diary view's second
+// wave. Comments/activity/git links aren't in the snapshot (D20), so this is
+// the cross-action cut the per-action timeline can't give. The client computes
+// the day's local-midnight bounds (the server has no timezone) and sends them
+// as unix seconds; rows are returned raw, and the client resolves actionIds
+// against the store (the search pattern). PRs match on createdAt OR updatedAt:
+// a merge updates the row in place without a fresh link (D29).
+app.get("/api/diary", async (c) => {
+  const window = parseDiaryWindow(c.req.query("from"), c.req.query("to"));
+  if (!window) return c.json({ error: "invalid from/to window" }, 400);
+  const db = drizzle(c.env.DB);
+  // Independent reads → parallel queries, not a batch/transaction (D31).
+  const [dayActivity, dayComments, dayPrs, dayCommits] = await Promise.all([
+    db
+      .select()
+      .from(activity)
+      .where(and(gte(activity.createdAt, window.from), lt(activity.createdAt, window.to)))
+      .orderBy(asc(activity.createdAt)),
+    db
+      .select()
+      .from(comments)
+      .where(and(gte(comments.createdAt, window.from), lt(comments.createdAt, window.to)))
+      .orderBy(asc(comments.createdAt)),
+    db
+      .select()
+      .from(prLinks)
+      .where(
+        or(
+          and(gte(prLinks.createdAt, window.from), lt(prLinks.createdAt, window.to)),
+          and(gte(prLinks.updatedAt, window.from), lt(prLinks.updatedAt, window.to)),
+        ),
+      )
+      .orderBy(asc(prLinks.createdAt)),
+    db
+      .select()
+      .from(commitLinks)
+      .where(and(gte(commitLinks.createdAt, window.from), lt(commitLinks.createdAt, window.to)))
+      .orderBy(asc(commitLinks.createdAt)),
+  ]);
+  return c.json({
+    activity: dayActivity,
+    comments: dayComments,
+    pullRequests: dayPrs,
+    commits: dayCommits,
+  });
+});
+
+// The AI-written diary entry for one day. Gathers the same window of events,
+// builds a deterministic digest (./diary), and serves the cached summary when
+// the digest hash hasn't moved — so a revisit to an unchanged day never calls
+// the model. `?refresh=1` forces a rewrite. Without ANTHROPIC_API_KEY the
+// endpoint degrades to 503 ai_unavailable and the Diary simply has no entry.
+app.get("/api/diary/summary", async (c) => {
+  const day = c.req.query("date");
+  if (!isValidDiaryDay(day)) return c.json({ error: "invalid date" }, 400);
+  const window = parseDiaryWindow(c.req.query("from"), c.req.query("to"));
+  if (!window) return c.json({ error: "invalid from/to window" }, 400);
+  // The viewer's UTC offset (Date#getTimezoneOffset semantics) so digest
+  // timestamps read in the owner's local clock. Malformed → UTC.
+  const tzRaw = c.req.query("tz");
+  const tzOffsetMinutes = tzRaw && /^-?\d{1,4}$/.test(tzRaw) ? Number(tzRaw) : 0;
+  const refresh = c.req.query("refresh") === "1";
+  const db = drizzle(c.env.DB);
+
+  const [dayActivity, dayComments, dayPrs, dayCommits, createdActions] = await Promise.all([
+    db
+      .select()
+      .from(activity)
+      .where(and(gte(activity.createdAt, window.from), lt(activity.createdAt, window.to)))
+      .orderBy(asc(activity.createdAt)),
+    db
+      .select()
+      .from(comments)
+      .where(and(gte(comments.createdAt, window.from), lt(comments.createdAt, window.to)))
+      .orderBy(asc(comments.createdAt)),
+    db
+      .select()
+      .from(prLinks)
+      .where(
+        or(
+          and(gte(prLinks.createdAt, window.from), lt(prLinks.createdAt, window.to)),
+          and(gte(prLinks.updatedAt, window.from), lt(prLinks.updatedAt, window.to)),
+        ),
+      )
+      .orderBy(asc(prLinks.createdAt)),
+    db
+      .select()
+      .from(commitLinks)
+      .where(and(gte(commitLinks.createdAt, window.from), lt(commitLinks.createdAt, window.to)))
+      .orderBy(asc(commitLinks.createdAt)),
+    // Creation writes no activity row, so pick up the day's new actions here.
+    db
+      .select()
+      .from(actions)
+      .where(and(gte(actions.createdAt, window.from), lt(actions.createdAt, window.to)))
+      .orderBy(asc(actions.createdAt)),
+  ]);
+
+  // Resolve every referenced action (plus its focus prefix and the actors) so
+  // the digest can phrase events as KEY "title" by NAME.
+  const referencedIds = new Set<string>();
+  for (const row of [...dayActivity, ...dayComments, ...dayPrs, ...dayCommits])
+    referencedIds.add(row.actionId);
+  for (const a of createdActions) referencedIds.add(a.id);
+  const [referencedActions, allFocuses, allUsers] = await Promise.all([
+    referencedIds.size
+      ? db
+          .select()
+          .from(actions)
+          .where(inArray(actions.id, [...referencedIds]))
+      : Promise.resolve([]),
+    db.select().from(focuses),
+    db.select().from(users),
+  ]);
+
+  const data: DiaryDayData = {
+    day,
+    activity: dayActivity,
+    comments: dayComments,
+    pullRequests: dayPrs,
+    commits: dayCommits,
+    created: createdActions,
+    actionsById: new Map(referencedActions.map((a) => [a.id, a])),
+    focusesById: new Map(allFocuses.map((f) => [f.id, f])),
+    usersById: new Map(allUsers.map((u) => [u.id, u])),
+    tzOffsetMinutes,
+  };
+  const digest = diaryDigest(data);
+  // The digest's first line is the day header; no further lines = no events.
+  if (!digest.includes("\n")) return c.json({ summary: null });
+
+  const hash = await digestHash(digest);
+  const [cachedRow] = await db
+    .select()
+    .from(diarySummaries)
+    .where(eq(diarySummaries.day, day))
+    .limit(1);
+  if (cachedRow && cachedRow.digestHash === hash && !refresh) {
+    return c.json({
+      summary: cachedRow.summary,
+      model: cachedRow.model,
+      generatedAt: cachedRow.updatedAt,
+      cached: true,
+    });
+  }
+
+  if (!c.env.ANTHROPIC_API_KEY) return c.json({ error: "ai_unavailable" }, 503);
+  let summary: string;
+  try {
+    const anthropic = new Anthropic({ apiKey: c.env.ANTHROPIC_API_KEY });
+    const message = await anthropic.messages.create({
+      model: DIARY_MODEL,
+      max_tokens: 2000,
+      thinking: { type: "adaptive" },
+      system: DIARY_SYSTEM_PROMPT,
+      messages: [{ role: "user", content: diaryUserPrompt(digest) }],
+    });
+    summary = message.content
+      .filter((b) => b.type === "text")
+      .map((b) => b.text)
+      .join("")
+      .trim();
+  } catch (e) {
+    // A failed model call is a degraded summary, not an app error — hand the
+    // client a distinct status instead of the generic onError 500.
+    log("error", "diary_summary_failed", { requestId: c.get("requestId"), error: e });
+    return c.json({ error: "ai_failed" }, 502);
+  }
+  if (!summary) return c.json({ error: "ai_failed" }, 502);
+
+  const now = new Date();
+  await db
+    .insert(diarySummaries)
+    .values({ day, digestHash: hash, summary, model: DIARY_MODEL, createdAt: now, updatedAt: now })
+    .onConflictDoUpdate({
+      target: diarySummaries.day,
+      set: { digestHash: hash, summary, model: DIARY_MODEL, updatedAt: now },
+    });
+  return c.json({ summary, model: DIARY_MODEL, generatedAt: now, cached: false });
 });
 
 // Context bundle (SPEC §11.1, PROG-17): a deterministic Markdown "work order"

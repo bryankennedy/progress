@@ -250,6 +250,8 @@ mandatory — renew it before it lapses (an expired file is worse than none).
 | `GET /api/arcs/:id/bundle` | Looked up by **id** (the arc page has it). Returns `text/markdown` — the **arc** work order: a single prompt covering **every open action** in the arc (`done`/`canceled` dropped via `isOpenStatus`), each rendered like the action bundle (fields, description, comments, Images, linked PRs/commits; empty sections omitted, a Step names its parent via **Step of** — PROG-112) minus its per-action footer, with focus/arc lineage (incl. the focus's optional `gitUrl`) stated once. Ends in **combined-PR** orchestration — fan the actions to sub-agents, share one branch, land **one PR naming every key** — plus the same smart-commit block (keyed per-commit); a repo-less focus keeps the fan-out but drops the git machinery (PROG-112). Deterministic (status-then-number sort). 404 unknown arc. Rendered by `renderArcBundle` in `src/worker/bundle.ts`. |
 | `POST /api/actions/:id/comments` | `{ body }` → 201 `{ comment }`. |
 | `POST /api/mcp` | Hosted MCP endpoint (Streamable HTTP, stateless) — serves the eight-tool Progress MCP toolset (§3 “MCP server” below) straight from the Worker, gated by the same auth middleware; tool calls self-dispatch back into this API with the caller’s credentials. GET/DELETE → 405 (no SSE resume stream, no sessions). Handler: `src/worker/mcp.ts`. |
+| `GET /api/diary?from=&to=` | One local calendar day's cross-action history (PROG-113): the `activity`, `comments`, `commit_links`, and `pr_links` rows falling in the `[from, to)` unix-second window (PRs match on createdAt **or** updatedAt — a merge updates in place). The client computes the local-midnight bounds (the server has no timezone) and resolves the returned actionIds against the store. Window capped at 48h; 400 on a malformed/inverted/oversized window. Feeds the Diary's second wave. |
+| `GET /api/diary/summary?date=&from=&to=&tz=&refresh=` | The Diary's AI-written day entry (PROG-113): gathers the same window (plus actions *created* in it — creation writes no activity row), builds a deterministic digest (`src/worker/diary.ts`), and answers from the `diary_summaries` cache when the digest's SHA-256 matches the stored row — so revisiting an unchanged day never calls the model. Otherwise calls the Claude API (`@anthropic-ai/sdk`, model in `DIARY_MODEL`) and upserts the cache. `{ summary: null }` for an eventless day; `?refresh=1` forces a rewrite; `tz` is the viewer's UTC offset (minutes) so digest times read in the owner's clock. Requires the `ANTHROPIC_API_KEY` secret — unset ⇒ 503 `ai_unavailable` and the Diary renders without an entry; a failed model call ⇒ 502 `ai_failed`. |
 | `GET /api/search?q=&offset=` | Comment full-text search (PROG-130) — the one searchable text not in the snapshot payload (D20), so it needs the server; title/description search runs client-side over the store. Case-insensitive substring via SQLite `LIKE`, AND'd across whitespace terms, wildcards escaped (`ESCAPE '\'`) so `100%` matches literally. Returns `{ hits: [{ commentId, actionId, snippet }], truncated }`, most-recent first, one 50-hit page per request; `?offset=` skips past earlier pages (PROG-78 pagination; malformed/negative offsets clamp to 0) and `truncated` is true while more matches remain beyond the returned page **and** the next page is still reachable — offsets cap at 10,000 (`MAX_OFFSET`), where pagination ends rather than re-serving the clamped page. The client resolves `actionId` to the action it already holds; `snippet` is a body window the client re-highlights. Pure helpers in `src/worker/searchComments.ts`. |
 
 **Legacy aliases (PROG-98).** Old URLs keep working: the Worker serves the
@@ -431,7 +433,8 @@ arc-page load. In-app only for now (no CLI/MCP arc kickoff yet).
 ### Routing & key resolution
 
 Routes: `/` (board), `/outline` (the capture outliner), `/agenda` (the
-due-date view), `/structure` (the container tree), `/archive` (completed arcs),
+due-date view), `/diary` (the per-day recap, `?date=YYYY-MM-DD`),
+`/structure` (the container tree), `/archive` (completed arcs),
 `/action/:key`, `/workspace/:id`, `/focus/:id`, `/arc/:id`. Action
 URLs are key-based; `findActionByKey` resolves current keys first, then alias
 keys with a `replaceState` redirect to the canonical key — entirely
@@ -632,6 +635,24 @@ so old bookmarks keep working.
   agenda's due-then-key order), a quick-search box narrowing within the
   buckets, and the bump-due input + **✓ Done** button riding in a trailing
   cell. The groupings and quick-adds persist in both modes.
+- **Diary (`/diary`)** — the per-day recap (PROG-113): what actually happened
+  on a local calendar day, addressed as `?date=YYYY-MM-DD` (default today, ‹ ›
+  and a date input navigate; days are bookmarkable). Three layers: (1) an
+  **instant recap** from the snapshot — Completed (`completedAt` that day),
+  Started (`createdAt`), Also touched (`updatedAt`, not already listed) — plus
+  a five-week **progress strip** of completions per day (one thin moss bar per
+  day, the selected day in adobe, every bar a button that opens its day; pure
+  helpers in `src/client/diary.ts`, unit-tested); (2) **the day's events**, a
+  server wave (`GET /api/diary`) merging status changes, comments, linked
+  commits, and PR link/state changes into one clocked list — git-link activity
+  rows are skipped in favor of the richer link rows; (3) the **AI entry**
+  (`GET /api/diary/summary`) — a short written recap of the day, cached
+  server-side by event digest (the `diary_summaries` table) so revisits are
+  instant, with an inline "↻ rewrite". Without `ANTHROPIC_API_KEY` the entry
+  section quietly disappears; an eventless day shows a plain empty state. The
+  background sync's timeline invalidation also refreshes an open Diary
+  (`["diary"]` query prefix). Desktop nav inline; on phones it lives in the
+  More sheet.
 - **Structure (`/structure`)** — the Workspace → Focus → Arc tree
   with an inline "+ add" on each node (D40); a dedicated home for curating
   structure that keeps the board uncluttered. A focus's optional git repo

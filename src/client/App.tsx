@@ -12,6 +12,7 @@ import Admin from "./pages/Admin";
 import Agenda from "./pages/Agenda";
 import Archive from "./pages/Archive";
 import ContainerPage, { type ContainerType } from "./pages/ContainerPage";
+import Diary from "./pages/Diary";
 import Home from "./pages/Home";
 import ActionPage from "./pages/ActionPage";
 import Outline from "./pages/Outline";
@@ -71,6 +72,9 @@ export default function App() {
             </Route>
             <Route path="/agenda">
               <Agenda snapshot={snapshot} />
+            </Route>
+            <Route path="/diary">
+              <Diary snapshot={snapshot} />
             </Route>
             <Route path="/search">
               <Search snapshot={snapshot} />
