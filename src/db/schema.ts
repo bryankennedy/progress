@@ -312,6 +312,22 @@ export const images = sqliteTable("images", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 
+// Cached AI diary summaries (PROG-113): one row per local calendar day. The
+// summary regenerates only when the day's event digest changes — `digestHash`
+// is a SHA-256 over the deterministic digest the prompt was built from, so a
+// revisit to an unchanged day is a cache hit and never calls the model.
+export const diarySummaries = sqliteTable("diary_summaries", {
+  // The owner's local calendar day, ISO `YYYY-MM-DD` (same convention as
+  // actions.due_date — a wall-calendar day, not an instant).
+  day: text("day").primaryKey(),
+  digestHash: text("digest_hash").notNull(),
+  summary: text("summary").notNull(),
+  // Which model wrote it — display/debug metadata, not behavior.
+  model: text("model").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type Workspace = typeof workspaces.$inferSelect;
 export type Focus = typeof focuses.$inferSelect;
@@ -326,3 +342,4 @@ export type PrLink = typeof prLinks.$inferSelect;
 export type CommitLink = typeof commitLinks.$inferSelect;
 export type AllowedEmail = typeof allowedEmails.$inferSelect;
 export type Image = typeof images.$inferSelect;
+export type DiarySummary = typeof diarySummaries.$inferSelect;
