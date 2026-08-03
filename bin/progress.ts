@@ -23,15 +23,17 @@ const API_TOKEN = process.env.PROGRESS_API_TOKEN ?? process.env.PROD_PROGRESS_AP
 const KEY_RE = /^[A-Z]{2,8}-\d+$/;
 
 const USAGE = `Usage:
-  progress work <KEY> [--no-branch] [--print]
+  progress work <KEY> [--no-branch] [--print] [--model <name>]
 
 Fetches an action's context bundle and launches \`claude\` primed with it, in the
 current directory. By default also creates/checks out \`act/<KEY>\` so commits
 and PRs auto-link back to the action.
 
 Options:
-  --no-branch   Use the current branch; don't create/switch to act/<KEY>.
-  --print       Print the bundle to stdout and exit (don't launch claude).
+  --no-branch     Use the current branch; don't create/switch to act/<KEY>.
+  --print         Print the bundle to stdout and exit (don't launch claude).
+  --model <name>  Pass through as \`claude --model <name>\` (e.g. opus, sonnet)
+                  instead of the Claude Code default.
 
 Env:
   PROGRESS_BASE_URL                 (default: production)
@@ -92,21 +94,33 @@ function ensureBranch(key: string): string {
 }
 
 async function work(rest: string[]): Promise<void> {
-  const flags = new Set(rest.filter((a) => a.startsWith("--")));
-  const positional = rest.filter((a) => !a.startsWith("--"));
-  for (const f of flags)
-    if (f !== "--no-branch" && f !== "--print") fail(`unknown option ${f}.\n\n${USAGE}`);
+  // Hand-rolled parse because --model takes a value (the other flags are bare).
+  const positional: string[] = [];
+  let noBranch = false;
+  let print = false;
+  let model: string | undefined;
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i]!;
+    if (a === "--no-branch") noBranch = true;
+    else if (a === "--print") print = true;
+    else if (a === "--model") {
+      model = rest[++i];
+      if (!model || model.startsWith("--")) fail(`--model needs a value.\n\n${USAGE}`);
+    } else if (a.startsWith("--model=")) model = a.slice("--model=".length);
+    else if (a.startsWith("--")) fail(`unknown option ${a}.\n\n${USAGE}`);
+    else positional.push(a);
+  }
 
   const key = (positional[0] ?? "").toUpperCase();
   if (!KEY_RE.test(key)) fail(`expected an action key like PROG-19, got "${positional[0] ?? ""}".`);
 
   const bundle = await fetchBundle(key);
-  if (flags.has("--print")) {
+  if (print) {
     process.stdout.write(bundle.endsWith("\n") ? bundle : bundle + "\n");
     return;
   }
 
-  if (!flags.has("--no-branch")) {
+  if (!noBranch) {
     if (inGitWorkTree()) ensureBranch(key);
     else
       console.error(
@@ -117,7 +131,9 @@ async function work(rest: string[]): Promise<void> {
 
   // Hand the bundle to Claude Code as the session's opening prompt. No shell is
   // involved (direct exec), so the Markdown can't be reinterpreted.
-  const r = spawnSync("claude", [bundle], { stdio: "inherit" });
+  const r = spawnSync("claude", model ? ["--model", model, bundle] : [bundle], {
+    stdio: "inherit",
+  });
   if (r.error)
     fail(`couldn't launch \`claude\` (is Claude Code installed and on PATH?): ${r.error.message}`);
   process.exit(r.status ?? 0);
