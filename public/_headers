@@ -10,7 +10,9 @@
 # complementary, not redundant.
 #
 # CSP is tuned to exactly what the built `index.html` loads (verified PROG-65):
-#   - script-src 'self'        — one external module bundle, no inline scripts.
+#   - script-src 'self'        — one external module bundle, no inline scripts;
+#     + static.cloudflareinsights.com — Cloudflare Web Analytics beacon, edge-
+#                                injected into the HTML on the bck.dev zone.
 #   - style-src 'unsafe-inline'— React/dnd-kit set inline `style` attributes
 #                                (drag transforms, dynamic colors); plus the
 #                                Google Fonts stylesheet host.
@@ -19,11 +21,17 @@
 #                                data:/blob: cover pasted-image previews.
 #   - connect-src 'self'       — the client only ever fetches its own origin:
 #                                /api, plus the /ph PostHog proxy (PROG-137),
-#                                which exists precisely so this stays 'self'.
+#                                which exists precisely to keep PostHog first-
+#                                party rather than on this allowlist;
+#     + cloudflareinsights.com — the Web Analytics beacon POSTs RUM data there.
 #   - frame-ancestors 'none'   — clickjacking defense (superset of X-Frame-Options).
 # Sign-in is a top-level link to Google (not a form), so form-action 'self' is safe.
+# Deliberately still blocked: Bot Fight Mode's edge-injected inline challenge
+# script — it embeds a per-response timestamp, so it can only be allowed via
+# 'unsafe-inline', which would gut the policy. Its console error is harmless;
+# disable Bot Fight Mode (or its JavaScript Detections) on the zone to silence it.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; manifest-src 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self' https://cloudflareinsights.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; manifest-src 'self'
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
