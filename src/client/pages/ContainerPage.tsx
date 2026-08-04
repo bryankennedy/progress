@@ -148,10 +148,17 @@ export default function ContainerPage({
 
   return (
     <div className="mx-auto max-w-3xl">
-      {/* Ancestors in the structure tree, then the page's own kind (PROG-103)
-          — the name itself is the H1 right below. Replaces the old
-          "Snapshot /" trail (same rationale as the action page). */}
-      <Breadcrumb crumbs={[...ancestorCrumbs(snapshot, type, id), { label: TYPE_LABELS[type] }]} />
+      {/* The whole-tree Outline root (PROG-140), then ancestors in the structure
+          tree, then the page's own kind (PROG-103) — the name itself is the H1
+          right below. The root crumb lets any level climb back to the top of the
+          outline's zoom stack. */}
+      <Breadcrumb
+        crumbs={[
+          { label: "Outline", href: "/outline?all=1" },
+          ...ancestorCrumbs(snapshot, type, id),
+          { label: TYPE_LABELS[type] },
+        ]}
+      />
 
       <header className="mt-4">
         <div className="flex items-start gap-3">
