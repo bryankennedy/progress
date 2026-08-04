@@ -22,6 +22,7 @@ import {
   sortByName,
 } from "./boardFilters";
 import FilterSelect from "./FilterSelect";
+import { ChevronDownGlyph } from "./glyphs";
 import { PRIORITY_LABELS } from "./labels";
 
 // The dimensions every filtered surface shares. Status is deliberately not
@@ -143,7 +144,9 @@ export default function FilterBar({
             {activeCount}
           </span>
         )}
-        <span className={`ml-auto transition-transform ${open ? "rotate-180" : ""}`}>▾</span>
+        <ChevronDownGlyph
+          className={`ml-auto h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+        />
       </button>
 
       <div

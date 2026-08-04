@@ -225,7 +225,9 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
         }}
         // max-h + scroll: the labeled-field stack is taller than the old
         // one-line chip row, so short viewports scroll inside the dialog.
-        className="mx-auto mt-[8vh] max-h-[84vh] max-w-lg overflow-y-auto rounded-xl border border-line bg-card p-4 shadow-lg"
+        // mt-[12vh] matches every other modal's vertical seat (PROG-148, N4);
+        // 12 + 80 vh still clears the viewport bottom.
+        className="mx-auto mt-[12vh] max-h-[80vh] max-w-lg overflow-y-auto rounded-xl border border-line bg-card p-4 shadow-lg"
       >
         <h2 className="text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">
           New action

@@ -60,6 +60,8 @@ import {
   updateAction,
 } from "../store";
 import { clearDraft, readDraft, writeDraft } from "../drafts";
+import { ChevronDownGlyph } from "../glyphs";
+import PageHeader from "../PageHeader";
 import PriorityPicker from "../PriorityPicker";
 import StatusPicker from "../StatusPicker";
 import { DROP_ANIMATION } from "../dropAnimation";
@@ -257,9 +259,15 @@ function ArcMenu({ action, arcs }: { action: WireAction; arcs: WireArc[] }) {
       <button
         onClick={() => setOpen((o) => !o)}
         title="Assign to an arc"
-        className="rounded px-1 text-xs text-ink-faint hover:bg-hover hover:text-ink-soft"
+        className="inline-flex items-center gap-0.5 rounded px-1 text-xs text-ink-faint hover:bg-hover hover:text-ink-soft"
       >
-        {action.arcId ? "arc ▾" : "→ arc"}
+        {action.arcId ? (
+          <>
+            arc <ChevronDownGlyph className="h-3 w-3 shrink-0" />
+          </>
+        ) : (
+          "→ arc"
+        )}
       </button>
       {open && (
         <>
@@ -1666,69 +1674,71 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Outline</h1>
-          <p className="mt-1 text-xs text-ink-faint">
+      <PageHeader
+        title="Outline"
+        below={
+          <p className="text-xs text-ink-faint">
             Fast capture — type to add actions, <kbd>Enter</kbd> for the next, <kbd>Tab</kbd>/
             <kbd>Shift+Tab</kbd> to nest. Each row&apos;s bullet is its handle — tap it to open,
             drag it to reorder or drop it into another arc or focus.
           </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-ink-soft">
-            <input
-              type="checkbox"
-              checked={hideDone}
-              onChange={(e) => setHideDone(e.target.checked)}
-              className="h-3.5 w-3.5 accent-accent-deep"
-            />
-            Hide done
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <span className="text-ink-faint">Scope</span>
-            <select
-              value={root.kind === "all" ? "all" : `${root.kind}:${root.id}`}
-              onChange={(e) => setRoot(e.target.value)}
-              className="rounded border border-line bg-card px-2 py-1 text-sm text-ink focus:outline-none"
-            >
-              {/* The whole tree first (PROG-140), then each workspace and its
+        }
+        actions={
+          <>
+            <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-ink-soft">
+              <input
+                type="checkbox"
+                checked={hideDone}
+                onChange={(e) => setHideDone(e.target.checked)}
+                className="h-3.5 w-3.5 accent-accent-deep"
+              />
+              Hide done
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-ink-faint">Scope</span>
+              <select
+                value={root.kind === "all" ? "all" : `${root.kind}:${root.id}`}
+                onChange={(e) => setRoot(e.target.value)}
+                className="rounded border border-line bg-card px-2 py-1 text-sm text-ink focus:outline-none"
+              >
+                {/* The whole tree first (PROG-140), then each workspace and its
                   focuses. */}
-              <option value="all">All workspaces</option>
-              {/* Focuses nest under their workspace (PROG-109) — each workspace
+                <option value="all">All workspaces</option>
+                {/* Focuses nest under their workspace (PROG-109) — each workspace
                   option is followed by its focuses, indented. Both levels stay
                   selectable; nbsp indentation because <option> padding isn't
                   styleable cross-browser. */}
-              {workspaces.map((i) => (
-                <Fragment key={i.id}>
-                  <option value={`workspace:${i.id}`}>{i.name}</option>
-                  {focuses
-                    .filter((p) => p.workspaceId === i.id)
-                    .map((p) => (
-                      <option key={p.id} value={`focus:${p.id}`}>
-                        {"\u00a0\u00a0\u00a0"}
-                        {p.name}
-                      </option>
-                    ))}
-                </Fragment>
-              ))}
-              {/* Active focuses whose workspace is archived would otherwise
+                {workspaces.map((i) => (
+                  <Fragment key={i.id}>
+                    <option value={`workspace:${i.id}`}>{i.name}</option>
+                    {focuses
+                      .filter((p) => p.workspaceId === i.id)
+                      .map((p) => (
+                        <option key={p.id} value={`focus:${p.id}`}>
+                          {"\u00a0\u00a0\u00a0"}
+                          {p.name}
+                        </option>
+                      ))}
+                  </Fragment>
+                ))}
+                {/* Active focuses whose workspace is archived would otherwise
                   vanish from the picker — keep them reachable at the end. */}
-              {focuses.some((p) => !workspaces.some((i) => i.id === p.workspaceId)) && (
-                <optgroup label="Other focuses">
-                  {focuses
-                    .filter((p) => !workspaces.some((i) => i.id === p.workspaceId))
-                    .map((p) => (
-                      <option key={p.id} value={`focus:${p.id}`}>
-                        {p.name}
-                      </option>
-                    ))}
-                </optgroup>
-              )}
-            </select>
-          </label>
-        </div>
-      </div>
+                {focuses.some((p) => !workspaces.some((i) => i.id === p.workspaceId)) && (
+                  <optgroup label="Other focuses">
+                    {focuses
+                      .filter((p) => !workspaces.some((i) => i.id === p.workspaceId))
+                      .map((p) => (
+                        <option key={p.id} value={`focus:${p.id}`}>
+                          {p.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                )}
+              </select>
+            </label>
+          </>
+        }
+      />
 
       <div className="mt-5 space-y-4">
         <OutlineView snapshot={snapshot} scope={root} hideDone={hideDone} />

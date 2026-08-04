@@ -11,6 +11,7 @@ import {
   openCreateAction,
   type ContainerDialogRequest,
 } from "./commands/controller";
+import { ChevronDownGlyph } from "./glyphs";
 import { NAV } from "./nav";
 import { useSnapshotSlice } from "./store";
 
@@ -44,7 +45,7 @@ export default function Header() {
     // inner row stays tappable below them. Inert (0px) in the browser.
     <header className="pwa-safe-top pwa-safe-x sticky top-0 z-40 border-b border-line bg-paper/90 backdrop-blur">
       <div className="mx-auto flex max-w-screen-2xl items-center gap-1 px-3 py-2 sm:px-6">
-        <Link href="/" className="mr-2 font-semibold tracking-tight text-ink">
+        <Link href="/" className="mr-2 font-semibold text-ink">
           Progress
         </Link>
         {/* Inline nav is desktop-only; on phones the bottom tab bar
@@ -72,7 +73,7 @@ export default function Header() {
               onClick={() => setMenuOpen((o) => !o)}
               className="inline-flex min-h-11 items-center rounded bg-accent px-3 py-1 text-sm text-white hover:bg-accent-deep sm:min-h-0"
             >
-              New <span className="ml-1 text-white/90">▾</span>
+              New <ChevronDownGlyph className="ml-1 h-3.5 w-3.5 shrink-0 text-white/90" />
             </button>
             {menuOpen && (
               <>
