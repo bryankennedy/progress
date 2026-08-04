@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import type { WireAllowedEmail, SnapshotPayload } from "../../shared/types";
+import PageHeader from "../PageHeader";
 import { addAllowedEmail, removeAllowedEmail, updateAllowedEmailNote } from "../store";
 
 function formatDate(iso: string): string {
@@ -22,7 +23,7 @@ export default function Admin({ snapshot }: { snapshot: SnapshotPayload }) {
   if (!snapshot.isSuperAdmin) {
     return (
       <div className="mx-auto max-w-3xl">
-        <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
+        <PageHeader title="Admin" />
         <p className="mt-2 text-sm text-ink-soft">
           This page is for administrators only.{" "}
           <Link href="/" className="text-accent hover:underline">
@@ -37,13 +38,15 @@ export default function Admin({ snapshot }: { snapshot: SnapshotPayload }) {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Admin · Access</h1>
-        <p className="mt-1 text-xs text-ink-faint">
-          Who may sign in to Progress. Super-admins (the <code>SUPER_ADMIN_EMAILS</code> secret)
-          always have access and manage this list — they aren&apos;t shown here.
-        </p>
-      </div>
+      <PageHeader
+        title="Admin · Access"
+        below={
+          <p className="text-xs text-ink-faint">
+            Who may sign in to Progress. Super-admins (the <code>SUPER_ADMIN_EMAILS</code> secret)
+            always have access and manage this list — they aren&apos;t shown here.
+          </p>
+        }
+      />
 
       <AddForm existing={list} />
 

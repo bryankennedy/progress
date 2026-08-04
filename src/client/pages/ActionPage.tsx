@@ -130,13 +130,16 @@ export default function ActionPage({
       />
 
       <header className="mt-4">
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">
+        {/* The action title IS this page's h1 (PROG-148): breadcrumb + title
+            is the header grammar here, sharing the canonical h1 classes
+            (normal tracking — CR6) rather than the PageHeader component. */}
+        <h1 className="mt-1 text-2xl font-semibold">
           <InlineEdit
             value={action.title}
             onSave={(title) => updateAction(action.id, { title })}
             validate={(v) => v !== ""}
             className="w-full"
-            inputClassName="text-2xl font-semibold tracking-tight"
+            inputClassName="text-2xl font-semibold"
           />
         </h1>
       </header>

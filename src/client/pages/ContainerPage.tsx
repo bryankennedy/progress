@@ -167,13 +167,16 @@ export default function ContainerPage({
 
       <header className="mt-4">
         <div className="flex items-start gap-3">
-          <h1 className="min-w-0 flex-1 text-2xl font-semibold tracking-tight">
+          {/* The entity title IS this page's h1 (PROG-148): breadcrumb + name
+              is the header grammar here, sharing the canonical h1 classes
+              (normal tracking — CR6) rather than the PageHeader component. */}
+          <h1 className="min-w-0 flex-1 text-2xl font-semibold">
             <InlineEdit
               value={resolved.name}
               onSave={(name) => updateContainer(type, id, { name })}
               validate={(v) => v !== ""}
               className="w-full"
-              inputClassName="text-2xl font-semibold tracking-tight"
+              inputClassName="text-2xl font-semibold"
             />
           </h1>
           {resolved.archivedAt && (

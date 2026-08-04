@@ -18,7 +18,7 @@ export default function SignIn() {
           height={88}
           className="rounded-xl shadow-sm"
         />
-        <h1 className="mt-6 text-2xl font-semibold tracking-tight">Progress</h1>
+        <h1 className="mt-6 text-2xl font-semibold">Progress</h1>
         <p className="mt-2 text-sm text-ink-soft">Sign in to continue.</p>
 
         <a

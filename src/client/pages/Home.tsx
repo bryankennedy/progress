@@ -38,6 +38,7 @@ import { DROP_ANIMATION } from "../dropAnimation";
 import { reorder, type ColumnMap } from "../boardOrder";
 import { BOARD_FILTERS_KEY, FILTER_NONE, matchesNullableId } from "../boardFilters";
 import FilterBar, { useStickyFilterUrl } from "../FilterBar";
+import PageHeader from "../PageHeader";
 import { recentlyCompleted } from "../boardDone";
 import type { WireAction, WireTag, SnapshotPayload } from "../../shared/types";
 import { openCreateAction } from "../commands/controller";
@@ -329,20 +330,21 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
 
   return (
     <>
-      {/* No page title here: the global header already shows the "Progress"
-          app name (PROG-53 — drop the redundant heading). */}
-      <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <p className="text-xs text-ink-faint">
-          {shownCount} actions on board · {snapshot.actions.length} total · loaded in{" "}
-          {Math.round(loadStats.fetchMs)} ms · ⌘K for commands
-        </p>
-        <button
-          onClick={() => openCreateAction()}
-          className="ml-auto inline-flex min-h-11 items-center rounded bg-accent px-3 py-1 text-sm text-white hover:bg-accent-deep sm:min-h-0"
-        >
-          New action <span className="ml-1 text-white/90">(C)</span>
-        </button>
-      </header>
+      {/* The shared page-header grammar (PROG-148, superseding PROG-53's
+          no-heading call): every route opens with an h1, the board included —
+          its heading order used to start at the h2 column labels. The page's
+          own "New action" button is gone too (audit CR7): the global header's
+          New menu and the C shortcut are the create entry points, same as on
+          every other page; the ghost card per column stays. */}
+      <PageHeader
+        title="Board"
+        meta={
+          <>
+            {shownCount} actions on board · {snapshot.actions.length} total · loaded in{" "}
+            {Math.round(loadStats.fetchMs)} ms · ⌘K for commands · C for a new action
+          </>
+        }
+      />
 
       {/* The shared filter bar (PROG-92): six dropdowns + mobile disclosure +
           Clear, identical to the search page's. The board's toggles ride in the

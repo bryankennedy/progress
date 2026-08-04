@@ -22,6 +22,7 @@ import { closedTitleClass } from "../actionDone";
 import { addDays, formatDueDate, todayISO } from "../dates";
 import { completionSeries, dayBounds, dayRecap, formatDiaryDay } from "../diary";
 import { STATUS_LABELS } from "../labels";
+import PageHeader from "../PageHeader";
 import StatusIndicator from "../StatusIndicator";
 import { actionKeyOf, rewriteDiarySummary, useDiaryDay, useDiarySummary } from "../store";
 
@@ -49,20 +50,22 @@ export default function Diary({ snapshot }: { snapshot: SnapshotPayload }) {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Diary</h1>
-        <p className="text-xs text-ink-faint">
-          {recap.completed.length} completed · {recap.created.length} started
-          {day !== today && (
-            <>
-              {" · "}
-              <button onClick={() => openDay(today)} className="underline hover:text-ink-soft">
-                back to today
-              </button>
-            </>
-          )}
-        </p>
-      </header>
+      <PageHeader
+        title="Diary"
+        meta={
+          <>
+            {recap.completed.length} completed · {recap.created.length} started
+            {day !== today && (
+              <>
+                {" · "}
+                <button onClick={() => openDay(today)} className="underline hover:text-ink-soft">
+                  back to today
+                </button>
+              </>
+            )}
+          </>
+        }
+      />
 
       <ProgressStrip series={series} selected={day} onSelect={openDay} />
 
