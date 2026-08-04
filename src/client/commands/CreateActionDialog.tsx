@@ -216,7 +216,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-ink/20 p-4" onMouseDown={() => setOpen(false)}>
+    <div className="fixed inset-0 z-50 bg-ink/30 p-4" onMouseDown={() => setOpen(false)}>
       <form
         ref={trapRef}
         role="dialog"
@@ -448,6 +448,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
                     onChange={(e) =>
                       setNewFocus((p) => (p ? { ...p, workspaceId: e.target.value } : p))
                     }
+                    aria-label="Workspace for the new focus"
                     className="rounded border border-line bg-card px-2 py-1 text-xs text-ink-soft hover:border-ink-faint"
                   >
                     {activeWorkspaces.map((i) => (

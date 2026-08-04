@@ -127,7 +127,7 @@ export default function CommandPalette({ snapshot }: { snapshot: SnapshotPayload
   const activeId = selectables[sel] ? `palette-option-${selectables[sel].id}` : undefined;
 
   return (
-    <div className="fixed inset-0 z-50 bg-ink/20 p-4" onMouseDown={close}>
+    <div className="fixed inset-0 z-50 bg-ink/30 p-4" onMouseDown={close}>
       <div
         ref={trapRef}
         role="dialog"

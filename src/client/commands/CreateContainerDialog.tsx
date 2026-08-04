@@ -101,7 +101,7 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
     "rounded border border-line bg-card px-2 py-1 text-xs text-ink-soft hover:border-ink-faint";
 
   return (
-    <div className="fixed inset-0 z-50 bg-ink/20 p-4" onMouseDown={() => setRequest(null)}>
+    <div className="fixed inset-0 z-50 bg-ink/30 p-4" onMouseDown={() => setRequest(null)}>
       <form
         ref={trapRef}
         role="dialog"
@@ -136,6 +136,7 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
               <select
                 value={parentId}
                 onChange={(e) => setParentId(e.target.value)}
+                aria-label="Workspace"
                 className={selectClass}
               >
                 {activeWorkspaces.map((i) => (
@@ -171,6 +172,7 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
             <select
               value={parentId}
               onChange={(e) => setParentId(e.target.value)}
+              aria-label="Focus"
               className={selectClass}
             >
               {activeFocuses.map((p) => (

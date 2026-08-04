@@ -130,7 +130,7 @@ export default function SearchModal({ snapshot }: { snapshot: SnapshotPayload })
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-ink/20 p-4" onMouseDown={close}>
+    <div className="fixed inset-0 z-50 bg-ink/30 p-4" onMouseDown={close}>
       <div
         ref={trapRef}
         role="dialog"
