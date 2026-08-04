@@ -11,9 +11,9 @@ import { Link, useLocation } from "wouter";
 import type { WireAction, SnapshotPayload } from "../shared/types";
 import { closedTitleClass } from "./actionDone";
 import { localDayOfInstant, relativeDue, todayISO } from "./dates";
-import { STATUS_LABELS } from "./labels";
 import PriorityPicker from "./PriorityPicker";
 import { highlight, type ActionSort, type ActionSortKey, type Segment } from "./search";
+import StatusPicker from "./StatusPicker";
 import { actionKeyOf } from "./store";
 
 // One row: the action plus search-hit context. `inTitle: false` (a
@@ -191,7 +191,10 @@ export default function ActionTable({
                           key={col}
                           className="whitespace-nowrap px-3 py-2 text-xs text-ink-faint"
                         >
-                          {STATUS_LABELS[action.status]}
+                          {/* Editable in place (PROG-140): the shared picker
+                              stops propagation itself, so a status change
+                              never doubles as row navigation. */}
+                          <StatusPicker actionId={action.id} status={action.status} showLabel />
                         </td>
                       );
                     case "priority":

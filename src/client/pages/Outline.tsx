@@ -61,7 +61,7 @@ import {
 } from "../store";
 import { clearDraft, readDraft, writeDraft } from "../drafts";
 import PriorityPicker from "../PriorityPicker";
-import StatusIndicator from "../StatusIndicator";
+import StatusPicker from "../StatusPicker";
 import { DROP_ANIMATION } from "../dropAnimation";
 import { rankForInsert, rankForReorder, type ReorderPlacement } from "../outlineReorder";
 import { byRankThenName, containerReorderRanks, type Ranked } from "../containerReorder";
@@ -456,12 +456,12 @@ const ActionRow = memo(function ActionRow({
       {/* At-a-glance state, right-aligned (PROG-124): the shared priority +
           status glyphs every other view uses. Status is on every row, so it
           holds the outermost column and the right edge stays flush; priority
-          sits just inside it. The glyph is the shared editable PriorityPicker
-          (PROG-136) — same in-place control as the table cell and Agenda
-          rows. "None" still reads as nothing at a glance (PROG-124): its
-          hollow ring only fades in on row hover / focus, but the picker stays
-          hit-testable even while transparent, so a tap where the glyph sits
-          works on touch too. */}
+          sits just inside it. Both glyphs are the shared editable pickers
+          (PROG-136 priority, PROG-140 status) — same in-place control as the
+          table cell and Agenda rows. "None" priority still reads as nothing
+          at a glance (PROG-124): its hollow ring only fades in on row hover /
+          focus, but the picker stays hit-testable even while transparent, so
+          a tap where the glyph sits works on touch too. */}
       <span className="flex shrink-0 items-center gap-1.5">
         <span
           className={
@@ -472,7 +472,7 @@ const ActionRow = memo(function ActionRow({
         >
           <PriorityPicker actionId={action.id} priority={action.priority} />
         </span>
-        <StatusIndicator status={action.status} />
+        <StatusPicker actionId={action.id} status={action.status} />
       </span>
     </div>
   );
