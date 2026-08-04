@@ -5,13 +5,27 @@
 // PROG-51 adds a sticky variant with an optional action: when a save fails
 // after retries, the toast must persist (not vanish in 5s) and offer a Retry
 // so the user's preserved draft can be re-sent without hunting for it.
+//
+// PROG-146 N2 adds `tone`: every toast today is a failure, so the danger
+// styling was hard-coded — the first non-error toast (e.g. an undo
+// confirmation) would have shipped red with no way to say otherwise. `tone`
+// defaults to "danger" so every existing call site is unchanged; "neutral"
+// renders with the standard card/ink/line palette instead.
 
 import { useSyncExternalStore } from "react";
 
+export type ToastTone = "danger" | "neutral";
 type ToastAction = { label: string; run: () => void };
 // `key` (sticky toasts only) dedupes by source: a repeated failure from the same
 // composer replaces its toast instead of stacking another identical one.
-type Toast = { id: number; message: string; action?: ToastAction; sticky: boolean; key?: string };
+type Toast = {
+  id: number;
+  message: string;
+  action?: ToastAction;
+  sticky: boolean;
+  key?: string;
+  tone: ToastTone;
+};
 
 let toasts: readonly Toast[] = [];
 const listeners = new Set<() => void>();
@@ -26,9 +40,9 @@ function dismiss(id: number) {
   emit();
 }
 
-export function toast(message: string, dismissAfterMs = 5000) {
+export function toast(message: string, dismissAfterMs = 5000, tone: ToastTone = "danger") {
   const id = nextId++;
-  toasts = [...toasts, { id, message, sticky: false }];
+  toasts = [...toasts, { id, message, sticky: false, tone }];
   emit();
   setTimeout(() => dismiss(id), dismissAfterMs);
 }
@@ -38,7 +52,12 @@ export function toast(message: string, dismissAfterMs = 5000) {
 // recoverable. Running the action dismisses the toast. An optional `key` dedupes
 // by source: a fresh failure from the same place replaces its existing toast
 // rather than stacking duplicates on a retry-storm.
-export function toastAction(message: string, action: ToastAction, key?: string) {
+export function toastAction(
+  message: string,
+  action: ToastAction,
+  key?: string,
+  tone: ToastTone = "danger",
+) {
   const id = nextId++;
   const wrapped: ToastAction = {
     label: action.label,
@@ -48,7 +67,7 @@ export function toastAction(message: string, action: ToastAction, key?: string) 
     },
   };
   const rest = key ? toasts.filter((t) => t.key !== key) : toasts;
-  toasts = [...rest, { id, message, action: wrapped, sticky: true, key }];
+  toasts = [...rest, { id, message, action: wrapped, sticky: true, key, tone }];
   emit();
 }
 
@@ -64,32 +83,46 @@ export function Toasts() {
   // back to bottom-4 once the bar is gone at sm+.
   return (
     <div className="fixed bottom-24 right-4 z-50 flex flex-col gap-2 sm:bottom-4">
-      {current.map((t) => (
-        <div
-          key={t.id}
-          data-toast
-          className="flex items-center gap-3 rounded-md border border-danger-border bg-danger-bg px-4 py-2 text-sm text-danger shadow-md"
-        >
-          <span>{t.message}</span>
-          {t.action && (
-            <button
-              onClick={t.action.run}
-              className="rounded border border-danger-border px-2 py-0.5 text-xs font-medium hover:bg-danger-border/20"
-            >
-              {t.action.label}
-            </button>
-          )}
-          {t.sticky && (
-            <button
-              onClick={() => dismiss(t.id)}
-              aria-label="Dismiss"
-              className="text-danger/60 hover:text-danger"
-            >
-              ✕
-            </button>
-          )}
-        </div>
-      ))}
+      {current.map((t) => {
+        const danger = t.tone === "danger";
+        return (
+          <div
+            key={t.id}
+            data-toast
+            role="status"
+            className={`flex items-center gap-3 rounded-md border px-4 py-2 text-sm shadow-md ${
+              danger
+                ? "border-danger-border bg-danger-bg text-danger"
+                : "border-line bg-card text-ink"
+            }`}
+          >
+            <span>{t.message}</span>
+            {t.action && (
+              <button
+                onClick={t.action.run}
+                className={`rounded border px-2 py-0.5 text-xs font-medium ${
+                  danger
+                    ? "border-danger-border hover:bg-danger-border/20"
+                    : "border-line hover:bg-hover"
+                }`}
+              >
+                {t.action.label}
+              </button>
+            )}
+            {t.sticky && (
+              <button
+                onClick={() => dismiss(t.id)}
+                aria-label="Dismiss"
+                className={
+                  danger ? "text-danger/60 hover:text-danger" : "text-ink-faint hover:text-ink"
+                }
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
