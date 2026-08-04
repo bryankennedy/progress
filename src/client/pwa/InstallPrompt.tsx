@@ -49,7 +49,9 @@ function PlusSquareIcon({ className }: { className?: string }) {
 function Card({ children, onDismiss }: { children: React.ReactNode; onDismiss: () => void }) {
   return (
     <div className="pwa-safe-bottom pwa-safe-x fixed inset-x-0 bottom-16 z-50 flex justify-center px-3 pb-3 sm:bottom-0">
-      <div className="relative w-full max-w-md rounded-lg border border-line bg-paper p-4 shadow-xl">
+      {/* bg-card, not paper: this floats as a raised card over the app, and
+          raised surfaces standardized on the white card (PROG-145). */}
+      <div className="relative w-full max-w-md rounded-lg border border-line bg-card p-4 shadow-xl">
         <button
           onClick={onDismiss}
           aria-label="Dismiss"
