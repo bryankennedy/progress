@@ -64,7 +64,7 @@ import PriorityPicker from "../PriorityPicker";
 import StatusIndicator from "../StatusIndicator";
 import { DROP_ANIMATION } from "../dropAnimation";
 import { rankForInsert, rankForReorder, type ReorderPlacement } from "../outlineReorder";
-import { byRankThenName, containerReorderRanks } from "../containerReorder";
+import { byRankThenName, containerReorderRanks, type Ranked } from "../containerReorder";
 import { loadHideDone, loadScope, saveHideDone, saveScope } from "../outlinePrefs";
 // Tree model + sibling rules live in outlineTree.ts (pure, unit-tested).
 import { buildForest, inSubtreeOf, siblingsOf, type OutlineNode as Node } from "../outlineTree";
@@ -1022,6 +1022,19 @@ export function OutlineView({
   const workspaceById = useMemo(() => new Map(workspaces.map((w) => [w.id, w])), [workspaces]);
   const rankOf = (id: string) => actionById.get(id)!.rank;
 
+  // Reorder a container section among its siblings (PROG-141): the shared tail
+  // of the workspace / focus / arc drag branches — one write per rank change,
+  // the whole tied group renumbered on its first drag (see containerReorder).
+  const applyContainerReorder = (
+    kind: "workspace" | "focus" | "arc",
+    siblings: Ranked[],
+    activeId: string,
+    overId: string,
+  ) => {
+    for (const u of containerReorderRanks(siblings, activeId, overId) ?? [])
+      void updateContainer(kind, u.id, { rank: u.rank });
+  };
+
   // Whatever the drag is holding. While set, a DragOverlay carries a floating
   // preview of it (board-card pattern: instant pickup feedback that tracks the
   // pointer) and the page goes pointer-inert, so nothing hover-highlights
@@ -1243,8 +1256,7 @@ export function OutlineView({
           focusById.get(actionById.get(overId)?.focusId ?? "")?.workspaceId ??
           null);
       if (!overWorkspaceId || overWorkspaceId === activeId) return;
-      const updates = containerReorderRanks(workspaces, activeId, overWorkspaceId);
-      for (const u of updates ?? []) void updateContainer("workspace", u.id, { rank: u.rank });
+      applyContainerReorder("workspace", workspaces, activeId, overWorkspaceId);
       return;
     }
 
@@ -1266,12 +1278,7 @@ export function OutlineView({
         // distinct; the first drag in a still-tied (alphabetical) group
         // renumbers the whole group — see containerReorder.
         if (!overFocus || overFocus.id === activeId) return;
-        const updates = containerReorderRanks(
-          focusesOfWorkspace(overWorkspaceId),
-          activeId,
-          overFocus.id,
-        );
-        for (const u of updates ?? []) void updateContainer("focus", u.id, { rank: u.rank });
+        applyContainerReorder("focus", focusesOfWorkspace(overWorkspaceId), activeId, overFocus.id);
         return;
       }
 
@@ -1305,8 +1312,7 @@ export function OutlineView({
       const focusArcs = snapshot.arcs
         .filter((a) => a.focusId === activeArc.focusId && !a.archivedAt)
         .sort(byRankThenName);
-      const updates = containerReorderRanks(focusArcs, activeId, overArc.id);
-      for (const u of updates ?? []) void updateContainer("arc", u.id, { rank: u.rank });
+      applyContainerReorder("arc", focusArcs, activeId, overArc.id);
       return;
     }
 
