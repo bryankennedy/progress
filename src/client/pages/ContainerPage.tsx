@@ -26,6 +26,9 @@ const TYPE_LABELS: Record<ContainerType, string> = {
 
 type ChildGroup = {
   label: string;
+  // Explicit singular for the "+ New …" button — "Focuses" doesn't
+  // singularize by dropping the trailing "s" (PROG-138).
+  singular: string;
   items: { href: string; name: string; archived: boolean }[];
   onNew?: () => void;
 };
@@ -56,6 +59,7 @@ function resolve(ws: SnapshotPayload, type: ContainerType, id: string): Resolved
         children: [
           {
             label: "Focuses",
+            singular: "focus",
             items: focuses.map((p) => ({
               href: `/focus/${p.id}`,
               name: p.name,
@@ -76,6 +80,7 @@ function resolve(ws: SnapshotPayload, type: ContainerType, id: string): Resolved
         children: [
           {
             label: "Arcs",
+            singular: "arc",
             items: sortContainers(ws.arcs.filter((a) => a.focusId === id)).map((a) => ({
               href: `/arc/${a.id}`,
               name: a.name,
@@ -244,7 +249,7 @@ export default function ContainerPage({
                   onClick={group.onNew}
                   className="rounded border border-dashed border-line px-2 py-0.5 text-xs text-ink-faint hover:border-ink-faint hover:text-ink-soft"
                 >
-                  + New {group.label.toLowerCase().replace(/s$/, "")}
+                  + New {group.singular}
                 </button>
               )}
             </p>
