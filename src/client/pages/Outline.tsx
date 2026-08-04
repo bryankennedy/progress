@@ -264,7 +264,7 @@ function ArcMenu({ action, arcs }: { action: WireAction; arcs: WireArc[] }) {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 z-50 mt-1 w-48 overflow-hidden rounded-lg border border-line bg-card py-1 shadow-xl">
+          <div className="absolute left-0 z-50 mt-1 w-48 overflow-hidden rounded-lg border border-line bg-card py-1 shadow-md">
             {focusArcs.map((a) => (
               <button
                 key={a.id}

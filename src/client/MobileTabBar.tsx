@@ -27,7 +27,7 @@ export default function MobileTabBar() {
         <>
           {/* Tap anywhere outside to dismiss the sheet. */}
           <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
-          <div className="absolute inset-x-0 bottom-full z-50 border-t border-line bg-card pb-1 shadow-xl">
+          <div className="absolute inset-x-0 bottom-full z-50 border-t border-line bg-card pb-1 shadow-md">
             {secondary.map((item) => {
               const active = item.match(path);
               return (

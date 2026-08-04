@@ -118,7 +118,7 @@ export default function CommandPalette({ snapshot }: { snapshot: SnapshotPayload
       <div
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={onKeyDown}
-        className="mx-auto mt-[12vh] max-w-lg overflow-hidden rounded-xl border border-line bg-card shadow-2xl"
+        className="mx-auto mt-[12vh] max-w-lg overflow-hidden rounded-xl border border-line bg-card shadow-lg"
       >
         {ctxAction && (
           <p className="border-b border-line px-4 pb-2 pt-3 text-xs text-ink-faint">

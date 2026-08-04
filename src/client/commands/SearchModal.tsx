@@ -128,7 +128,7 @@ export default function SearchModal({ snapshot }: { snapshot: SnapshotPayload })
       <div
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={onKeyDown}
-        className="mx-auto mt-[12vh] max-w-xl overflow-hidden rounded-xl border border-line bg-card shadow-2xl"
+        className="mx-auto mt-[12vh] max-w-xl overflow-hidden rounded-xl border border-line bg-card shadow-lg"
       >
         <input
           autoFocus

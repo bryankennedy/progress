@@ -78,7 +78,7 @@ export default function Header() {
               <>
                 {/* Click-away backdrop. */}
                 <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-0 z-50 mt-1 w-44 overflow-hidden rounded-lg border border-line bg-card py-1 shadow-xl">
+                <div className="absolute right-0 z-50 mt-1 w-44 overflow-hidden rounded-lg border border-line bg-card py-1 shadow-md">
                   {newItems.map((item) => (
                     <button
                       key={item.label}
@@ -109,7 +109,7 @@ export default function Header() {
               {acctOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setAcctOpen(false)} />
-                  <div className="absolute right-0 z-50 mt-1 w-56 overflow-hidden rounded-lg border border-line bg-card py-1 shadow-xl">
+                  <div className="absolute right-0 z-50 mt-1 w-56 overflow-hidden rounded-lg border border-line bg-card py-1 shadow-md">
                     <div className="border-b border-line px-3 py-2 text-sm">
                       <div className="font-medium text-ink">{me.name}</div>
                       <div className="truncate text-xs text-ink-faint">{me.email}</div>

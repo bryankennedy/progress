@@ -109,7 +109,7 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
           e.preventDefault();
           submit();
         }}
-        className="mx-auto mt-[12vh] max-w-lg rounded-xl border border-line bg-card p-4 shadow-2xl"
+        className="mx-auto mt-[12vh] max-w-lg rounded-xl border border-line bg-card p-4 shadow-lg"
       >
         <h2 className="text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">
           New {KIND_LABELS[kind]}
