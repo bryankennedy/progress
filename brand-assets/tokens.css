@@ -1,7 +1,7 @@
 /* Progress — "Porcelain & Moss" design tokens ("Riso ink on porcelain", PROG-145/PROG-146)
    Fonts: Spectral (serif — headings & body), IBM Plex Mono (labels, meta, code)
-   import in HTML head:
-   <link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"> */
+   Self-hosted (PROG-147): woff2 latin subsets in public/fonts/ — Spectral
+   400/500/600, IBM Plex Mono 400/500; @font-face rules in src/client/styles.css. */
 
 :root {
   /* Neutrals — porcelain ramp: white cards on a faint sage canvas */

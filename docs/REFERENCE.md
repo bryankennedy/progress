@@ -211,9 +211,10 @@ and fonts are served straight from Cloudflare's asset handler:
 
 - **`public/_headers`** (ships to the asset root) carries the full set for the
   statically-served app, including a **Content-Security-Policy** tuned to exactly
-  what `index.html` loads — `script-src 'self'`, `style-src 'self' 'unsafe-inline'
-  https://fonts.googleapis.com` (inline styles cover React `style={}` + dnd-kit
-  drag transforms), `font-src` Google Fonts, `img-src 'self' data: blob:`,
+  what `index.html` loads — `script-src 'self'`, `style-src 'self'
+  'unsafe-inline'` (inline styles cover React `style={}` + dnd-kit drag
+  transforms), `font-src 'self' data:` (fonts are self-hosted woff2 files under
+  `public/fonts/`, PROG-147), `img-src 'self' data: blob:`,
   `connect-src 'self'`, `frame-ancestors 'none'`, `object-src 'none'`,
   `base-uri 'self'`.
 - A Worker `app.use("*")` middleware sets `X-Content-Type-Options: nosniff`,
@@ -221,7 +222,7 @@ and fonts are served straight from Cloudflare's asset handler:
   the Worker serves — the `/api/*` JSON, the **image blobs** (so a client-asserted
   upload `Content-Type` can't be MIME-sniffed into something executable), and the
   not-authorized page. CSP is intentionally *not* set here (the not-authorized
-  page uses inline styles + Google Fonts; JSON needs none).
+  page uses inline styles; JSON needs none).
 
 Both layers also carry HSTS. The single-tenant trust model is deliberate: any
 allowlisted user (or the bearer token) can read all tracker data and all images

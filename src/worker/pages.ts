@@ -21,13 +21,31 @@ export function notAuthorizedPage(): string {
     <title>Access required · Progress</title>
     <link rel="icon" type="image/svg+xml" href="/brand-assets/progress-icon.svg" />
     <meta name="theme-color" content="#f7f7f2" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600&display=swap"
-      rel="stylesheet"
-    />
     <style>
+      /* Self-hosted Spectral (PROG-147) — same-origin woff2 latin subsets from
+         public/fonts/, served by the asset handler (no auth gate, so this
+         unauthenticated page can load them). Georgia fallback if they 404. */
+      @font-face {
+        font-family: 'Spectral';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/spectral-400.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'Spectral';
+        font-style: normal;
+        font-weight: 500;
+        font-display: swap;
+        src: url('/fonts/spectral-500.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'Spectral';
+        font-style: normal;
+        font-weight: 600;
+        font-display: swap;
+        src: url('/fonts/spectral-600.woff2') format('woff2');
+      }
       :root {
         --canvas: #f0f1ea;
         --ink: #20251f;

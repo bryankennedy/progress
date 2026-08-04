@@ -14,9 +14,9 @@
 #     + static.cloudflareinsights.com — Cloudflare Web Analytics beacon, edge-
 #                                injected into the HTML on the bck.dev zone.
 #   - style-src 'unsafe-inline'— React/dnd-kit set inline `style` attributes
-#                                (drag transforms, dynamic colors); plus the
-#                                Google Fonts stylesheet host.
-#   - font-src gstatic + data: — Google Fonts files; data: for any inlined glyph.
+#                                (drag transforms, dynamic colors).
+#   - font-src 'self' + data:  — fonts are self-hosted under /fonts
+#                                (PROG-147); data: for any inlined glyph.
 #   - img-src 'self' data: blob:— uploaded images are same-origin (/api/images);
 #                                data:/blob: cover pasted-image previews.
 #   - connect-src 'self'       — the client only ever fetches its own origin:
@@ -31,7 +31,7 @@
 # 'unsafe-inline', which would gut the policy. Its console error is harmless;
 # disable Bot Fight Mode (or its JavaScript Detections) on the zone to silence it.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self' https://cloudflareinsights.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; manifest-src 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' https://cloudflareinsights.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; manifest-src 'self'
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY

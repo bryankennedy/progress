@@ -29,12 +29,19 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Progress" />
 
-    <!-- Fonts: Spectral (headings/body), IBM Plex Mono (labels/meta/code) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Fonts: Spectral (headings/body), IBM Plex Mono (labels/meta/code).
+         Self-hosted from /fonts (CR5/PROG-147) — @font-face rules live in
+         styles.css. Preload only the two workhorse files (Spectral 400 body,
+         Plex Mono 400 labels); the other weights load on demand. `crossorigin`
+         is required even same-origin: font fetches are CORS-mode, and a
+         mismatched preload would be double-downloaded. -->
+    <link rel="preload" href="/fonts/spectral-400.woff2" as="font" type="font/woff2" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
-      rel="stylesheet"
+      rel="preload"
+      href="/fonts/ibm-plex-mono-400.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
     />
   </head>
   <body>
