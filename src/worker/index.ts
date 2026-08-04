@@ -890,6 +890,20 @@ app.patch("/api/focuses/:id", async (c) => {
       return c.json({ error: "gitUrl must be an http(s) URL or null" }, 400);
     set.gitUrl = body.gitUrl;
   }
+  // Re-parent to another workspace (PROG-140): the all-scope outline drags a
+  // focus between workspaces. Safe because action keys derive from the focus's
+  // prefix, not its workspace (D18) — nothing re-keys. The target must exist.
+  if (body.workspaceId !== undefined) {
+    if (typeof body.workspaceId !== "string")
+      return c.json({ error: "workspaceId must be a string" }, 400);
+    const [workspace] = await db
+      .select({ id: workspaces.id })
+      .from(workspaces)
+      .where(eq(workspaces.id, body.workspaceId))
+      .limit(1);
+    if (!workspace) return c.json({ error: "workspace not found" }, 400);
+    set.workspaceId = body.workspaceId;
+  }
   if (Object.keys(set).length === 0) return c.json({ error: "no valid fields in patch" }, 400);
   set.updatedAt = new Date();
   const [container] = await db.update(focuses).set(set).where(eq(focuses.id, id)).returning();

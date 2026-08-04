@@ -660,6 +660,9 @@ export type ContainerPatch = Partial<{
   keyPrefix: string;
   // Optional git repo mirrored by a focus (PROG-102).
   gitUrl: string | null;
+  // Re-parent a focus to another workspace (PROG-140): the all-scope outline
+  // drag. Only meaningful for the focus kind; the server validates the target.
+  workspaceId: string;
   // Manual outline order (PROG-87); workspaces/focuses/arcs.
   rank: string;
 }>;
@@ -687,6 +690,9 @@ export function updateContainer(
   if (patch.archived !== undefined) optimistic.archivedAt = patch.archived ? now : null;
   if (patch.keyPrefix !== undefined) optimistic.keyPrefix = patch.keyPrefix.toUpperCase();
   if (patch.gitUrl !== undefined) optimistic.gitUrl = patch.gitUrl;
+  // Re-parent a focus (PROG-140): the optimistic write moves it in the snapshot
+  // immediately, so the all-scope outline shows it under the new workspace.
+  if (patch.workspaceId !== undefined) optimistic.workspaceId = patch.workspaceId;
   if (patch.rank !== undefined) optimistic.rank = patch.rank;
   writeContainers(collection, (list) =>
     list.map((x) => (x.id === id ? ({ ...x, ...optimistic } as WireContainer) : x)),
