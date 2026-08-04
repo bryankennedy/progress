@@ -77,8 +77,26 @@ import {
 
 // ---------- level icons ----------
 
-function LevelIcon({ kind }: { kind: "focus" | "arc" | "action" | "sub" }) {
+function LevelIcon({ kind }: { kind: "workspace" | "focus" | "arc" | "action" | "sub" }) {
   const cls = "h-3.5 w-3.5 shrink-0";
+  // Workspace sits one level above the focus square (PROG-140): an outlined
+  // square enclosing a filled one, reading as "a container that holds focuses".
+  if (kind === "workspace")
+    return (
+      <svg viewBox="0 0 16 16" className={`${cls} text-adobe-deep`} aria-hidden>
+        <rect
+          x="1.5"
+          y="1.5"
+          width="13"
+          height="13"
+          rx="3"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+        />
+        <rect x="5" y="5" width="6" height="6" rx="1.5" fill="currentColor" />
+      </svg>
+    );
   if (kind === "focus")
     return (
       <svg viewBox="0 0 16 16" className={`${cls} text-adobe-deep`} fill="currentColor" aria-hidden>
@@ -161,7 +179,7 @@ function Handle({
   handleRef,
   handleProps,
 }: {
-  kind: "focus" | "arc" | "action" | "sub";
+  kind: "workspace" | "focus" | "arc" | "action" | "sub";
   href: string;
   label: string;
   handleRef: (el: HTMLElement | null) => void;
@@ -230,7 +248,7 @@ function SortableSection({
   children,
 }: {
   id: string;
-  kind: "focus" | "arc";
+  kind: "workspace" | "focus" | "arc";
   href: string;
   label: string;
   className?: string;
@@ -689,11 +707,16 @@ function FocusCaptureRow({
   existingPrefixes,
   focusToken,
   onCreated,
+  onCancel,
 }: {
   workspaceId: string;
   existingPrefixes: Set<string>;
   focusToken: number;
   onCreated: () => void;
+  // Present when the row is a collapsible capture (all scope, PROG-140): Escape
+  // collapses it back to the "+ new focus" button. The always-visible
+  // workspace-scope row omits it and never collapses.
+  onCancel?: () => void;
 }) {
   const [name, setName] = useState("");
   const [prefix, setPrefix] = useState("");
@@ -735,6 +758,9 @@ function FocusCaptureRow({
           if (e.key === "Enter") {
             e.preventDefault();
             submit();
+          } else if (e.key === "Escape" && onCancel) {
+            e.preventDefault();
+            onCancel();
           }
         }}
         placeholder="New focus — Enter to add"
@@ -755,6 +781,9 @@ function FocusCaptureRow({
           if (e.key === "Enter") {
             e.preventDefault();
             submit();
+          } else if (e.key === "Escape" && onCancel) {
+            e.preventDefault();
+            onCancel();
           }
         }}
         placeholder="KEY"
@@ -765,6 +794,118 @@ function FocusCaptureRow({
       />
       {clash && <span className="shrink-0 text-[11px] text-adobe-deep">in use</span>}
     </div>
+  );
+}
+
+// ---------- inline structure capture (PROG-140) ----------
+
+// A one-field name capture for containers whose only required datum is a name —
+// arcs and workspaces (a focus additionally needs its key prefix, so it keeps
+// its own FocusCaptureRow). Enter creates and stays open for the next sibling
+// (the Workflowy capture loop); Escape or blur collapses. The icon renders in
+// the same w-6 gutter as the rows' bullet handle so the input lines up.
+function InlineCapture({
+  icon,
+  placeholder,
+  depth = 0,
+  onSubmit,
+  onCancel,
+}: {
+  icon: ReactNode;
+  placeholder: string;
+  depth?: number;
+  onSubmit: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => ref.current?.focus(), []);
+  return (
+    <div className="flex items-center gap-1.5 py-0.5" style={{ paddingLeft: depth * 22 }}>
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center" aria-hidden>
+        {icon}
+      </span>
+      <input
+        ref={ref}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            const t = name.trim();
+            if (t) {
+              onSubmit(t);
+              setName(""); // stay open for the next sibling
+            }
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            onCancel();
+          }
+        }}
+        onBlur={onCancel}
+        placeholder={placeholder}
+        className="min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-sm text-ink placeholder:text-ink-faint focus:bg-card focus:outline-none focus:ring-1 focus:ring-line"
+      />
+    </div>
+  );
+}
+
+// A "+ new focus" affordance for a workspace section at all scope (PROG-140):
+// collapsed to a text button, expands to the shared FocusCaptureRow. Local
+// open/token state keeps each workspace's capture independent.
+function NewFocusCapture({
+  workspaceId,
+  existingPrefixes,
+}: {
+  workspaceId: string;
+  existingPrefixes: Set<string>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [token, setToken] = useState(0);
+  if (!open)
+    return (
+      <button
+        onClick={() => {
+          setOpen(true);
+          setToken((t) => t + 1);
+        }}
+        className="ml-[30px] rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
+      >
+        + new focus
+      </button>
+    );
+  return (
+    <FocusCaptureRow
+      workspaceId={workspaceId}
+      existingPrefixes={existingPrefixes}
+      focusToken={token}
+      onCreated={() => setToken((t) => t + 1)}
+      onCancel={() => setOpen(false)}
+    />
+  );
+}
+
+// A "+ new workspace" affordance at the foot of the all scope (PROG-140):
+// collapsed to a text button, expands to a bare name input (a workspace needs
+// no key prefix). Creating stays open for the next one; Escape/blur collapses.
+function NewWorkspaceCapture() {
+  const [open, setOpen] = useState(false);
+  if (!open)
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="rounded px-1 py-0.5 text-sm text-ink-faint hover:bg-line hover:text-ink-soft"
+      >
+        + new workspace
+      </button>
+    );
+  return (
+    <InlineCapture
+      icon={<LevelIcon kind="workspace" />}
+      placeholder="New workspace — Enter to add"
+      onSubmit={(name) => createContainer({ kind: "workspace", name })}
+      onCancel={() => setOpen(false)}
+    />
   );
 }
 
@@ -875,6 +1016,10 @@ const FocusOutline = memo(function FocusOutline({
   const [captureParent, setCaptureParent] = useState<string | null>(null);
   const [captureArc, setCaptureArc] = useState<string | null>(arcOnly ? arcOnly.id : null);
   const [focusToken, setFocusToken] = useState(0);
+  // Inline "+ new arc" capture at the focus's foot (PROG-140), a structure
+  // control parallel to the action-capture rows — kept out of the roving
+  // capture state since arcs aren't part of the action nesting ladder.
+  const [addingArc, setAddingArc] = useState(false);
 
   // The unsent capture text (PROG-107). Lifted out of CaptureRow so it survives
   // the input remounting as capture roves, and mirrored to localStorage
@@ -1093,6 +1238,19 @@ const FocusOutline = memo(function FocusOutline({
                 {focus.name}
               </Link>
               <span className="font-mono text-[11px] text-ink-faint">{focus.keyPrefix}</span>
+              {/* The mirrored repo, as Structure showed it (PROG-140): opens in a
+                  new tab; stops propagation so it never triggers the section drag. */}
+              {focus.gitUrl && (
+                <a
+                  href={focus.gitUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="max-w-[12rem] truncate font-mono text-[11px] text-ink-faint hover:text-ink-soft hover:underline"
+                >
+                  {focus.gitUrl.replace(/^https?:\/\//, "")}
+                </a>
+              )}
             </div>
           )}
 
@@ -1168,6 +1326,25 @@ const FocusOutline = memo(function FocusOutline({
             ))}
           </SortableContext>
 
+          {/* Inline arc creation (PROG-140): the capture idiom instead of a
+              dialog — a text button expanding to a name input, Enter to add,
+              Escape to collapse. */}
+          {addingArc ? (
+            <InlineCapture
+              icon={<LevelIcon kind="arc" />}
+              placeholder="New arc — Enter to add"
+              onSubmit={(name) => createContainer({ kind: "arc", name, focusId: focus.id })}
+              onCancel={() => setAddingArc(false)}
+            />
+          ) : (
+            <button
+              onClick={() => setAddingArc(true)}
+              className="mt-1 ml-[30px] rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
+            >
+              + new arc
+            </button>
+          )}
+
           {/* When capture has roved off the top level, offer a way back. */}
           {!captureAtTopLevel && (
             <button
@@ -1192,7 +1369,12 @@ const FocusOutline = memo(function FocusOutline({
 // (PROG-87); a focus scope renders that focus's loose level + arc sections;
 // an arc scope renders just that arc's forest (FocusOutline's arcOnly mode).
 export type OutlineViewScope =
-  { kind: "workspace"; id: string } | { kind: "focus"; id: string } | { kind: "arc"; id: string };
+  // The whole tree (PROG-140): every active workspace as a sortable section,
+  // each holding its focus sections. The top of the outline's zoom stack.
+  | { kind: "all" }
+  | { kind: "workspace"; id: string }
+  | { kind: "focus"; id: string }
+  | { kind: "arc"; id: string };
 
 export function OutlineView({
   snapshot,
@@ -1209,16 +1391,36 @@ export function OutlineView({
     () => [...snapshot.focuses].filter((p) => !p.archivedAt).sort(byRankThenName),
     [snapshot.focuses],
   );
+  // Active workspaces in the same manual order (PROG-140): the all-scope
+  // sections and their reorder both read this list.
+  const workspaces = useMemo(
+    () => [...snapshot.workspaces].filter((w) => !w.archivedAt).sort(byRankThenName),
+    [snapshot.workspaces],
+  );
+  const focusesOfWorkspace = useCallback(
+    (workspaceId: string) => focuses.filter((p) => p.workspaceId === workspaceId),
+    [focuses],
+  );
+  // Every focus's prefix, for client-side dedupe of new-focus keys (PROG-140):
+  // the per-workspace "+ new focus" capture lives inside this view at all scope.
+  const existingPrefixes = useMemo(
+    () => new Set(snapshot.focuses.map((p) => p.keyPrefix.toUpperCase())),
+    [snapshot.focuses],
+  );
 
   const arcOnly = scope.kind === "arc" ? snapshot.arcs.find((a) => a.id === scope.id) : undefined;
+  // The flat focus list a non-all scope renders. All scope renders per-workspace
+  // (focusesOfWorkspace) instead, so this stays empty there.
   const scopedFocuses =
     scope.kind === "focus"
       ? focuses.filter((p) => p.id === scope.id)
       : scope.kind === "workspace"
         ? focuses.filter((p) => p.workspaceId === scope.id)
-        : // Arc scope: the arc's focus, even if archived — the arc page still
-          // shows its actions, so its embed should too.
-          snapshot.focuses.filter((p) => p.id === arcOnly?.focusId);
+        : scope.kind === "arc"
+          ? // Arc scope: the arc's focus, even if archived — the arc page still
+            // shows its actions, so its embed should too.
+            snapshot.focuses.filter((p) => p.id === arcOnly?.focusId)
+          : [];
 
   // ---------- the page-wide drag controller (PROG-86/87/118) ----------
   //
@@ -1247,6 +1449,7 @@ export function OutlineView({
   );
   const arcById = useMemo(() => new Map(snapshot.arcs.map((a) => [a.id, a])), [snapshot.arcs]);
   const focusById = useMemo(() => new Map(focuses.map((p) => [p.id, p])), [focuses]);
+  const workspaceById = useMemo(() => new Map(workspaces.map((w) => [w.id, w])), [workspaces]);
   const rankOf = (id: string) => actionById.get(id)!.rank;
 
   // Whatever the drag is holding. While set, a DragOverlay carries a floating
@@ -1254,7 +1457,7 @@ export function OutlineView({
   // pointer) and the page goes pointer-inert, so nothing hover-highlights
   // under the drag (PROG-87 polish).
   const [activeDrag, setActiveDrag] = useState<{
-    kind: "focus" | "arc" | "action";
+    kind: "workspace" | "focus" | "arc" | "action";
     id: string;
   } | null>(null);
   // A held action row's LIVE landing spot (PROG-118 polish). While the drag
@@ -1278,7 +1481,8 @@ export function OutlineView({
   };
   const onDragStart = (e: DragStartEvent) => {
     const id = String(e.active.id);
-    if (focusById.has(id)) setActiveDrag({ kind: "focus", id });
+    if (workspaceById.has(id)) setActiveDrag({ kind: "workspace", id });
+    else if (focusById.has(id)) setActiveDrag({ kind: "focus", id });
     else if (arcById.has(id)) setActiveDrag({ kind: "arc", id });
     else if (actionById.has(id)) setActiveDrag({ kind: "action", id });
   };
@@ -1458,18 +1662,64 @@ export function OutlineView({
     const overId = e.over ? String(e.over.id) : null;
     if (!overId) return;
 
-    // -- A focus section (workspace scope): reorder among the visible focuses.
+    // -- A workspace section (all scope, PROG-140): reorder among the active
+    //    workspaces. Resolve `over` up to its workspace the same way the focus
+    //    branch resolves to a focus.
+    if (workspaceById.has(activeId)) {
+      const overWorkspaceId = workspaceById.has(overId)
+        ? overId
+        : (focusById.get(overId)?.workspaceId ??
+          focusById.get(arcById.get(overId)?.focusId ?? "")?.workspaceId ??
+          focusById.get(actionById.get(overId)?.focusId ?? "")?.workspaceId ??
+          null);
+      if (!overWorkspaceId || overWorkspaceId === activeId) return;
+      const updates = containerReorderRanks(workspaces, activeId, overWorkspaceId);
+      for (const u of updates ?? []) void updateContainer("workspace", u.id, { rank: u.rank });
+      return;
+    }
+
+    // -- A focus section: reorder among its workspace's focuses, or — at all
+    //    scope — re-parent when dropped into a DIFFERENT workspace (PROG-140).
     //    With closestCenter the `over` is often a row/arc inside a neighbouring
     //    section rather than the section itself — resolve it to its focus.
     if (focusById.has(activeId)) {
-      const overFocusId = focusById.has(overId)
-        ? overId
-        : (arcById.get(overId)?.focusId ?? actionById.get(overId)?.focusId ?? null);
-      if (!overFocusId || overFocusId === activeId) return;
-      // One write once ranks are distinct; the first drag in a still-tied
-      // (alphabetical) group renumbers the whole group — see containerReorder.
-      const updates = containerReorderRanks(scopedFocuses, activeId, overFocusId);
-      for (const u of updates ?? []) void updateContainer("focus", u.id, { rank: u.rank });
+      const activeFocus = focusById.get(activeId)!;
+      const overFocus =
+        focusById.get(overId) ??
+        focusById.get(arcById.get(overId)?.focusId ?? "") ??
+        focusById.get(actionById.get(overId)?.focusId ?? "");
+      const overWorkspaceId = overFocus?.workspaceId ?? (workspaceById.has(overId) ? overId : null);
+      if (!overWorkspaceId) return;
+
+      if (overWorkspaceId === activeFocus.workspaceId) {
+        // Same workspace: reorder among its focuses. One write once ranks are
+        // distinct; the first drag in a still-tied (alphabetical) group
+        // renumbers the whole group — see containerReorder.
+        if (!overFocus || overFocus.id === activeId) return;
+        const updates = containerReorderRanks(
+          focusesOfWorkspace(overWorkspaceId),
+          activeId,
+          overFocus.id,
+        );
+        for (const u of updates ?? []) void updateContainer("focus", u.id, { rank: u.rank });
+        return;
+      }
+
+      // Dropped into another workspace: re-parent, slotting where dropped in the
+      // target workspace's focus list. Safe because action keys derive from the
+      // focus prefix, not the workspace (D18) — no re-keying (PROG-140).
+      const targetFocuses = focusesOfWorkspace(overWorkspaceId).filter((p) => p.id !== activeId);
+      const placed = rankForInsert(
+        targetFocuses.map((p) => p.id),
+        (id) => focusById.get(id)!.rank,
+        overFocus ? overFocus.id : "",
+        belowOf(e),
+      );
+      for (const h of placed.heal) void updateContainer("focus", h.id, { rank: h.rank });
+      void updateContainer("focus", activeId, {
+        workspaceId: overWorkspaceId,
+        rank: placed.rank,
+      });
       return;
     }
 
@@ -1558,27 +1808,65 @@ export function OutlineView({
     }
   };
 
-  // What the DragOverlay carries: a held focus shows its arcs as rows, a held
-  // arc its action forest, a held action row its step subtree — capped preview
-  // cards all three ways.
+  // What the DragOverlay carries: a held workspace shows its focuses as rows, a
+  // held focus its arcs, a held arc its action forest, a held action row its
+  // step subtree — capped preview cards all four ways (PROG-140).
+  const heldWorkspace =
+    activeDrag?.kind === "workspace" ? workspaceById.get(activeDrag.id) : undefined;
   const heldFocus = activeDrag?.kind === "focus" ? focusById.get(activeDrag.id) : undefined;
   const heldArc = activeDrag?.kind === "arc" ? arcById.get(activeDrag.id) : undefined;
   const heldAction = activeDrag?.kind === "action" ? actionById.get(activeDrag.id) : undefined;
-  const heldRows = heldFocus
-    ? [...snapshot.arcs]
-        .filter((a) => a.focusId === heldFocus.id && !a.archivedAt)
-        .sort(byRankThenName)
-        .map((a) => ({
-          key: a.id,
-          depth: 0,
-          icon: <LevelIcon kind="arc" />,
-          text: a.name,
-        }))
-    : heldArc
-      ? forestPreviewRows(buildForest(visibleActions, heldArc.focusId, heldArc.id, 1))
-      : heldAction
-        ? actionSubtreeRows(visibleActions, heldAction.id)
-        : [];
+  const heldRows = heldWorkspace
+    ? focusesOfWorkspace(heldWorkspace.id).map((p) => ({
+        key: p.id,
+        depth: 0,
+        icon: <LevelIcon kind="focus" />,
+        text: p.name,
+      }))
+    : heldFocus
+      ? [...snapshot.arcs]
+          .filter((a) => a.focusId === heldFocus.id && !a.archivedAt)
+          .sort(byRankThenName)
+          .map((a) => ({
+            key: a.id,
+            depth: 0,
+            icon: <LevelIcon kind="arc" />,
+            text: a.name,
+          }))
+      : heldArc
+        ? forestPreviewRows(buildForest(visibleActions, heldArc.focusId, heldArc.id, 1))
+        : heldAction
+          ? actionSubtreeRows(visibleActions, heldAction.id)
+          : [];
+
+  // A workspace's focus sections as one SortableContext (PROG-87) — shared by
+  // workspace scope (one workspace) and all scope (one per workspace, PROG-140),
+  // so the two paths render focuses identically.
+  const renderFocusSections = (wsFocuses: WireFocus[]) => (
+    <SortableContext items={wsFocuses.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+      <div className="space-y-4">
+        {wsFocuses.map((p) => (
+          <SortableSection
+            key={p.id}
+            id={p.id}
+            kind="focus"
+            href={`/focus/${p.id}`}
+            label={`Open ${p.name} — drag to reorder`}
+          >
+            {(focusGrip) => (
+              <FocusOutline
+                focus={p}
+                ws={snapshot}
+                focusActions={actionsByFocus.get(p.id) ?? EMPTY_ACTIONS}
+                showHeader
+                grip={focusGrip}
+              />
+            )}
+          </SortableSection>
+        ))}
+      </div>
+    </SortableContext>
+  );
 
   return (
     <DndContext
@@ -1608,36 +1896,47 @@ export function OutlineView({
         clearDrag();
       }}
     >
-      {scope.kind === "workspace" ? (
-        <SortableContext
-          items={scopedFocuses.map((p) => p.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {/* Pointer-inert while anything is held: no row hover
-                  highlights, no accidental input focus — the only live thing
-                  is the drag itself (PROG-87 polish). */}
-          <div className={`space-y-4 ${activeDrag ? "pointer-events-none select-none" : ""}`}>
-            {scopedFocuses.map((p) => (
+      {/* Pointer-inert while anything is held: no row hover highlights, no
+          accidental input focus — the only live thing is the drag itself
+          (PROG-87 polish). */}
+      {scope.kind === "all" ? (
+        // The whole tree (PROG-140): active workspaces as sortable sections, each
+        // holding its own focus SortableContext + a "+ new focus" capture.
+        <SortableContext items={workspaces.map((w) => w.id)} strategy={verticalListSortingStrategy}>
+          <div className={`space-y-6 ${activeDrag ? "pointer-events-none select-none" : ""}`}>
+            {workspaces.map((w) => (
               <SortableSection
-                key={p.id}
-                id={p.id}
-                kind="focus"
-                href={`/focus/${p.id}`}
-                label={`Open ${p.name} — drag to reorder`}
+                key={w.id}
+                id={w.id}
+                kind="workspace"
+                href={`/workspace/${w.id}`}
+                label={`Open ${w.name} — drag to reorder`}
               >
-                {(focusGrip) => (
-                  <FocusOutline
-                    focus={p}
-                    ws={snapshot}
-                    focusActions={actionsByFocus.get(p.id) ?? EMPTY_ACTIONS}
-                    showHeader
-                    grip={focusGrip}
-                  />
+                {(wsGrip) => (
+                  <section>
+                    <div className="group mb-2 flex items-center gap-2">
+                      {wsGrip}
+                      <Link
+                        href={`/workspace/${w.id}`}
+                        className="text-lg font-semibold text-ink hover:underline"
+                      >
+                        {w.name}
+                      </Link>
+                    </div>
+                    <div className="space-y-3 pl-1">
+                      {renderFocusSections(focusesOfWorkspace(w.id))}
+                      <NewFocusCapture workspaceId={w.id} existingPrefixes={existingPrefixes} />
+                    </div>
+                  </section>
                 )}
               </SortableSection>
             ))}
           </div>
         </SortableContext>
+      ) : scope.kind === "workspace" ? (
+        <div className={activeDrag ? "pointer-events-none select-none" : undefined}>
+          {renderFocusSections(scopedFocuses)}
+        </div>
       ) : (
         <div className={activeDrag ? "pointer-events-none select-none" : undefined}>
           {scopedFocuses.map((p) => (
@@ -1659,7 +1958,18 @@ export function OutlineView({
               it into the committed slot (see its comment for why that no
               longer bounces back). */}
       <DragOverlay dropAnimation={DROP_ANIMATION}>
-        {heldFocus ? (
+        {heldWorkspace ? (
+          <SectionPreviewCard
+            header={
+              <>
+                <LevelIcon kind="workspace" />
+                <span className="font-semibold text-ink">{heldWorkspace.name}</span>
+              </>
+            }
+            rows={heldRows}
+            more={heldRows.length - PREVIEW_ROWS}
+          />
+        ) : heldFocus ? (
           <SectionPreviewCard
             header={
               <>
@@ -1713,7 +2023,7 @@ export function OutlineView({
 
 // ---------- root picker + page ----------
 
-type Root = { kind: "focus"; id: string } | { kind: "workspace"; id: string };
+type Root = { kind: "all" } | { kind: "focus"; id: string } | { kind: "workspace"; id: string };
 
 export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
   const search = useSearch();
@@ -1747,28 +2057,33 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
 
   // Resolve the active root: URL params win (links stay shareable), then the
   // sticky last-used scope (localStorage — so navigating away and back lands on
-  // the same scope), then the first focus. Every id is validated against
-  // live data so a stale saved scope falls through instead of blanking the view.
-  const root: Root | null = useMemo(() => {
+  // the same scope), then the whole tree. Every id is validated against live
+  // data so a stale saved scope falls through instead of blanking the view. The
+  // default is `all` (PROG-140) — the top of the zoom stack, not the first focus.
+  const root: Root = useMemo(() => {
+    if (params.get("all") === "1") return { kind: "all" };
     const prd = params.get("focus");
     const ini = params.get("workspace");
     if (prd && focuses.some((p) => p.id === prd)) return { kind: "focus", id: prd };
     if (ini && workspaces.some((i) => i.id === ini)) return { kind: "workspace", id: ini };
     const saved = loadScope();
+    if (saved?.kind === "all") return { kind: "all" };
     if (saved?.kind === "focus" && focuses.some((p) => p.id === saved.id)) return saved;
     if (saved?.kind === "workspace" && workspaces.some((i) => i.id === saved.id)) return saved;
-    if (focuses[0]) return { kind: "focus", id: focuses[0].id };
-    if (workspaces[0]) return { kind: "workspace", id: workspaces[0].id };
-    return null;
+    return { kind: "all" };
   }, [search, focuses, workspaces]);
 
   // Mirror the resolved scope back to storage on every change — picking from
   // the dropdown, following a scoped link, or the fallback itself.
   useEffect(() => {
-    if (root) saveScope(root);
-  }, [root?.kind, root?.id]);
+    saveScope(root);
+  }, [root.kind, root.kind === "all" ? "" : root.id]);
 
   const setRoot = (value: string) => {
+    if (value === "all") {
+      navigate("/outline?all=1");
+      return;
+    }
     const [kind, id] = value.split(":");
     navigate("/outline?" + kind + "=" + id);
   };
@@ -1797,10 +2112,13 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
           <label className="flex items-center gap-2 text-sm">
             <span className="text-ink-faint">Scope</span>
             <select
-              value={root ? `${root.kind}:${root.id}` : ""}
+              value={root.kind === "all" ? "all" : `${root.kind}:${root.id}`}
               onChange={(e) => setRoot(e.target.value)}
               className="rounded border border-line bg-card px-2 py-1 text-sm text-ink focus:outline-none"
             >
+              {/* The whole tree first (PROG-140), then each workspace and its
+                  focuses. */}
+              <option value="all">All workspaces</option>
               {/* Focuses nest under their workspace (PROG-109) — each workspace
                   option is followed by its focuses, indented. Both levels stay
                   selectable; nbsp indentation because <option> padding isn't
@@ -1837,14 +2155,12 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
       </div>
 
       <div className="mt-5 space-y-4">
-        {!root && <p className="text-sm text-ink-faint">No focuses or workspaces yet.</p>}
-
-        {root && <OutlineView snapshot={snapshot} scope={root} hideDone={hideDone} />}
+        <OutlineView snapshot={snapshot} scope={root} hideDone={hideDone} />
 
         {/* At workspace scope, focuses are the top ceiling — so offer inline
             focus capture (and seed the empty state). Focus scope has no
             level above the arc/action ceiling, so it shows nothing here. */}
-        {root?.kind === "workspace" && (
+        {root.kind === "workspace" && (
           <section className="rounded-lg border border-dashed border-line bg-card/40 p-3">
             {!focuses.some((p) => p.workspaceId === root.id) && (
               <p className="mb-1 text-sm text-ink-faint">
@@ -1857,6 +2173,20 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
               focusToken={focusFocus}
               onCreated={() => setFocusFocus((t) => t + 1)}
             />
+          </section>
+        )}
+
+        {/* At all scope, workspaces are the top ceiling — new-workspace capture
+            lives on the page (outside OutlineView), mirroring the workspace-scope
+            focus capture (PROG-140). */}
+        {root.kind === "all" && (
+          <section className="rounded-lg border border-dashed border-line bg-card/40 p-3">
+            {workspaces.length === 0 && (
+              <p className="mb-1 text-sm text-ink-faint">
+                No workspaces yet — add the first one to start capturing.
+              </p>
+            )}
+            <NewWorkspaceCapture />
           </section>
         )}
       </div>

@@ -35,12 +35,16 @@ export function saveHideDone(hide: boolean): void {
 
 const SCOPE_KEY = "progress:outline-scope";
 
-export type OutlineScope = { kind: "focus" | "workspace"; id: string };
+// The all scope (PROG-140) is the whole tree — it carries no id, so it stores
+// as the bare token "all"; the id-bearing scopes stay "<kind>:<id>".
+export type OutlineScope =
+  { kind: "all" } | { kind: "focus"; id: string } | { kind: "workspace"; id: string };
 
 export function loadScope(): OutlineScope | null {
   try {
     const raw = window.localStorage.getItem(SCOPE_KEY);
     if (!raw) return null;
+    if (raw === "all") return { kind: "all" };
     const sep = raw.indexOf(":");
     const kind = raw.slice(0, sep);
     const id = raw.slice(sep + 1);
@@ -53,7 +57,10 @@ export function loadScope(): OutlineScope | null {
 
 export function saveScope(scope: OutlineScope): void {
   try {
-    window.localStorage.setItem(SCOPE_KEY, `${scope.kind}:${scope.id}`);
+    window.localStorage.setItem(
+      SCOPE_KEY,
+      scope.kind === "all" ? "all" : `${scope.kind}:${scope.id}`,
+    );
   } catch {
     /* sticky preference is a nicety — ignore storage failures */
   }

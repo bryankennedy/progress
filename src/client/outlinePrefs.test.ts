@@ -2,9 +2,10 @@
 // `bun test`. We stub a minimal localStorage on `window` so the soft-fail
 // behavior and round-trip are exercised without a real DOM.
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { loadHideDone, saveHideDone } from "./outlinePrefs";
+import { loadHideDone, loadScope, saveHideDone, saveScope } from "./outlinePrefs";
 
 const KEY = "progress:outline-hide-done";
+const SCOPE_KEY = "progress:outline-scope";
 
 function fakeStorage(): Storage {
   const map = new Map<string, string>();
@@ -65,5 +66,51 @@ describe("outline hide-done preference", () => {
     };
     expect(loadHideDone()).toBe(false);
     expect(() => saveHideDone(true)).not.toThrow();
+  });
+});
+
+describe("outline scope preference (PROG-140)", () => {
+  it("returns null when nothing is stored", () => {
+    expect(loadScope()).toBeNull();
+  });
+
+  it("round-trips the all scope as the bare token 'all'", () => {
+    saveScope({ kind: "all" });
+    expect(g.window!.localStorage.getItem(SCOPE_KEY)).toBe("all");
+    expect(loadScope()).toEqual({ kind: "all" });
+  });
+
+  it("round-trips an id-bearing scope as '<kind>:<id>'", () => {
+    saveScope({ kind: "focus", id: "prd_1" });
+    expect(g.window!.localStorage.getItem(SCOPE_KEY)).toBe("focus:prd_1");
+    expect(loadScope()).toEqual({ kind: "focus", id: "prd_1" });
+
+    saveScope({ kind: "workspace", id: "ini_2" });
+    expect(loadScope()).toEqual({ kind: "workspace", id: "ini_2" });
+  });
+
+  it("ignores an unknown kind or a missing id", () => {
+    g.window!.localStorage.setItem(SCOPE_KEY, "arc:arc_1");
+    expect(loadScope()).toBeNull();
+    g.window!.localStorage.setItem(SCOPE_KEY, "focus:");
+    expect(loadScope()).toBeNull();
+  });
+
+  it("fails soft when localStorage throws", () => {
+    g.window = {
+      localStorage: {
+        getItem() {
+          throw new Error("storage disabled");
+        },
+        setItem() {
+          throw new Error("storage disabled");
+        },
+        removeItem() {
+          throw new Error("storage disabled");
+        },
+      } as unknown as Storage,
+    };
+    expect(loadScope()).toBeNull();
+    expect(() => saveScope({ kind: "all" })).not.toThrow();
   });
 });
