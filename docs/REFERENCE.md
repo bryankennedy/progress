@@ -773,6 +773,17 @@ the canonical classes but not the component.
   (bottom-up fill proportional to the 0–8 scale; dashed when unset). Every
   glyph is a **button** that opens its field's picker — `showPicker()` on
   the select/input, focus fallback where unsupported (PROG-101b).
+- **Dialog & listbox semantics (PROG-149)** — the four modal overlays (command
+  palette, `/` search modal, and the two create dialogs) render
+  `role="dialog" aria-modal="true" aria-label` and share a no-dependency
+  `useFocusTrap` hook
+  (`src/client/commands/useFocusTrap.ts`): Tab/Shift-Tab cycle inside the
+  dialog while it's open, and closing restores focus to whatever opened it.
+  The palette and search modal additionally follow the combobox/listbox
+  pattern — the input carries `role="combobox"` +
+  `aria-expanded`/`aria-controls`/`aria-activedescendant`, and result rows are
+  `role="option"` with stable ids and `tabIndex={-1}` (arrow keys own the
+  list; focus never leaves the input).
 - **Command palette** — one keyboard surface (D25): root mode searches
   actions by key (retired alias keys included) or title and containers by
   name, and lists commands (create action/workspace/focus/arc,
