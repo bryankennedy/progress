@@ -501,7 +501,9 @@ function BoardColumn({
         {hiddenCount ? `${actionIds.length} of ${total}` : actionIds.length}
       </h2>
       <SortableContext items={actionIds} strategy={verticalListSortingStrategy}>
-        <div className="flex min-h-8 flex-1 flex-col gap-1.5">
+        {/* min-h-11: an empty column still offers a 44px drop target — the same
+            touch floor every interactive control in the app respects (N6). */}
+        <div className="flex min-h-11 flex-1 flex-col gap-1.5">
           {actionIds.map((id) => {
             const action = actionsById.get(id);
             if (!action) return null;

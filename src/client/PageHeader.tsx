@@ -33,7 +33,12 @@ export default function PageHeader({
     <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
       <h1 className="text-2xl font-semibold">{title}</h1>
       {meta && <p className="text-xs text-ink-faint">{meta}</p>}
-      {actions && <div className="ml-auto flex items-center gap-4">{actions}</div>}
+      {/* flex-wrap + min-w-0 (PROG-147): on a 320px phone a wide control
+          cluster (e.g. Outline's Hide-done + Scope select) wraps to its own
+          line and can break again inside it, instead of overflowing the page. */}
+      {actions && (
+        <div className="ml-auto flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">{actions}</div>
+      )}
       {below && <div className="w-full">{below}</div>}
     </header>
   );
