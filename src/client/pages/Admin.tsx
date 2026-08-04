@@ -51,7 +51,7 @@ export default function Admin({ snapshot }: { snapshot: SnapshotPayload }) {
       <AddForm existing={list} />
 
       <div className="mt-6 overflow-hidden rounded-lg border border-line bg-card">
-        <div className="grid grid-cols-[1fr_1fr_auto] gap-3 border-b border-line px-4 py-2 text-[10px] uppercase tracking-wide font-mono text-ink-faint">
+        <div className="grid grid-cols-[1fr_1fr_auto] gap-3 border-b border-line px-4 py-2 text-3xs uppercase tracking-wide font-mono text-ink-faint">
           <span>Email</span>
           <span>Note</span>
           <span>Added</span>
@@ -121,7 +121,7 @@ function Row({ row }: { row: WireAllowedEmail }) {
 
   return (
     <div className="grid grid-cols-[1fr_1fr_auto] items-center gap-3 border-b border-line px-4 py-2.5 text-sm last:border-b-0">
-      <span className="truncate font-mono text-[13px] text-ink" title={row.email}>
+      <span className="truncate font-mono text-xs text-ink" title={row.email}>
         {row.email}
       </span>
       <input

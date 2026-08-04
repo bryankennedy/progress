@@ -58,7 +58,7 @@ export default function MobileTabBar() {
           onClick={() => setMoreOpen((o) => !o)}
           aria-expanded={moreOpen}
           aria-current={moreActive ? "page" : undefined}
-          className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[10px] font-medium ${
+          className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-3xs font-medium ${
             moreActive || moreOpen ? "text-accent-deep" : "text-ink-faint"
           }`}
         >
@@ -75,7 +75,7 @@ function Tab({ item, active }: { item: NavItem; active: boolean }) {
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
-      className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[10px] font-medium ${
+      className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-3xs font-medium ${
         active ? "text-accent-deep" : "text-ink-faint"
       }`}
     >

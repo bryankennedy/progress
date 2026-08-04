@@ -614,7 +614,7 @@ function PrRow({ pr }: { pr: WirePrLink }) {
       className="flex items-center gap-2 rounded-lg border border-line bg-card px-3 py-2 text-sm hover:border-ink-faint"
     >
       <span
-        className={`shrink-0 rounded-full px-2 py-px text-[10px] font-medium uppercase ${PR_STATE_STYLES[pr.state]}`}
+        className={`shrink-0 rounded-full px-2 py-px text-3xs font-medium uppercase ${PR_STATE_STYLES[pr.state]}`}
       >
         {pr.state}
       </span>

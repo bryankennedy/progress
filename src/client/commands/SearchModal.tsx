@@ -147,7 +147,7 @@ export default function SearchModal({ snapshot }: { snapshot: SnapshotPayload })
             return (
               <li key={`${entry.kind}:${entry.id}`}>
                 {header && (
-                  <p className="flex items-center gap-2 px-3 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wide text-ink-faint">
+                  <p className="flex items-center gap-2 px-3 pb-1 pt-2 text-3xs font-medium uppercase tracking-wide text-ink-faint">
                     {SECTION_TITLES[header]}
                     {header === "comment" && isFetching && <Spinner />}
                   </p>

@@ -69,7 +69,7 @@ export default function Archive({ snapshot }: { snapshot: SnapshotPayload }) {
             .sort((a, b) => a.workspaceName.localeCompare(b.workspaceName))
             .map((initGroup, idx) => (
               <section key={idx} className="rounded-lg border border-line bg-card p-4">
-                <span className="text-[10px] uppercase tracking-wide font-mono text-ink-faint">
+                <span className="text-3xs uppercase tracking-wide font-mono text-ink-faint">
                   Workspace
                 </span>{" "}
                 <span className="text-sm font-medium text-ink-soft">{initGroup.workspaceName}</span>
@@ -78,7 +78,7 @@ export default function Archive({ snapshot }: { snapshot: SnapshotPayload }) {
                     .sort((a, b) => a.focusName.localeCompare(b.focusName))
                     .map((prodGroup, pIdx) => (
                       <div key={pIdx}>
-                        <span className="text-[10px] uppercase tracking-wide font-mono text-ink-faint">
+                        <span className="text-3xs uppercase tracking-wide font-mono text-ink-faint">
                           Focus
                         </span>{" "}
                         <span className="text-sm font-medium text-ink-soft">

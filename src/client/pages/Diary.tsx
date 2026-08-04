@@ -180,7 +180,7 @@ function ProgressStrip({
           );
         })}
       </div>
-      <div className="mt-1 flex justify-between px-1 font-mono text-[11px] text-ink-faint">
+      <div className="mt-1 flex justify-between px-1 font-mono text-2xs text-ink-faint">
         <span>{formatDueDate(series[0]!.day)}</span>
         <span>
           {formatDueDate(selected)} · {series.find((d) => d.day === selected)?.count ?? 0} completed
@@ -218,8 +218,8 @@ function DiaryEntry({
         <p className="text-sm text-ink-faint">The day's entry couldn't be written just now.</p>
       ) : (
         <>
-          <p className="text-[15px] leading-relaxed text-ink">{data!.summary}</p>
-          <div className="mt-1.5 flex items-center justify-between font-mono text-[11px] text-ink-faint">
+          <p className="text-sm leading-relaxed text-ink">{data!.summary}</p>
+          <div className="mt-1.5 flex items-center justify-between font-mono text-2xs text-ink-faint">
             <span>the day, in short</span>
             <button
               onClick={async () => {

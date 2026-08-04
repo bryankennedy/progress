@@ -629,7 +629,7 @@ function CardView({
           {tags.map((tag) => (
             <span
               key={tag.id}
-              className="rounded-full border px-1.5 py-px text-[10px]"
+              className="rounded-full border px-1.5 py-px text-3xs"
               style={tagChipStyle(tag.color)}
             >
               {tag.name}

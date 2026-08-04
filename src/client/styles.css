@@ -46,6 +46,17 @@
   --font-serif: "Spectral", Georgia, serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
+  /* Micro type (S5/PROG-147). The root is scaled to 120% (below), so rem sizes
+     ride the sizing system while px literals don't — these two tokens replace
+     the old arbitrary 10px/11px px literals. Effective: 2xs ≈ 11.5px,
+     3xs ≈ 10.6px. Line heights mirror Tailwind's convention (calc(1 / size))
+     so both get the same 1rem line box as text-xs — they're single-line
+     label/badge sizes, never body copy. */
+  --text-2xs: 0.6rem;
+  --text-2xs--line-height: calc(1 / 0.6);
+  --text-3xs: 0.55rem;
+  --text-3xs--line-height: calc(1 / 0.55);
+
   /* Radius (brand --r-*). --radius makes bare `rounded` land on the token
      scale (6px) instead of Tailwind's off-system 0.25rem default (S4). */
   --radius: 6px;

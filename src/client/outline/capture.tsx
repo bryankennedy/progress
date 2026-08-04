@@ -191,11 +191,11 @@ export function FocusCaptureRow({
         }}
         placeholder="KEY"
         title="Action-key prefix: 2–8 letters, unique across focuses"
-        className={`w-16 shrink-0 rounded bg-transparent px-1 py-0.5 text-center font-mono text-[11px] uppercase focus:bg-card focus:outline-none focus:ring-1 ${
+        className={`w-16 shrink-0 rounded bg-transparent px-1 py-0.5 text-center font-mono text-2xs uppercase focus:bg-card focus:outline-none focus:ring-1 ${
           clash ? "text-accent-deep ring-1 ring-accent" : "text-ink-faint focus:ring-line"
         }`}
       />
-      {clash && <span className="shrink-0 text-[11px] text-accent-deep">in use</span>}
+      {clash && <span className="shrink-0 text-2xs text-accent-deep">in use</span>}
     </div>
   );
 }

@@ -815,7 +815,7 @@ const FocusOutline = memo(function FocusOutline({
               <Link href={`/focus/${focus.id}`} className="font-medium text-ink hover:underline">
                 {focus.name}
               </Link>
-              <span className="font-mono text-[11px] text-ink-faint">{focus.keyPrefix}</span>
+              <span className="font-mono text-2xs text-ink-faint">{focus.keyPrefix}</span>
               {/* The mirrored repo, as Structure showed it (PROG-140): opens in a
                   new tab; stops propagation so it never triggers the section drag. */}
               {focus.gitUrl && (
@@ -824,7 +824,7 @@ const FocusOutline = memo(function FocusOutline({
                   target="_blank"
                   rel="noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="max-w-[12rem] truncate font-mono text-[11px] text-ink-faint hover:text-ink-soft hover:underline"
+                  className="max-w-[12rem] truncate font-mono text-2xs text-ink-faint hover:text-ink-soft hover:underline"
                 >
                   {focus.gitUrl.replace(/^https?:\/\//, "")}
                 </a>
@@ -1559,7 +1559,7 @@ export function OutlineView({
               <>
                 <LevelIcon kind="focus" />
                 <span className="font-medium text-ink">{heldFocus.name}</span>
-                <span className="font-mono text-[11px] text-ink-faint">{heldFocus.keyPrefix}</span>
+                <span className="font-mono text-2xs text-ink-faint">{heldFocus.keyPrefix}</span>
               </>
             }
             rows={heldRows}

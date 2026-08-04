@@ -244,7 +244,7 @@ export default function ContainerPage({
                   }`}
                 >
                   {item.name}
-                  {item.archived && <span className="ml-1 text-[10px] uppercase">archived</span>}
+                  {item.archived && <span className="ml-1 text-3xs uppercase">archived</span>}
                 </Link>
               ))}
               {group.onNew && (

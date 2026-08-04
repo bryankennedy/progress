@@ -34,6 +34,10 @@
   /* Type */
   --font-serif: "Spectral", Georgia, serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  /* Micro type (PROG-147) — rem so the sizes ride the 120% root scale.
+     Single-line labels/badges only, never body copy. */
+  --text-2xs: 0.6rem; /* ≈11.5px effective */
+  --text-3xs: 0.55rem; /* ≈10.6px effective */
 
   /* Radius */
   --r: 6px; /* default — bare `rounded` */
