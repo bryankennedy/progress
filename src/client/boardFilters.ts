@@ -6,10 +6,11 @@
 // of truth (so a filtered view is still bookmarkable); storage is just a memory
 // that re-seeds the URL on a fresh, unfiltered open.
 
-// One storage slot per filtered surface (PROG-92): the board and the search
-// page each remember their own last selection.
+// One storage slot per filtered surface (PROG-92): the board, the search page,
+// and the agenda (PROG-148) each remember their own last selection.
 export const BOARD_FILTERS_KEY = "progress:board-filters";
 export const SEARCH_FILTERS_KEY = "progress:search-filters";
+export const AGENDA_FILTERS_KEY = "progress:agenda-filters";
 
 // Filter sentinel for "this nullable field is empty" (PROG-76): pick the option
 // to find actions with no Arc / Tag. A reserved value in the URL (e.g.

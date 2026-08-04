@@ -5,13 +5,15 @@
 // live on the board; done/canceled actions are never pending, so neither
 // appears here.
 //
-// Filterable by focus · arc · tag via URL params — the v1 board pattern — so
+// Filterable by workspace · focus · arc · tag · priority via URL params — the
+// shared FilterBar (PROG-92, adopted here in PROG-148), with the same mobile
+// "Filters" disclosure and sticky restore as the board and search — so
 // "household tasks due this week" is one bookmark. Everything renders from the
 // client store (SPEC v2 §7.1); inline mark-done / bump-due use the optimistic
 // mutation template (no spinner).
 
 import { useMemo, useState } from "react";
-import { Link, useLocation, useSearch } from "wouter";
+import { Link } from "wouter";
 import type { WireAction, WireTag, SnapshotPayload } from "../../shared/types";
 import { ViewModeToggle } from "../ActionListView";
 import ActionTable from "../ActionTable";
@@ -21,8 +23,14 @@ import {
   quickAddDueDate,
   saveQuickAddFocus,
 } from "../agendaQuickAdd";
-import { sortByName } from "../boardFilters";
+import { AGENDA_FILTERS_KEY, FILTER_NONE, matchesNullableId, sortByName } from "../boardFilters";
 import { type AgendaBucket, bucketOf, formatDueDate, relativeDue, todayISO } from "../dates";
+import FilterBar, {
+  SHARED_FILTER_KEYS,
+  useStickyFilterUrl,
+  type SharedFilters,
+} from "../FilterBar";
+import PageHeader from "../PageHeader";
 import {
   actionMatches,
   cycleActionSort,
@@ -36,14 +44,15 @@ import PriorityPicker from "../PriorityPicker";
 import { createAction, actionKeyOf, setActionStatus, updateAction } from "../store";
 import { loadViewMode, saveViewMode, type ActionViewMode } from "../viewPrefs";
 
-const FILTER_KEYS = ["focus", "arc", "tag"] as const;
-type FilterKey = (typeof FILTER_KEYS)[number];
-type Filters = Partial<Record<FilterKey, string>>;
+// The agenda filters the five shared dimensions (PROG-148): its original
+// focus/arc/tag params kept their names (old bookmarks still work), and it
+// gained workspace + priority by adopting the shared set wholesale.
+type Filters = SharedFilters;
 
 function parseFilters(search: string): Filters {
   const params = new URLSearchParams(search);
   const filters: Filters = {};
-  for (const key of FILTER_KEYS) {
+  for (const key of SHARED_FILTER_KEYS) {
     const v = params.get(key);
     if (v) filters[key] = v;
   }
@@ -60,8 +69,13 @@ const BUCKETS: { key: AgendaBucket; label: string; accent: string }[] = [
 ];
 
 export default function Agenda({ snapshot }: { snapshot: SnapshotPayload }) {
-  const search = useSearch();
-  const [, navigate] = useLocation();
+  // URL plumbing + sticky restore + ancestor pruning, shared with the board
+  // and search (PROG-92, FilterBar.tsx; adopted here in PROG-148).
+  const { search, navigate, setParam } = useStickyFilterUrl({
+    snapshot,
+    basePath: "/agenda",
+    storageKey: AGENDA_FILTERS_KEY,
+  });
   const filters = useMemo(() => parseFilters(search), [search]);
   const today = todayISO();
 
@@ -79,21 +93,16 @@ export default function Agenda({ snapshot }: { snapshot: SnapshotPayload }) {
   // headers; unsorted keeps the agenda's own due-then-key order.
   const [sort, setSort] = useState<ActionSort | null>(null);
 
-  const setParam = (key: string, value: string | null) => {
-    const params = new URLSearchParams(search);
-    if (value) params.set(key, value);
-    else params.delete(key);
-    const qs = params.toString();
-    navigate(qs ? `/agenda?${qs}` : "/agenda", { replace: true });
-  };
-
   const tagsByAction = useMemo(
     () => buildTagsByAction(snapshot),
     [snapshot.tags, snapshot.actionTags],
   );
 
   // Dated, still-pending actions matching the active filters, ascending by due
-  // date (string compare is correct for YYYY-MM-DD), tiebroken by key.
+  // date (string compare is correct for YYYY-MM-DD), tiebroken by key. The
+  // filter semantics mirror the board's (PROG-148): workspace narrows via the
+  // focus's parent, and the nullable Arc/Tag dimensions honor the "none"
+  // sentinel (PROG-76) the shared dropdowns offer.
   const dated = useMemo(() => {
     const focusById = new Map(snapshot.focuses.map((p) => [p.id, p]));
     const keyOf = (i: WireAction) =>
@@ -101,11 +110,19 @@ export default function Agenda({ snapshot }: { snapshot: SnapshotPayload }) {
     return snapshot.actions
       .filter((i) => i.dueDate)
       .filter((i) => i.status !== "done" && i.status !== "canceled")
-      .filter((i) => !filters.focus || i.focusId === filters.focus)
-      .filter((i) => !filters.arc || i.arcId === filters.arc)
       .filter(
-        (i) => !filters.tag || (tagsByAction.get(i.id) ?? []).some((t) => t.id === filters.tag),
+        (i) => !filters.workspace || focusById.get(i.focusId)?.workspaceId === filters.workspace,
       )
+      .filter((i) => !filters.focus || i.focusId === filters.focus)
+      .filter((i) => !filters.arc || matchesNullableId(i.arcId, filters.arc))
+      .filter((i) => !filters.priority || i.priority === filters.priority)
+      .filter((i) => {
+        if (!filters.tag) return true;
+        const tags = tagsByAction.get(i.id) ?? [];
+        return filters.tag === FILTER_NONE
+          ? tags.length === 0
+          : tags.some((t) => t.id === filters.tag);
+      })
       .sort((a, b) => a.dueDate!.localeCompare(b.dueDate!) || keyOf(a).localeCompare(keyOf(b)));
   }, [snapshot.actions, snapshot.focuses, filters, tagsByAction]);
 
@@ -115,7 +132,7 @@ export default function Agenda({ snapshot }: { snapshot: SnapshotPayload }) {
     return groups;
   }, [dated, today]);
 
-  const filtersActive = FILTER_KEYS.some((k) => filters[k]);
+  const filtersActive = SHARED_FILTER_KEYS.some((k) => filters[k]);
 
   return (
     // Table mode needs the elbow room: the full column set (+ Due + the
@@ -123,51 +140,30 @@ export default function Agenda({ snapshot }: { snapshot: SnapshotPayload }) {
     // the list rows would force a horizontal scroll on every bucket. Widen to
     // 6xl for tables only; list mode keeps its comfortable measure.
     <div className={`mx-auto ${mode === "table" ? "max-w-6xl" : "max-w-3xl"}`}>
-      <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Agenda</h1>
-        <p className="text-xs text-ink-faint">
-          {dated.length} dated {dated.length === 1 ? "action" : "actions"} · sorted by due date
-        </p>
-      </header>
+      <PageHeader
+        title="Agenda"
+        meta={
+          <>
+            {dated.length} dated {dated.length === 1 ? "action" : "actions"} · sorted by due date
+          </>
+        }
+        // The List/Table switch is a view mode, not a filter — it lives in the
+        // header's action slot (the Outline pattern), keeping the FilterBar
+        // purely the shared five dropdowns.
+        actions={<ViewModeToggle mode={mode} onChange={setModeSticky} outlineLabel="List" />}
+      />
 
-      <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
-        <FilterSelect
-          label="Focus"
-          value={filters.focus}
-          options={sortByName(snapshot.focuses.filter((p) => !p.archivedAt)).map((p) => [
-            p.id,
-            p.name,
-          ])}
-          onChange={(v) => setParam("focus", v)}
-        />
-        <FilterSelect
-          label="Arc"
-          value={filters.arc}
-          options={sortByName(
-            snapshot.arcs
-              .filter((a) => !a.archivedAt)
-              .filter((a) => !filters.focus || a.focusId === filters.focus),
-          ).map((a) => [a.id, a.name])}
-          onChange={(v) => setParam("arc", v)}
-        />
-        <FilterSelect
-          label="Tag"
-          value={filters.tag}
-          options={sortByName(snapshot.tags).map((t) => [t.id, t.name])}
-          onChange={(v) => setParam("tag", v)}
-        />
-        {filtersActive && (
-          <button
-            onClick={() => navigate("/agenda", { replace: true })}
-            className="text-xs text-ink-faint underline hover:text-ink-soft"
-          >
-            Clear filters
-          </button>
-        )}
-        <span className="ml-auto">
-          <ViewModeToggle mode={mode} onChange={setModeSticky} outlineLabel="List" />
-        </span>
-      </div>
+      {/* The shared filter bar (PROG-92, adopted in PROG-148): the same five
+          dropdowns, hierarchy narrowing, mobile disclosure, Clear, and sticky
+          restore as the board and search. */}
+      <FilterBar
+        snapshot={snapshot}
+        filters={filters}
+        setParam={setParam}
+        activeCount={SHARED_FILTER_KEYS.filter((k) => filters[k]).length}
+        clearVisible={filtersActive}
+        onClear={() => navigate("/agenda", { replace: true })}
+      />
 
       {mode === "table" && (
         <input
@@ -332,7 +328,9 @@ function QuickAddRow({
       dueDate: due,
       // Inherit the active Tag filter too (PROG-89b) — otherwise the untagged
       // capture is filtered out the instant it's created and silently vanishes.
-      tagIds: filters.tag ? [filters.tag] : undefined,
+      // The "none" sentinel (untagged filter, PROG-76) is not a tag — nothing
+      // to inherit there, and the capture stays visible untagged anyway.
+      tagIds: filters.tag && filters.tag !== FILTER_NONE ? [filters.tag] : undefined,
     });
     saveQuickAddFocus(focusId);
     setTitle(""); // input keeps focus — capture the next one immediately
@@ -380,35 +378,6 @@ function QuickAddRow({
         ))}
       </select>
     </div>
-  );
-}
-
-function FilterSelect({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string | undefined;
-  options: [string, string][];
-  onChange: (value: string | null) => void;
-}) {
-  return (
-    <select
-      value={value ?? ""}
-      onChange={(e) => onChange(e.target.value || null)}
-      className={`rounded border px-2 py-1 text-xs ${
-        value ? "border-ink-faint bg-line text-ink-soft" : "border-line bg-card text-ink-soft"
-      }`}
-    >
-      <option value="">{label}: all</option>
-      {options.map(([v, name]) => (
-        <option key={v} value={v}>
-          {name}
-        </option>
-      ))}
-    </select>
   );
 }
 
