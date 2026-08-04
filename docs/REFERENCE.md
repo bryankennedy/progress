@@ -432,16 +432,17 @@ arc-page load. In-app only for now (no CLI/MCP arc kickoff yet).
 
 ### Routing & key resolution
 
-Routes: `/` (board), `/outline` (the capture outliner), `/agenda` (the
-due-date view), `/diary` (the per-day recap, `?date=YYYY-MM-DD`),
-`/structure` (the container tree), `/archive` (completed arcs),
-`/action/:key`, `/workspace/:id`, `/focus/:id`, `/arc/:id`. Action
-URLs are key-based; `findActionByKey` resolves current keys first, then alias
-keys with a `replaceState` redirect to the canonical key — entirely
-client-side from the loaded snapshot (D22). The pre-PROG-98 routes
-(`/issue/:key`, `/initiative/:id`, `/product/:id`) redirect to their renamed
-equivalents, and the retired `/repo/:id` (PROG-102) redirects to `/structure`,
-so old bookmarks keep working.
+Routes: `/` (board), `/outline` (the capture outliner, `?all=1` for the
+all-workspaces scope), `/agenda` (the due-date view), `/diary` (the per-day
+recap, `?date=YYYY-MM-DD`), `/archive` (completed arcs), `/action/:key`,
+`/workspace/:id`, `/focus/:id`, `/arc/:id`. Action URLs are key-based;
+`findActionByKey` resolves current keys first, then alias keys with a
+`replaceState` redirect to the canonical key — entirely client-side from the
+loaded snapshot (D22). The pre-PROG-98 routes (`/issue/:key`,
+`/initiative/:id`, `/product/:id`) redirect to their renamed equivalents, and
+the retired `/repo/:id` (PROG-102) and `/structure` (PROG-143 — folded into
+the Outline's all-workspaces scope) both redirect to `/outline?all=1`, so old
+bookmarks keep working.
 
 ## 5. UI surfaces
 
@@ -511,7 +512,7 @@ so old bookmarks keep working.
   Container ranks sort `(rank, name)` — alphabetical until first reordered; a
   drag in a still-tied group renumbers the group, after which each drag is one
   write (`containerReorderRanks`, `src/client/containerReorder.ts`). The order
-  is global and also drives the Structure page, the scope picker, and — via
+  is global and also drives the scope picker, and — via
   the shared `sortContainers` (active first, archived last, rank-then-name;
   PROG-83) — the child lists on container pages. **Every other container/tag
   list is deterministic too** (PROG-83): pickers and selects (create dialogs,
@@ -591,14 +592,14 @@ so old bookmarks keep working.
   action's title (done or canceled) carries the shared finished treatment —
   dimmed + struck through (`closedTitleClass`, PROG-100).
 - **App header** — persistent across pages: the "Progress" home link, nav
-  (Board · Outline · Agenda · Search · Structure · Archive), a **New** menu (Action ·
+  (Board · Outline · Agenda · Diary · Search · Archive), a **New** menu (Action ·
   Workspace · Focus · Arc) that opens the existing optimistic create flows, and the
   signed-in identity avatar. The always-available structure-creation entry point
   (SPEC v2 §4). The avatar dropdown holds the profile + **Sign out**, plus an
   **Admin** link for super-admins (D44) — Admin lives here, not in the top nav,
   as a rare destination. The inline nav is **desktop-only**: below `sm` it is
   hidden and a fixed **bottom tab bar** (`MobileTabBar.tsx`) takes over — Board ·
-  Outline · Agenda · Search as tabs and a **More** tab (sheet) for Structure ·
+  Outline · Agenda · Search as tabs and a **More** tab (sheet) for Diary ·
   Archive, the active tab lit in the adobe accent (More included when its sheet's
   page is current), clear of the iOS home indicator. This stops the header from
   overflowing and scrolling sideways on a phone (PROG-79). Both surfaces read
@@ -653,17 +654,12 @@ so old bookmarks keep working.
   background sync's timeline invalidation also refreshes an open Diary
   (`["diary"]` query prefix). Desktop nav inline; on phones it lives in the
   More sheet.
-- **Structure (`/structure`)** — the Workspace → Focus → Arc tree
-  with an inline "+ add" on each node (D40); a dedicated home for curating
-  structure that keeps the board uncluttered. A focus's optional git repo
-  (PROG-102) shows as a link on its row. Active arcs always show; archived
-  (completed) arcs render crossed-out but are capped at the first 5 per focus,
-  with a "+N more in Archive →" link to `/archive` once they pile up beyond that
-  (`capArchived`, PROG-45).
 - **Archive (`/archive`)** — a top-nav destination listing every archived arc,
-  grouped by Workspace → Focus (mirroring the Structure tree). Also reached
-  from Structure's "+N more" link; unarchiving still happens on the arc page
-  (PROG-45).
+  grouped by Workspace → Focus. The dedicated Structure overview (D40) was
+  retired in favor of the Outline's all-workspaces scope (`/outline?all=1`,
+  PROG-143), which renders the same Workspace → Focus → Arc tree with inline
+  capture; archived containers stay out of the Outline, so this page remains
+  their sole home. Unarchiving still happens on the arc page (PROG-45).
 - **Board (`/`)** — the global "My Work" kanban. Columns are the fixed
   statuses; Backlog hides behind a toggle by default. Filters (workspace,
   focus, arc, tag, priority) live in URL query params, so any

@@ -187,7 +187,7 @@ test("the scope picker is sticky — a bare /outline reopens the last scope", as
   await expect(scope).toHaveValue(`workspace:${workspace.id}`);
 
   // …leave for another view, come back with NO params: the scope must stick.
-  await page.goto("/structure");
+  await page.goto("/agenda");
   await page.goto("/outline");
   await expect(scope).toHaveValue(`workspace:${workspace.id}`);
 

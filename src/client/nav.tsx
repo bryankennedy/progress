@@ -68,15 +68,6 @@ const DiaryIcon = (
   </svg>
 );
 
-const StructureIcon = (
-  <svg {...ICON}>
-    <rect x="9" y="3.5" width="6" height="4" rx="1" />
-    <rect x="3.5" y="16.5" width="6" height="4" rx="1" />
-    <rect x="14.5" y="16.5" width="6" height="4" rx="1" />
-    <path d="M12 7.5V12M6.5 16.5V13h11v3.5" />
-  </svg>
-);
-
 const ArchiveIcon = (
   <svg {...ICON}>
     <rect x="3.5" y="4.5" width="17" height="4" rx="1" />
@@ -128,13 +119,6 @@ export const NAV: NavItem[] = [
     match: (p) => p.startsWith("/search"),
     icon: SearchIcon,
     primary: true,
-  },
-  {
-    href: "/structure",
-    label: "Structure",
-    match: (p) => p.startsWith("/structure"),
-    icon: StructureIcon,
-    primary: false,
   },
   {
     href: "/archive",
