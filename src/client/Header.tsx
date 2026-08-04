@@ -71,6 +71,8 @@ export default function Header() {
           <div className="relative">
             <button
               onClick={() => setMenuOpen((o) => !o)}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
               className="inline-flex min-h-11 items-center rounded bg-accent px-3 py-1 text-sm text-white hover:bg-accent-deep sm:min-h-0"
             >
               New <ChevronDownGlyph className="ml-1 h-3.5 w-3.5 shrink-0 text-white/90" />
@@ -103,6 +105,9 @@ export default function Header() {
               <button
                 onClick={() => setAcctOpen((o) => !o)}
                 title={me.email}
+                aria-label={`Account — ${me.name}`}
+                aria-haspopup="menu"
+                aria-expanded={acctOpen}
                 className="flex h-11 w-11 items-center justify-center rounded-full bg-accent-wash/60 text-sm font-medium text-accent-deep hover:bg-accent-wash sm:h-8 sm:w-8"
               >
                 {me.name.slice(0, 1).toUpperCase()}

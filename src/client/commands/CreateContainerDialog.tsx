@@ -10,6 +10,7 @@ import type { SnapshotPayload } from "../../shared/types";
 import { sortByName } from "../boardFilters";
 import { createContainer, findActionByKey, type ContainerCreateInput } from "../store";
 import { onOpenCreateContainer, type ContainerDialogRequest } from "./controller";
+import { useFocusTrap } from "./useFocusTrap";
 
 const KIND_LABELS = { workspace: "workspace", focus: "focus", arc: "arc" };
 
@@ -40,6 +41,8 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
   const [prefixTouched, setPrefixTouched] = useState(false);
   const [gitUrl, setGitUrl] = useState("");
   const [path, navigate] = useLocation();
+  // Tab containment + focus restore on close (PROG-146 C4).
+  const trapRef = useFocusTrap<HTMLFormElement>(request !== null);
 
   // Parent pickers list options alphabetically, like the filter dropdowns
   // (PROG-66, PROG-83) — a select is scanned by name.
@@ -100,6 +103,10 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
   return (
     <div className="fixed inset-0 z-50 bg-ink/20 p-4" onMouseDown={() => setRequest(null)}>
       <form
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`New ${KIND_LABELS[kind]}`}
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === "Escape") setRequest(null);

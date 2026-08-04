@@ -37,6 +37,7 @@ import PriorityIndicator from "../PriorityIndicator";
 import StatusIndicator from "../StatusIndicator";
 import { createContainer, createAction, findActionByKey } from "../store";
 import { onOpenCreateAction, type CreateDefaults } from "./controller";
+import { useFocusTrap } from "./useFocusTrap";
 
 // e.g. "My Side Project" → "MYSI"; the user can override.
 const suggestPrefix = (name: string) =>
@@ -98,6 +99,8 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
   const [newArc, setNewArc] = useState<string | null>(null);
   const [path, navigate] = useLocation();
   const search = useSearch();
+  // Tab containment + focus restore on close (PROG-146 C4).
+  const trapRef = useFocusTrap<HTMLFormElement>(open);
 
   useEffect(
     () =>
@@ -215,6 +218,10 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
   return (
     <div className="fixed inset-0 z-50 bg-ink/20 p-4" onMouseDown={() => setOpen(false)}>
       <form
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="New action"
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === "Escape") setOpen(false);

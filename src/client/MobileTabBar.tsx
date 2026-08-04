@@ -56,6 +56,7 @@ export default function MobileTabBar() {
         <button
           type="button"
           onClick={() => setMoreOpen((o) => !o)}
+          aria-haspopup="true"
           aria-expanded={moreOpen}
           aria-current={moreActive ? "page" : undefined}
           className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-3xs font-medium ${

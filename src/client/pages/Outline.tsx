@@ -259,6 +259,9 @@ function ArcMenu({ action, arcs }: { action: WireAction; arcs: WireArc[] }) {
       <button
         onClick={() => setOpen((o) => !o)}
         title="Assign to an arc"
+        aria-label="Assign to an arc"
+        aria-haspopup="menu"
+        aria-expanded={open}
         className="inline-flex items-center gap-0.5 rounded px-1 text-xs text-ink-faint hover:bg-hover hover:text-ink-soft"
       >
         {action.arcId ? (
