@@ -186,7 +186,7 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
           <button
             type="submit"
             disabled={!canSubmit}
-            className="rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep disabled:opacity-40"
+            className="rounded bg-accent px-3 py-1 text-sm text-white hover:bg-accent-deep disabled:opacity-40"
           >
             Create {KIND_LABELS[kind]}
           </button>

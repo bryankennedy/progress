@@ -57,7 +57,7 @@ export default function Header() {
               href={item.href}
               className={`rounded px-2 py-1 ${
                 item.match(path)
-                  ? "bg-adobe-wash/40 text-adobe-deep"
+                  ? "bg-accent-wash/40 text-accent-deep"
                   : "text-ink-soft hover:bg-line hover:text-ink"
               }`}
             >
@@ -70,7 +70,7 @@ export default function Header() {
           <div className="relative">
             <button
               onClick={() => setMenuOpen((o) => !o)}
-              className="inline-flex min-h-11 items-center rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep sm:min-h-0"
+              className="inline-flex min-h-11 items-center rounded bg-accent px-3 py-1 text-sm text-white hover:bg-accent-deep sm:min-h-0"
             >
               New <span className="ml-1 text-white/70">▾</span>
             </button>
@@ -102,7 +102,7 @@ export default function Header() {
               <button
                 onClick={() => setAcctOpen((o) => !o)}
                 title={me.email}
-                className="flex h-11 w-11 items-center justify-center rounded-full bg-adobe-wash/60 text-sm font-medium text-adobe-deep hover:bg-adobe-wash sm:h-8 sm:w-8"
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-accent-wash/60 text-sm font-medium text-accent-deep hover:bg-accent-wash sm:h-8 sm:w-8"
               >
                 {me.name.slice(0, 1).toUpperCase()}
               </button>

@@ -104,7 +104,7 @@ export default function EditableMarkdown({
       <section>
         {restored && (
           <p className="mb-1 flex items-center gap-2 text-xs text-ink-faint">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-adobe" />
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent" />
             Unsaved draft restored.
             <button onClick={discardDraft} className="underline hover:text-ink-soft">
               Discard
@@ -121,7 +121,7 @@ export default function EditableMarkdown({
         <div className="mt-2 flex gap-2">
           <button
             onClick={save}
-            className="rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep"
+            className="rounded bg-accent px-3 py-1 text-sm text-white hover:bg-accent-deep"
           >
             Save
           </button>

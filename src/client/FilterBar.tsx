@@ -139,7 +139,7 @@ export default function FilterBar({
       >
         <span className="font-medium">Filters</span>
         {activeCount > 0 && (
-          <span className="rounded-full bg-adobe px-1.5 py-0.5 text-xs font-medium text-white">
+          <span className="rounded-full bg-accent px-1.5 py-0.5 text-xs font-medium text-white">
             {activeCount}
           </span>
         )}

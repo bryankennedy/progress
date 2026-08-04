@@ -131,7 +131,7 @@ export default function Diary({ snapshot }: { snapshot: SnapshotPayload }) {
 
 // ── Progress strip ───────────────────────────────────────────────────────────
 // Completions per day for the last five weeks — one thin bar per day, moss
-// (the completed color), the selected day in adobe (the "now" accent). Every
+// (the completed color), the selected day in accent (the "now" accent). Every
 // bar is a button that opens its day; zero days keep a hairline stub so the
 // rhythm of the strip stays readable (a gap is information).
 function ProgressStrip({
@@ -167,7 +167,7 @@ function ProgressStrip({
                 style={{ height: count === 0 ? "2px" : `${Math.max(12, (count / max) * 100)}%` }}
                 className={`w-full max-w-2.5 rounded-t-[3px] ${
                   isSelected
-                    ? "bg-adobe"
+                    ? "bg-accent"
                     : count === 0
                       ? "bg-line group-hover:bg-ink-faint"
                       : "bg-moss group-hover:bg-moss-deep"
@@ -270,7 +270,7 @@ function RecapSection({
                 </Link>
                 <Link
                   href={`/action/${key}`}
-                  className={`min-w-0 flex-1 truncate font-medium hover:text-adobe-deep ${closedTitleClass(action.status)}`}
+                  className={`min-w-0 flex-1 truncate font-medium hover:text-accent-deep ${closedTitleClass(action.status)}`}
                 >
                   {action.title}
                 </Link>
@@ -304,7 +304,7 @@ function buildEvents(payload: DiaryDayPayload, snapshot: SnapshotPayload): Event
       <Link
         href={`/action/${key}`}
         title={action.title}
-        className="font-mono text-xs text-adobe hover:text-adobe-deep"
+        className="font-mono text-xs text-accent hover:text-accent-deep"
       >
         {key}
       </Link>
@@ -365,7 +365,7 @@ function buildEvents(payload: DiaryDayPayload, snapshot: SnapshotPayload): Event
             href={commit.url}
             target="_blank"
             rel="noreferrer"
-            className="font-mono text-xs text-adobe hover:text-adobe-deep"
+            className="font-mono text-xs text-accent hover:text-accent-deep"
           >
             {commit.sha.slice(0, 7)}
           </a>{" "}
@@ -389,7 +389,7 @@ function buildEvents(payload: DiaryDayPayload, snapshot: SnapshotPayload): Event
             href={pr.url}
             target="_blank"
             rel="noreferrer"
-            className="font-mono text-xs text-adobe hover:text-adobe-deep"
+            className="font-mono text-xs text-accent hover:text-accent-deep"
           >
             #{pr.prNumber}
           </a>{" "}

@@ -11,7 +11,7 @@ import { useRef } from "react";
 // while keeping the compact one-line-each layout on desktop (PROG-81). `flex`
 // is block-level, so each still sits on its own line as `block` did.
 export const FIELD_ACTION_CLS =
-  "flex min-h-11 items-center text-xs text-adobe hover:underline sm:block sm:min-h-0";
+  "flex min-h-11 items-center text-xs text-accent hover:underline sm:block sm:min-h-0";
 
 // Every gutter glyph is a button (PROG-101b): slight padding for a bigger hit
 // target, a hover wash for affordance.

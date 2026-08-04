@@ -272,7 +272,7 @@ function ArcMenu({ action, arcs }: { action: WireAction; arcs: WireArc[] }) {
                   setOpen(false);
                   void updateAction(action.id, { arcId: a.id });
                 }}
-                className={`block w-full px-3 py-1.5 text-left text-sm hover:bg-line ${action.arcId === a.id ? "text-adobe-deep" : "text-ink-soft"}`}
+                className={`block w-full px-3 py-1.5 text-left text-sm hover:bg-line ${action.arcId === a.id ? "text-accent-deep" : "text-ink-soft"}`}
               >
                 {a.name}
               </button>
@@ -1681,7 +1681,7 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
               type="checkbox"
               checked={hideDone}
               onChange={(e) => setHideDone(e.target.checked)}
-              className="h-3.5 w-3.5 accent-adobe-deep"
+              className="h-3.5 w-3.5 accent-accent-deep"
             />
             Hide done
           </label>

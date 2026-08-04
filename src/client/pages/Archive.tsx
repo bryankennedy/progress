@@ -51,7 +51,7 @@ export default function Archive({ snapshot }: { snapshot: SnapshotPayload }) {
             Completed arcs, kept out of the way. {archivedArcs.length} total.
           </p>
         </div>
-        <Link href="/outline?all=1" className="text-xs text-adobe hover:underline">
+        <Link href="/outline?all=1" className="text-xs text-accent hover:underline">
           ← Outline
         </Link>
       </div>

@@ -1,40 +1,43 @@
 @import "tailwindcss";
 
-/* ── "Progress — Adobe & Moss" design tokens (brand-assets/tokens.css) ─────────
+/* ── "Progress — Porcelain & Moss" design tokens (brand-assets/tokens.css) ─────
    Mirrored into Tailwind's @theme so every token is a utility: bg-paper,
-   text-ink, bg-adobe, border-line, font-mono, rounded-md, … Keep the names in
+   text-ink, bg-accent, border-line, font-mono, rounded-md, … Keep the names in
    sync with brand-assets/tokens.css — that file is the source of truth, this is
-   its Tailwind binding. Semantic roles: --adobe = primary/active/"now",
-   --moss = completed/grounded, --danger = errors/overdue. */
+   its Tailwind binding. Semantic roles: --accent = primary/active/"now",
+   --moss = completed/grounded, --danger = errors/overdue. Palette rationale:
+   "Riso ink on porcelain" (PROG-146/PROG-145) — porcelain neutrals, printer's
+   ultramarine accent, olive moss, warm danger. */
 @theme {
-  /* Neutrals */
-  --color-paper: #f5efe0; /* primary surface / panels / header */
-  --color-canvas: #f0e9d9; /* app background, one step under paper */
-  --color-card: #fdfaf3; /* raised cards, rows, inputs */
-  --color-line: #e9dec6; /* hairline dividers */
-  --color-ink: #2c241b; /* primary text */
-  --color-ink-soft: #6b5f4d; /* secondary text */
-  --color-ink-faint: #9a8b73; /* meta / mono labels */
+  /* Neutrals — porcelain ramp: white cards on a faint sage canvas */
+  --color-paper: #f7f7f2; /* primary surface / panels / header */
+  --color-canvas: #f0f1ea; /* app background, one step under paper */
+  --color-card: #ffffff; /* raised cards, rows, inputs */
+  --color-line: #dfe1d6; /* hairline dividers */
+  --color-hover: #dfe1d6; /* interactive hover surfaces (S8) — tune apart from line freely */
+  --color-ink: #20251f; /* primary text (green-black) */
+  --color-ink-soft: #5a6355; /* secondary text */
+  --color-ink-faint: #6d7568; /* meta / mono labels — 4.78:1 on card */
 
-  /* Salmon Adobe — PRIMARY: active, "now", CTAs */
-  --color-adobe-deep: #8f5340;
-  --color-adobe: #bb6f50;
-  --color-adobe-light: #d89572;
-  --color-adobe-wash: #efb892;
+  /* Ultramarine accent — PRIMARY: active, "now", CTAs */
+  --color-accent-deep: #2d3c96;
+  --color-accent: #3d52c4;
+  --color-accent-light: #8a97e0;
+  --color-accent-wash: #dde1f7;
 
   /* Olive Moss — SECONDARY: grounded, completed */
-  --color-moss-deep: #566039;
-  --color-moss: #79864c;
-  --color-moss-light: #9aa468;
-  --color-moss-wash: #bcc189;
+  --color-moss-deep: #4f5c31;
+  --color-moss: #6c7a42;
+  --color-moss-light: #a7b96e;
+  --color-moss-wash: #e0e8c9;
 
-  /* Functional accents */
-  --color-prompt-text: #a85c3d;
-  --color-prompt-border: #e0b59f;
-  --color-prompt-bg: #f7e7dc;
+  /* Functional accents — derived from the accent family */
+  --color-prompt-text: #2f41a8;
+  --color-prompt-border: #b9c2ee;
+  --color-prompt-bg: #eef0fb;
 
-  /* Danger / overdue — derived from the urgent-priority tomato, kept on-system
-     so errors stay papery rather than introducing a stock red. */
+  /* Danger / overdue — the urgent-priority tomato, kept warm on purpose:
+     a warm danger against the cool accent carries its own meaning. */
   --color-danger: #b23c28;
   --color-danger-bg: #f6e4dd;
   --color-danger-border: #e3b3a4;
@@ -43,10 +46,21 @@
   --font-serif: "Spectral", Georgia, serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
-  /* Radius (brand --r-*) */
+  /* Radius (brand --r-*). --radius makes bare `rounded` land on the token
+     scale (6px) instead of Tailwind's off-system 0.25rem default (S4). */
+  --radius: 6px;
   --radius-sm: 6px;
   --radius-md: 9px;
   --radius-lg: 12px;
+  --radius-xl: 14px;
+
+  /* Shadows — ink-tinted (rgb(32 37 31 / …), the new --ink) instead of
+     Tailwind's neutral black, so elevation stays in the paper voice (CR2). */
+  --shadow-sm: 0 1px 3px 0 rgb(32 37 31 / 0.08), 0 1px 2px -1px rgb(32 37 31 / 0.06);
+  --shadow-md: 0 4px 10px -2px rgb(32 37 31 / 0.1), 0 2px 4px -2px rgb(32 37 31 / 0.06);
+  --shadow-lg: 0 8px 30px rgb(32 37 31 / 0.12), 0 2px 6px -2px rgb(32 37 31 / 0.06);
+  --shadow-xl: 0 12px 40px rgb(32 37 31 / 0.14), 0 4px 10px -4px rgb(32 37 31 / 0.08);
+  --shadow-2xl: 0 20px 50px -8px rgb(32 37 31 / 0.18);
 }
 
 /* Papery base: deep ink on light canvas, Spectral throughout. */
@@ -201,7 +215,7 @@
   margin: 0.5em 0;
 }
 .prose-lite a {
-  color: var(--color-adobe);
+  color: var(--color-accent);
   text-decoration: underline;
 }
 /* Pasted/uploaded images (PROG-42): cap to the column, keep them tidy. */

@@ -453,7 +453,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
                       !/^[A-Z]{2,8}$/.test(newFocus.prefix) ||
                       !newFocus.workspaceId
                     }
-                    className="rounded bg-adobe px-2 py-1 text-xs text-white hover:bg-adobe-deep disabled:opacity-40"
+                    className="rounded bg-accent px-2 py-1 text-xs text-white hover:bg-accent-deep disabled:opacity-40"
                   >
                     Add
                   </button>
@@ -480,7 +480,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
                     type="button"
                     onClick={submitNewArc}
                     disabled={newArc.trim() === "" || !selectedFocusId}
-                    className="rounded bg-adobe px-2 py-1 text-xs text-white hover:bg-adobe-deep disabled:opacity-40"
+                    className="rounded bg-accent px-2 py-1 text-xs text-white hover:bg-accent-deep disabled:opacity-40"
                   >
                     Add
                   </button>
@@ -525,7 +525,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
           <button
             type="submit"
             disabled={title.trim() === "" || !selectedFocusId}
-            className="rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep disabled:opacity-40"
+            className="rounded bg-accent px-3 py-1 text-sm text-white hover:bg-accent-deep disabled:opacity-40"
           >
             Create action
           </button>

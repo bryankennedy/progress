@@ -92,7 +92,7 @@ export default function InstallPrompt() {
           </div>
           <button
             onClick={promptInstall}
-            className="ml-auto flex-none rounded bg-adobe px-3 py-1.5 text-sm font-medium text-white hover:bg-adobe-deep"
+            className="ml-auto flex-none rounded bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-deep"
           >
             Install
           </button>
@@ -116,7 +116,7 @@ export default function InstallPrompt() {
               <span className="font-mono text-xs text-ink-faint">1.</span>
               <span className="flex items-center gap-1.5">
                 Tap
-                <ShareIcon className="inline-block h-5 w-5 text-adobe" />
+                <ShareIcon className="inline-block h-5 w-5 text-accent" />
                 <span className="font-medium">Share</span> in the toolbar
               </span>
             </li>
@@ -124,7 +124,7 @@ export default function InstallPrompt() {
               <span className="font-mono text-xs text-ink-faint">2.</span>
               <span className="flex items-center gap-1.5">
                 Choose
-                <PlusSquareIcon className="inline-block h-5 w-5 text-adobe" />
+                <PlusSquareIcon className="inline-block h-5 w-5 text-accent" />
                 <span className="font-medium">Add to Home Screen</span>
               </span>
             </li>

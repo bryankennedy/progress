@@ -449,7 +449,7 @@ function AgendaRow({
         </Link>
         <Link
           href={`/action/${key}`}
-          className="min-w-0 flex-1 truncate font-medium hover:text-adobe-deep"
+          className="min-w-0 flex-1 truncate font-medium hover:text-accent-deep"
         >
           {action.title}
         </Link>

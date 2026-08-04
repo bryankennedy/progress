@@ -25,7 +25,7 @@ export default function Admin({ snapshot }: { snapshot: SnapshotPayload }) {
         <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
         <p className="mt-2 text-sm text-ink-soft">
           This page is for administrators only.{" "}
-          <Link href="/" className="text-adobe hover:underline">
+          <Link href="/" className="text-accent hover:underline">
             Back to the board
           </Link>
         </p>
@@ -101,7 +101,7 @@ function AddForm({ existing }: { existing: WireAllowedEmail[] }) {
       <button
         type="submit"
         disabled={!valid}
-        className="rounded bg-adobe px-4 py-2 text-sm font-medium text-white hover:bg-adobe-deep disabled:cursor-not-allowed disabled:opacity-40"
+        className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-deep disabled:cursor-not-allowed disabled:opacity-40"
       >
         Add
       </button>

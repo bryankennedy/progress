@@ -2,7 +2,7 @@
 // header's inline nav is hidden (it overflowed and scrolled sideways), and this
 // fixed bar takes over: the four primary surfaces get a tab each, the rest sit
 // behind a "More" sheet (the iOS-standard 5-slot pattern). The active tab is
-// always lit (icon + label in the adobe accent), so you can see where you are at
+// always lit (icon + label in the accent accent), so you can see where you are at
 // a glance without opening anything. Hidden at `sm` and up, where the inline nav
 // returns. Destinations come from the shared NAV list so the two can't drift.
 
@@ -37,7 +37,7 @@ export default function MobileTabBar() {
                   onClick={() => setMoreOpen(false)}
                   aria-current={active ? "page" : undefined}
                   className={`flex items-center gap-3 px-5 py-3 text-sm ${
-                    active ? "bg-adobe-wash/40 text-adobe-deep" : "text-ink-soft hover:bg-line"
+                    active ? "bg-accent-wash/40 text-accent-deep" : "text-ink-soft hover:bg-line"
                   }`}
                 >
                   <span className="text-ink-faint">{item.icon}</span>
@@ -59,7 +59,7 @@ export default function MobileTabBar() {
           aria-expanded={moreOpen}
           aria-current={moreActive ? "page" : undefined}
           className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[10px] font-medium ${
-            moreActive || moreOpen ? "text-adobe-deep" : "text-ink-faint"
+            moreActive || moreOpen ? "text-accent-deep" : "text-ink-faint"
           }`}
         >
           {MoreIcon}
@@ -76,7 +76,7 @@ function Tab({ item, active }: { item: NavItem; active: boolean }) {
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[10px] font-medium ${
-        active ? "text-adobe-deep" : "text-ink-faint"
+        active ? "text-accent-deep" : "text-ink-faint"
       }`}
     >
       {item.icon}

@@ -600,7 +600,7 @@ bookmarks keep working.
   as a rare destination. The inline nav is **desktop-only**: below `sm` it is
   hidden and a fixed **bottom tab bar** (`MobileTabBar.tsx`) takes over — Board ·
   Outline · Agenda · Search as tabs and a **More** tab (sheet) for Diary ·
-  Archive, the active tab lit in the adobe accent (More included when its sheet's
+  Archive, the active tab lit in the ultramarine accent (More included when its sheet's
   page is current), clear of the iOS home indicator. This stops the header from
   overflowing and scrolling sideways on a phone (PROG-79). Both surfaces read
   their destinations from one shared `nav.tsx` list so they can't drift.
@@ -642,7 +642,7 @@ bookmarks keep working.
   **instant recap** from the snapshot — Completed (`completedAt` that day),
   Started (`createdAt`), Also touched (`updatedAt`, not already listed) — plus
   a five-week **progress strip** of completions per day (one thin moss bar per
-  day, the selected day in adobe, every bar a button that opens its day; pure
+  day, the selected day in the accent, every bar a button that opens its day; pure
   helpers in `src/client/diary.ts`, unit-tested); (2) **the day's events**, a
   server wave (`GET /api/diary`) merging status changes, comments, linked
   commits, and PR link/state changes into one clocked list — git-link activity
@@ -707,7 +707,7 @@ bookmarks keep working.
   hidden (they stay reachable via search, Agenda, and container pages) — PROG-40.
   Each **card** pairs its two at-a-glance signals in a footer: the **due date**
   (if any) sits bottom-left as a calendar glyph + the Agenda's phrasing ("in 3
-  days · Jul 1", overdue in danger red, due-today in the adobe accent), and the
+  days · Jul 1", overdue in danger red, due-today in the ultramarine accent), and the
   **priority indicator** floats to the bottom-right corner (PROG-61). Estimate
   and tags sit on their own line above the footer so they don't crowd it.
   A **"show steps"** toggle (URL `?steps=1`, off by default) controls
@@ -749,7 +749,7 @@ bookmarks keep working.
   GitHub), and comments + activity interleaved into one timeline. Each
   editable sidebar field carries a **left-gutter glyph** (PROG-101): the
   shared `StatusIndicator` (circle progression — dashed backlog → outlined
-  todo → adobe half/three-quarter pies for in progress/in review → moss
+  todo → accent half/three-quarter pies for in progress/in review → moss
   check disc for done; canceled is a faint ✕ disc), the due-date **calendar
   button** (opens the native picker; the input's right-edge indicator is
   hidden), `PriorityIndicator`, and the `EstimateIndicator` fill gauge

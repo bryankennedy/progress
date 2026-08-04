@@ -338,7 +338,7 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
         </p>
         <button
           onClick={() => openCreateAction()}
-          className="ml-auto inline-flex min-h-11 items-center rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep sm:min-h-0"
+          className="ml-auto inline-flex min-h-11 items-center rounded bg-accent px-3 py-1 text-sm text-white hover:bg-accent-deep sm:min-h-0"
         >
           New action <span className="ml-1 text-white/70">(C)</span>
         </button>
@@ -492,7 +492,7 @@ function BoardColumn({
       ref={setNodeRef}
       // snap-start: this column's left edge is the snap point the row settles on
       // when scrolled horizontally on a phone (see the row's snap-x/mandatory).
-      className={`flex min-w-72 flex-1 snap-start flex-col rounded-lg p-2 ${isOver ? "bg-adobe-wash/30 ring-1 ring-adobe-light" : "bg-line/40"}`}
+      className={`flex min-w-72 flex-1 snap-start flex-col rounded-lg p-2 ${isOver ? "bg-accent-wash/30 ring-1 ring-accent-light" : "bg-line/40"}`}
     >
       <h2 className="px-1 pb-2 text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">
         {STATUS_LABELS[status]} ·{" "}
@@ -654,12 +654,12 @@ function CardView({
 // own phrasing ("in 3 days · Jul 1"), sized and weighted to match the priority
 // indicator so the two corners read as a balanced pair. Color echoes the
 // priority language — overdue uses the same on-system danger tomato as urgent,
-// due-today the active "adobe" accent, else a quiet neutral.
+// due-today the active "accent" accent, else a quiet neutral.
 function CardDueDate({ due }: { due: string }) {
   const today = todayISO();
   const diff = dayDiff(today, due);
   const tone =
-    diff < 0 ? "text-danger" : diff === 0 ? "text-adobe-deep font-medium" : "text-ink-soft";
+    diff < 0 ? "text-danger" : diff === 0 ? "text-accent-deep font-medium" : "text-ink-soft";
   return (
     <span className={`inline-flex items-center gap-1 font-mono ${tone}`} title={`Due ${due}`}>
       <svg

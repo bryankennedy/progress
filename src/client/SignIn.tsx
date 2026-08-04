@@ -23,7 +23,7 @@ export default function SignIn() {
 
         <a
           href="/api/auth/login"
-          className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-md bg-adobe px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-adobe-deep"
+          className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-accent-deep"
         >
           <GoogleMark />
           Sign in with Google

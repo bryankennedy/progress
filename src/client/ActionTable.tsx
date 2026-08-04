@@ -55,7 +55,7 @@ export function Highlighted({ segments }: { segments: Segment[] }) {
     <>
       {segments.map((seg, i) =>
         seg.match ? (
-          <mark key={i} className="rounded bg-adobe-wash px-0.5 text-adobe-deep">
+          <mark key={i} className="rounded bg-accent-wash px-0.5 text-accent-deep">
             {seg.text}
           </mark>
         ) : (

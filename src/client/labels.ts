@@ -23,14 +23,16 @@ export const PRIORITY_LABELS: Record<ActionPriority, string> = {
 // One mapping for the priority indicator (SPEC v2 §7.2, DECISIONS D39/D47,
 // PROG-61): the fill color for the signal-bars glyph (PriorityIndicator).
 // urgent→high→medium→low descend red→orange→gold→slate, but toned off the raw
-// spectrum to sit in the app's warm "Adobe & Moss" palette rather than reading
-// as stock UI colors — urgent reuses the on-system danger tomato. Defined once;
-// used by the board, Agenda, action page, and container lists. `null` = "none",
-// which renders as faded/empty bars (no fill of its own).
+// spectrum to sit in the "Porcelain & Moss" palette rather than reading as
+// stock UI colors — urgent reuses the on-system danger tomato. Recalibrated in
+// PROG-145 so every fill clears WCAG 1.4.11 (≥3:1) on the white card (high
+// 5.06:1, medium 3.89:1, low 4.7:1). Defined once; used by the board, Agenda,
+// action page, and container lists. `null` = "none", which renders as
+// faded/empty bars (no fill of its own).
 export const PRIORITY_COLORS: Record<ActionPriority, string | null> = {
   urgent: "#b23c28",
-  high: "#bd6a30",
-  medium: "#c79a31",
-  low: "#6f7896",
+  high: "#a85a20",
+  medium: "#a37b16",
+  low: "#5a6796",
   none: null,
 };

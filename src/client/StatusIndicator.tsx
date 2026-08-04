@@ -4,7 +4,7 @@
 // Workflow progress maps to how much of the circle is drawn/filled — backlog a
 // dashed outline, todo a solid outline, in_progress a half pie, in_review a
 // three-quarter pie, done a filled disc with a check — and the two colors
-// follow the palette's semantic roles (--adobe = active/"now" for the two
+// follow the palette's semantic roles (--accent = active/"now" for the two
 // in-flight states, --moss = completed for done). Canceled breaks the
 // progression with a faint disc and an ✕: closed, but nothing shipped. One
 // mapping, no configuration.
@@ -14,10 +14,10 @@ import { STATUS_LABELS } from "./labels";
 
 // Faint neutral for the not-started outlines and the canceled disc — the same
 // "not set" track PriorityIndicator uses.
-const TRACK = "var(--color-ink-faint, #9a8b73)";
-const ACTIVE = "var(--color-adobe, #bb6f50)";
-const REVIEW = "var(--color-adobe-deep, #8f5340)";
-const DONE = "var(--color-moss, #79864c)";
+const TRACK = "var(--color-ink-faint, #6d7568)";
+const ACTIVE = "var(--color-accent, #3d52c4)";
+const REVIEW = "var(--color-accent-deep, #2d3c96)";
+const DONE = "var(--color-moss, #6c7a42)";
 
 export default function StatusIndicator({
   status,

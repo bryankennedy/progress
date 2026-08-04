@@ -131,7 +131,7 @@ export default function ActionListView({
             type="checkbox"
             checked={hideDone}
             onChange={(e) => toggleHideDone(e.target.checked)}
-            className="h-3.5 w-3.5 accent-adobe-deep"
+            className="h-3.5 w-3.5 accent-accent-deep"
           />
           Hide done
         </label>
