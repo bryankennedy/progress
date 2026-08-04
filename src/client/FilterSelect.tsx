@@ -24,6 +24,11 @@ export default function FilterSelect({
     <select
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value || null)}
+      // The first option already carries the label as its visible text
+      // ("Focus: all"), but once a value is picked the select shows only that
+      // option's bare name — aria-label keeps "what field is this" available
+      // to assistive tech regardless of selection (PROG-149 semantic sweep).
+      aria-label={label}
       // A set filter reads from across the room (PROG-146 CR3): the active
       // state borrows the nav's accent-wash treatment instead of a bg-line
       // shift that was 1.28:1 away from the resting card.

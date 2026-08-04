@@ -106,7 +106,13 @@ export function IconSelect({
         </button>
       }
     >
-      <FieldSelect ref={ref} value={value} options={options} onChange={onChange} />
+      <FieldSelect
+        ref={ref}
+        value={value}
+        options={options}
+        onChange={onChange}
+        ariaLabel={openLabel}
+      />
       {children}
     </IconRow>
   );
@@ -117,18 +123,24 @@ export function FieldSelect({
   options,
   onChange,
   ref,
+  ariaLabel,
 }: {
   value: string;
   options: [string, string][];
   onChange: (value: string) => void;
   // React 19 ref-as-prop; IconSelect uses it to pop the dropdown open.
   ref?: React.Ref<HTMLSelectElement>;
+  // The Field wrapper's label is a plain <p>, not a <label for>, so the select
+  // needs its own name (PROG-149 semantic sweep). IconSelect passes its
+  // openLabel through ("Change priority" etc.); direct callers should too.
+  ariaLabel?: string;
 }) {
   return (
     <select
       ref={ref}
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      aria-label={ariaLabel}
       className="w-full rounded border border-line bg-card px-2 py-1 text-sm hover:border-ink-faint"
     >
       {options.map(([v, label]) => (
@@ -179,6 +191,7 @@ export function IconDateInput({
         type="date"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        aria-label="Due date"
         // w-full + min-w-0 + max-w-full: pin the native date control to
         // the column width instead of letting its (wide, on iOS Safari)
         // intrinsic size win. iOS renders a localized label ("Jun 30, 2026")
