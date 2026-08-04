@@ -237,7 +237,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Action title"
-          className="mt-2 w-full rounded border border-line px-3 py-2 text-sm focus:border-ink-faint focus:outline-none"
+          className="mt-2 w-full rounded border border-line px-3 py-2 text-sm focus:border-ink-faint"
         />
 
         {/* The sidebar's field anatomy in a creation-first order (PROG-117b):
@@ -332,7 +332,9 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
                       }
                     }}
                     placeholder="Filter…"
-                    className="w-full border-b border-line bg-transparent px-3 py-2 text-sm focus:outline-none"
+                    // Inset focus ring: flush inside the picker pane's
+                    // overflow-hidden frame (PROG-149).
+                    className="w-full border-b border-line bg-transparent px-3 py-2 text-sm -outline-offset-2"
                   />
                   <ul className="max-h-44 overflow-y-auto p-1">
                     {rows.map((row) =>
@@ -413,7 +415,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
                       }
                     }}
                     placeholder="Focus name"
-                    className="min-w-40 flex-1 rounded border border-line px-2 py-1 text-xs focus:border-ink-faint focus:outline-none"
+                    className="min-w-40 flex-1 rounded border border-line px-2 py-1 text-xs focus:border-ink-faint"
                   />
                   <input
                     value={newFocus.prefix}
@@ -432,7 +434,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
                     }
                     placeholder="KEY"
                     title="Action-key prefix: 2–8 letters"
-                    className="w-20 rounded border border-line px-2 py-1 font-mono text-xs uppercase focus:border-ink-faint focus:outline-none"
+                    className="w-20 rounded border border-line px-2 py-1 font-mono text-xs uppercase focus:border-ink-faint"
                   />
                   <select
                     value={newFocus.workspaceId}
@@ -476,7 +478,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
                       }
                     }}
                     placeholder="Arc name"
-                    className="min-w-40 flex-1 rounded border border-line px-2 py-1 text-xs focus:border-ink-faint focus:outline-none"
+                    className="min-w-40 flex-1 rounded border border-line px-2 py-1 text-xs focus:border-ink-faint"
                   />
                   <button
                     type="button"

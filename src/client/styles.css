@@ -163,6 +163,52 @@
   textarea {
     font-size: max(16px, 1em);
   }
+
+  /* Visible keyboard focus everywhere (PROG-146 C3 / PROG-149). One accent
+     outline on :focus-visible replaces the 24 scattered `focus:outline-none`
+     suppressions — a keyboard-first product must show where the keyboard is.
+     :focus-visible already distinguishes keyboard from mouse focus (a plain
+     click doesn't ring), so no `:focus { outline: none }` reset is needed and
+     none is added. Inputs keep their focus:border-*/
+  ring
+    secondary
+    cues.
+    #3d52c4
+    is
+    ≥3:1
+    against
+    both
+    the
+    white
+    card
+    and
+    the
+    sage
+    canvas.
+    Inputs
+    seated
+    flush
+    inside
+    overflow-hidden
+    dialog
+    frames
+    (the palette/search
+     inputs)
+    pull
+    the
+    ring
+    inward
+    with
+    -outline-offset-2
+    instead
+    of
+    hiding
+    it.
+    */
+    :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
 }
 
 /* Safe-area insets (PWA, iOS notch / Dynamic Island / home indicator).

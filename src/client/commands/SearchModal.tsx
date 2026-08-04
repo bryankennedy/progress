@@ -138,7 +138,9 @@ export default function SearchModal({ snapshot }: { snapshot: SnapshotPayload })
             setSelected(0);
           }}
           placeholder="Search actions, descriptions, comments…"
-          className="w-full border-b border-line px-4 py-3 text-sm focus:outline-none"
+          // -outline-offset-2: inset focus ring — flush against the dialog's
+          // overflow-hidden frame, same as the palette input (PROG-149).
+          className="w-full border-b border-line px-4 py-3 text-sm -outline-offset-2"
         />
         <ul ref={listRef} className="max-h-96 overflow-y-auto p-1">
           {entries.map((entry, i) => {
@@ -188,7 +190,7 @@ export default function SearchModal({ snapshot }: { snapshot: SnapshotPayload })
               navigate(`/search?q=${encodeURIComponent(query.trim())}`);
               close();
             }}
-            className="block w-full border-t border-line px-4 py-2 text-left text-xs text-ink-faint hover:bg-hover/60"
+            className="block w-full border-t border-line px-4 py-2 text-left text-xs text-ink-faint hover:bg-hover/60 -outline-offset-2"
           >
             Open the search page for “{query.trim()}”
             {comments?.truncated && " — more comment matches there"} →

@@ -93,8 +93,7 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
     navigate(`/${kind}/${id}`);
   };
 
-  const inputClass =
-    "w-full rounded border border-line px-3 py-2 text-sm focus:border-ink-faint focus:outline-none";
+  const inputClass = "w-full rounded border border-line px-3 py-2 text-sm focus:border-ink-faint";
   const selectClass =
     "rounded border border-line bg-card px-2 py-1 text-xs text-ink-soft hover:border-ink-faint";
 
@@ -151,13 +150,13 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
                 }}
                 placeholder="KEY"
                 title="Action-key prefix: 2–8 letters"
-                className="w-24 rounded border border-line px-2 py-1 font-mono text-xs uppercase focus:border-ink-faint focus:outline-none"
+                className="w-24 rounded border border-line px-2 py-1 font-mono text-xs uppercase focus:border-ink-faint"
               />
               <input
                 value={gitUrl}
                 onChange={(e) => setGitUrl(e.target.value)}
                 placeholder="Git URL (optional)"
-                className="min-w-48 flex-1 rounded border border-line px-2 py-1 text-xs focus:border-ink-faint focus:outline-none"
+                className="min-w-48 flex-1 rounded border border-line px-2 py-1 text-xs focus:border-ink-faint"
               />
             </>
           )}

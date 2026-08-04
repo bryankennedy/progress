@@ -92,14 +92,14 @@ function AddForm({ existing }: { existing: WireAllowedEmail[] }) {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="name@example.com"
-        className="min-w-56 flex-1 rounded border border-line px-3 py-2 text-sm focus:border-ink-faint focus:outline-none"
+        className="min-w-56 flex-1 rounded border border-line px-3 py-2 text-sm focus:border-ink-faint"
       />
       <input
         type="text"
         value={note}
         onChange={(e) => setNote(e.target.value)}
         placeholder="Note (optional)"
-        className="min-w-48 flex-1 rounded border border-line px-3 py-2 text-sm focus:border-ink-faint focus:outline-none"
+        className="min-w-48 flex-1 rounded border border-line px-3 py-2 text-sm focus:border-ink-faint"
       />
       <button
         type="submit"
@@ -130,7 +130,7 @@ function Row({ row }: { row: WireAllowedEmail }) {
         onBlur={() => note.trim() !== row.note && updateAllowedEmailNote(row.id, note)}
         onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
         placeholder="Add a note…"
-        className="w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-ink-soft hover:border-line focus:border-ink-faint focus:bg-paper focus:outline-none"
+        className="w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-ink-soft hover:border-line focus:border-ink-faint focus:bg-paper"
       />
       <div className="flex items-center gap-3 justify-self-end">
         <span

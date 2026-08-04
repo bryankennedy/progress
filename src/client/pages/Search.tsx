@@ -199,7 +199,7 @@ export default function Search({ snapshot }: { snapshot: SnapshotPayload }) {
         value={q}
         onChange={(e) => setParam("q", e.target.value || null)}
         placeholder="Search actions, descriptions, comments…"
-        className="mt-4 w-full rounded-lg border border-line bg-card px-4 py-3 text-sm focus:border-ink-faint focus:outline-none"
+        className="mt-4 w-full rounded-lg border border-line bg-card px-4 py-3 text-sm focus:border-ink-faint"
       />
 
       {/* The shared filter bar (PROG-92): identical dropdowns, mobile

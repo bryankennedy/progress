@@ -171,7 +171,7 @@ export default function Agenda({ snapshot }: { snapshot: SnapshotPayload }) {
           onChange={(e) => setQ(e.target.value)}
           placeholder="Quick search…"
           aria-label="Quick search the agenda"
-          className="mt-3 w-full rounded border border-line bg-card px-3 py-1.5 text-sm focus:border-ink-faint focus:outline-none"
+          className="mt-3 w-full rounded border border-line bg-card px-3 py-1.5 text-sm focus:border-ink-faint"
         />
       )}
 
@@ -362,14 +362,14 @@ function QuickAddRow({
             : ""
         }
         aria-label={`New action due ${due ?? ""}`}
-        className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1.5 py-1 text-sm text-ink placeholder:text-ink-faint focus:border-line focus:bg-card focus:outline-none"
+        className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1.5 py-1 text-sm text-ink placeholder:text-ink-faint focus:border-line focus:bg-card"
       />
       <select
         value={focusId}
         onChange={(e) => setFocusId(e.target.value)}
         title="Focus for the new action"
         aria-label="Focus for the new action"
-        className="max-w-36 shrink-0 truncate rounded border border-line bg-card px-1.5 py-1 text-xs text-ink-faint hover:text-ink-soft focus:outline-none"
+        className="max-w-36 shrink-0 truncate rounded border border-line bg-card px-1.5 py-1 text-xs text-ink-faint hover:text-ink-soft"
       >
         {focuses.map((p) => (
           <option key={p.id} value={p.id}>

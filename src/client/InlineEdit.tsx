@@ -54,7 +54,7 @@ export default function InlineEdit({
           setEditing(false);
         }
       }}
-      className={`w-full rounded border border-line bg-card px-1 focus:outline-none ${inputClassName}`}
+      className={`w-full rounded border border-line bg-card px-1 ${inputClassName}`}
     />
   );
 }

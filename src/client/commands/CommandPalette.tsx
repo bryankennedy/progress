@@ -135,7 +135,10 @@ export default function CommandPalette({ snapshot }: { snapshot: SnapshotPayload
             setSelected(0);
           }}
           placeholder={mode.kind === "root" ? "Type a command or search…" : "Filter…"}
-          className="w-full border-b border-line px-4 py-3 text-sm focus:outline-none"
+          // -outline-offset-2: the input sits flush against the dialog's
+          // overflow-hidden frame, so the global focus ring is drawn inset
+          // instead of being clipped at the edges (PROG-149).
+          className="w-full border-b border-line px-4 py-3 text-sm -outline-offset-2"
         />
         <ul ref={listRef} className="max-h-80 overflow-y-auto p-1">
           {items.map((item) =>

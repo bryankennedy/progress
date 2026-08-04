@@ -570,7 +570,7 @@ function TimelineSection({ action, snapshot }: { action: WireAction; snapshot: S
           onChange={onDraftChange}
           rows={3}
           placeholder="Leave a comment… (Markdown)"
-          className="w-full rounded border border-line bg-card p-3 text-sm focus:border-ink-faint focus:outline-none"
+          className="w-full rounded border border-line bg-card p-3 text-sm focus:border-ink-faint"
         />
         <div className="mt-2 flex items-center gap-2">
           <button

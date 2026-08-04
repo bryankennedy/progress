@@ -452,7 +452,7 @@ const ActionRow = memo(function ActionRow({
             onOutdent(action);
           }
         }}
-        className={`min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-sm focus:bg-card focus:outline-none focus:ring-1 focus:ring-line ${
+        className={`min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-sm focus:bg-card focus:ring-1 focus:ring-line ${
           done ? CLOSED_TITLE_CLASS : "text-ink"
         }`}
       />
@@ -1699,7 +1699,7 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
               <select
                 value={root.kind === "all" ? "all" : `${root.kind}:${root.id}`}
                 onChange={(e) => setRoot(e.target.value)}
-                className="rounded border border-line bg-card px-2 py-1 text-sm text-ink focus:outline-none"
+                className="rounded border border-line bg-card px-2 py-1 text-sm text-ink"
               >
                 {/* The whole tree first (PROG-140), then each workspace and its
                   focuses. */}
