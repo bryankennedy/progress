@@ -20,6 +20,7 @@ import type {
   SnapshotPayload,
 } from "../../shared/types";
 import { sortByName } from "../boardFilters";
+import { tagChipStyle } from "../tags";
 import Breadcrumb from "../Breadcrumb";
 import { openPalette } from "../commands/controller";
 import { useRegisterPageAction } from "../commands/currentAction";
@@ -340,8 +341,8 @@ export default function ActionPage({
                 {actionTags.map((tag) => (
                   <span
                     key={tag.id}
-                    className="rounded-full px-2 py-0.5 text-xs text-white"
-                    style={{ backgroundColor: tag.color }}
+                    className="rounded-full border px-2 py-0.5 text-xs"
+                    style={tagChipStyle(tag.color)}
                   >
                     {tag.name}
                   </span>

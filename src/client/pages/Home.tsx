@@ -42,7 +42,7 @@ import { recentlyCompleted } from "../boardDone";
 import type { WireAction, WireTag, SnapshotPayload } from "../../shared/types";
 import { openCreateAction } from "../commands/controller";
 import { dayDiff, formatDueDate, relativeDue, todayISO } from "../dates";
-import { tagsByAction as buildTagsByAction } from "../tags";
+import { tagChipStyle, tagsByAction as buildTagsByAction } from "../tags";
 import { STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
 import { actionKeyOf, loadStats, updateAction, type ActionPatch } from "../store";
@@ -627,8 +627,8 @@ function CardView({
           {tags.map((tag) => (
             <span
               key={tag.id}
-              className="rounded-full px-1.5 py-px text-[10px] text-white"
-              style={{ backgroundColor: tag.color }}
+              className="rounded-full border px-1.5 py-px text-[10px]"
+              style={tagChipStyle(tag.color)}
             >
               {tag.name}
             </span>
