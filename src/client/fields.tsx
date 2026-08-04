@@ -15,7 +15,7 @@ export const FIELD_ACTION_CLS =
 
 // Every gutter glyph is a button (PROG-101b): slight padding for a bigger hit
 // target, a hover wash for affordance.
-export const GLYPH_BUTTON_CLS = "-m-1 flex rounded p-1 hover:bg-line";
+export const GLYPH_BUTTON_CLS = "-m-1 flex rounded p-1 hover:bg-hover";
 
 export function Field({
   label,

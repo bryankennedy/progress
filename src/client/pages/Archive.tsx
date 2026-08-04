@@ -86,7 +86,7 @@ export default function Archive({ snapshot }: { snapshot: SnapshotPayload }) {
                             <Link
                               key={arc.id}
                               href={`/arc/${arc.id}`}
-                              className="rounded px-1.5 py-0.5 font-medium text-ink-faint line-through hover:bg-line"
+                              className="rounded px-1.5 py-0.5 font-medium text-ink-faint line-through hover:bg-hover"
                             >
                               {arc.name}
                             </Link>

@@ -340,7 +340,7 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
           onClick={() => openCreateAction()}
           className="ml-auto inline-flex min-h-11 items-center rounded bg-accent px-3 py-1 text-sm text-white hover:bg-accent-deep sm:min-h-0"
         >
-          New action <span className="ml-1 text-white/70">(C)</span>
+          New action <span className="ml-1 text-white/90">(C)</span>
         </button>
       </header>
 
@@ -599,7 +599,7 @@ function CardView({
   const isChild = action.parentActionId !== null;
   return (
     <div
-      className={`cursor-pointer rounded-md border border-line bg-card p-2.5 text-sm hover:border-line ${
+      className={`cursor-pointer rounded-md border border-line bg-card p-2.5 text-sm hover:border-ink-faint ${
         isChild ? "ml-4 border-l-2" : ""
       } ${dragging ? "rotate-1 shadow-lg" : "shadow-sm"}`}
       style={isChild ? { borderLeftColor: "var(--color-moss)" } : undefined}

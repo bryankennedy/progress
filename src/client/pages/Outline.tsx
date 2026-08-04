@@ -175,7 +175,7 @@ function Handle({
         e.preventDefault();
         navigate(href);
       }}
-      className="flex h-6 w-6 shrink-0 cursor-grab touch-none select-none items-center justify-center rounded [-webkit-touch-callout:none] hover:bg-line active:cursor-grabbing"
+      className="flex h-6 w-6 shrink-0 cursor-grab touch-none select-none items-center justify-center rounded [-webkit-touch-callout:none] hover:bg-hover active:cursor-grabbing"
     >
       <LevelIcon kind={kind} />
     </a>
@@ -257,7 +257,7 @@ function ArcMenu({ action, arcs }: { action: WireAction; arcs: WireArc[] }) {
       <button
         onClick={() => setOpen((o) => !o)}
         title="Assign to an arc"
-        className="rounded px-1 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
+        className="rounded px-1 text-xs text-ink-faint hover:bg-hover hover:text-ink-soft"
       >
         {action.arcId ? "arc ▾" : "→ arc"}
       </button>
@@ -272,7 +272,7 @@ function ArcMenu({ action, arcs }: { action: WireAction; arcs: WireArc[] }) {
                   setOpen(false);
                   void updateAction(action.id, { arcId: a.id });
                 }}
-                className={`block w-full px-3 py-1.5 text-left text-sm hover:bg-line ${action.arcId === a.id ? "text-accent-deep" : "text-ink-soft"}`}
+                className={`block w-full px-3 py-1.5 text-left text-sm hover:bg-hover ${action.arcId === a.id ? "text-accent-deep" : "text-ink-soft"}`}
               >
                 {a.name}
               </button>
@@ -290,7 +290,7 @@ function ArcMenu({ action, arcs }: { action: WireAction; arcs: WireArc[] }) {
                   void updateAction(action.id, { arcId: id });
                 }
               }}
-              className="block w-full border-t border-line px-3 py-1.5 text-left text-sm text-ink-soft hover:bg-line"
+              className="block w-full border-t border-line px-3 py-1.5 text-left text-sm text-ink-soft hover:bg-hover"
             >
               + New arc…
             </button>
@@ -300,7 +300,7 @@ function ArcMenu({ action, arcs }: { action: WireAction; arcs: WireArc[] }) {
                   setOpen(false);
                   void updateAction(action.id, { arcId: null });
                 }}
-                className="block w-full border-t border-line px-3 py-1.5 text-left text-sm text-ink-faint hover:bg-line"
+                className="block w-full border-t border-line px-3 py-1.5 text-left text-sm text-ink-faint hover:bg-hover"
               >
                 Remove from arc
               </button>
@@ -411,7 +411,7 @@ const ActionRow = memo(function ActionRow({
 
   return (
     <div
-      className="group flex items-center gap-1.5 rounded py-0.5 hover:bg-line/30"
+      className="group flex items-center gap-1.5 rounded py-0.5 hover:bg-hover/30"
       style={{ paddingLeft: depth * 22 }}
     >
       {/* The row's single handle (PROG-111): the level bullet, tappable to open
@@ -785,7 +785,7 @@ const FocusOutline = memo(function FocusOutline({
           {!captureAtTopLevel && (
             <button
               onClick={resetCapture}
-              className="mt-1 rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
+              className="mt-1 rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-hover hover:text-ink-soft"
             >
               ↥ back to top level
             </button>
@@ -885,7 +885,7 @@ const FocusOutline = memo(function FocusOutline({
                           setCaptureArc(arc.id);
                           setFocusToken((t) => t + 1);
                         }}
-                        className="ml-[22px] rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
+                        className="ml-[22px] rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-hover hover:text-ink-soft"
                       >
                         + action here
                       </button>
@@ -909,7 +909,7 @@ const FocusOutline = memo(function FocusOutline({
           ) : (
             <button
               onClick={() => setAddingArc(true)}
-              className="mt-1 ml-[30px] rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
+              className="mt-1 ml-[30px] rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-hover hover:text-ink-soft"
             >
               + new arc
             </button>
@@ -919,7 +919,7 @@ const FocusOutline = memo(function FocusOutline({
           {!captureAtTopLevel && (
             <button
               onClick={resetCapture}
-              className="mt-1 rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
+              className="mt-1 rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-hover hover:text-ink-soft"
             >
               ↥ back to top level
             </button>

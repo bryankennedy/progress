@@ -53,7 +53,7 @@ function Card({ children, onDismiss }: { children: React.ReactNode; onDismiss: (
         <button
           onClick={onDismiss}
           aria-label="Dismiss"
-          className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded text-ink-faint hover:bg-line hover:text-ink"
+          className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded text-ink-faint hover:bg-hover hover:text-ink"
         >
           ✕
         </button>

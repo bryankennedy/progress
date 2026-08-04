@@ -58,7 +58,7 @@ export default function Header() {
               className={`rounded px-2 py-1 ${
                 item.match(path)
                   ? "bg-accent-wash/40 text-accent-deep"
-                  : "text-ink-soft hover:bg-line hover:text-ink"
+                  : "text-ink-soft hover:bg-hover hover:text-ink"
               }`}
             >
               {item.label}
@@ -72,7 +72,7 @@ export default function Header() {
               onClick={() => setMenuOpen((o) => !o)}
               className="inline-flex min-h-11 items-center rounded bg-accent px-3 py-1 text-sm text-white hover:bg-accent-deep sm:min-h-0"
             >
-              New <span className="ml-1 text-white/70">▾</span>
+              New <span className="ml-1 text-white/90">▾</span>
             </button>
             {menuOpen && (
               <>
@@ -86,7 +86,7 @@ export default function Header() {
                         setMenuOpen(false);
                         item.run();
                       }}
-                      className="flex min-h-11 w-full items-center px-3 py-1.5 text-left text-sm text-ink-soft hover:bg-line sm:min-h-0"
+                      className="flex min-h-11 w-full items-center px-3 py-1.5 text-left text-sm text-ink-soft hover:bg-hover sm:min-h-0"
                     >
                       New {item.label.toLowerCase()}
                     </button>
@@ -120,14 +120,14 @@ export default function Header() {
                       <Link
                         href="/admin"
                         onClick={() => setAcctOpen(false)}
-                        className="flex min-h-11 w-full items-center px-3 py-1.5 text-left text-sm text-ink-soft hover:bg-line sm:min-h-0"
+                        className="flex min-h-11 w-full items-center px-3 py-1.5 text-left text-sm text-ink-soft hover:bg-hover sm:min-h-0"
                       >
                         Admin
                       </Link>
                     )}
                     <button
                       onClick={signOut}
-                      className="flex min-h-11 w-full items-center px-3 py-1.5 text-left text-sm text-ink-soft hover:bg-line sm:min-h-0"
+                      className="flex min-h-11 w-full items-center px-3 py-1.5 text-left text-sm text-ink-soft hover:bg-hover sm:min-h-0"
                     >
                       Sign out
                     </button>

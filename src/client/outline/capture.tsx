@@ -270,7 +270,7 @@ export function NewFocusCapture({
           setOpen(true);
           setToken((t) => t + 1);
         }}
-        className="ml-[30px] rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
+        className="ml-[30px] rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-hover hover:text-ink-soft"
       >
         + new focus
       </button>
@@ -295,7 +295,7 @@ export function NewWorkspaceCapture() {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="rounded px-1 py-0.5 text-sm text-ink-faint hover:bg-line hover:text-ink-soft"
+        className="rounded px-1 py-0.5 text-sm text-ink-faint hover:bg-hover hover:text-ink-soft"
       >
         + new workspace
       </button>

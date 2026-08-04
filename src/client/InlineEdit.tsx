@@ -32,7 +32,7 @@ export default function InlineEdit({
           setEditing(true);
         }}
         title="Click to edit"
-        className={`cursor-text rounded text-left hover:bg-line/40 ${className} ${value === "" ? "text-ink-faint" : ""}`}
+        className={`cursor-text rounded text-left hover:bg-hover/40 ${className} ${value === "" ? "text-ink-faint" : ""}`}
       >
         {value === "" ? placeholder : value}
       </button>

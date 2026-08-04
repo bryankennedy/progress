@@ -346,7 +346,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
                           <button
                             type="button"
                             onClick={() => pickLocation(row)}
-                            className={`flex w-full items-center justify-between gap-3 rounded py-1.5 pr-2 text-left text-sm hover:bg-line ${
+                            className={`flex w-full items-center justify-between gap-3 rounded py-1.5 pr-2 text-left text-sm hover:bg-hover ${
                               row.kind === "arc" ? "pl-10" : "pl-6"
                             }`}
                           >
@@ -518,7 +518,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="rounded px-3 py-1 text-sm text-ink-soft hover:bg-line"
+            className="rounded px-3 py-1 text-sm text-ink-soft hover:bg-hover"
           >
             Cancel
           </button>

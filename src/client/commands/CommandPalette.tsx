@@ -153,7 +153,7 @@ export default function CommandPalette({ snapshot }: { snapshot: SnapshotPayload
                   onClick={() => execute(item)}
                   onMouseMove={() => setSelected(selectables.indexOf(item))}
                   data-selected={item === selectables[sel] || undefined}
-                  className={`flex w-full items-center justify-between gap-3 rounded-md py-2 pr-3 text-left text-sm data-selected:bg-line ${
+                  className={`flex w-full items-center justify-between gap-3 rounded-md py-2 pr-3 text-left text-sm data-selected:bg-hover ${
                     item.indent === 2 ? "pl-11" : item.indent === 1 ? "pl-7" : "pl-3"
                   }`}
                 >

@@ -144,7 +144,7 @@ export default function ActionTable({
                 key={action.id}
                 data-action-id={action.id}
                 onClick={() => navigate(`/action/${key}`)}
-                className="cursor-pointer border-t border-line first:border-t-0 hover:bg-line/40"
+                className="cursor-pointer border-t border-line first:border-t-0 hover:bg-hover/40"
               >
                 {columns.map((col) => {
                   switch (col) {

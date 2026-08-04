@@ -146,7 +146,7 @@ function Row({ row }: { row: WireAllowedEmail }) {
             </button>
             <button
               onClick={() => setConfirming(false)}
-              className="rounded px-1.5 py-0.5 text-ink-faint hover:bg-line"
+              className="rounded px-1.5 py-0.5 text-ink-faint hover:bg-hover"
             >
               Cancel
             </button>
@@ -154,7 +154,7 @@ function Row({ row }: { row: WireAllowedEmail }) {
         ) : (
           <button
             onClick={() => setConfirming(true)}
-            className="rounded px-1.5 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-danger"
+            className="rounded px-1.5 py-0.5 text-xs text-ink-faint hover:bg-hover hover:text-danger"
             aria-label={`Remove ${row.email}`}
           >
             ✕

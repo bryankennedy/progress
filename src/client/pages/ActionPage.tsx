@@ -202,7 +202,7 @@ export default function ActionPage({
                 >
                   Copy as prompt
                   <ArrowGlyph className="transition-transform group-hover:translate-x-0.5" />
-                  <span className="text-white/70">(W)</span>
+                  <span className="text-white/90">(W)</span>
                 </button>
               )}
               {/* One-click move to done (PROG-108), in moss — the palette's

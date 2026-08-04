@@ -30,7 +30,7 @@ export default function PriorityPicker({
     // open the action.
     <span
       onClick={(e) => e.stopPropagation()}
-      className="relative inline-flex items-center gap-1.5 rounded p-1 -m-1 hover:bg-line focus-within:bg-line"
+      className="relative inline-flex items-center gap-1.5 rounded p-1 -m-1 hover:bg-hover focus-within:bg-hover"
     >
       {/* The select carries the accessible name/value; the glyph is decor. */}
       <span aria-hidden>

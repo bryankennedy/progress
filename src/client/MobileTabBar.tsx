@@ -37,7 +37,7 @@ export default function MobileTabBar() {
                   onClick={() => setMoreOpen(false)}
                   aria-current={active ? "page" : undefined}
                   className={`flex items-center gap-3 px-5 py-3 text-sm ${
-                    active ? "bg-accent-wash/40 text-accent-deep" : "text-ink-soft hover:bg-line"
+                    active ? "bg-accent-wash/40 text-accent-deep" : "text-ink-soft hover:bg-hover"
                   }`}
                 >
                   <span className="text-ink-faint">{item.icon}</span>

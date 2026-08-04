@@ -157,7 +157,7 @@ export default function SearchModal({ snapshot }: { snapshot: SnapshotPayload })
                   onClick={() => go(entry)}
                   onMouseMove={() => setSelected(i)}
                   data-selected={i === sel || undefined}
-                  className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm data-selected:bg-line"
+                  className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm data-selected:bg-hover"
                 >
                   <ResultLabel entry={entry} terms={terms} />
                 </button>
@@ -188,7 +188,7 @@ export default function SearchModal({ snapshot }: { snapshot: SnapshotPayload })
               navigate(`/search?q=${encodeURIComponent(query.trim())}`);
               close();
             }}
-            className="block w-full border-t border-line px-4 py-2 text-left text-xs text-ink-faint hover:bg-line/60"
+            className="block w-full border-t border-line px-4 py-2 text-left text-xs text-ink-faint hover:bg-hover/60"
           >
             Open the search page for “{query.trim()}”
             {comments?.truncated && " — more comment matches there"} →

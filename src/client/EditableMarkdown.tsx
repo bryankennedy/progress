@@ -127,7 +127,7 @@ export default function EditableMarkdown({
           </button>
           <button
             onClick={cancel}
-            className="rounded px-3 py-1 text-sm text-ink-soft hover:bg-line"
+            className="rounded px-3 py-1 text-sm text-ink-soft hover:bg-hover"
           >
             Cancel
           </button>
