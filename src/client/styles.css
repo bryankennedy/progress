@@ -179,6 +179,25 @@
   }
 }
 
+/* Reduced motion (CR4/PROG-149): the app's whole motion budget is the dnd drop
+   tween, a chevron rotate, and the drag-card tilt (styles.css comment at
+   `--shadow-*`, dropAnimation.ts, FilterBar's chevron) — none load-bearing for
+   comprehension, so a blanket kill is safe and simpler than auditing each one.
+   `!important` because these are almost all Tailwind utility `transition-*`/
+   `animate-*` classes, which this unlayered block must outrank. The dnd-kit
+   drop tween is a JS-driven Web Animations call, not CSS, so it can't be
+   caught here — dropAnimation.ts checks the same media query directly. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Safe-area insets (PWA, iOS notch / Dynamic Island / home indicator).
    viewport-fit=cover (index.html) lets us paint edge-to-edge; these env() pads
    keep the sticky header and main content out from under the hardware. The
