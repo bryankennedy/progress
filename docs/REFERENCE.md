@@ -446,6 +446,17 @@ bookmarks keep working.
 
 ## 5. UI surfaces
 
+Every route opens with the same header grammar (PROG-148): the shared
+`PageHeader` (`src/client/PageHeader.tsx`) renders the page's `<h1>`
+(`text-2xl font-semibold`, normal tracking) plus optional slots — `meta` (the
+small count line beside the title), `actions` (right-aligned controls), and
+`below` (a full-width block under the row). Board and Search included ("Board" /
+"Search" are real h1s; the board's page-local "New action" button is gone — the
+header **New** menu and the `C` shortcut are the create entry points, and the
+per-column ghost cards remain). The container/action pages are the deliberate
+exception: their h1 is the breadcrumbed, inline-editable entity title, sharing
+the canonical classes but not the component.
+
 - **Sign-in landing (`SignIn.tsx`)** — the only screen rendered without a loaded
   snapshot (on a `401`, PROG-34): centered brand mark, "Progress" wordmark, and
   a single **Sign in with Google** link to `/api/auth/login`. No header, no store
@@ -615,8 +626,13 @@ bookmarks keep working.
   and status; overdue rows are visually distinct. The row's indicator is the
   editable **`PriorityPicker`** (PROG-132, `src/client/PriorityPicker.tsx`) —
   click/tap it and the platform's native select pops to change priority in
-  place, no navigation to the action needed. Filterable by focus/arc/tag
-  via URL params (the board pattern), with inline mark-done and bump-due. Renders
+  place, no navigation to the action needed. Filterable by
+  workspace/focus/arc/tag/priority via the shared `FilterBar` (PROG-92, adopted
+  here in PROG-148): the same five dropdowns, hierarchy narrowing + ancestor
+  pruning, Arc/Tag "none" options, mobile "Filters" disclosure, Clear link, and
+  sticky restore (`progress:agenda-filters`) as the board and search; the
+  original `focus`/`arc`/`tag` param names are unchanged, so old bookmarks keep
+  working. Inline mark-done and bump-due on every row. Renders
   entirely from the store. Each non-Overdue grouping ends in a **quick-add**
   input (PROG-89): Enter creates a `backlog` action (the shared creation
   default, PROG-115) pre-dated for that bucket —
