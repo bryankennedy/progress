@@ -82,7 +82,9 @@ in the create-action dialog (folding in the deferred "add arc from the New Issue
 modal"), and a dedicated **`/structure`** route (the Workspace → Focus → Arc
 tree with inline "+ add"). All reuse the v1 optimistic container write paths
 (D26) — surfaces only, no new endpoints. See `REFERENCE.md` §5 and
-DECISIONS **D40**.
+DECISIONS **D40**. (v5.1/PROG-143: `/structure` retired — the Outline's
+all-workspaces scope, `/outline?all=1`, absorbed it; see `REFERENCE.md` §5 and
+`docs/decisions/PROG-140.md`.)
 
 ## 5. Due dates — **shipped**
 

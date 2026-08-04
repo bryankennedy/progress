@@ -17,7 +17,6 @@ import Home from "./pages/Home";
 import ActionPage from "./pages/ActionPage";
 import Outline from "./pages/Outline";
 import Search from "./pages/Search";
-import Structure from "./pages/Structure";
 
 const CONTAINER_ROUTES: { path: string; type: ContainerType }[] = [
   { path: "/workspace/:id", type: "workspace" },
@@ -28,12 +27,14 @@ const CONTAINER_ROUTES: { path: string; type: ContainerType }[] = [
 // Pre-PROG-98 noun routes — old links live on in PR bodies, commit messages,
 // and bookmarks; redirect instead of 404ing them. `/repo/:id` joins them after
 // PROG-102 retired repos as containers — the id no longer resolves, so it lands
-// on the Structure overview rather than 404ing.
+// on the Outline's all-workspaces scope rather than 404ing. `/structure` joins
+// them after PROG-143 folded the Structure overview into that same scope.
 const LEGACY_REDIRECTS: { path: string; to: (id: string) => string }[] = [
   { path: "/issue/:id", to: (id) => `/action/${id}` },
   { path: "/initiative/:id", to: (id) => `/workspace/${id}` },
   { path: "/product/:id", to: (id) => `/focus/${id}` },
-  { path: "/repo/:id", to: () => `/structure` },
+  { path: "/repo/:id", to: () => `/outline?all=1` },
+  { path: "/structure", to: () => `/outline?all=1` },
 ];
 
 export default function App() {
@@ -81,9 +82,6 @@ export default function App() {
             </Route>
             <Route path="/outline">
               <Outline snapshot={snapshot} />
-            </Route>
-            <Route path="/structure">
-              <Structure snapshot={snapshot} />
             </Route>
             <Route path="/archive">
               <Archive snapshot={snapshot} />

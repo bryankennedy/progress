@@ -1,9 +1,8 @@
 // Archive (PROG-45): a low-traffic destination listing every completed
-// (archived) Arc, grouped by Workspace → Focus for context. The Structure
-// page shows only the first few archived arcs per focus and links here for
-// the rest, so curating live structure stays uncluttered while finished work
-// remains reachable. Deliberately absent from the primary nav — you arrive via
-// Structure's "more" link. Unarchiving still happens on the arc page itself.
+// (archived) Arc, grouped by Workspace → Focus for context. Archived
+// containers stay out of the Outline (PROG-143) — this page is their sole
+// home. Deliberately absent from the primary nav (mobile keeps it in the More
+// sheet). Unarchiving still happens on the arc page itself.
 
 import { Link } from "wouter";
 import type { SnapshotPayload } from "../../shared/types";
@@ -17,7 +16,7 @@ export default function Archive({ snapshot }: { snapshot: SnapshotPayload }) {
   const workspacesById = new Map(snapshot.workspaces.map((i) => [i.id, i]));
 
   // Group archived arcs under their focus, and focuses under their
-  // workspace, so the page mirrors the Structure tree's shape.
+  // workspace, so the page mirrors the Workspace → Focus → Arc hierarchy.
   const byWorkspace = new Map<
     string,
     {
@@ -52,8 +51,8 @@ export default function Archive({ snapshot }: { snapshot: SnapshotPayload }) {
             Completed arcs, kept out of the way. {archivedArcs.length} total.
           </p>
         </div>
-        <Link href="/structure" className="text-xs text-adobe hover:underline">
-          ← Structure
+        <Link href="/outline?all=1" className="text-xs text-adobe hover:underline">
+          ← Outline
         </Link>
       </div>
 

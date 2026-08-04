@@ -74,7 +74,8 @@ Progress now spans **any area of responsibility** (incl. personal/household) and
 gained the time dimension v1 omitted: (1) repo-less products first-class +
 frictionless structure creation — header **New** menu, inline "+ New
 product/arc" in the new-issue dialog, and a `/structure` overview route (§3–§4,
-D40); (2) **due dates** — optional calendar-day field, timezone-safe
+D40; v5.1/PROG-143 folded this route into the Outline's all-workspaces scope,
+`/outline?all=1`); (2) **due dates** — optional calendar-day field, timezone-safe
 `YYYY-MM-DD` text, editable on the issue page / new-issue dialog / palette `D`
 picker / Agenda rows (§5, D37); (3) the **Agenda view** at `/agenda` — dated
 pending issues grouped Overdue/Today/This week/Later with a reusable priority
