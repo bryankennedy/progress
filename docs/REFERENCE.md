@@ -445,6 +445,55 @@ the retired `/repo/:id` (PROG-102) and `/structure` (PROG-143 — folded into
 the Outline's all-workspaces scope) both redirect to `/outline?all=1`, so old
 bookmarks keep working.
 
+### Theme presets (PROG-150)
+
+The palette evolved from a single fixed light theme (PROG-146/PROG-145's
+"Riso ink on porcelain" — still true as a **mode**: there is no dark mode) to
+**one light mode, three user-selectable presets**: **Porcelain** (default —
+ink & ultramarine), **Adobe** (the pre-PROG-145 warm-earth-tone palette,
+contrast-corrected to the same AA floor rather than restored verbatim), and
+**Sanzo** (new — derived from Wada Sanzo classic color combination #342:
+Corinthian Pink, Cream Yellow, Orange Citrine, Deep Slate Olive). Full
+derivation + WCAG contrast table: `docs/decisions/PROG-150.md`.
+
+- **Mechanism** — Tailwind v4's `@theme` block (`src/client/styles.css`,
+  mirrored from `brand-assets/tokens.css`) emits `:root` custom properties, so
+  a theme is a pure CSS override block keyed off `:root[data-theme="adobe"]` /
+  `:root[data-theme="sanzo"]`; porcelain is the `@theme` default and needs no
+  block. Each block replaces only the neutral ramp, accent family, moss
+  family, `--color-hover`, and the prompt trio — danger, priority colors,
+  radius, and shadows stay global across every theme.
+- **Persistence & application (`src/client/theme.ts`)** — `THEMES` (id, label,
+  one-line description, a picker swatch of paper/accent/moss), `getTheme()`,
+  `setTheme(id)`. One `localStorage` key, `progress:theme` (absent or
+  `"porcelain"` both mean the default); `setTheme` flips
+  `document.documentElement.dataset.theme` and the `<meta name="theme-color">`
+  content synchronously — no reload.
+- **No-flash boot** — an inline `<script>` in `index.html`'s `<head>` applies
+  the stored theme before first paint (it can't import `theme.ts`, since
+  nothing is bundled yet at that point, so it duplicates the theme
+  ids/paper-colors — keep the two in sync). `public/_headers`' CSP allowlists
+  this one script by sha256 hash rather than a blanket `'unsafe-inline'`.
+- **Picker UI** — the Header account/avatar dropdown (`src/client/Header.tsx`)
+  carries a **Theme** group: three rows, each a three-dot paper/accent/moss
+  swatch + label + description, `aria-pressed` marking the active one
+  (a formal `menuitemradio`/`radiogroup` pattern was skipped — the
+  surrounding dropdown rows aren't `role="menuitem"` either, so partial ARIA
+  menu semantics would mislead more than help). Selecting one calls
+  `setTheme` directly; reachable on mobile, since the avatar renders at every
+  width. The **command palette** offers the same switch as three root
+  commands, `Theme: Porcelain` / `Theme: Adobe` / `Theme: Sanzo`.
+- **Tag chips** (`src/client/tags.ts`) render their wash/border as CSS
+  `color-mix(in srgb, <hue> N%, var(--color-card))`, so they follow whichever
+  card color is live with no JS re-render; the darkened text color stays one
+  precomputed hex per hue (verified against all three themes' near-white
+  cards, PROG-150).
+- **Static, deliberately theme-blind:** the sign-in page's pre-auth HTML
+  (`src/worker/pages.ts` inlines its own tiny copy of the porcelain palette —
+  there's no bundle/localStorage at that point) and `public/manifest.webmanifest`
+  (PWA splash/theme-color — read once at install time, before any preference
+  exists).
+
 ## 5. UI surfaces
 
 Every route opens with the same header grammar (PROG-148): the shared
@@ -607,7 +656,8 @@ the canonical classes but not the component.
   (Board · Outline · Agenda · Diary · Search · Archive), a **New** menu (Action ·
   Workspace · Focus · Arc) that opens the existing optimistic create flows, and the
   signed-in identity avatar. The always-available structure-creation entry point
-  (SPEC v2 §4). The avatar dropdown holds the profile + **Sign out**, plus an
+  (SPEC v2 §4). The avatar dropdown holds the profile, a **Theme** picker
+  (PROG-150 — see "Theme presets" below), plus **Sign out**, plus an
   **Admin** link for super-admins (D44) — Admin lives here, not in the top nav,
   as a rare destination. The inline nav is **desktop-only**: below `sm` it is
   hidden and a fixed **bottom tab bar** (`MobileTabBar.tsx`) takes over — Board ·
@@ -787,7 +837,9 @@ the canonical classes but not the component.
 - **Command palette** — one keyboard surface (D25): root mode searches
   actions by key (retired alias keys included) or title and containers by
   name, and lists commands (create action/workspace/focus/arc,
-  pickers for the current action). Picker modes are filterable lists; tag
+  pickers for the current action, and **Theme: Porcelain/Adobe/Sanzo** —
+  PROG-150, a second entry point onto the same `setTheme()` as the Header
+  picker). Picker modes are filterable lists; tag
   toggles keep the palette open for multi-edit. The **location picker**
   (PROG-123) owns the action's whole outline position in one surface: it
   renders the Workspace → Focus → Arc tree in outline rank order — workspaces
