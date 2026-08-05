@@ -494,7 +494,10 @@ function BoardColumn({
       ref={setNodeRef}
       // snap-start: this column's left edge is the snap point the row settles on
       // when scrolled horizontally on a phone (see the row's snap-x/mandatory).
-      className={`flex min-w-72 flex-1 snap-start flex-col rounded-lg p-2 ${isOver ? "bg-accent-wash/30 ring-1 ring-accent-light" : "bg-line/40"}`}
+      // board-column: a plain marker class (PROG-150c) so the theme-texture
+      // rules in styles.css have something stable to hook — the surface's own
+      // background comes from the bg-line/40 / bg-accent-wash utilities below.
+      className={`board-column flex min-w-72 flex-1 snap-start flex-col rounded-lg p-2 ${isOver ? "bg-accent-wash/30 ring-1 ring-accent-light" : "bg-line/40"}`}
     >
       <h2 className="px-1 pb-2 text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">
         {STATUS_LABELS[status]} ·{" "}

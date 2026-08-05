@@ -22,7 +22,10 @@ export default function MobileTabBar() {
   return (
     // pwa-safe-bottom/x: clear the iOS home indicator and rounded corners; inert
     // in a desktop browser. backdrop-blur + translucent paper matches the header.
-    <nav className="pwa-safe-bottom pwa-safe-x fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper/95 backdrop-blur sm:hidden">
+    // paper-chrome (PROG-150c): see Header.tsx's comment — bg-paper/95's
+    // opacity suffix compiles to its own literal utility, unreachable by a
+    // bare `.bg-paper` selector.
+    <nav className="pwa-safe-bottom pwa-safe-x paper-chrome fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper/95 backdrop-blur sm:hidden">
       {moreOpen && (
         <>
           {/* Tap anywhere outside to dismiss the sheet. */}

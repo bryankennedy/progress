@@ -55,7 +55,11 @@ export default function Header() {
     // pwa-safe-top + pwa-safe-x: in an installed iOS app the bar paints up under
     // the status bar / Dynamic Island and clears the rounded corners, while the
     // inner row stays tappable below them. Inert (0px) in the browser.
-    <header className="pwa-safe-top pwa-safe-x sticky top-0 z-40 border-b border-line bg-paper/90 backdrop-blur">
+    // paper-chrome (PROG-150c): a plain marker class for the theme-texture
+    // rules in styles.css — `bg-paper/90`'s opacity-modifier suffix compiles
+    // to its own literal utility (`.bg-paper\/90`), so a bare `.bg-paper`
+    // selector can't reach it.
+    <header className="pwa-safe-top pwa-safe-x paper-chrome sticky top-0 z-40 border-b border-line bg-paper/90 backdrop-blur">
       <div className="mx-auto flex max-w-screen-2xl items-center gap-1 px-3 py-2 sm:px-6">
         <Link href="/" className="mr-2 font-semibold text-ink">
           Progress
