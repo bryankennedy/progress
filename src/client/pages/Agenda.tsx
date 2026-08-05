@@ -261,7 +261,9 @@ export default function Agenda({ snapshot }: { snapshot: SnapshotPayload }) {
           );
         })}
         {dated.length === 0 && (
-          <p className="text-sm text-ink-faint">
+          // PROG-151: the dashed empty-state box (Search/ActionListView
+          // idiom) instead of bare text floating on canvas.
+          <p className="rounded-md border border-dashed border-line px-3 py-3 text-sm text-ink-faint">
             Nothing due{filtersActive ? " for this filter" : ""} yet — type under a section above to
             capture into its window, or add a due date to an existing action.
           </p>
