@@ -16,7 +16,7 @@ import { LevelIcon } from "./LevelIcon";
 // then a faint card + ring (PROG-124). One constant so a tweak lands on all of
 // them and none silently drift.
 export const CAPTURE_INPUT_CLASS =
-  "min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-sm text-ink placeholder:text-ink-faint focus:bg-card focus:outline-none focus:ring-1 focus:ring-line";
+  "min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-sm text-ink placeholder:text-ink-faint focus:bg-card focus:ring-1 focus:ring-line";
 
 // The w-6 bullet gutter every capture row opens with, so its input aligns with
 // the rows' handle column (PROG-111). `faint` dims the glyph (the roving ＋).
@@ -191,11 +191,11 @@ export function FocusCaptureRow({
         }}
         placeholder="KEY"
         title="Action-key prefix: 2–8 letters, unique across focuses"
-        className={`w-16 shrink-0 rounded bg-transparent px-1 py-0.5 text-center font-mono text-[11px] uppercase focus:bg-card focus:outline-none focus:ring-1 ${
-          clash ? "text-adobe-deep ring-1 ring-adobe" : "text-ink-faint focus:ring-line"
+        className={`w-16 shrink-0 rounded bg-transparent px-1 py-0.5 text-center font-mono text-2xs uppercase focus:bg-card focus:ring-1 ${
+          clash ? "text-accent-deep ring-1 ring-accent" : "text-ink-faint focus:ring-line"
         }`}
       />
-      {clash && <span className="shrink-0 text-[11px] text-adobe-deep">in use</span>}
+      {clash && <span className="shrink-0 text-2xs text-accent-deep">in use</span>}
     </div>
   );
 }
@@ -270,7 +270,7 @@ export function NewFocusCapture({
           setOpen(true);
           setToken((t) => t + 1);
         }}
-        className="ml-[30px] rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
+        className="ml-[30px] rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-hover hover:text-ink-soft"
       >
         + new focus
       </button>
@@ -295,7 +295,7 @@ export function NewWorkspaceCapture() {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="rounded px-1 py-0.5 text-sm text-ink-faint hover:bg-line hover:text-ink-soft"
+        className="rounded px-1 py-0.5 text-sm text-ink-faint hover:bg-hover hover:text-ink-soft"
       >
         + new workspace
       </button>

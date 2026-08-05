@@ -3,7 +3,7 @@
 // on the allowlist they land directly on the Worker response — a raw JSON
 // `{"error":"not authorized"}` reads as a bug, not a closed door. This renders
 // a friendly page in the app's visual identity instead (mirrors SignIn.tsx:
-// canvas background, brand mark, Spectral headings, Adobe accent).
+// canvas background, brand mark, Spectral headings, ultramarine accent).
 //
 // It is standalone HTML — the React bundle and Tailwind aren't loaded at
 // `/api/auth/callback` — so the brand tokens are inlined rather than imported.
@@ -20,20 +20,38 @@ export function notAuthorizedPage(): string {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Access required · Progress</title>
     <link rel="icon" type="image/svg+xml" href="/brand-assets/progress-icon.svg" />
-    <meta name="theme-color" content="#f5efe0" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600&display=swap"
-      rel="stylesheet"
-    />
+    <meta name="theme-color" content="#f7f7f2" />
     <style>
+      /* Self-hosted Spectral (PROG-147) — same-origin woff2 latin subsets from
+         public/fonts/, served by the asset handler (no auth gate, so this
+         unauthenticated page can load them). Georgia fallback if they 404. */
+      @font-face {
+        font-family: 'Spectral';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/spectral-400.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'Spectral';
+        font-style: normal;
+        font-weight: 500;
+        font-display: swap;
+        src: url('/fonts/spectral-500.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'Spectral';
+        font-style: normal;
+        font-weight: 600;
+        font-display: swap;
+        src: url('/fonts/spectral-600.woff2') format('woff2');
+      }
       :root {
-        --canvas: #f0e9d9;
-        --ink: #2c241b;
-        --ink-soft: #6b5f4d;
-        --adobe: #bb6f50;
-        --adobe-deep: #8f5340;
+        --canvas: #f0f1ea;
+        --ink: #20251f;
+        --ink-soft: #5a6355;
+        --accent: #3d52c4;
+        --accent-deep: #2d3c96;
         --font-serif: 'Spectral', Georgia, serif;
       }
       * { box-sizing: border-box; }
@@ -72,11 +90,11 @@ export function notAuthorizedPage(): string {
         color: var(--ink-soft);
       }
       a.email {
-        color: var(--adobe);
+        color: var(--accent);
         font-weight: 500;
         text-decoration: none;
       }
-      a.email:hover { color: var(--adobe-deep); text-decoration: underline; }
+      a.email:hover { color: var(--accent-deep); text-decoration: underline; }
     </style>
   </head>
   <body>

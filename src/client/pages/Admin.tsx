@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import type { WireAllowedEmail, SnapshotPayload } from "../../shared/types";
+import PageHeader from "../PageHeader";
 import { addAllowedEmail, removeAllowedEmail, updateAllowedEmailNote } from "../store";
 
 function formatDate(iso: string): string {
@@ -22,10 +23,10 @@ export default function Admin({ snapshot }: { snapshot: SnapshotPayload }) {
   if (!snapshot.isSuperAdmin) {
     return (
       <div className="mx-auto max-w-3xl">
-        <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
+        <PageHeader title="Admin" />
         <p className="mt-2 text-sm text-ink-soft">
           This page is for administrators only.{" "}
-          <Link href="/" className="text-adobe hover:underline">
+          <Link href="/" className="text-accent hover:underline">
             Back to the board
           </Link>
         </p>
@@ -37,18 +38,20 @@ export default function Admin({ snapshot }: { snapshot: SnapshotPayload }) {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Admin · Access</h1>
-        <p className="mt-1 text-xs text-ink-faint">
-          Who may sign in to Progress. Super-admins (the <code>SUPER_ADMIN_EMAILS</code> secret)
-          always have access and manage this list — they aren&apos;t shown here.
-        </p>
-      </div>
+      <PageHeader
+        title="Admin · Access"
+        below={
+          <p className="text-xs text-ink-faint">
+            Who may sign in to Progress. Super-admins (the <code>SUPER_ADMIN_EMAILS</code> secret)
+            always have access and manage this list — they aren&apos;t shown here.
+          </p>
+        }
+      />
 
       <AddForm existing={list} />
 
       <div className="mt-6 overflow-hidden rounded-lg border border-line bg-card">
-        <div className="grid grid-cols-[1fr_1fr_auto] gap-3 border-b border-line px-4 py-2 text-[10px] uppercase tracking-wide font-mono text-ink-faint">
+        <div className="grid grid-cols-[1fr_1fr_auto] gap-3 border-b border-line px-4 py-2 text-3xs uppercase tracking-wide font-mono text-ink-faint">
           <span>Email</span>
           <span>Note</span>
           <span>Added</span>
@@ -89,19 +92,19 @@ function AddForm({ existing }: { existing: WireAllowedEmail[] }) {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="name@example.com"
-        className="min-w-56 flex-1 rounded border border-line px-3 py-2 text-sm focus:border-ink-faint focus:outline-none"
+        className="min-w-56 flex-1 rounded border border-line px-3 py-2 text-sm focus:border-ink-faint"
       />
       <input
         type="text"
         value={note}
         onChange={(e) => setNote(e.target.value)}
         placeholder="Note (optional)"
-        className="min-w-48 flex-1 rounded border border-line px-3 py-2 text-sm focus:border-ink-faint focus:outline-none"
+        className="min-w-48 flex-1 rounded border border-line px-3 py-2 text-sm focus:border-ink-faint"
       />
       <button
         type="submit"
         disabled={!valid}
-        className="rounded bg-adobe px-4 py-2 text-sm font-medium text-white hover:bg-adobe-deep disabled:cursor-not-allowed disabled:opacity-40"
+        className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-deep disabled:cursor-not-allowed disabled:opacity-40"
       >
         Add
       </button>
@@ -118,7 +121,7 @@ function Row({ row }: { row: WireAllowedEmail }) {
 
   return (
     <div className="grid grid-cols-[1fr_1fr_auto] items-center gap-3 border-b border-line px-4 py-2.5 text-sm last:border-b-0">
-      <span className="truncate font-mono text-[13px] text-ink" title={row.email}>
+      <span className="truncate font-mono text-xs text-ink" title={row.email}>
         {row.email}
       </span>
       <input
@@ -127,7 +130,7 @@ function Row({ row }: { row: WireAllowedEmail }) {
         onBlur={() => note.trim() !== row.note && updateAllowedEmailNote(row.id, note)}
         onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
         placeholder="Add a note…"
-        className="w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-ink-soft hover:border-line focus:border-ink-faint focus:bg-paper focus:outline-none"
+        className="w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-ink-soft hover:border-line focus:border-ink-faint focus:bg-paper"
       />
       <div className="flex items-center gap-3 justify-self-end">
         <span
@@ -146,7 +149,7 @@ function Row({ row }: { row: WireAllowedEmail }) {
             </button>
             <button
               onClick={() => setConfirming(false)}
-              className="rounded px-1.5 py-0.5 text-ink-faint hover:bg-line"
+              className="rounded px-1.5 py-0.5 text-ink-faint hover:bg-hover"
             >
               Cancel
             </button>
@@ -154,7 +157,7 @@ function Row({ row }: { row: WireAllowedEmail }) {
         ) : (
           <button
             onClick={() => setConfirming(true)}
-            className="rounded px-1.5 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-danger"
+            className="rounded px-1.5 py-0.5 text-xs text-ink-faint hover:bg-hover hover:text-danger"
             aria-label={`Remove ${row.email}`}
           >
             ✕

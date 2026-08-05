@@ -131,7 +131,7 @@ export default function ActionListView({
             type="checkbox"
             checked={hideDone}
             onChange={(e) => toggleHideDone(e.target.checked)}
-            className="h-3.5 w-3.5 accent-adobe-deep"
+            className="h-3.5 w-3.5 accent-accent-deep"
           />
           Hide done
         </label>
@@ -149,7 +149,7 @@ export default function ActionListView({
             onChange={(e) => setQ(e.target.value)}
             placeholder="Quick search…"
             aria-label="Quick search this list"
-            className="w-full rounded border border-line bg-card px-3 py-1.5 text-sm focus:border-ink-faint focus:outline-none"
+            className="w-full rounded border border-line bg-card px-3 py-1.5 text-sm focus:border-ink-faint"
           />
           {tableRows.length === 0 ? (
             <p className="rounded-md border border-dashed border-line px-3 py-3 text-xs text-ink-faint">

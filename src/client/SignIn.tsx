@@ -16,14 +16,14 @@ export default function SignIn() {
           alt="Progress"
           width={88}
           height={88}
-          className="rounded-2xl shadow-sm"
+          className="rounded-xl shadow-sm"
         />
-        <h1 className="mt-6 text-2xl font-semibold tracking-tight">Progress</h1>
+        <h1 className="mt-6 text-2xl font-semibold">Progress</h1>
         <p className="mt-2 text-sm text-ink-soft">Sign in to continue.</p>
 
         <a
           href="/api/auth/login"
-          className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-md bg-adobe px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-adobe-deep"
+          className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-accent-deep"
         >
           <GoogleMark />
           Sign in with Google

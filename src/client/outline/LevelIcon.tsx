@@ -15,7 +15,7 @@ export function LevelIcon({ kind }: { kind: LevelKind }) {
   // square enclosing a filled one, reading as "a container that holds focuses".
   if (kind === "workspace")
     return (
-      <svg viewBox="0 0 16 16" className={`${cls} text-adobe-deep`} aria-hidden>
+      <svg viewBox="0 0 16 16" className={`${cls} text-accent-deep`} aria-hidden>
         <rect
           x="1.5"
           y="1.5"
@@ -31,7 +31,12 @@ export function LevelIcon({ kind }: { kind: LevelKind }) {
     );
   if (kind === "focus")
     return (
-      <svg viewBox="0 0 16 16" className={`${cls} text-adobe-deep`} fill="currentColor" aria-hidden>
+      <svg
+        viewBox="0 0 16 16"
+        className={`${cls} text-accent-deep`}
+        fill="currentColor"
+        aria-hidden
+      >
         <rect x="2" y="2" width="12" height="12" rx="2.5" />
       </svg>
     );

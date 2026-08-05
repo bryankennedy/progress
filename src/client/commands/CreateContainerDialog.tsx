@@ -10,6 +10,7 @@ import type { SnapshotPayload } from "../../shared/types";
 import { sortByName } from "../boardFilters";
 import { createContainer, findActionByKey, type ContainerCreateInput } from "../store";
 import { onOpenCreateContainer, type ContainerDialogRequest } from "./controller";
+import { useFocusTrap } from "./useFocusTrap";
 
 const KIND_LABELS = { workspace: "workspace", focus: "focus", arc: "arc" };
 
@@ -40,6 +41,8 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
   const [prefixTouched, setPrefixTouched] = useState(false);
   const [gitUrl, setGitUrl] = useState("");
   const [path, navigate] = useLocation();
+  // Tab containment + focus restore on close (PROG-146 C4).
+  const trapRef = useFocusTrap<HTMLFormElement>(request !== null);
 
   // Parent pickers list options alphabetically, like the filter dropdowns
   // (PROG-66, PROG-83) — a select is scanned by name.
@@ -93,14 +96,17 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
     navigate(`/${kind}/${id}`);
   };
 
-  const inputClass =
-    "w-full rounded border border-line px-3 py-2 text-sm focus:border-ink-faint focus:outline-none";
+  const inputClass = "w-full rounded border border-line px-3 py-2 text-sm focus:border-ink-faint";
   const selectClass =
     "rounded border border-line bg-card px-2 py-1 text-xs text-ink-soft hover:border-ink-faint";
 
   return (
-    <div className="fixed inset-0 z-50 bg-ink/20 p-4" onMouseDown={() => setRequest(null)}>
+    <div className="fixed inset-0 z-50 bg-ink/30 p-4" onMouseDown={() => setRequest(null)}>
       <form
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`New ${KIND_LABELS[kind]}`}
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === "Escape") setRequest(null);
@@ -109,7 +115,7 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
           e.preventDefault();
           submit();
         }}
-        className="mx-auto mt-[12vh] max-w-lg rounded-xl border border-line bg-card p-4 shadow-2xl"
+        className="mx-auto mt-[12vh] max-w-lg rounded-xl border border-line bg-card p-4 shadow-lg"
       >
         <h2 className="text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">
           New {KIND_LABELS[kind]}
@@ -130,6 +136,7 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
               <select
                 value={parentId}
                 onChange={(e) => setParentId(e.target.value)}
+                aria-label="Workspace"
                 className={selectClass}
               >
                 {activeWorkspaces.map((i) => (
@@ -151,13 +158,13 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
                 }}
                 placeholder="KEY"
                 title="Action-key prefix: 2–8 letters"
-                className="w-24 rounded border border-line px-2 py-1 font-mono text-xs uppercase focus:border-ink-faint focus:outline-none"
+                className="w-24 rounded border border-line px-2 py-1 font-mono text-xs uppercase focus:border-ink-faint"
               />
               <input
                 value={gitUrl}
                 onChange={(e) => setGitUrl(e.target.value)}
                 placeholder="Git URL (optional)"
-                className="min-w-48 flex-1 rounded border border-line px-2 py-1 text-xs focus:border-ink-faint focus:outline-none"
+                className="min-w-48 flex-1 rounded border border-line px-2 py-1 text-xs focus:border-ink-faint"
               />
             </>
           )}
@@ -165,6 +172,7 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
             <select
               value={parentId}
               onChange={(e) => setParentId(e.target.value)}
+              aria-label="Focus"
               className={selectClass}
             >
               {activeFocuses.map((p) => (
@@ -179,14 +187,14 @@ export default function CreateContainerDialog({ snapshot }: { snapshot: Snapshot
           <button
             type="button"
             onClick={() => setRequest(null)}
-            className="rounded px-3 py-1 text-sm text-ink-soft hover:bg-line"
+            className="rounded px-3 py-1 text-sm text-ink-soft hover:bg-hover"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={!canSubmit}
-            className="rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep disabled:opacity-40"
+            className="rounded bg-accent px-3 py-1 text-sm text-white hover:bg-accent-deep disabled:opacity-40"
           >
             Create {KIND_LABELS[kind]}
           </button>

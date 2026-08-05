@@ -20,6 +20,7 @@ import type {
   SnapshotPayload,
 } from "../../shared/types";
 import { sortByName } from "../boardFilters";
+import { tagChipStyle } from "../tags";
 import Breadcrumb from "../Breadcrumb";
 import { openPalette } from "../commands/controller";
 import { useRegisterPageAction } from "../commands/currentAction";
@@ -84,7 +85,7 @@ export default function ActionPage({
     return (
       <p className="text-ink-soft">
         No action with key <span className="font-mono">{keyParam}</span>.{" "}
-        <Link href="/" className="text-adobe hover:underline">
+        <Link href="/" className="text-accent hover:underline">
           Back to the board
         </Link>
       </p>
@@ -129,13 +130,16 @@ export default function ActionPage({
       />
 
       <header className="mt-4">
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">
+        {/* The action title IS this page's h1 (PROG-148): breadcrumb + title
+            is the header grammar here, sharing the canonical h1 classes
+            (normal tracking — CR6) rather than the PageHeader component. */}
+        <h1 className="mt-1 text-2xl font-semibold">
           <InlineEdit
             value={action.title}
             onSave={(title) => updateAction(action.id, { title })}
             validate={(v) => v !== ""}
             className="w-full"
-            inputClassName="text-2xl font-semibold tracking-tight"
+            inputClassName="text-2xl font-semibold"
           />
         </h1>
       </header>
@@ -177,8 +181,8 @@ export default function ActionPage({
               (absorbing the PROG-104 Work-on-this panel; its Copy-CLI-command
               link is retired). The header names which kind of thing this page
               shows: a Step is an action with a parent (PROG-106 chain). */}
-          <div className="rounded-lg border border-adobe-wash bg-adobe-wash/30 p-3">
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide font-mono text-adobe-deep">
+          <div className="rounded-lg border border-accent-wash bg-accent-wash/30 p-3">
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide font-mono text-accent-deep">
               {action.parentActionId ? "Step Status" : "Action Status"}
             </p>
             {/* The buttons live inside IconSelect's control column (PROG-110)
@@ -197,16 +201,16 @@ export default function ActionPage({
               {isOpenStatus(action.status) && (
                 <button
                   onClick={() => void copyBundleAsPrompt(actionKeyOf(snapshot, action))}
-                  className="group mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-adobe px-3 py-2 text-sm font-medium text-white hover:bg-adobe-deep sm:min-h-0"
+                  className="group mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent-deep sm:min-h-0"
                 >
                   Copy as prompt
                   <ArrowGlyph className="transition-transform group-hover:translate-x-0.5" />
-                  <span className="text-white/70">(W)</span>
+                  <span className="text-white/90">(W)</span>
                 </button>
               )}
               {/* One-click move to done (PROG-108), in moss — the palette's
                   completed/grounded green — so finishing reads distinctly from
-                  the adobe kickoff above. Hidden once the action is already
+                  the accent kickoff above. Hidden once the action is already
                   done — the select above still covers reopen. */}
               {action.status !== "done" && (
                 <button
@@ -250,7 +254,7 @@ export default function ActionPage({
                 {workspace && (
                   <Link
                     href={`/workspace/${workspace.id}`}
-                    className="block truncate text-sm hover:text-adobe-deep"
+                    className="block truncate text-sm hover:text-accent-deep"
                   >
                     {workspace.name}
                   </Link>
@@ -258,7 +262,7 @@ export default function ActionPage({
                 {focus ? (
                   <Link
                     href={`/focus/${focus.id}`}
-                    className="flex items-center gap-1.5 text-sm hover:text-adobe-deep"
+                    className="flex items-center gap-1.5 text-sm hover:text-accent-deep"
                   >
                     <span className="text-ink-faint">
                       <FocusGlyph />
@@ -284,7 +288,7 @@ export default function ActionPage({
                 {arc && (
                   <Link
                     href={`/arc/${arc.id}`}
-                    className="flex items-center gap-1.5 pl-3 text-sm hover:text-adobe-deep"
+                    className="flex items-center gap-1.5 pl-3 text-sm hover:text-accent-deep"
                   >
                     <span className="text-ink-faint">
                       <ArcGlyph />
@@ -340,8 +344,8 @@ export default function ActionPage({
                 {actionTags.map((tag) => (
                   <span
                     key={tag.id}
-                    className="rounded-full px-2 py-0.5 text-xs text-white"
-                    style={{ backgroundColor: tag.color }}
+                    className="tag-chip rounded-full border px-2 py-0.5 text-xs"
+                    style={tagChipStyle(tag.color)}
                   >
                     {tag.name}
                   </span>
@@ -566,24 +570,24 @@ function TimelineSection({ action, snapshot }: { action: WireAction; snapshot: S
           onChange={onDraftChange}
           rows={3}
           placeholder="Leave a comment… (Markdown)"
-          className="w-full rounded border border-line bg-card p-3 text-sm focus:border-ink-faint focus:outline-none"
+          className="w-full rounded border border-line bg-card p-3 text-sm focus:border-ink-faint"
         />
         <div className="mt-2 flex items-center gap-2">
           <button
             onClick={submitComment}
-            className="rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep disabled:opacity-40"
+            className="rounded bg-accent px-3 py-1 text-sm text-white hover:bg-accent-deep disabled:opacity-40"
             disabled={draft.trim() === "" || sending}
           >
             Comment
           </button>
           {/* Same done-move as the sidebar's Complete action (PROG-108), but
               bundled with the comment post. Tinted with the Work-on-this
-              panel's adobe wash — colorful enough to read as an action, still
+              panel's accent wash — colorful enough to read as an action, still
               a step below the filled Comment primary; hidden once done. */}
           {action.status !== "done" && (
             <button
               onClick={() => void submitCommentAndClose()}
-              className="rounded border border-adobe-wash bg-adobe-wash/40 px-3 py-1 text-sm text-adobe-deep hover:bg-adobe-wash/70 disabled:opacity-40"
+              className="rounded border border-accent-wash bg-accent-wash/40 px-3 py-1 text-sm text-accent-deep hover:bg-accent-wash/70 disabled:opacity-40"
               disabled={draft.trim() === "" || sending}
             >
               Comment &amp; close
@@ -596,7 +600,7 @@ function TimelineSection({ action, snapshot }: { action: WireAction; snapshot: S
 }
 
 const PR_STATE_STYLES: Record<PrState, string> = {
-  open: "bg-adobe-wash/40 text-adobe-deep",
+  open: "bg-accent-wash/40 text-accent-deep",
   merged: "bg-moss-wash/50 text-moss-deep",
   closed: "bg-line text-ink-soft",
 };
@@ -610,7 +614,7 @@ function PrRow({ pr }: { pr: WirePrLink }) {
       className="flex items-center gap-2 rounded-lg border border-line bg-card px-3 py-2 text-sm hover:border-ink-faint"
     >
       <span
-        className={`shrink-0 rounded-full px-2 py-px text-[10px] font-medium uppercase ${PR_STATE_STYLES[pr.state]}`}
+        className={`shrink-0 rounded-full px-2 py-px text-3xs font-medium uppercase ${PR_STATE_STYLES[pr.state]}`}
       >
         {pr.state}
       </span>

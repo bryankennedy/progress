@@ -55,7 +55,7 @@ export function Highlighted({ segments }: { segments: Segment[] }) {
     <>
       {segments.map((seg, i) =>
         seg.match ? (
-          <mark key={i} className="rounded bg-adobe-wash px-0.5 text-adobe-deep">
+          <mark key={i} className="rounded bg-accent-wash px-0.5 text-accent-deep">
             {seg.text}
           </mark>
         ) : (
@@ -144,7 +144,7 @@ export default function ActionTable({
                 key={action.id}
                 data-action-id={action.id}
                 onClick={() => navigate(`/action/${key}`)}
-                className="cursor-pointer border-t border-line first:border-t-0 hover:bg-line/40"
+                className="cursor-pointer border-t border-line first:border-t-0 hover:bg-hover/40"
               >
                 {columns.map((col) => {
                   switch (col) {

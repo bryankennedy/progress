@@ -22,6 +22,7 @@ import { closedTitleClass } from "../actionDone";
 import { addDays, formatDueDate, todayISO } from "../dates";
 import { completionSeries, dayBounds, dayRecap, formatDiaryDay } from "../diary";
 import { STATUS_LABELS } from "../labels";
+import PageHeader from "../PageHeader";
 import StatusIndicator from "../StatusIndicator";
 import { actionKeyOf, rewriteDiarySummary, useDiaryDay, useDiarySummary } from "../store";
 
@@ -49,20 +50,22 @@ export default function Diary({ snapshot }: { snapshot: SnapshotPayload }) {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Diary</h1>
-        <p className="text-xs text-ink-faint">
-          {recap.completed.length} completed · {recap.created.length} started
-          {day !== today && (
-            <>
-              {" · "}
-              <button onClick={() => openDay(today)} className="underline hover:text-ink-soft">
-                back to today
-              </button>
-            </>
-          )}
-        </p>
-      </header>
+      <PageHeader
+        title="Diary"
+        meta={
+          <>
+            {recap.completed.length} completed · {recap.created.length} started
+            {day !== today && (
+              <>
+                {" · "}
+                <button onClick={() => openDay(today)} className="underline hover:text-ink-soft">
+                  back to today
+                </button>
+              </>
+            )}
+          </>
+        }
+      />
 
       <ProgressStrip series={series} selected={day} onSelect={openDay} />
 
@@ -131,7 +134,7 @@ export default function Diary({ snapshot }: { snapshot: SnapshotPayload }) {
 
 // ── Progress strip ───────────────────────────────────────────────────────────
 // Completions per day for the last five weeks — one thin bar per day, moss
-// (the completed color), the selected day in adobe (the "now" accent). Every
+// (the completed color), the selected day in accent (the "now" accent). Every
 // bar is a button that opens its day; zero days keep a hairline stub so the
 // rhythm of the strip stays readable (a gap is information).
 function ProgressStrip({
@@ -167,7 +170,7 @@ function ProgressStrip({
                 style={{ height: count === 0 ? "2px" : `${Math.max(12, (count / max) * 100)}%` }}
                 className={`w-full max-w-2.5 rounded-t-[3px] ${
                   isSelected
-                    ? "bg-adobe"
+                    ? "bg-accent"
                     : count === 0
                       ? "bg-line group-hover:bg-ink-faint"
                       : "bg-moss group-hover:bg-moss-deep"
@@ -177,7 +180,7 @@ function ProgressStrip({
           );
         })}
       </div>
-      <div className="mt-1 flex justify-between px-1 font-mono text-[11px] text-ink-faint">
+      <div className="mt-1 flex justify-between px-1 font-mono text-2xs text-ink-faint">
         <span>{formatDueDate(series[0]!.day)}</span>
         <span>
           {formatDueDate(selected)} · {series.find((d) => d.day === selected)?.count ?? 0} completed
@@ -215,8 +218,8 @@ function DiaryEntry({
         <p className="text-sm text-ink-faint">The day's entry couldn't be written just now.</p>
       ) : (
         <>
-          <p className="text-[15px] leading-relaxed text-ink">{data!.summary}</p>
-          <div className="mt-1.5 flex items-center justify-between font-mono text-[11px] text-ink-faint">
+          <p className="text-sm leading-relaxed text-ink">{data!.summary}</p>
+          <div className="mt-1.5 flex items-center justify-between font-mono text-2xs text-ink-faint">
             <span>the day, in short</span>
             <button
               onClick={async () => {
@@ -270,7 +273,7 @@ function RecapSection({
                 </Link>
                 <Link
                   href={`/action/${key}`}
-                  className={`min-w-0 flex-1 truncate font-medium hover:text-adobe-deep ${closedTitleClass(action.status)}`}
+                  className={`min-w-0 flex-1 truncate font-medium hover:text-accent-deep ${closedTitleClass(action.status)}`}
                 >
                   {action.title}
                 </Link>
@@ -304,7 +307,7 @@ function buildEvents(payload: DiaryDayPayload, snapshot: SnapshotPayload): Event
       <Link
         href={`/action/${key}`}
         title={action.title}
-        className="font-mono text-xs text-adobe hover:text-adobe-deep"
+        className="font-mono text-xs text-accent hover:text-accent-deep"
       >
         {key}
       </Link>
@@ -365,7 +368,7 @@ function buildEvents(payload: DiaryDayPayload, snapshot: SnapshotPayload): Event
             href={commit.url}
             target="_blank"
             rel="noreferrer"
-            className="font-mono text-xs text-adobe hover:text-adobe-deep"
+            className="font-mono text-xs text-accent hover:text-accent-deep"
           >
             {commit.sha.slice(0, 7)}
           </a>{" "}
@@ -389,7 +392,7 @@ function buildEvents(payload: DiaryDayPayload, snapshot: SnapshotPayload): Event
             href={pr.url}
             target="_blank"
             rel="noreferrer"
-            className="font-mono text-xs text-adobe hover:text-adobe-deep"
+            className="font-mono text-xs text-accent hover:text-accent-deep"
           >
             #{pr.prNumber}
           </a>{" "}

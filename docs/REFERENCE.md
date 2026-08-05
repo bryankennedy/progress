@@ -211,9 +211,10 @@ and fonts are served straight from Cloudflare's asset handler:
 
 - **`public/_headers`** (ships to the asset root) carries the full set for the
   statically-served app, including a **Content-Security-Policy** tuned to exactly
-  what `index.html` loads — `script-src 'self'`, `style-src 'self' 'unsafe-inline'
-  https://fonts.googleapis.com` (inline styles cover React `style={}` + dnd-kit
-  drag transforms), `font-src` Google Fonts, `img-src 'self' data: blob:`,
+  what `index.html` loads — `script-src 'self'`, `style-src 'self'
+  'unsafe-inline'` (inline styles cover React `style={}` + dnd-kit drag
+  transforms), `font-src 'self' data:` (fonts are self-hosted woff2 files under
+  `public/fonts/`, PROG-147), `img-src 'self' data: blob:`,
   `connect-src 'self'`, `frame-ancestors 'none'`, `object-src 'none'`,
   `base-uri 'self'`.
 - A Worker `app.use("*")` middleware sets `X-Content-Type-Options: nosniff`,
@@ -221,7 +222,7 @@ and fonts are served straight from Cloudflare's asset handler:
   the Worker serves — the `/api/*` JSON, the **image blobs** (so a client-asserted
   upload `Content-Type` can't be MIME-sniffed into something executable), and the
   not-authorized page. CSP is intentionally *not* set here (the not-authorized
-  page uses inline styles + Google Fonts; JSON needs none).
+  page uses inline styles; JSON needs none).
 
 Both layers also carry HSTS. The single-tenant trust model is deliberate: any
 allowlisted user (or the bearer token) can read all tracker data and all images
@@ -444,7 +445,97 @@ the retired `/repo/:id` (PROG-102) and `/structure` (PROG-143 — folded into
 the Outline's all-workspaces scope) both redirect to `/outline?all=1`, so old
 bookmarks keep working.
 
+### Theme presets (PROG-150, PROG-150b)
+
+The palette evolved from a single fixed light theme (PROG-146/PROG-145's
+"Riso ink on porcelain" — still true as a **mode**: there is no dark mode) to
+**one light mode, four user-selectable presets**: **Porcelain** (default —
+ink & ultramarine), **Adobe** (the pre-PROG-145 warm-earth-tone palette,
+contrast-corrected to the same AA floor rather than restored verbatim),
+**Sanzo** (derived from Wada Sanzo classic color combination #342: Corinthian
+Pink, Cream Yellow, Orange Citrine, Deep Slate Olive), and **Mono** (PROG-150b
+— totally monochrome: shades of black & white only, including danger and the
+priority ramp). Full derivation + WCAG contrast tables: `docs/decisions/PROG-150.md`.
+
+- **Mechanism** — Tailwind v4's `@theme` block (`src/client/styles.css`,
+  mirrored from `brand-assets/tokens.css`) emits `:root` custom properties, so
+  a theme is a pure CSS override block keyed off `:root[data-theme="adobe"]` /
+  `"sanzo"` / `"mono"`; porcelain is the `@theme` default and needs no block.
+  Each block replaces only the neutral ramp, accent family, moss family,
+  `--color-hover`, and the prompt trio — danger, priority colors, radius, and
+  shadows stay global across porcelain/adobe/sanzo. **Mono is the one
+  exception**: it also overrides `--color-danger*` and the priority ramp,
+  since "totally monochrome" means no hue survives anywhere, not even
+  overdue-red or priority color. The Status/Priority/Estimate indicators still
+  encode rank/state in shape (pie fills, bar counts) and text, not color
+  alone, so grayscale stays usable under mono.
+- **Priority colors as theme tokens (PROG-150b)** — `PRIORITY_COLORS`
+  (`src/client/labels.ts`) used to be hex literals, the one colored thing no
+  theme (besides tag hues) could reach. `high`/`medium`/`low` are now
+  `--color-priority-high/medium/low` tokens (global porcelain/adobe/sanzo
+  value; `mono` overrides to grays), read via the same `var(--token, #hex)`
+  fallback idiom `StatusIndicator`/`EstimateIndicator` already used.
+  `PriorityIndicator` (the sole consumer) passes the string straight through
+  as an SVG `fill` — nothing does color math on it, so no other call site
+  needed changes. `urgent` stays a literal hex (it aliases `--color-danger`,
+  itself global outside mono).
+- **Persistence & application (`src/client/theme.ts`)** — `THEMES` (id, label,
+  one-line description, a picker swatch of paper/accent/moss), `getTheme()`,
+  `setTheme(id)`. One `localStorage` key, `progress:theme` (absent or
+  `"porcelain"` both mean the default); `setTheme` flips
+  `document.documentElement.dataset.theme` and the `<meta name="theme-color">`
+  content synchronously — no reload.
+- **No-flash boot** — an inline `<script>` in `index.html`'s `<head>` applies
+  the stored theme before first paint (it can't import `theme.ts`, since
+  nothing is bundled yet at that point, so it duplicates the theme
+  ids/paper-colors — keep the two in sync). `public/_headers`' CSP allowlists
+  this one script by sha256 hash rather than a blanket `'unsafe-inline'`
+  (regenerated each time the script's text changes, including for mono).
+- **Picker UI** — the Header account/avatar dropdown (`src/client/Header.tsx`)
+  carries a **Theme** group: one row per `THEMES` entry (now four), each a
+  three-dot paper/accent/moss swatch + label + description, `aria-pressed`
+  marking the active one (a formal `menuitemradio`/`radiogroup` pattern was
+  skipped — the surrounding dropdown rows aren't `role="menuitem"` either, so
+  partial ARIA menu semantics would mislead more than help). Selecting one
+  calls `setTheme` directly; reachable on mobile, since the avatar renders at
+  every width. The **command palette** builds the same four commands off
+  `THEMES` (`Theme: Porcelain` / `Adobe` / `Sanzo` / `Mono`) — both surfaces
+  are metadata-driven, so a preset only needs adding to `THEMES` once.
+- **Tag chips** (`src/client/tags.ts`) render their wash/border as CSS
+  `color-mix(in srgb, <hue> N%, var(--color-card))`, so they follow whichever
+  card color is live with no JS re-render; the darkened text color stays one
+  precomputed hex per hue (verified against porcelain/adobe/sanzo's near-white
+  cards, PROG-150). Under **mono**, every tag-color render site carries a
+  stable `tag-chip` class, and `:root[data-theme="mono"] .tag-chip { filter:
+  grayscale(1); }` (styles.css) neutralizes the hue — luminance-preserving, so
+  the already-verified contrast ratios survive the filter untouched
+  (PROG-150b).
+- **Static, deliberately theme-blind:** the sign-in page's pre-auth HTML
+  (`src/worker/pages.ts` inlines its own tiny copy of the porcelain palette —
+  there's no bundle/localStorage at that point) and `public/manifest.webmanifest`
+  (PWA splash/theme-color — read once at install time, before any preference
+  exists).
+- **Material textures (PROG-150c)** — each preset gets a subtle canvas/paper/
+  board-column surface texture (cards stay clean): Mono is a pixel-crisp
+  `repeating-conic-gradient` checkerboard at three densities (8-bit-dither
+  homage); Adobe/Sanzo/Porcelain use small pre-baked `feTurbulence` SVG data:
+  URIs (washi fiber, sand/leather/stone, riso grain) plus a lacquer gloss
+  (Sanzo) or offset-print signature (Porcelain) on accent fills. All flatten
+  under `prefers-contrast: more`. Full technique + amplitudes:
+  `docs/decisions/PROG-150.md`.
+
 ## 5. UI surfaces
+
+Every route opens with the same header grammar (PROG-148): the shared
+`PageHeader` (`src/client/PageHeader.tsx`) renders the page's `<h1>`
+(`text-2xl font-semibold`, normal tracking) plus optional slots — `meta` (the
+small count line beside the title), `actions` (right-aligned controls), and
+`below` (a full-width block under the row). Board and Search included ("Board" /
+"Search" are real h1s; the board's page-local "New action" button is gone — the
+header **New** menu and the `C` shortcut are the create entry points, and the
+per-column ghost cards remain). The container/action pages are the deliberate
+exception: their h1 is the breadcrumbed, inline-editable entity title, sharing
+the canonical classes but not the component.
 
 - **Sign-in landing (`SignIn.tsx`)** — the only screen rendered without a loaded
   snapshot (on a `401`, PROG-34): centered brand mark, "Progress" wordmark, and
@@ -595,12 +686,13 @@ bookmarks keep working.
   (Board · Outline · Agenda · Diary · Search · Archive), a **New** menu (Action ·
   Workspace · Focus · Arc) that opens the existing optimistic create flows, and the
   signed-in identity avatar. The always-available structure-creation entry point
-  (SPEC v2 §4). The avatar dropdown holds the profile + **Sign out**, plus an
+  (SPEC v2 §4). The avatar dropdown holds the profile, a **Theme** picker
+  (PROG-150 — see "Theme presets" below), plus **Sign out**, plus an
   **Admin** link for super-admins (D44) — Admin lives here, not in the top nav,
   as a rare destination. The inline nav is **desktop-only**: below `sm` it is
   hidden and a fixed **bottom tab bar** (`MobileTabBar.tsx`) takes over — Board ·
   Outline · Agenda · Search as tabs and a **More** tab (sheet) for Diary ·
-  Archive, the active tab lit in the adobe accent (More included when its sheet's
+  Archive, the active tab lit in the ultramarine accent (More included when its sheet's
   page is current), clear of the iOS home indicator. This stops the header from
   overflowing and scrolling sideways on a phone (PROG-79). Both surfaces read
   their destinations from one shared `nav.tsx` list so they can't drift.
@@ -615,8 +707,13 @@ bookmarks keep working.
   and status; overdue rows are visually distinct. The row's indicator is the
   editable **`PriorityPicker`** (PROG-132, `src/client/PriorityPicker.tsx`) —
   click/tap it and the platform's native select pops to change priority in
-  place, no navigation to the action needed. Filterable by focus/arc/tag
-  via URL params (the board pattern), with inline mark-done and bump-due. Renders
+  place, no navigation to the action needed. Filterable by
+  workspace/focus/arc/tag/priority via the shared `FilterBar` (PROG-92, adopted
+  here in PROG-148): the same five dropdowns, hierarchy narrowing + ancestor
+  pruning, Arc/Tag "none" options, mobile "Filters" disclosure, Clear link, and
+  sticky restore (`progress:agenda-filters`) as the board and search; the
+  original `focus`/`arc`/`tag` param names are unchanged, so old bookmarks keep
+  working. Inline mark-done and bump-due on every row. Renders
   entirely from the store. Each non-Overdue grouping ends in a **quick-add**
   input (PROG-89): Enter creates a `backlog` action (the shared creation
   default, PROG-115) pre-dated for that bucket —
@@ -642,7 +739,7 @@ bookmarks keep working.
   **instant recap** from the snapshot — Completed (`completedAt` that day),
   Started (`createdAt`), Also touched (`updatedAt`, not already listed) — plus
   a five-week **progress strip** of completions per day (one thin moss bar per
-  day, the selected day in adobe, every bar a button that opens its day; pure
+  day, the selected day in the accent, every bar a button that opens its day; pure
   helpers in `src/client/diary.ts`, unit-tested); (2) **the day's events**, a
   server wave (`GET /api/diary`) merging status changes, comments, linked
   commits, and PR link/state changes into one clocked list — git-link activity
@@ -707,7 +804,7 @@ bookmarks keep working.
   hidden (they stay reachable via search, Agenda, and container pages) — PROG-40.
   Each **card** pairs its two at-a-glance signals in a footer: the **due date**
   (if any) sits bottom-left as a calendar glyph + the Agenda's phrasing ("in 3
-  days · Jul 1", overdue in danger red, due-today in the adobe accent), and the
+  days · Jul 1", overdue in danger red, due-today in the ultramarine accent), and the
   **priority indicator** floats to the bottom-right corner (PROG-61). Estimate
   and tags sit on their own line above the footer so they don't crowd it.
   A **"show steps"** toggle (URL `?steps=1`, off by default) controls
@@ -749,17 +846,30 @@ bookmarks keep working.
   GitHub), and comments + activity interleaved into one timeline. Each
   editable sidebar field carries a **left-gutter glyph** (PROG-101): the
   shared `StatusIndicator` (circle progression — dashed backlog → outlined
-  todo → adobe half/three-quarter pies for in progress/in review → moss
+  todo → accent half/three-quarter pies for in progress/in review → moss
   check disc for done; canceled is a faint ✕ disc), the due-date **calendar
   button** (opens the native picker; the input's right-edge indicator is
   hidden), `PriorityIndicator`, and the `EstimateIndicator` fill gauge
   (bottom-up fill proportional to the 0–8 scale; dashed when unset). Every
   glyph is a **button** that opens its field's picker — `showPicker()` on
   the select/input, focus fallback where unsupported (PROG-101b).
+- **Dialog & listbox semantics (PROG-149)** — the four modal overlays (command
+  palette, `/` search modal, and the two create dialogs) render
+  `role="dialog" aria-modal="true" aria-label` and share a no-dependency
+  `useFocusTrap` hook
+  (`src/client/commands/useFocusTrap.ts`): Tab/Shift-Tab cycle inside the
+  dialog while it's open, and closing restores focus to whatever opened it.
+  The palette and search modal additionally follow the combobox/listbox
+  pattern — the input carries `role="combobox"` +
+  `aria-expanded`/`aria-controls`/`aria-activedescendant`, and result rows are
+  `role="option"` with stable ids and `tabIndex={-1}` (arrow keys own the
+  list; focus never leaves the input).
 - **Command palette** — one keyboard surface (D25): root mode searches
   actions by key (retired alias keys included) or title and containers by
   name, and lists commands (create action/workspace/focus/arc,
-  pickers for the current action). Picker modes are filterable lists; tag
+  pickers for the current action, and **Theme: Porcelain/Adobe/Sanzo/Mono** —
+  PROG-150/PROG-150b, a second entry point onto the same `setTheme()` as the
+  Header picker). Picker modes are filterable lists; tag
   toggles keep the palette open for multi-edit. The **location picker**
   (PROG-123) owns the action's whole outline position in one surface: it
   renders the Workspace → Focus → Arc tree in outline rank order — workspaces

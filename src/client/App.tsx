@@ -108,7 +108,7 @@ export default function App() {
             <Route>
               <p className="text-ink-soft">
                 Nothing here.{" "}
-                <Link href="/" className="text-adobe hover:underline">
+                <Link href="/" className="text-accent hover:underline">
                   Back to the board
                 </Link>
               </p>

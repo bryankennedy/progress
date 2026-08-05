@@ -21,6 +21,7 @@ import {
   untagAction,
   updateAction,
 } from "../store";
+import { setTheme, THEMES } from "../theme";
 import { copyBundleAsPrompt, copyWorkCommand, workCommand } from "../workOn";
 import {
   onOpenPalette,
@@ -28,6 +29,7 @@ import {
   openCreateAction,
   type PaletteMode,
 } from "./controller";
+import { useFocusTrap } from "./useFocusTrap";
 
 // run() returning "keep" leaves the palette open (used by commands that
 // switch it into a picker mode, and by the tag toggles). `header` rows are
@@ -59,6 +61,8 @@ export default function CommandPalette({ snapshot }: { snapshot: SnapshotPayload
   const [selected, setSelected] = useState(0);
   const [, navigate] = useLocation();
   const listRef = useRef<HTMLUListElement>(null);
+  // Tab containment + focus restore on close (PROG-146 C4).
+  const trapRef = useFocusTrap<HTMLDivElement>(mode !== null);
 
   const switchMode = (m: PaletteMode) => {
     setMode(m);
@@ -113,12 +117,26 @@ export default function CommandPalette({ snapshot }: { snapshot: SnapshotPayload
   const ctxAction =
     mode.kind !== "root" ? snapshot.actions.find((i) => i.id === mode.actionId) : undefined;
 
+  // Dialog + combobox/listbox semantics (PROG-146 C4): focus stays on the
+  // input; aria-activedescendant tracks the arrow-key selection so it is
+  // announced. Option rows keep their ids stable per item, and tabIndex={-1}
+  // keeps them out of the Tab order (the combobox pattern — Tab is the trap's
+  // cycle, arrows own the list).
+  const dialogLabel = ctxAction
+    ? MODE_TITLES[mode.kind as keyof typeof MODE_TITLES]
+    : "Command palette";
+  const activeId = selectables[sel] ? `palette-option-${selectables[sel].id}` : undefined;
+
   return (
-    <div className="fixed inset-0 z-50 bg-ink/20 p-4" onMouseDown={close}>
+    <div className="fixed inset-0 z-50 bg-ink/30 p-4" onMouseDown={close}>
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={dialogLabel}
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={onKeyDown}
-        className="mx-auto mt-[12vh] max-w-lg overflow-hidden rounded-xl border border-line bg-card shadow-2xl"
+        className="mx-auto mt-[12vh] max-w-lg overflow-hidden rounded-xl border border-line bg-card shadow-lg"
       >
         {ctxAction && (
           <p className="border-b border-line px-4 pb-2 pt-3 text-xs text-ink-faint">
@@ -129,31 +147,51 @@ export default function CommandPalette({ snapshot }: { snapshot: SnapshotPayload
         )}
         <input
           autoFocus
+          role="combobox"
+          aria-expanded="true"
+          aria-controls="palette-listbox"
+          aria-activedescendant={activeId}
+          aria-autocomplete="list"
+          aria-label={dialogLabel}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
             setSelected(0);
           }}
           placeholder={mode.kind === "root" ? "Type a command or search…" : "Filter…"}
-          className="w-full border-b border-line px-4 py-3 text-sm focus:outline-none"
+          // -outline-offset-2: the input sits flush against the dialog's
+          // overflow-hidden frame, so the global focus ring is drawn inset
+          // instead of being clipped at the edges (PROG-149).
+          className="w-full border-b border-line px-4 py-3 text-sm -outline-offset-2"
         />
-        <ul ref={listRef} className="max-h-80 overflow-y-auto p-1">
+        <ul
+          ref={listRef}
+          id="palette-listbox"
+          role="listbox"
+          className="max-h-80 overflow-y-auto p-1"
+        >
           {items.map((item) =>
             item.header ? (
-              <li key={item.id}>
+              // Inert group labels (PROG-123b) aren't options — presentational
+              // so the listbox exposes only selectable rows.
+              <li key={item.id} role="presentation">
                 <div className="flex items-center gap-1.5 py-1.5 pl-3 pr-3 text-sm text-ink-faint">
                   {item.icon}
                   <span className="truncate">{item.label}</span>
                 </div>
               </li>
             ) : (
-              <li key={item.id}>
+              <li key={item.id} role="presentation">
                 <button
                   type="button"
+                  role="option"
+                  id={`palette-option-${item.id}`}
+                  aria-selected={item === selectables[sel]}
+                  tabIndex={-1}
                   onClick={() => execute(item)}
                   onMouseMove={() => setSelected(selectables.indexOf(item))}
                   data-selected={item === selectables[sel] || undefined}
-                  className={`flex w-full items-center justify-between gap-3 rounded-md py-2 pr-3 text-left text-sm data-selected:bg-line ${
+                  className={`flex w-full items-center justify-between gap-3 rounded-md py-2 pr-3 text-left text-sm data-selected:bg-hover ${
                     item.indent === 2 ? "pl-11" : item.indent === 1 ? "pl-7" : "pl-3"
                   }`}
                 >
@@ -169,7 +207,9 @@ export default function CommandPalette({ snapshot }: { snapshot: SnapshotPayload
             ),
           )}
           {selectables.length === 0 && (
-            <li className="px-3 py-6 text-center text-sm text-ink-faint">No matches.</li>
+            <li role="presentation" className="px-3 py-6 text-center text-sm text-ink-faint">
+              No matches.
+            </li>
           )}
         </ul>
       </div>
@@ -401,6 +441,15 @@ function rootItems(
       id: `cmd:new-${kind}`,
       label: `Create ${kind}…`,
       run: () => openCreateContainer({ kind }),
+    });
+  }
+  // Theme presets (PROG-150) — same instant, no-reload switch as the Header
+  // picker; this is just a second entry point onto setTheme().
+  for (const t of THEMES) {
+    commands.push({
+      id: `cmd:theme-${t.id}`,
+      label: `Theme: ${t.label}`,
+      run: () => setTheme(t.id),
     });
   }
   items.push(...commands.filter((c) => q === "" || matches(c.label)));

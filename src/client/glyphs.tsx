@@ -28,6 +28,28 @@ export function FocusGlyph() {
   );
 }
 
+// Downward chevron (PROG-148, audit N1): the disclosure marker for the header
+// New menu, the mobile Filters toggle, the outline's arc menu, … Replaces the
+// old `▾` text glyph, which rendered in Spectral and varied by platform. Same
+// currentColor line idiom as the nav icons; callers size via className (the
+// default matches the 16×16 glyph family) and rotate it for the open state.
+export function ChevronDownGlyph({ className = "h-3.5 w-3.5 shrink-0" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      aria-hidden
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4 6.25 8 10l4-3.75" />
+    </svg>
+  );
+}
+
 // Arc glyph (PROG-104): a rainbow-like arc between two endpoints — the
 // milestone trajectory an arc groups actions along.
 export function ArcGlyph() {
@@ -42,6 +64,26 @@ export function ArcGlyph() {
       />
       <circle cx="2.75" cy="11.5" r="1.4" fill="currentColor" />
       <circle cx="13.25" cy="11.5" r="1.4" fill="currentColor" />
+    </svg>
+  );
+}
+
+// Check glyph (PROG-150): the "selected" marker in the Header theme picker.
+// Same currentColor line idiom as ChevronDownGlyph (audit N1) rather than a
+// text "✓" glyph.
+export function CheckGlyph({ className = "h-3.5 w-3.5 shrink-0" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      aria-hidden
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3.5 8.5 6.5 11.5 12.5 4.5" />
     </svg>
   );
 }

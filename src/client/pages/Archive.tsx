@@ -6,6 +6,7 @@
 
 import { Link } from "wouter";
 import type { SnapshotPayload } from "../../shared/types";
+import PageHeader from "../PageHeader";
 
 export default function Archive({ snapshot }: { snapshot: SnapshotPayload }) {
   const archivedArcs = snapshot.arcs
@@ -44,17 +45,19 @@ export default function Archive({ snapshot }: { snapshot: SnapshotPayload }) {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="flex items-baseline justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Archive</h1>
-          <p className="mt-1 text-xs text-ink-faint">
+      <PageHeader
+        title="Archive"
+        below={
+          <p className="text-xs text-ink-faint">
             Completed arcs, kept out of the way. {archivedArcs.length} total.
           </p>
-        </div>
-        <Link href="/outline?all=1" className="text-xs text-adobe hover:underline">
-          ← Outline
-        </Link>
-      </div>
+        }
+        actions={
+          <Link href="/outline?all=1" className="text-xs text-accent hover:underline">
+            ← Outline
+          </Link>
+        }
+      />
 
       {archivedArcs.length === 0 ? (
         <p className="mt-6 text-sm text-ink-faint">No archived arcs yet.</p>
@@ -66,7 +69,7 @@ export default function Archive({ snapshot }: { snapshot: SnapshotPayload }) {
             .sort((a, b) => a.workspaceName.localeCompare(b.workspaceName))
             .map((initGroup, idx) => (
               <section key={idx} className="rounded-lg border border-line bg-card p-4">
-                <span className="text-[10px] uppercase tracking-wide font-mono text-ink-faint">
+                <span className="text-3xs uppercase tracking-wide font-mono text-ink-faint">
                   Workspace
                 </span>{" "}
                 <span className="text-sm font-medium text-ink-soft">{initGroup.workspaceName}</span>
@@ -75,7 +78,7 @@ export default function Archive({ snapshot }: { snapshot: SnapshotPayload }) {
                     .sort((a, b) => a.focusName.localeCompare(b.focusName))
                     .map((prodGroup, pIdx) => (
                       <div key={pIdx}>
-                        <span className="text-[10px] uppercase tracking-wide font-mono text-ink-faint">
+                        <span className="text-3xs uppercase tracking-wide font-mono text-ink-faint">
                           Focus
                         </span>{" "}
                         <span className="text-sm font-medium text-ink-soft">
@@ -86,7 +89,7 @@ export default function Archive({ snapshot }: { snapshot: SnapshotPayload }) {
                             <Link
                               key={arc.id}
                               href={`/arc/${arc.id}`}
-                              className="rounded px-1.5 py-0.5 font-medium text-ink-faint line-through hover:bg-line"
+                              className="rounded px-1.5 py-0.5 font-medium text-ink-faint line-through hover:bg-hover"
                             >
                               {arc.name}
                             </Link>

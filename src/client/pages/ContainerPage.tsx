@@ -144,7 +144,7 @@ export default function ContainerPage({
     return (
       <p className="text-ink-soft">
         No {TYPE_LABELS[type].toLowerCase()} with id <span className="font-mono">{id}</span>.{" "}
-        <Link href="/" className="text-adobe hover:underline">
+        <Link href="/" className="text-accent hover:underline">
           Back to the board
         </Link>
       </p>
@@ -167,13 +167,16 @@ export default function ContainerPage({
 
       <header className="mt-4">
         <div className="flex items-start gap-3">
-          <h1 className="min-w-0 flex-1 text-2xl font-semibold tracking-tight">
+          {/* The entity title IS this page's h1 (PROG-148): breadcrumb + name
+              is the header grammar here, sharing the canonical h1 classes
+              (normal tracking — CR6) rather than the PageHeader component. */}
+          <h1 className="min-w-0 flex-1 text-2xl font-semibold">
             <InlineEdit
               value={resolved.name}
               onSave={(name) => updateContainer(type, id, { name })}
               validate={(v) => v !== ""}
               className="w-full"
-              inputClassName="text-2xl font-semibold tracking-tight"
+              inputClassName="text-2xl font-semibold"
             />
           </h1>
           {resolved.archivedAt && (
@@ -241,7 +244,7 @@ export default function ContainerPage({
                   }`}
                 >
                   {item.name}
-                  {item.archived && <span className="ml-1 text-[10px] uppercase">archived</span>}
+                  {item.archived && <span className="ml-1 text-3xs uppercase">archived</span>}
                 </Link>
               ))}
               {group.onNew && (
@@ -272,14 +275,14 @@ export default function ContainerPage({
                 <button
                   onClick={() => void copyArcBundleAsPrompt(id, resolved.name)}
                   title="Copy a single prompt covering every open action in this arc, for handing to an agent"
-                  className="text-xs text-adobe hover:underline"
+                  className="text-xs text-accent hover:underline"
                 >
                   Copy arc as prompt →
                 </button>
               )}
               <Link
                 href={`/?${resolved.boardParam}&backlog=1`}
-                className="text-xs text-adobe hover:underline"
+                className="text-xs text-accent hover:underline"
               >
                 Open on board →
               </Link>

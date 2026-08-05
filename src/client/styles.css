@@ -1,52 +1,419 @@
 @import "tailwindcss";
 
-/* ── "Progress — Adobe & Moss" design tokens (brand-assets/tokens.css) ─────────
+/* ── "Progress — Porcelain & Moss" design tokens (brand-assets/tokens.css) ─────
    Mirrored into Tailwind's @theme so every token is a utility: bg-paper,
-   text-ink, bg-adobe, border-line, font-mono, rounded-md, … Keep the names in
+   text-ink, bg-accent, border-line, font-mono, rounded-md, … Keep the names in
    sync with brand-assets/tokens.css — that file is the source of truth, this is
-   its Tailwind binding. Semantic roles: --adobe = primary/active/"now",
-   --moss = completed/grounded, --danger = errors/overdue. */
+   its Tailwind binding. Semantic roles: --accent = primary/active/"now",
+   --moss = completed/grounded, --danger = errors/overdue. Palette rationale:
+   "Riso ink on porcelain" (PROG-146/PROG-145) — porcelain neutrals, printer's
+   ultramarine accent, olive moss, warm danger. */
 @theme {
-  /* Neutrals */
-  --color-paper: #f5efe0; /* primary surface / panels / header */
-  --color-canvas: #f0e9d9; /* app background, one step under paper */
-  --color-card: #fdfaf3; /* raised cards, rows, inputs */
-  --color-line: #e9dec6; /* hairline dividers */
-  --color-ink: #2c241b; /* primary text */
-  --color-ink-soft: #6b5f4d; /* secondary text */
-  --color-ink-faint: #9a8b73; /* meta / mono labels */
+  /* Neutrals — porcelain ramp: white cards on a faint sage canvas */
+  --color-paper: #f7f7f2; /* primary surface / panels / header */
+  --color-canvas: #f0f1ea; /* app background, one step under paper */
+  --color-card: #ffffff; /* raised cards, rows, inputs */
+  --color-line: #dfe1d6; /* hairline dividers */
+  --color-hover: #dfe1d6; /* interactive hover surfaces (S8) — tune apart from line freely */
+  --color-ink: #20251f; /* primary text (green-black) */
+  --color-ink-soft: #5a6355; /* secondary text */
+  --color-ink-faint: #6d7568; /* meta / mono labels — 4.78:1 on card */
 
-  /* Salmon Adobe — PRIMARY: active, "now", CTAs */
-  --color-adobe-deep: #8f5340;
-  --color-adobe: #bb6f50;
-  --color-adobe-light: #d89572;
-  --color-adobe-wash: #efb892;
+  /* Ultramarine accent — PRIMARY: active, "now", CTAs */
+  --color-accent-deep: #2d3c96;
+  --color-accent: #3d52c4;
+  --color-accent-light: #8a97e0;
+  --color-accent-wash: #dde1f7;
 
   /* Olive Moss — SECONDARY: grounded, completed */
-  --color-moss-deep: #566039;
-  --color-moss: #79864c;
-  --color-moss-light: #9aa468;
-  --color-moss-wash: #bcc189;
+  --color-moss-deep: #4f5c31;
+  --color-moss: #6c7a42;
+  --color-moss-light: #a7b96e;
+  --color-moss-wash: #e0e8c9;
 
-  /* Functional accents */
-  --color-prompt-text: #a85c3d;
-  --color-prompt-border: #e0b59f;
-  --color-prompt-bg: #f7e7dc;
+  /* Functional accents — derived from the accent family */
+  --color-prompt-text: #2f41a8;
+  --color-prompt-border: #b9c2ee;
+  --color-prompt-bg: #eef0fb;
 
-  /* Danger / overdue — derived from the urgent-priority tomato, kept on-system
-     so errors stay papery rather than introducing a stock red. */
+  /* Danger / overdue — the urgent-priority tomato, kept warm on purpose:
+     a warm danger against the cool accent carries its own meaning. */
   --color-danger: #b23c28;
   --color-danger-bg: #f6e4dd;
   --color-danger-border: #e3b3a4;
+
+  /* Priority ramp (labels.ts PRIORITY_COLORS) — promoted to theme tokens
+     (PROG-150b) so `mono` can neutralize them; every other theme keeps this
+     global ramp untouched (no per-theme block needed for high/medium/low).
+     `urgent`/`none` aren't here: urgent reuses --color-danger, none renders
+     unfilled (no fill color of its own). */
+  --color-priority-high: #a85a20;
+  --color-priority-medium: #a37b16;
+  --color-priority-low: #5a6796;
 
   /* Type — Spectral for headings & body, IBM Plex Mono for labels/meta/code */
   --font-serif: "Spectral", Georgia, serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
-  /* Radius (brand --r-*) */
+  /* Micro type (S5/PROG-147). The root is scaled to 120% (below), so rem sizes
+     ride the sizing system while px literals don't — these two tokens replace
+     the old arbitrary 10px/11px px literals. Effective: 2xs ≈ 11.5px,
+     3xs ≈ 10.6px. Line heights mirror Tailwind's convention (calc(1 / size))
+     so both get the same 1rem line box as text-xs — they're single-line
+     label/badge sizes, never body copy. */
+  --text-2xs: 0.6rem;
+  --text-2xs--line-height: calc(1 / 0.6);
+  --text-3xs: 0.55rem;
+  --text-3xs--line-height: calc(1 / 0.55);
+
+  /* Radius (brand --r-*). --radius makes bare `rounded` land on the token
+     scale (6px) instead of Tailwind's off-system 0.25rem default (S4). */
+  --radius: 6px;
   --radius-sm: 6px;
   --radius-md: 9px;
   --radius-lg: 12px;
+  --radius-xl: 14px;
+
+  /* Shadows — ink-tinted (rgb(32 37 31 / …), the new --ink) instead of
+     Tailwind's neutral black, so elevation stays in the paper voice (CR2). */
+  --shadow-sm: 0 1px 3px 0 rgb(32 37 31 / 0.08), 0 1px 2px -1px rgb(32 37 31 / 0.06);
+  --shadow-md: 0 4px 10px -2px rgb(32 37 31 / 0.1), 0 2px 4px -2px rgb(32 37 31 / 0.06);
+  --shadow-lg: 0 8px 30px rgb(32 37 31 / 0.12), 0 2px 6px -2px rgb(32 37 31 / 0.06);
+  --shadow-xl: 0 12px 40px rgb(32 37 31 / 0.14), 0 4px 10px -4px rgb(32 37 31 / 0.08);
+  --shadow-2xl: 0 20px 50px -8px rgb(32 37 31 / 0.18);
+}
+
+/* ── Theme presets (PROG-150) ──────────────────────────────────────────────────
+   Four user-selectable color schemes, applied as `data-theme` on <html>
+   (src/client/theme.ts, picker in Header.tsx, palette commands). Porcelain is
+   the `@theme` default above and needs no block — `data-theme` absent or
+   "porcelain" both render it. Each override block replaces ONLY the neutral
+   ramp, accent family, moss family, hover, and prompt trio; danger, priority
+   colors, radius, and shadows stay global across porcelain/adobe/sanzo (see
+   docs/decisions/PROG-150.md for why — in short, the ink-tinted shadows and
+   the danger/priority hues were re-verified against all three cards and still
+   clear their WCAG floors, so there's nothing theme-specific to say there).
+   `mono` (PROG-150b, below) is the one preset that DOES override danger and
+   priority — "totally monochrome" means no hue survives, full stop; see
+   docs/decisions/PROG-150.md's mono appendix for the contrast table.
+   Mirrored into brand-assets/tokens.css, which stays the source of truth. */
+
+:root[data-theme="adobe"] {
+  /* Adobe — the pre-PROG-145 "Adobe & Moss" earth tones, contrast-corrected
+     to the PROG-146 AA floor (docs/decisions/PROG-150.md has the full table). */
+  --color-paper: #f5efe0;
+  --color-canvas: #f0e9d9;
+  --color-card: #fdfaf3;
+  --color-line: #e9dec6;
+  --color-hover: #e9dec6;
+  --color-ink: #2c241b;
+  --color-ink-soft: #6b5f4d;
+  --color-ink-faint: #776a52; /* NOT the old #9a8b73 (2.75–3.19:1, audit C1) */
+
+  --color-accent-deep: #74412f;
+  --color-accent: #8f5340; /* the old adobe-deep — re-seated as the resting fill (audit S1) */
+  --color-accent-light: #bb6f50; /* the old accent core */
+  --color-accent-wash: #efb892;
+
+  --color-moss-deep: #566039;
+  --color-moss: #707c46; /* nudged past 3:1 vs card (old #79864c) */
+  --color-moss-light: #9aa468;
+  --color-moss-wash: #bcc189;
+
+  --color-prompt-text: #9d5639; /* old #a85c3d darkened minimally to clear 4.5:1 */
+  --color-prompt-border: #e0b59f;
+  --color-prompt-bg: #f7e7dc;
+}
+
+:root[data-theme="sanzo"] {
+  /* Sanzo — derived from Wada Sanzo classic combination #342 (Corinthian Pink
+     #f8b6ba, Cream Yellow #fdbf68, Orange Citrine #986f2d, Deep Slate Olive
+     #253122); every value below is a shade of one of those four hues
+     (docs/decisions/PROG-150.md has the derivation + full contrast table). */
+  --color-paper: #f9f4e9; /* light cream, from Cream Yellow */
+  --color-canvas: #f2ebde; /* one step deeper */
+  --color-card: #fefbf3; /* near-white warm cream */
+  --color-line: #e4d7c3; /* deeper low-chroma cream, leaning toward Orange Citrine */
+  --color-hover: #e4d7c3;
+  --color-ink: #253122; /* Deep Slate Olive itself */
+  --color-ink-soft: #496043;
+  --color-ink-faint: #5d7557;
+
+  --color-accent-deep: #8c3136;
+  --color-accent: #b04249; /* deep rose, from Corinthian Pink's hue */
+  --color-accent-light: #e0858a;
+  --color-accent-wash: #f9c7ca; /* near the base Corinthian Pink */
+
+  --color-moss-deep: #345a2b;
+  --color-moss: #4e8042; /* mid olive-green, from Deep Slate Olive */
+  --color-moss-light: #81b474;
+  --color-moss-wash: #d2e4cd;
+
+  --color-prompt-text: #7a571f; /* from Orange Citrine */
+  --color-prompt-border: #dfc79f;
+  --color-prompt-bg: #f6eddf;
+}
+
+:root[data-theme="mono"] {
+  /* Mono (PROG-150b) — totally monochrome: zero-chroma grays only. Unlike
+     adobe/sanzo, this preset ALSO overrides danger and the priority ramp —
+     "shades of black & white" means nothing colored survives, including
+     overdue-red and priority hues. Status/priority/estimate still encode
+     meaning in shape (pie fills, bar counts, text), not color alone, so
+     grayscale stays legible (docs/decisions/PROG-150.md has the full table). */
+  --color-paper: #f7f7f7;
+  --color-canvas: #f0f0f0;
+  --color-card: #ffffff;
+  --color-line: #e0e0e0;
+  --color-hover: #e0e0e0;
+  --color-ink: #1a1a1a;
+  --color-ink-soft: #4d4d4d;
+  --color-ink-faint: #6b6b6b;
+
+  --color-accent-deep: #000000;
+  --color-accent: #111111; /* CTA fill, ~18:1 white text */
+  --color-accent-light: #8a8a8a;
+  --color-accent-wash: #ececec;
+
+  --color-moss-deep: #4d4d4d;
+  --color-moss: #767676; /* ≥3:1 on card as a graphic (Step icon, LevelIcon) */
+  --color-moss-light: #ababab;
+  --color-moss-wash: #e6e6e6;
+
+  --color-prompt-text: #3a3a3a;
+  --color-prompt-border: #c9c9c9;
+  --color-prompt-bg: #f2f2f2;
+
+  /* Danger — overdue/error reads as heavy near-black instead of red. That's
+     the point: it's the one preset where "totally monochrome" wins over the
+     danger-is-always-warm convention the other themes keep (PROG-150). */
+  --color-danger: #1f1f1f;
+  --color-danger-bg: #efefef;
+  --color-danger-border: #c4c4c4;
+
+  /* Priority ramp — grays, still distinct enough by lightness for the bar
+     count + these shades to both carry rank (PriorityIndicator draws shape
+     AND color; mono keeps the shape, neutralizes the color). */
+  --color-priority-high: #333333;
+  --color-priority-medium: #6b6b6b;
+  --color-priority-low: #8a8a8a;
+}
+
+/* Tag chips (PROG-150 ripple check; PROG-150b): the wash/border already
+   resolve through `color-mix(…, var(--color-card))` (tags.ts), so they track
+   mono's neutral card automatically, but the HUE input and the precomputed
+   text color are still colored. `grayscale(1)` is luminance-preserving, so
+   the wash/text/border's already-verified contrast ratios survive the filter
+   unchanged — a pure attribute flip, no JS re-render needed on theme switch.
+   Applies to every colored tag swatch, not just chips (see call sites: `.tag-chip`
+   className added everywhere tagChipStyle()/tag.color renders). */
+:root[data-theme="mono"] .tag-chip {
+  filter: grayscale(1);
+}
+
+/* ── Material textures (PROG-150c) ───────────────────────────────────────────
+   Subtle per-theme surface material — canvas/paper/chrome only. Card faces
+   (.bg-card) stay clean per the standing "dark text on white-ish cards"
+   decision: cards are where text lives, so they're never textured. Where
+   textured chrome DOES carry text (header labels, board column headers),
+   amplitude is kept whisper-quiet (~2–4% luminance variation) so the
+   PROG-146 contrast floor stays untouched — verified visually per theme,
+   see docs/decisions/PROG-150.md's "PROG-150c" entry for the numbers.
+
+   Assets: mono is pure CSS (`repeating-conic-gradient`, stays pixel-crisp at
+   any zoom). The other three use small (100–200px) pre-baked data: URI SVGs
+   with the feTurbulence filter baked INTO the tile itself — the browser
+   rasterizes each tile once and tiles the raster via `background-repeat`,
+   never a live full-screen filter. Generated by a throwaway Node script
+   (not committed) and hand-verified in the browser; see that decision entry
+   to regenerate if a tile ever needs retuning.
+
+   CSP: `img-src` already includes `data:` (public/_headers, PROG-65/PROG-147
+   pasted-image support) and that directive governs CSS `background-image`
+   data: URIs too, so no CSP change was needed for this work.
+
+   Scoping mirrors the rest of this file: adobe/sanzo/mono key off
+   `:root[data-theme="…"]`; porcelain is the unscoped default (theme.ts
+   deletes the attribute rather than ever setting `data-theme="porcelain"`),
+   so its rules use the same not()-chain the file's banner comment already
+   describes for that case. Two plain marker classes stand in for utilities
+   whose Tailwind opacity-modifier suffix (`/NN`) compiles to its own literal
+   class, unreachable by a bare `.bg-line`/`.bg-paper` selector: `board-column`
+   on the board's column `<section>` (src/client/pages/Home.tsx, alongside its
+   `bg-line/40` utility) and `paper-chrome` on the sticky header and mobile
+   tab bar (src/client/Header.tsx, src/client/MobileTabBar.tsx, alongside
+   `bg-paper/90` and `bg-paper/95`). Everywhere else `.bg-paper` is used
+   without an opacity suffix (dialog panels, admin inputs), so the plain
+   `.bg-paper` selector reaches those directly. */
+
+:root {
+  /* Riso print grain (porcelain canvas) — cool-neutral, tinted near --color-ink. */
+  --tile-porcelain-grain: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxMjAnIGhlaWdodD0nMTIwJz48ZmlsdGVyIGlkPSduJyB4PScwJyB5PScwJyB3aWR0aD0nMTAwJScgaGVpZ2h0PScxMDAlJz48ZmVUdXJidWxlbmNlIHR5cGU9J2ZyYWN0YWxOb2lzZScgYmFzZUZyZXF1ZW5jeT0nMC44NScgbnVtT2N0YXZlcz0nMicgc2VlZD0nMycgc3RpdGNoVGlsZXM9J3N0aXRjaCcgcmVzdWx0PSd0Jy8+PGZlQ29sb3JNYXRyaXggaW49J3QnIHR5cGU9J21hdHJpeCcgdmFsdWVzPScwIDAgMCAwIDAuMTI1ICAwIDAgMCAwIDAuMTQ1ICAwIDAgMCAwIDAuMTIxICAwIDAgMCAwLjA3IDAnLz48L2ZpbHRlcj48cmVjdCB3aWR0aD0nMTAwJScgaGVpZ2h0PScxMDAlJyBmaWx0ZXI9J3VybCgjbiknLz48L3N2Zz4=");
+  /* Washi/rice-paper fiber (sanzo canvas + paper) — anisotropic turbulence
+     (low X frequency, higher Y) elongates the noise into fiber-like streaks;
+     warm cream/tan tint. */
+  --tile-sanzo-washi: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxNDAnIGhlaWdodD0nMTQwJz48ZmlsdGVyIGlkPSduJyB4PScwJyB5PScwJyB3aWR0aD0nMTAwJScgaGVpZ2h0PScxMDAlJz48ZmVUdXJidWxlbmNlIHR5cGU9J3R1cmJ1bGVuY2UnIGJhc2VGcmVxdWVuY3k9JzAuMDEyIDAuMjInIG51bU9jdGF2ZXM9JzMnIHNlZWQ9JzExJyBzdGl0Y2hUaWxlcz0nc3RpdGNoJyByZXN1bHQ9J3QnLz48ZmVDb2xvck1hdHJpeCBpbj0ndCcgdHlwZT0nbWF0cml4JyB2YWx1ZXM9JzAgMCAwIDAgMC41NSAgMCAwIDAgMCAwLjQyICAwIDAgMCAwIDAuMTggIDAgMCAwIDAuMDkgMCcvPjwvZmlsdGVyPjxyZWN0IHdpZHRoPScxMDAlJyBoZWlnaHQ9JzEwMCUnIGZpbHRlcj0ndXJsKCNuKScvPjwvc3ZnPg==");
+  /* Sandy/dirt speckle (adobe canvas) — small, tight grain, warm tan. */
+  --tile-adobe-sand: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxMDAnIGhlaWdodD0nMTAwJz48ZmlsdGVyIGlkPSduJyB4PScwJyB5PScwJyB3aWR0aD0nMTAwJScgaGVpZ2h0PScxMDAlJz48ZmVUdXJidWxlbmNlIHR5cGU9J2ZyYWN0YWxOb2lzZScgYmFzZUZyZXF1ZW5jeT0nMC45NScgbnVtT2N0YXZlcz0nMicgc2VlZD0nNScgc3RpdGNoVGlsZXM9J3N0aXRjaCcgcmVzdWx0PSd0Jy8+PGZlQ29sb3JNYXRyaXggaW49J3QnIHR5cGU9J21hdHJpeCcgdmFsdWVzPScwIDAgMCAwIDAuMzUgIDAgMCAwIDAgMC4yNCAgMCAwIDAgMCAwLjEyICAwIDAgMCAwLjA4IDAnLz48L2ZpbHRlcj48cmVjdCB3aWR0aD0nMTAwJScgaGVpZ2h0PScxMDAlJyBmaWx0ZXI9J3VybCgjbiknLz48L3N2Zz4=");
+  /* Leather grain (adobe paper/chrome) — larger, softer/smoother mottle than
+     the sand, same warm family. Kept low-alpha since header/tab-bar text
+     sits on it. */
+  --tile-adobe-leather: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxNjAnIGhlaWdodD0nMTYwJz48ZmlsdGVyIGlkPSduJyB4PScwJyB5PScwJyB3aWR0aD0nMTAwJScgaGVpZ2h0PScxMDAlJz48ZmVUdXJidWxlbmNlIHR5cGU9J2ZyYWN0YWxOb2lzZScgYmFzZUZyZXF1ZW5jeT0nMC4xOCcgbnVtT2N0YXZlcz0nMycgc2VlZD0nOCcgc3RpdGNoVGlsZXM9J3N0aXRjaCcgcmVzdWx0PSd0Jy8+PGZlQ29sb3JNYXRyaXggaW49J3QnIHR5cGU9J21hdHJpeCcgdmFsdWVzPScwIDAgMCAwIDAuMyAgMCAwIDAgMCAwLjIgIDAgMCAwIDAgMC4xICAwIDAgMCAwLjA2IDAnLz48L2ZpbHRlcj48cmVjdCB3aWR0aD0nMTAwJScgaGVpZ2h0PScxMDAlJyBmaWx0ZXI9J3VybCgjbiknLz48L3N2Zz4=");
+  /* Rock/stone mottle (adobe board columns) — broad, cloudy, very low
+     contrast (low turbulence frequency = large soft blobs). */
+  --tile-adobe-stone: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScyMDAnIGhlaWdodD0nMjAwJz48ZmlsdGVyIGlkPSduJyB4PScwJyB5PScwJyB3aWR0aD0nMTAwJScgaGVpZ2h0PScxMDAlJz48ZmVUdXJidWxlbmNlIHR5cGU9J2ZyYWN0YWxOb2lzZScgYmFzZUZyZXF1ZW5jeT0nMC4wNDUnIG51bU9jdGF2ZXM9JzMnIHNlZWQ9JzEzJyBzdGl0Y2hUaWxlcz0nc3RpdGNoJyByZXN1bHQ9J3QnLz48ZmVDb2xvck1hdHJpeCBpbj0ndCcgdHlwZT0nbWF0cml4JyB2YWx1ZXM9JzAgMCAwIDAgMC4zMiAgMCAwIDAgMCAwLjI4ICAwIDAgMCAwIDAuMjIgIDAgMCAwIDAuMDkgMCcvPjwvZmlsdGVyPjxyZWN0IHdpZHRoPScxMDAlJyBoZWlnaHQ9JzEwMCUnIGZpbHRlcj0ndXJsKCNuKScvPjwvc3ZnPg==");
+}
+
+/* Porcelain — riso print grain on canvas; a faint offset-print signature
+   (1px duotone edge, as if a riso pass printed a hair off-register) on
+   accent fills. Unscoped default: matches when data-theme is absent, is
+   literally "porcelain", or is any value this file doesn't otherwise
+   recognize. Only canvas + accent get a treatment here — the brief doesn't
+   ask for a paper/header texture on this preset, unlike the other three. */
+:root:not([data-theme="adobe"]):not([data-theme="sanzo"]):not([data-theme="mono"]) .bg-canvas {
+  background-image: var(--tile-porcelain-grain);
+}
+:root:not([data-theme="adobe"]):not([data-theme="sanzo"]):not([data-theme="mono"]) .bg-accent {
+  box-shadow: 1px 1px 0 0 color-mix(in srgb, var(--color-accent-light) 55%, transparent);
+}
+
+/* Mono — early-Mac 8-bit dither. Three densities of the same crisp,
+   pixel-aligned checkerboard (repeating-conic-gradient with hard 0/25/50%
+   stops + an integer background-size — no anti-aliased edges, the same
+   trick classic System 6 gray patterns used). Paper (header/tab bar, holds
+   text) runs the finest grid at the lowest alpha; canvas (body) is the
+   coarsest/sparsest; board columns sit in between. */
+:root[data-theme="mono"] .bg-canvas {
+  background-image: repeating-conic-gradient(rgb(0 0 0 / 0.05) 0% 25%, transparent 0% 50%);
+  background-size: 8px 8px;
+}
+:root[data-theme="mono"] .board-column {
+  background-image: repeating-conic-gradient(rgb(0 0 0 / 0.06) 0% 25%, transparent 0% 50%);
+  background-size: 6px 6px;
+}
+:root[data-theme="mono"] .bg-paper,
+:root[data-theme="mono"] .paper-chrome {
+  background-image: repeating-conic-gradient(rgb(0 0 0 / 0.035) 0% 25%, transparent 0% 50%);
+  background-size: 3px 3px;
+}
+
+/* Sanzo — rice paper + lacquer. Canvas + paper share one washi tile (the
+   surface's own bg-* color still comes through underneath). Lacquer: accent
+   fills (New button, save/submit CTAs — every `.bg-accent` site) get an
+   urushi-gloss top sheen + a hair of inset top highlight + a deepened bottom
+   edge, layered independently of the background-color utility so
+   hover:bg-accent-deep etc. keep working (only the color underneath
+   changes). */
+:root[data-theme="sanzo"] .bg-canvas,
+:root[data-theme="sanzo"] .bg-paper,
+:root[data-theme="sanzo"] .paper-chrome {
+  background-image: var(--tile-sanzo-washi);
+}
+:root[data-theme="sanzo"] .bg-accent {
+  background-image: linear-gradient(to bottom, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0) 40%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.25),
+    inset 0 -2px 3px -2px rgb(0 0 0 / 0.25);
+}
+
+/* Adobe — earth: dirt, leather, rock. Three related but distinct scales of
+   the same warm family, not noise soup: fine sandy speckle on canvas, a
+   softer/larger leather mottle on paper chrome, a broad cloudy stone mottle
+   on board column surfaces. */
+:root[data-theme="adobe"] .bg-canvas {
+  background-image: var(--tile-adobe-sand);
+}
+:root[data-theme="adobe"] .bg-paper,
+:root[data-theme="adobe"] .paper-chrome {
+  background-image: var(--tile-adobe-leather);
+}
+:root[data-theme="adobe"] .board-column {
+  background-image: var(--tile-adobe-stone);
+}
+
+/* Accessibility escape hatch: flat backgrounds win under a stated contrast
+   preference. Overriding the tile custom properties at :root handles every
+   var()-based rule above in one place; mono's gradients and the sanzo/
+   porcelain accent treatments aren't var-based, so they're named directly. */
+@media (prefers-contrast: more) {
+  :root {
+    --tile-porcelain-grain: none;
+    --tile-sanzo-washi: none;
+    --tile-adobe-sand: none;
+    --tile-adobe-leather: none;
+    --tile-adobe-stone: none;
+  }
+  :root[data-theme="mono"] .bg-canvas,
+  :root[data-theme="mono"] .board-column,
+  :root[data-theme="mono"] .bg-paper,
+  :root[data-theme="mono"] .paper-chrome {
+    background-image: none;
+  }
+  :root[data-theme="sanzo"] .bg-accent,
+  :root:not([data-theme="adobe"]):not([data-theme="sanzo"]):not([data-theme="mono"]) .bg-accent {
+    background-image: none;
+    box-shadow: none;
+  }
+}
+
+/* ── Self-hosted fonts (CR5/PROG-147) ─────────────────────────────────────────
+   Spectral 400/500/600 + IBM Plex Mono 400/500, latin subsets only (~15–23KB
+   each), served from public/fonts/ instead of Google's CDN — no third-party
+   render-blocking CSS, works offline as a PWA. The two workhorse files
+   (Spectral 400, Plex Mono 400) are preloaded from index.html. unicode-range
+   matches Google's latin subset; non-latin glyphs fall back to Georgia /
+   ui-monospace. Italic faces are deliberately not shipped (one `italic` use in
+   the app; the browser synthesizes it, same as with the old CDN link, which
+   never loaded italics either). */
+@font-face {
+  font-family: "Spectral";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/spectral-400.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Spectral";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/spectral-500.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Spectral";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/spectral-600.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-mono-400.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-mono-500.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 /* Papery base: deep ink on light canvas, Spectral throughout. */
@@ -77,6 +444,39 @@
   select,
   textarea {
     font-size: max(16px, 1em);
+  }
+
+  /* Visible keyboard focus everywhere (PROG-146 C3 / PROG-149). One accent
+     outline on :focus-visible replaces the 24 scattered `focus:outline-none`
+     suppressions — a keyboard-first product must show where the keyboard is.
+     :focus-visible already distinguishes keyboard from mouse focus (a plain
+     click doesn't ring), so no `:focus { outline: none }` reset is needed and
+     none is added. Inputs keep their focus border/ring secondary cues.
+     #3d52c4 is ≥3:1 against both the white card and the sage canvas. Inputs
+     seated flush inside overflow-hidden dialog frames (the palette/search
+     inputs) pull the ring inward with -outline-offset-2 instead of hiding it. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
+
+/* Reduced motion (CR4/PROG-149): the app's whole motion budget is the dnd drop
+   tween, a chevron rotate, and the drag-card tilt (styles.css comment at
+   `--shadow-*`, dropAnimation.ts, FilterBar's chevron) — none load-bearing for
+   comprehension, so a blanket kill is safe and simpler than auditing each one.
+   `!important` because these are almost all Tailwind utility `transition-*`/
+   `animate-*` classes, which this unlayered block must outrank. The dnd-kit
+   drop tween is a JS-driven Web Animations call, not CSS, so it can't be
+   caught here — dropAnimation.ts checks the same media query directly. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
   }
 }
 
@@ -201,7 +601,7 @@
   margin: 0.5em 0;
 }
 .prose-lite a {
-  color: var(--color-adobe);
+  color: var(--color-accent);
   text-decoration: underline;
 }
 /* Pasted/uploaded images (PROG-42): cap to the column, keep them tidy. */

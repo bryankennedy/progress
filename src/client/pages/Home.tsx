@@ -38,11 +38,12 @@ import { DROP_ANIMATION } from "../dropAnimation";
 import { reorder, type ColumnMap } from "../boardOrder";
 import { BOARD_FILTERS_KEY, FILTER_NONE, matchesNullableId } from "../boardFilters";
 import FilterBar, { useStickyFilterUrl } from "../FilterBar";
+import PageHeader from "../PageHeader";
 import { recentlyCompleted } from "../boardDone";
 import type { WireAction, WireTag, SnapshotPayload } from "../../shared/types";
 import { openCreateAction } from "../commands/controller";
 import { dayDiff, formatDueDate, relativeDue, todayISO } from "../dates";
-import { tagsByAction as buildTagsByAction } from "../tags";
+import { tagChipStyle, tagsByAction as buildTagsByAction } from "../tags";
 import { STATUS_LABELS } from "../labels";
 import PriorityIndicator from "../PriorityIndicator";
 import { actionKeyOf, loadStats, updateAction, type ActionPatch } from "../store";
@@ -329,20 +330,21 @@ export default function Home({ snapshot }: { snapshot: SnapshotPayload }) {
 
   return (
     <>
-      {/* No page title here: the global header already shows the "Progress"
-          app name (PROG-53 — drop the redundant heading). */}
-      <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <p className="text-xs text-ink-faint">
-          {shownCount} actions on board · {snapshot.actions.length} total · loaded in{" "}
-          {Math.round(loadStats.fetchMs)} ms · ⌘K for commands
-        </p>
-        <button
-          onClick={() => openCreateAction()}
-          className="ml-auto inline-flex min-h-11 items-center rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep sm:min-h-0"
-        >
-          New action <span className="ml-1 text-white/70">(C)</span>
-        </button>
-      </header>
+      {/* The shared page-header grammar (PROG-148, superseding PROG-53's
+          no-heading call): every route opens with an h1, the board included —
+          its heading order used to start at the h2 column labels. The page's
+          own "New action" button is gone too (audit CR7): the global header's
+          New menu and the C shortcut are the create entry points, same as on
+          every other page; the ghost card per column stays. */}
+      <PageHeader
+        title="Board"
+        meta={
+          <>
+            {shownCount} actions on board · {snapshot.actions.length} total · loaded in{" "}
+            {Math.round(loadStats.fetchMs)} ms · ⌘K for commands · C for a new action
+          </>
+        }
+      />
 
       {/* The shared filter bar (PROG-92): six dropdowns + mobile disclosure +
           Clear, identical to the search page's. The board's toggles ride in the
@@ -492,14 +494,19 @@ function BoardColumn({
       ref={setNodeRef}
       // snap-start: this column's left edge is the snap point the row settles on
       // when scrolled horizontally on a phone (see the row's snap-x/mandatory).
-      className={`flex min-w-72 flex-1 snap-start flex-col rounded-lg p-2 ${isOver ? "bg-adobe-wash/30 ring-1 ring-adobe-light" : "bg-line/40"}`}
+      // board-column: a plain marker class (PROG-150c) so the theme-texture
+      // rules in styles.css have something stable to hook — the surface's own
+      // background comes from the bg-line/40 / bg-accent-wash utilities below.
+      className={`board-column flex min-w-72 flex-1 snap-start flex-col rounded-lg p-2 ${isOver ? "bg-accent-wash/30 ring-1 ring-accent-light" : "bg-line/40"}`}
     >
       <h2 className="px-1 pb-2 text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">
         {STATUS_LABELS[status]} ·{" "}
         {hiddenCount ? `${actionIds.length} of ${total}` : actionIds.length}
       </h2>
       <SortableContext items={actionIds} strategy={verticalListSortingStrategy}>
-        <div className="flex min-h-8 flex-1 flex-col gap-1.5">
+        {/* min-h-11: an empty column still offers a 44px drop target — the same
+            touch floor every interactive control in the app respects (N6). */}
+        <div className="flex min-h-11 flex-1 flex-col gap-1.5">
           {actionIds.map((id) => {
             const action = actionsById.get(id);
             if (!action) return null;
@@ -599,7 +606,7 @@ function CardView({
   const isChild = action.parentActionId !== null;
   return (
     <div
-      className={`cursor-pointer rounded-md border border-line bg-card p-2.5 text-sm hover:border-line ${
+      className={`cursor-pointer rounded-md border border-line bg-card p-2.5 text-sm hover:border-ink-faint ${
         isChild ? "ml-4 border-l-2" : ""
       } ${dragging ? "rotate-1 shadow-lg" : "shadow-sm"}`}
       style={isChild ? { borderLeftColor: "var(--color-moss)" } : undefined}
@@ -627,8 +634,8 @@ function CardView({
           {tags.map((tag) => (
             <span
               key={tag.id}
-              className="rounded-full px-1.5 py-px text-[10px] text-white"
-              style={{ backgroundColor: tag.color }}
+              className="tag-chip rounded-full border px-1.5 py-px text-3xs"
+              style={tagChipStyle(tag.color)}
             >
               {tag.name}
             </span>
@@ -654,12 +661,12 @@ function CardView({
 // own phrasing ("in 3 days · Jul 1"), sized and weighted to match the priority
 // indicator so the two corners read as a balanced pair. Color echoes the
 // priority language — overdue uses the same on-system danger tomato as urgent,
-// due-today the active "adobe" accent, else a quiet neutral.
+// due-today the active "accent" accent, else a quiet neutral.
 function CardDueDate({ due }: { due: string }) {
   const today = todayISO();
   const diff = dayDiff(today, due);
   const tone =
-    diff < 0 ? "text-danger" : diff === 0 ? "text-adobe-deep font-medium" : "text-ink-soft";
+    diff < 0 ? "text-danger" : diff === 0 ? "text-accent-deep font-medium" : "text-ink-soft";
   return (
     <span className={`inline-flex items-center gap-1 font-mono ${tone}`} title={`Due ${due}`}>
       <svg

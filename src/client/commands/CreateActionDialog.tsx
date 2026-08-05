@@ -37,6 +37,7 @@ import PriorityIndicator from "../PriorityIndicator";
 import StatusIndicator from "../StatusIndicator";
 import { createContainer, createAction, findActionByKey } from "../store";
 import { onOpenCreateAction, type CreateDefaults } from "./controller";
+import { useFocusTrap } from "./useFocusTrap";
 
 // e.g. "My Side Project" → "MYSI"; the user can override.
 const suggestPrefix = (name: string) =>
@@ -98,6 +99,8 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
   const [newArc, setNewArc] = useState<string | null>(null);
   const [path, navigate] = useLocation();
   const search = useSearch();
+  // Tab containment + focus restore on close (PROG-146 C4).
+  const trapRef = useFocusTrap<HTMLFormElement>(open);
 
   useEffect(
     () =>
@@ -213,8 +216,12 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-ink/20 p-4" onMouseDown={() => setOpen(false)}>
+    <div className="fixed inset-0 z-50 bg-ink/30 p-4" onMouseDown={() => setOpen(false)}>
       <form
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="New action"
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === "Escape") setOpen(false);
@@ -225,7 +232,9 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
         }}
         // max-h + scroll: the labeled-field stack is taller than the old
         // one-line chip row, so short viewports scroll inside the dialog.
-        className="mx-auto mt-[8vh] max-h-[84vh] max-w-lg overflow-y-auto rounded-xl border border-line bg-card p-4 shadow-2xl"
+        // mt-[12vh] matches every other modal's vertical seat (PROG-148, N4);
+        // 12 + 80 vh still clears the viewport bottom.
+        className="mx-auto mt-[12vh] max-h-[80vh] max-w-lg overflow-y-auto rounded-xl border border-line bg-card p-4 shadow-lg"
       >
         <h2 className="text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">
           New action
@@ -235,7 +244,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Action title"
-          className="mt-2 w-full rounded border border-line px-3 py-2 text-sm focus:border-ink-faint focus:outline-none"
+          className="mt-2 w-full rounded border border-line px-3 py-2 text-sm focus:border-ink-faint"
         />
 
         {/* The sidebar's field anatomy in a creation-first order (PROG-117b):
@@ -330,7 +339,9 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
                       }
                     }}
                     placeholder="Filter…"
-                    className="w-full border-b border-line bg-transparent px-3 py-2 text-sm focus:outline-none"
+                    // Inset focus ring: flush inside the picker pane's
+                    // overflow-hidden frame (PROG-149).
+                    className="w-full border-b border-line bg-transparent px-3 py-2 text-sm -outline-offset-2"
                   />
                   <ul className="max-h-44 overflow-y-auto p-1">
                     {rows.map((row) =>
@@ -346,7 +357,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
                           <button
                             type="button"
                             onClick={() => pickLocation(row)}
-                            className={`flex w-full items-center justify-between gap-3 rounded py-1.5 pr-2 text-left text-sm hover:bg-line ${
+                            className={`flex w-full items-center justify-between gap-3 rounded py-1.5 pr-2 text-left text-sm hover:bg-hover ${
                               row.kind === "arc" ? "pl-10" : "pl-6"
                             }`}
                           >
@@ -411,7 +422,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
                       }
                     }}
                     placeholder="Focus name"
-                    className="min-w-40 flex-1 rounded border border-line px-2 py-1 text-xs focus:border-ink-faint focus:outline-none"
+                    className="min-w-40 flex-1 rounded border border-line px-2 py-1 text-xs focus:border-ink-faint"
                   />
                   <input
                     value={newFocus.prefix}
@@ -430,13 +441,14 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
                     }
                     placeholder="KEY"
                     title="Action-key prefix: 2–8 letters"
-                    className="w-20 rounded border border-line px-2 py-1 font-mono text-xs uppercase focus:border-ink-faint focus:outline-none"
+                    className="w-20 rounded border border-line px-2 py-1 font-mono text-xs uppercase focus:border-ink-faint"
                   />
                   <select
                     value={newFocus.workspaceId}
                     onChange={(e) =>
                       setNewFocus((p) => (p ? { ...p, workspaceId: e.target.value } : p))
                     }
+                    aria-label="Workspace for the new focus"
                     className="rounded border border-line bg-card px-2 py-1 text-xs text-ink-soft hover:border-ink-faint"
                   >
                     {activeWorkspaces.map((i) => (
@@ -453,7 +465,7 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
                       !/^[A-Z]{2,8}$/.test(newFocus.prefix) ||
                       !newFocus.workspaceId
                     }
-                    className="rounded bg-adobe px-2 py-1 text-xs text-white hover:bg-adobe-deep disabled:opacity-40"
+                    className="rounded bg-accent px-2 py-1 text-xs text-white hover:bg-accent-deep disabled:opacity-40"
                   >
                     Add
                   </button>
@@ -474,13 +486,13 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
                       }
                     }}
                     placeholder="Arc name"
-                    className="min-w-40 flex-1 rounded border border-line px-2 py-1 text-xs focus:border-ink-faint focus:outline-none"
+                    className="min-w-40 flex-1 rounded border border-line px-2 py-1 text-xs focus:border-ink-faint"
                   />
                   <button
                     type="button"
                     onClick={submitNewArc}
                     disabled={newArc.trim() === "" || !selectedFocusId}
-                    className="rounded bg-adobe px-2 py-1 text-xs text-white hover:bg-adobe-deep disabled:opacity-40"
+                    className="rounded bg-accent px-2 py-1 text-xs text-white hover:bg-accent-deep disabled:opacity-40"
                   >
                     Add
                   </button>
@@ -518,14 +530,14 @@ export default function CreateActionDialog({ snapshot }: { snapshot: SnapshotPay
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="rounded px-3 py-1 text-sm text-ink-soft hover:bg-line"
+            className="rounded px-3 py-1 text-sm text-ink-soft hover:bg-hover"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={title.trim() === "" || !selectedFocusId}
-            className="rounded bg-adobe px-3 py-1 text-sm text-white hover:bg-adobe-deep disabled:opacity-40"
+            className="rounded bg-accent px-3 py-1 text-sm text-white hover:bg-accent-deep disabled:opacity-40"
           >
             Create action
           </button>

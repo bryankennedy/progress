@@ -49,11 +49,13 @@ function PlusSquareIcon({ className }: { className?: string }) {
 function Card({ children, onDismiss }: { children: React.ReactNode; onDismiss: () => void }) {
   return (
     <div className="pwa-safe-bottom pwa-safe-x fixed inset-x-0 bottom-16 z-50 flex justify-center px-3 pb-3 sm:bottom-0">
-      <div className="relative w-full max-w-md rounded-lg border border-line bg-paper p-4 shadow-xl">
+      {/* bg-card, not paper: this floats as a raised card over the app, and
+          raised surfaces standardized on the white card (PROG-145). */}
+      <div className="relative w-full max-w-md rounded-lg border border-line bg-card p-4 shadow-xl">
         <button
           onClick={onDismiss}
           aria-label="Dismiss"
-          className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded text-ink-faint hover:bg-line hover:text-ink"
+          className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded text-ink-faint hover:bg-hover hover:text-ink"
         >
           ✕
         </button>
@@ -92,7 +94,7 @@ export default function InstallPrompt() {
           </div>
           <button
             onClick={promptInstall}
-            className="ml-auto flex-none rounded bg-adobe px-3 py-1.5 text-sm font-medium text-white hover:bg-adobe-deep"
+            className="ml-auto flex-none rounded bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-deep"
           >
             Install
           </button>
@@ -116,7 +118,7 @@ export default function InstallPrompt() {
               <span className="font-mono text-xs text-ink-faint">1.</span>
               <span className="flex items-center gap-1.5">
                 Tap
-                <ShareIcon className="inline-block h-5 w-5 text-adobe" />
+                <ShareIcon className="inline-block h-5 w-5 text-accent" />
                 <span className="font-medium">Share</span> in the toolbar
               </span>
             </li>
@@ -124,7 +126,7 @@ export default function InstallPrompt() {
               <span className="font-mono text-xs text-ink-faint">2.</span>
               <span className="flex items-center gap-1.5">
                 Choose
-                <PlusSquareIcon className="inline-block h-5 w-5 text-adobe" />
+                <PlusSquareIcon className="inline-block h-5 w-5 text-accent" />
                 <span className="font-medium">Add to Home Screen</span>
               </span>
             </li>

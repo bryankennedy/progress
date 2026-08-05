@@ -23,6 +23,7 @@ import ActionTable, { Highlighted } from "../ActionTable";
 import { FILTER_NONE, matchesNullableId, SEARCH_FILTERS_KEY } from "../boardFilters";
 import FilterBar, { useStickyFilterUrl } from "../FilterBar";
 import FilterSelect from "../FilterSelect";
+import PageHeader from "../PageHeader";
 import {
   browseActions,
   containerLabel,
@@ -190,12 +191,15 @@ export default function Search({ snapshot }: { snapshot: SnapshotPayload }) {
     // Full app-shell width (PROG-92) — matching the board so the filter row
     // fits on one line on desktop; <main> caps it at max-w-screen-2xl.
     <div>
+      {/* The shared page-header grammar (PROG-148): the page used to open on
+          the bare input, leaving its heading order to start at the h2 sections. */}
+      <PageHeader title="Search" />
       <input
         autoFocus
         value={q}
         onChange={(e) => setParam("q", e.target.value || null)}
         placeholder="Search actions, descriptions, comments…"
-        className="w-full rounded-lg border border-line bg-card px-4 py-3 text-sm focus:border-ink-faint focus:outline-none"
+        className="mt-4 w-full rounded-lg border border-line bg-card px-4 py-3 text-sm focus:border-ink-faint"
       />
 
       {/* The shared filter bar (PROG-92): identical dropdowns, mobile
@@ -342,7 +346,9 @@ function Section({
 }) {
   return (
     <section>
-      <h2 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-ink-faint">
+      {/* font-mono matches the identical section headings elsewhere (the board
+          columns, ActionListView) — one section-heading voice (PROG-148, N3). */}
+      <h2 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide font-mono text-ink-faint">
         {title} · {count}
         {countIsPartial && "+"}
         {loading && (

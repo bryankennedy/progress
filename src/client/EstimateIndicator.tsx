@@ -9,8 +9,8 @@
 
 import { ACTION_ESTIMATES } from "../shared/constants";
 
-const TRACK = "var(--color-ink-faint, #9a8b73)";
-const FILL = "var(--color-ink-soft, #6b5f4d)";
+const TRACK = "var(--color-ink-faint, #6d7568)";
+const FILL = "var(--color-ink-soft, #5a6355)";
 
 // Inner fill area of the gauge (inside the 1.5-stroke outline).
 const INNER = { x: 5, yTop: 4.75, yBottom: 11.25, w: 6 };

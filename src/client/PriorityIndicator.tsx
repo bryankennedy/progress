@@ -29,7 +29,7 @@ const BARS = [
 
 // Unfilled bars: a faint neutral track so the empty steps read as "not set",
 // matching how "none" used to render (the old hollow ring used this same token).
-const TRACK = "var(--color-ink-faint, #9a8b73)";
+const TRACK = "var(--color-ink-faint, #6d7568)";
 
 export default function PriorityIndicator({
   priority,
@@ -65,7 +65,9 @@ export default function PriorityIndicator({
             height={b.h}
             rx="1"
             fill={i < filled ? color : TRACK}
-            opacity={i < filled ? 1 : 0.3}
+            // 0.55 (was 0.3): the unfilled track has to stay visible on the
+            // white card so "high" vs "medium" reads at 14px (PROG-146 S3).
+            opacity={i < filled ? 1 : 0.55}
           />
         ))
       )}

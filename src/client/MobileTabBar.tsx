@@ -2,7 +2,7 @@
 // header's inline nav is hidden (it overflowed and scrolled sideways), and this
 // fixed bar takes over: the four primary surfaces get a tab each, the rest sit
 // behind a "More" sheet (the iOS-standard 5-slot pattern). The active tab is
-// always lit (icon + label in the adobe accent), so you can see where you are at
+// always lit (icon + label in the accent accent), so you can see where you are at
 // a glance without opening anything. Hidden at `sm` and up, where the inline nav
 // returns. Destinations come from the shared NAV list so the two can't drift.
 
@@ -22,12 +22,15 @@ export default function MobileTabBar() {
   return (
     // pwa-safe-bottom/x: clear the iOS home indicator and rounded corners; inert
     // in a desktop browser. backdrop-blur + translucent paper matches the header.
-    <nav className="pwa-safe-bottom pwa-safe-x fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper/95 backdrop-blur sm:hidden">
+    // paper-chrome (PROG-150c): see Header.tsx's comment — bg-paper/95's
+    // opacity suffix compiles to its own literal utility, unreachable by a
+    // bare `.bg-paper` selector.
+    <nav className="pwa-safe-bottom pwa-safe-x paper-chrome fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper/95 backdrop-blur sm:hidden">
       {moreOpen && (
         <>
           {/* Tap anywhere outside to dismiss the sheet. */}
           <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
-          <div className="absolute inset-x-0 bottom-full z-50 border-t border-line bg-card pb-1 shadow-xl">
+          <div className="absolute inset-x-0 bottom-full z-50 border-t border-line bg-card pb-1 shadow-md">
             {secondary.map((item) => {
               const active = item.match(path);
               return (
@@ -37,7 +40,7 @@ export default function MobileTabBar() {
                   onClick={() => setMoreOpen(false)}
                   aria-current={active ? "page" : undefined}
                   className={`flex items-center gap-3 px-5 py-3 text-sm ${
-                    active ? "bg-adobe-wash/40 text-adobe-deep" : "text-ink-soft hover:bg-line"
+                    active ? "bg-accent-wash/40 text-accent-deep" : "text-ink-soft hover:bg-hover"
                   }`}
                 >
                   <span className="text-ink-faint">{item.icon}</span>
@@ -56,10 +59,11 @@ export default function MobileTabBar() {
         <button
           type="button"
           onClick={() => setMoreOpen((o) => !o)}
+          aria-haspopup="true"
           aria-expanded={moreOpen}
           aria-current={moreActive ? "page" : undefined}
-          className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[10px] font-medium ${
-            moreActive || moreOpen ? "text-adobe-deep" : "text-ink-faint"
+          className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-3xs font-medium ${
+            moreActive || moreOpen ? "text-accent-deep" : "text-ink-faint"
           }`}
         >
           {MoreIcon}
@@ -75,8 +79,8 @@ function Tab({ item, active }: { item: NavItem; active: boolean }) {
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
-      className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[10px] font-medium ${
-        active ? "text-adobe-deep" : "text-ink-faint"
+      className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-3xs font-medium ${
+        active ? "text-accent-deep" : "text-ink-faint"
       }`}
     >
       {item.icon}

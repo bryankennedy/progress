@@ -60,6 +60,8 @@ import {
   updateAction,
 } from "../store";
 import { clearDraft, readDraft, writeDraft } from "../drafts";
+import { ChevronDownGlyph } from "../glyphs";
+import PageHeader from "../PageHeader";
 import PriorityPicker from "../PriorityPicker";
 import StatusPicker from "../StatusPicker";
 import { DROP_ANIMATION } from "../dropAnimation";
@@ -175,7 +177,7 @@ function Handle({
         e.preventDefault();
         navigate(href);
       }}
-      className="flex h-6 w-6 shrink-0 cursor-grab touch-none select-none items-center justify-center rounded [-webkit-touch-callout:none] hover:bg-line active:cursor-grabbing"
+      className="flex h-6 w-6 shrink-0 cursor-grab touch-none select-none items-center justify-center rounded [-webkit-touch-callout:none] hover:bg-hover active:cursor-grabbing"
     >
       <LevelIcon kind={kind} />
     </a>
@@ -257,14 +259,23 @@ function ArcMenu({ action, arcs }: { action: WireAction; arcs: WireArc[] }) {
       <button
         onClick={() => setOpen((o) => !o)}
         title="Assign to an arc"
-        className="rounded px-1 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
+        aria-label="Assign to an arc"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="inline-flex items-center gap-0.5 rounded px-1 text-xs text-ink-faint hover:bg-hover hover:text-ink-soft"
       >
-        {action.arcId ? "arc ▾" : "→ arc"}
+        {action.arcId ? (
+          <>
+            arc <ChevronDownGlyph className="h-3 w-3 shrink-0" />
+          </>
+        ) : (
+          "→ arc"
+        )}
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 z-50 mt-1 w-48 overflow-hidden rounded-lg border border-line bg-card py-1 shadow-xl">
+          <div className="absolute left-0 z-50 mt-1 w-48 overflow-hidden rounded-lg border border-line bg-card py-1 shadow-md">
             {focusArcs.map((a) => (
               <button
                 key={a.id}
@@ -272,7 +283,7 @@ function ArcMenu({ action, arcs }: { action: WireAction; arcs: WireArc[] }) {
                   setOpen(false);
                   void updateAction(action.id, { arcId: a.id });
                 }}
-                className={`block w-full px-3 py-1.5 text-left text-sm hover:bg-line ${action.arcId === a.id ? "text-adobe-deep" : "text-ink-soft"}`}
+                className={`block w-full px-3 py-1.5 text-left text-sm hover:bg-hover ${action.arcId === a.id ? "text-accent-deep" : "text-ink-soft"}`}
               >
                 {a.name}
               </button>
@@ -290,7 +301,7 @@ function ArcMenu({ action, arcs }: { action: WireAction; arcs: WireArc[] }) {
                   void updateAction(action.id, { arcId: id });
                 }
               }}
-              className="block w-full border-t border-line px-3 py-1.5 text-left text-sm text-ink-soft hover:bg-line"
+              className="block w-full border-t border-line px-3 py-1.5 text-left text-sm text-ink-soft hover:bg-hover"
             >
               + New arc…
             </button>
@@ -300,7 +311,7 @@ function ArcMenu({ action, arcs }: { action: WireAction; arcs: WireArc[] }) {
                   setOpen(false);
                   void updateAction(action.id, { arcId: null });
                 }}
-                className="block w-full border-t border-line px-3 py-1.5 text-left text-sm text-ink-faint hover:bg-line"
+                className="block w-full border-t border-line px-3 py-1.5 text-left text-sm text-ink-faint hover:bg-hover"
               >
                 Remove from arc
               </button>
@@ -411,7 +422,7 @@ const ActionRow = memo(function ActionRow({
 
   return (
     <div
-      className="group flex items-center gap-1.5 rounded py-0.5 hover:bg-line/30"
+      className="group flex items-center gap-1.5 rounded py-0.5 hover:bg-hover/30"
       style={{ paddingLeft: depth * 22 }}
     >
       {/* The row's single handle (PROG-111): the level bullet, tappable to open
@@ -444,7 +455,7 @@ const ActionRow = memo(function ActionRow({
             onOutdent(action);
           }
         }}
-        className={`min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-sm focus:bg-card focus:outline-none focus:ring-1 focus:ring-line ${
+        className={`min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-sm focus:bg-card focus:ring-1 focus:ring-line ${
           done ? CLOSED_TITLE_CLASS : "text-ink"
         }`}
       />
@@ -785,7 +796,7 @@ const FocusOutline = memo(function FocusOutline({
           {!captureAtTopLevel && (
             <button
               onClick={resetCapture}
-              className="mt-1 rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
+              className="mt-1 rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-hover hover:text-ink-soft"
             >
               ↥ back to top level
             </button>
@@ -807,7 +818,7 @@ const FocusOutline = memo(function FocusOutline({
               <Link href={`/focus/${focus.id}`} className="font-medium text-ink hover:underline">
                 {focus.name}
               </Link>
-              <span className="font-mono text-[11px] text-ink-faint">{focus.keyPrefix}</span>
+              <span className="font-mono text-2xs text-ink-faint">{focus.keyPrefix}</span>
               {/* The mirrored repo, as Structure showed it (PROG-140): opens in a
                   new tab; stops propagation so it never triggers the section drag. */}
               {focus.gitUrl && (
@@ -816,7 +827,7 @@ const FocusOutline = memo(function FocusOutline({
                   target="_blank"
                   rel="noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="max-w-[12rem] truncate font-mono text-[11px] text-ink-faint hover:text-ink-soft hover:underline"
+                  className="max-w-[12rem] truncate font-mono text-2xs text-ink-faint hover:text-ink-soft hover:underline"
                 >
                   {focus.gitUrl.replace(/^https?:\/\//, "")}
                 </a>
@@ -885,7 +896,7 @@ const FocusOutline = memo(function FocusOutline({
                           setCaptureArc(arc.id);
                           setFocusToken((t) => t + 1);
                         }}
-                        className="ml-[22px] rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
+                        className="ml-[22px] rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-hover hover:text-ink-soft"
                       >
                         + action here
                       </button>
@@ -909,7 +920,7 @@ const FocusOutline = memo(function FocusOutline({
           ) : (
             <button
               onClick={() => setAddingArc(true)}
-              className="mt-1 ml-[30px] rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
+              className="mt-1 ml-[30px] rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-hover hover:text-ink-soft"
             >
               + new arc
             </button>
@@ -919,7 +930,7 @@ const FocusOutline = memo(function FocusOutline({
           {!captureAtTopLevel && (
             <button
               onClick={resetCapture}
-              className="mt-1 rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-line hover:text-ink-soft"
+              className="mt-1 rounded px-1 py-0.5 text-xs text-ink-faint hover:bg-hover hover:text-ink-soft"
             >
               ↥ back to top level
             </button>
@@ -1551,7 +1562,7 @@ export function OutlineView({
               <>
                 <LevelIcon kind="focus" />
                 <span className="font-medium text-ink">{heldFocus.name}</span>
-                <span className="font-mono text-[11px] text-ink-faint">{heldFocus.keyPrefix}</span>
+                <span className="font-mono text-2xs text-ink-faint">{heldFocus.keyPrefix}</span>
               </>
             }
             rows={heldRows}
@@ -1666,69 +1677,71 @@ export default function Outline({ snapshot }: { snapshot: SnapshotPayload }) {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Outline</h1>
-          <p className="mt-1 text-xs text-ink-faint">
+      <PageHeader
+        title="Outline"
+        below={
+          <p className="text-xs text-ink-faint">
             Fast capture — type to add actions, <kbd>Enter</kbd> for the next, <kbd>Tab</kbd>/
             <kbd>Shift+Tab</kbd> to nest. Each row&apos;s bullet is its handle — tap it to open,
             drag it to reorder or drop it into another arc or focus.
           </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-ink-soft">
-            <input
-              type="checkbox"
-              checked={hideDone}
-              onChange={(e) => setHideDone(e.target.checked)}
-              className="h-3.5 w-3.5 accent-adobe-deep"
-            />
-            Hide done
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <span className="text-ink-faint">Scope</span>
-            <select
-              value={root.kind === "all" ? "all" : `${root.kind}:${root.id}`}
-              onChange={(e) => setRoot(e.target.value)}
-              className="rounded border border-line bg-card px-2 py-1 text-sm text-ink focus:outline-none"
-            >
-              {/* The whole tree first (PROG-140), then each workspace and its
+        }
+        actions={
+          <>
+            <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-ink-soft">
+              <input
+                type="checkbox"
+                checked={hideDone}
+                onChange={(e) => setHideDone(e.target.checked)}
+                className="h-3.5 w-3.5 accent-accent-deep"
+              />
+              Hide done
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-ink-faint">Scope</span>
+              <select
+                value={root.kind === "all" ? "all" : `${root.kind}:${root.id}`}
+                onChange={(e) => setRoot(e.target.value)}
+                className="rounded border border-line bg-card px-2 py-1 text-sm text-ink"
+              >
+                {/* The whole tree first (PROG-140), then each workspace and its
                   focuses. */}
-              <option value="all">All workspaces</option>
-              {/* Focuses nest under their workspace (PROG-109) — each workspace
+                <option value="all">All workspaces</option>
+                {/* Focuses nest under their workspace (PROG-109) — each workspace
                   option is followed by its focuses, indented. Both levels stay
                   selectable; nbsp indentation because <option> padding isn't
                   styleable cross-browser. */}
-              {workspaces.map((i) => (
-                <Fragment key={i.id}>
-                  <option value={`workspace:${i.id}`}>{i.name}</option>
-                  {focuses
-                    .filter((p) => p.workspaceId === i.id)
-                    .map((p) => (
-                      <option key={p.id} value={`focus:${p.id}`}>
-                        {"\u00a0\u00a0\u00a0"}
-                        {p.name}
-                      </option>
-                    ))}
-                </Fragment>
-              ))}
-              {/* Active focuses whose workspace is archived would otherwise
+                {workspaces.map((i) => (
+                  <Fragment key={i.id}>
+                    <option value={`workspace:${i.id}`}>{i.name}</option>
+                    {focuses
+                      .filter((p) => p.workspaceId === i.id)
+                      .map((p) => (
+                        <option key={p.id} value={`focus:${p.id}`}>
+                          {"\u00a0\u00a0\u00a0"}
+                          {p.name}
+                        </option>
+                      ))}
+                  </Fragment>
+                ))}
+                {/* Active focuses whose workspace is archived would otherwise
                   vanish from the picker — keep them reachable at the end. */}
-              {focuses.some((p) => !workspaces.some((i) => i.id === p.workspaceId)) && (
-                <optgroup label="Other focuses">
-                  {focuses
-                    .filter((p) => !workspaces.some((i) => i.id === p.workspaceId))
-                    .map((p) => (
-                      <option key={p.id} value={`focus:${p.id}`}>
-                        {p.name}
-                      </option>
-                    ))}
-                </optgroup>
-              )}
-            </select>
-          </label>
-        </div>
-      </div>
+                {focuses.some((p) => !workspaces.some((i) => i.id === p.workspaceId)) && (
+                  <optgroup label="Other focuses">
+                    {focuses
+                      .filter((p) => !workspaces.some((i) => i.id === p.workspaceId))
+                      .map((p) => (
+                        <option key={p.id} value={`focus:${p.id}`}>
+                          {p.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                )}
+              </select>
+            </label>
+          </>
+        }
+      />
 
       <div className="mt-5 space-y-4">
         <OutlineView snapshot={snapshot} scope={root} hideDone={hideDone} />
