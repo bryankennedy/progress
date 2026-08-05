@@ -67,3 +67,23 @@ export function ArcGlyph() {
     </svg>
   );
 }
+
+// Check glyph (PROG-150): the "selected" marker in the Header theme picker.
+// Same currentColor line idiom as ChevronDownGlyph (audit N1) rather than a
+// text "✓" glyph.
+export function CheckGlyph({ className = "h-3.5 w-3.5 shrink-0" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      aria-hidden
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3.5 8.5 6.5 11.5 12.5 4.5" />
+    </svg>
+  );
+}

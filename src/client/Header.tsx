@@ -11,9 +11,10 @@ import {
   openCreateAction,
   type ContainerDialogRequest,
 } from "./commands/controller";
-import { ChevronDownGlyph } from "./glyphs";
+import { CheckGlyph, ChevronDownGlyph } from "./glyphs";
 import { NAV } from "./nav";
 import { useSnapshotSlice } from "./store";
+import { getTheme, setTheme, THEMES } from "./theme";
 
 // End the session, then reload — an unauthenticated load bounces to sign-in.
 async function signOut() {
@@ -28,8 +29,19 @@ export default function Header() {
   const [path] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [acctOpen, setAcctOpen] = useState(false);
+  // Theme preset (PROG-150): read once on mount — the boot script (index.html)
+  // already applied the stored value before first paint, so this just mirrors
+  // it for the picker's selected state. Re-render on pick is a plain setState;
+  // setTheme() itself flips the live attribute, no reload.
+  const [theme, setThemeState] = useState(getTheme);
   const me = useSnapshotSlice((ws) => ws.me);
   const isSuperAdmin = useSnapshotSlice((ws) => ws.isSuperAdmin);
+
+  const pickTheme = (id: (typeof THEMES)[number]["id"]) => {
+    setTheme(id);
+    setThemeState(id);
+    setAcctOpen(false);
+  };
 
   const newItems: { label: string; run: () => void }[] = [
     { label: "Action", run: () => openCreateAction() },
@@ -119,6 +131,59 @@ export default function Header() {
                     <div className="border-b border-line px-3 py-2 text-sm">
                       <div className="font-medium text-ink">{me.name}</div>
                       <div className="truncate text-xs text-ink-faint">{me.email}</div>
+                    </div>
+                    {/* Theme presets (PROG-150). Plain buttons + aria-pressed
+                        rather than a formal menuitemradio/radiogroup pattern —
+                        the surrounding items here aren't role="menuitem"
+                        either, so a partial ARIA menu would be more
+                        misleading than helpful; aria-pressed is the honest
+                        fit for "one of these three is toggled on". */}
+                    <div
+                      className="border-b border-line px-3 pb-1 pt-2 text-xs font-medium text-ink-faint"
+                      id="theme-picker-label"
+                    >
+                      Theme
+                    </div>
+                    <div
+                      role="group"
+                      aria-labelledby="theme-picker-label"
+                      className="border-b border-line py-1"
+                    >
+                      {THEMES.map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          aria-pressed={theme === t.id}
+                          onClick={() => pickTheme(t.id)}
+                          className={`flex min-h-11 w-full items-center gap-2 px-3 py-1.5 text-left text-sm sm:min-h-0 ${
+                            theme === t.id
+                              ? "bg-accent-wash/40 text-accent-deep"
+                              : "text-ink-soft hover:bg-hover"
+                          }`}
+                        >
+                          <span className="flex shrink-0 items-center gap-0.5" aria-hidden>
+                            <span
+                              className="h-2 w-2 rounded-full border border-line"
+                              style={{ backgroundColor: t.swatch.paper }}
+                            />
+                            <span
+                              className="h-2 w-2 rounded-full"
+                              style={{ backgroundColor: t.swatch.accent }}
+                            />
+                            <span
+                              className="h-2 w-2 rounded-full"
+                              style={{ backgroundColor: t.swatch.moss }}
+                            />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate">{t.label}</span>
+                            <span className="block truncate text-xs text-ink-faint">
+                              {t.description}
+                            </span>
+                          </span>
+                          {theme === t.id && <CheckGlyph className="h-3.5 w-3.5 shrink-0" />}
+                        </button>
+                      ))}
                     </div>
                     {/* Admin (allowlist) lives here, not in the top nav — it's a
                         rare super-admin destination (D44). */}
