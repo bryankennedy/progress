@@ -45,27 +45,23 @@ describe("tagsByAction", () => {
 });
 
 describe("tagChipStyle", () => {
-  it("blends the wash at 15% over white (spot-check with black)", () => {
-    // 255 * 0.85 = 216.75 → 217 = 0xd9 on every channel.
-    expect(tagChipStyle("#000000").backgroundColor).toBe("#d9d9d9");
+  it("renders the wash/border as color-mix over the theme's --color-card token (PROG-150)", () => {
+    // Themed cards move (porcelain/adobe/sanzo), so the mix target is the
+    // live CSS variable, not a baked-in white — this is what makes chips
+    // follow the active theme with zero JS involvement.
+    const { backgroundColor, borderColor } = tagChipStyle("#000000");
+    expect(backgroundColor).toBe("color-mix(in srgb, #000000 15%, var(--color-card))");
+    expect(borderColor).toBe("color-mix(in srgb, #000000 30%, var(--color-card))");
   });
 
-  it("keeps text ≥4.5:1 (WCAG AA) on the wash for every brand hue", () => {
+  it("keeps text ≥4.5:1 (WCAG AA) on the wash for every brand hue, on every theme card", () => {
+    // The three theme cards, all near-white (PROG-150): porcelain, adobe, sanzo.
+    const cards = ["#ffffff", "#fdfaf3", "#fefbf3"];
     for (const hue of TAG_COLORS) {
-      const { backgroundColor, color } = tagChipStyle(hue);
-      expect(contrastRatio(color, backgroundColor)).toBeGreaterThanOrEqual(4.5);
-    }
-  });
-
-  it("keeps the wash and border light — tints over the white card, not fills", () => {
-    for (const hue of TAG_COLORS) {
-      const { backgroundColor, borderColor } = tagChipStyle(hue);
-      // A 15% wash stays close to white (low contrast vs the card)…
-      expect(contrastRatio(backgroundColor, "#ffffff")).toBeLessThan(1.5);
-      // …and the 30% border is a deeper tint of the same hue than the wash.
-      expect(contrastRatio(borderColor, "#ffffff")).toBeGreaterThan(
-        contrastRatio(backgroundColor, "#ffffff"),
-      );
+      const { color } = tagChipStyle(hue);
+      for (const card of cards) {
+        expect(contrastRatio(color, card)).toBeGreaterThanOrEqual(4.5);
+      }
     }
   });
 

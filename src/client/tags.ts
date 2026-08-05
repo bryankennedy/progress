@@ -7,14 +7,24 @@
 import type { SnapshotPayload, WireTag } from "../shared/types";
 import { sortByName } from "./boardFilters";
 
-// ── Tag-chip tint treatment (PROG-145, audit C2) ─────────────────────────────
+// ── Tag-chip tint treatment (PROG-145, audit C2; PROG-150 ripple check) ──────
 // Chips used to paint white 10px text on the raw tag hue — four of the seven
 // brand hues failed even the 3:1 large-text bar (worst: gold at 1.65:1). Chips
-// now render as tinted washes: background = the hue at 15% over the white
-// card, border = the hue at 30%, text = the hue darkened until it clears
-// WCAG AA (≥4.5:1) against that wash. Everything is COMPUTED from `tag.color`
-// (no per-hue literals) so any future tag hue passes automatically and the
-// single-theme/no-literal-colors rule (PROG-146 standing decision) holds.
+// now render as tinted washes: background = the hue at 15% over the card,
+// border = the hue at 30%, text = the hue darkened until it clears WCAG AA
+// (≥4.5:1) against that wash. Everything is COMPUTED from `tag.color` (no
+// per-hue literals) so any future tag hue passes automatically and the
+// no-literal-colors component rule (PROG-146 standing decision) holds.
+//
+// PROG-150 added theme presets, so "the card" is no longer always white:
+// background/border are now CSS `color-mix(in srgb, <hue> N%, var(--color-card))`
+// expressions — they resolve against whichever theme is live, no JS involved.
+// The precomputed `color` text value can't do the same (color-mix output
+// isn't readable back from JS without a live DOM), so it's darkened until it
+// clears AA against the wash over EVERY theme's card, not just white — the
+// three current theme cards are all near-white (porcelain #ffffff, adobe
+// #fdfaf3, sanzo #fefbf3), so one hex passes all of them; update CARD_COLORS
+// if a future theme's card drifts further from white.
 
 type Rgb = [number, number, number];
 
@@ -57,7 +67,9 @@ export const contrastRatio = (a: string, b: string) => {
   return (hi + 0.05) / (lo + 0.05);
 };
 
-const WHITE: Rgb = [255, 255, 255];
+// The three theme cards (PROG-150) — all near-white, but not identical, so
+// the darkening loop below checks against each rather than assuming white.
+const CARD_COLORS: Rgb[] = [hexToRgb("#ffffff"), hexToRgb("#fdfaf3"), hexToRgb("#fefbf3")];
 
 export interface TagChipStyle {
   backgroundColor: string;
@@ -68,21 +80,32 @@ export interface TagChipStyle {
 // Seven brand hues in practice, so memoize the per-hue math.
 const chipCache = new Map<string, TagChipStyle>();
 
+// Worst-case (lowest) contrast of `text` against the 15% wash, across every
+// theme card — the loop below darkens until even the least favorable theme
+// clears AA.
+const worstWashRatio = (text: Rgb, hueRgb: Rgb): number =>
+  Math.min(
+    ...CARD_COLORS.map((card) => contrastRatio(rgbToHex(text), rgbToHex(mix(hueRgb, card, 0.15)))),
+  );
+
 export function tagChipStyle(hue: string): TagChipStyle {
   const cached = chipCache.get(hue);
   if (cached) return cached;
   const rgb = hexToRgb(hue);
-  const backgroundColor = rgbToHex(mix(rgb, WHITE, 0.15));
-  const borderColor = rgbToHex(mix(rgb, WHITE, 0.3));
   // Darken the hue (scale toward black — hue-preserving) until it reads AA
-  // against the wash. Terminates: near-black clears 4.5:1 on any 15% wash.
+  // against the wash on every theme card. Terminates: near-black clears
+  // 4.5:1 on any 15% wash over a near-white card.
   let text = rgb;
   let k = 1;
-  while (contrastRatio(rgbToHex(text), backgroundColor) < 4.5 && k > 0.05) {
+  while (worstWashRatio(text, rgb) < 4.5 && k > 0.05) {
     k -= 0.05;
     text = [rgb[0] * k, rgb[1] * k, rgb[2] * k];
   }
-  const style: TagChipStyle = { backgroundColor, borderColor, color: rgbToHex(text) };
+  const style: TagChipStyle = {
+    backgroundColor: `color-mix(in srgb, ${hue} 15%, var(--color-card))`,
+    borderColor: `color-mix(in srgb, ${hue} 30%, var(--color-card))`,
+    color: rgbToHex(text),
+  };
   chipCache.set(hue, style);
   return style;
 }
