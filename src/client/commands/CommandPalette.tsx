@@ -21,6 +21,7 @@ import {
   untagAction,
   updateAction,
 } from "../store";
+import { setTheme, THEMES } from "../theme";
 import { copyBundleAsPrompt, copyWorkCommand, workCommand } from "../workOn";
 import {
   onOpenPalette,
@@ -440,6 +441,15 @@ function rootItems(
       id: `cmd:new-${kind}`,
       label: `Create ${kind}…`,
       run: () => openCreateContainer({ kind }),
+    });
+  }
+  // Theme presets (PROG-150) — same instant, no-reload switch as the Header
+  // picker; this is just a second entry point onto setTheme().
+  for (const t of THEMES) {
+    commands.push({
+      id: `cmd:theme-${t.id}`,
+      label: `Theme: ${t.label}`,
+      run: () => setTheme(t.id),
     });
   }
   items.push(...commands.filter((c) => q === "" || matches(c.label)));
