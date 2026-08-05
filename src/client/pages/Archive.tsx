@@ -60,7 +60,11 @@ export default function Archive({ snapshot }: { snapshot: SnapshotPayload }) {
       />
 
       {archivedArcs.length === 0 ? (
-        <p className="mt-6 text-sm text-ink-faint">No archived arcs yet.</p>
+        // PROG-151: the dashed empty-state box (Search/ActionListView idiom)
+        // instead of bare text floating on canvas.
+        <p className="mt-6 rounded-md border border-dashed border-line px-3 py-3 text-sm text-ink-faint">
+          No archived arcs yet.
+        </p>
       ) : (
         <div className="mt-6 space-y-6">
           {/* Groups list alphabetically (PROG-83); Map insertion order would

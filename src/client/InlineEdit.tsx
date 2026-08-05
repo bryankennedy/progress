@@ -54,7 +54,10 @@ export default function InlineEdit({
           setEditing(false);
         }
       }}
-      className={`w-full rounded border border-line bg-card px-1 ${inputClassName}`}
+      // bg-paper (PROG-151): every InlineEdit site now sits inside a bg-card
+      // content well (the action/container page header), so the editing
+      // input recesses against paper rather than vanishing on matching card.
+      className={`w-full rounded border border-line bg-paper px-1 ${inputClassName}`}
     />
   );
 }

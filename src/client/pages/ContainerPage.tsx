@@ -165,99 +165,108 @@ export default function ContainerPage({
         ]}
       />
 
-      <header className="mt-4">
-        <div className="flex items-start gap-3">
-          {/* The entity title IS this page's h1 (PROG-148): breadcrumb + name
-              is the header grammar here, sharing the canonical h1 classes
-              (normal tracking — CR6) rather than the PageHeader component. */}
-          <h1 className="min-w-0 flex-1 text-2xl font-semibold">
-            <InlineEdit
-              value={resolved.name}
-              onSave={(name) => updateContainer(type, id, { name })}
-              validate={(v) => v !== ""}
-              className="w-full"
-              inputClassName="text-2xl font-semibold"
-            />
-          </h1>
-          {resolved.archivedAt && (
-            <span className="mt-2 text-xs uppercase tracking-wide font-mono text-ink-faint">
-              archived
-            </span>
-          )}
-          <button
-            onClick={() => updateContainer(type, id, { archived: !resolved.archivedAt })}
-            className="mt-1.5 shrink-0 rounded border border-line bg-card px-2 py-0.5 text-xs text-ink-soft hover:border-ink-faint"
-          >
-            {resolved.archivedAt ? "Unarchive" : "Archive"}
-          </button>
-        </div>
-        {type === "focus" && (
-          <p className="mt-1 flex items-center gap-2 text-xs text-ink-faint">
-            Key prefix
-            <InlineEdit
-              value={resolved.keyPrefix ?? ""}
-              onSave={(keyPrefix) => updateContainer(type, id, { keyPrefix })}
-              validate={(v) => /^[A-Za-z]{2,8}$/.test(v)}
-              className="font-mono text-ink-soft"
-              inputClassName="w-24 font-mono text-xs uppercase"
-            />
-          </p>
-        )}
-        {type === "focus" && (
-          <p className="mt-1 flex items-center gap-2 text-xs text-ink-faint">
-            Git URL
-            <InlineEdit
-              value={resolved.gitUrl ?? ""}
-              onSave={(gitUrl) => updateContainer(type, id, { gitUrl: gitUrl || null })}
-              placeholder="none — the repo this focus mirrors"
-              className="font-mono text-ink-soft"
-              inputClassName="w-80 max-w-full font-mono text-xs"
-            />
-          </p>
-        )}
-        <div className="mt-3 max-w-2xl text-ink-soft">
-          <EditableMarkdown
-            value={resolved.description}
-            placeholder="Add a description…"
-            draftScope={{ meId: snapshot.me?.id ?? "anon", targetId: id }}
-            gitUrl={resolved.gitUrl}
-            onSave={(description) =>
-              updateContainer(type, id, { description }, { toastOnError: false })
-            }
-          />
-        </div>
-      </header>
-
-      {resolved.children.map(
-        (group) =>
-          (group.items.length > 0 || group.onNew) && (
-            <p key={group.label} className="mt-4 flex flex-wrap items-baseline gap-2 text-sm">
-              <span className="text-xs uppercase tracking-wide font-mono text-ink-faint">
-                {group.label}
+      {/* The content well (PROG-151): name, key/git meta, description, and the
+          child-container list all sit on this one bg-card surface — the
+          Breadcrumb above is the only thing left on raw canvas. */}
+      <div className="mt-4 rounded-lg border border-line bg-card p-4 sm:p-6">
+        <header>
+          <div className="flex items-start gap-3">
+            {/* The entity title IS this page's h1 (PROG-148): breadcrumb + name
+                is the header grammar here, sharing the canonical h1 classes
+                (normal tracking — CR6) rather than the PageHeader component. */}
+            <h1 className="min-w-0 flex-1 text-2xl font-semibold">
+              <InlineEdit
+                value={resolved.name}
+                onSave={(name) => updateContainer(type, id, { name })}
+                validate={(v) => v !== ""}
+                className="w-full"
+                inputClassName="text-2xl font-semibold"
+              />
+            </h1>
+            {resolved.archivedAt && (
+              <span className="mt-2 text-xs uppercase tracking-wide font-mono text-ink-faint">
+                archived
               </span>
-              {group.items.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`rounded border border-line bg-card px-2 py-0.5 hover:border-ink-faint ${
-                    item.archived ? "text-ink-faint opacity-60" : ""
-                  }`}
-                >
-                  {item.name}
-                  {item.archived && <span className="ml-1 text-3xs uppercase">archived</span>}
-                </Link>
-              ))}
-              {group.onNew && (
-                <button
-                  onClick={group.onNew}
-                  className="rounded border border-dashed border-line px-2 py-0.5 text-xs text-ink-faint hover:border-ink-faint hover:text-ink-soft"
-                >
-                  + New {group.singular}
-                </button>
-              )}
+            )}
+            {/* bg-paper (PROG-151): recessed against the well, same as every
+                other small control in this header. */}
+            <button
+              onClick={() => updateContainer(type, id, { archived: !resolved.archivedAt })}
+              className="mt-1.5 shrink-0 rounded border border-line bg-paper px-2 py-0.5 text-xs text-ink-soft hover:border-ink-faint"
+            >
+              {resolved.archivedAt ? "Unarchive" : "Archive"}
+            </button>
+          </div>
+          {type === "focus" && (
+            <p className="mt-1 flex items-center gap-2 text-xs text-ink-faint">
+              Key prefix
+              <InlineEdit
+                value={resolved.keyPrefix ?? ""}
+                onSave={(keyPrefix) => updateContainer(type, id, { keyPrefix })}
+                validate={(v) => /^[A-Za-z]{2,8}$/.test(v)}
+                className="font-mono text-ink-soft"
+                inputClassName="w-24 font-mono text-xs uppercase"
+              />
             </p>
-          ),
-      )}
+          )}
+          {type === "focus" && (
+            <p className="mt-1 flex items-center gap-2 text-xs text-ink-faint">
+              Git URL
+              <InlineEdit
+                value={resolved.gitUrl ?? ""}
+                onSave={(gitUrl) => updateContainer(type, id, { gitUrl: gitUrl || null })}
+                placeholder="none — the repo this focus mirrors"
+                className="font-mono text-ink-soft"
+                inputClassName="w-80 max-w-full font-mono text-xs"
+              />
+            </p>
+          )}
+          <div className="mt-3 max-w-2xl text-ink-soft">
+            <EditableMarkdown
+              value={resolved.description}
+              placeholder="Add a description…"
+              draftScope={{ meId: snapshot.me?.id ?? "anon", targetId: id }}
+              gitUrl={resolved.gitUrl}
+              onSave={(description) =>
+                updateContainer(type, id, { description }, { toastOnError: false })
+              }
+            />
+          </div>
+        </header>
+
+        {resolved.children.map(
+          (group) =>
+            (group.items.length > 0 || group.onNew) && (
+              <p key={group.label} className="mt-4 flex flex-wrap items-baseline gap-2 text-sm">
+                <span className="text-xs uppercase tracking-wide font-mono text-ink-faint">
+                  {group.label}
+                </span>
+                {group.items.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    // bg-paper (PROG-151): these pills recessed inside the well
+                    // (they used to be bg-card cards floating on canvas).
+                    className={`rounded border border-line bg-paper px-2 py-0.5 hover:border-ink-faint ${
+                      item.archived ? "text-ink-faint opacity-60" : ""
+                    }`}
+                  >
+                    {item.name}
+                    {item.archived && <span className="ml-1 text-3xs uppercase">archived</span>}
+                  </Link>
+                ))}
+                {group.onNew && (
+                  <button
+                    onClick={group.onNew}
+                    className="rounded border border-dashed border-line px-2 py-0.5 text-xs text-ink-faint hover:border-ink-faint hover:text-ink-soft"
+                  >
+                    + New {group.singular}
+                  </button>
+                )}
+              </p>
+            ),
+        )}
+      </div>
 
       {/* The shared outline/table action list (PROG-126): outline mode is the
           real OutlineView scoped to this container; table mode is the search

@@ -139,20 +139,32 @@ export default function ActionListView({
       </div>
 
       {mode === "outline" ? (
-        <div className="mt-3">
+        // Same card surface as table mode (PROG-151): on a container page the
+        // embedded outline rows would otherwise sit naked on the canvas right
+        // under the header well. The standalone /outline route is unaffected —
+        // it renders OutlineView directly, not through this list.
+        <div className="mt-3 rounded-lg border border-line bg-card p-3 sm:p-4">
           <OutlineView snapshot={snapshot} scope={scope} hideDone={hideDone} />
         </div>
       ) : (
-        <div className="mt-3 space-y-2">
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Quick search…"
-            aria-label="Quick search this list"
-            className="w-full rounded border border-line bg-card px-3 py-1.5 text-sm focus:border-ink-faint"
-          />
+        // The card surface (PROG-151): search input + table (or the empty
+        // message) share one bg-card well instead of a naked input sitting
+        // directly on canvas above a separately-carded table. The input
+        // recesses to bg-paper so it doesn't vanish against the card behind
+        // it; ActionTable renders `bare` here since this wrapper already
+        // supplies the border/bg it would otherwise duplicate.
+        <div className="mt-3 overflow-hidden rounded-lg border border-line bg-card">
+          <div className="border-b border-line p-2">
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Quick search…"
+              aria-label="Quick search this list"
+              className="w-full rounded border border-line bg-paper px-3 py-1.5 text-sm focus:border-ink-faint"
+            />
+          </div>
           {tableRows.length === 0 ? (
-            <p className="rounded-md border border-dashed border-line px-3 py-3 text-xs text-ink-faint">
+            <p className="px-3 py-6 text-center text-xs text-ink-faint">
               {visible.length === 0 ? "No actions here." : "No actions match."}
             </p>
           ) : (
@@ -163,6 +175,7 @@ export default function ActionListView({
               onCycleSort={(key) => setSort((s) => cycleActionSort(s, key))}
               columns={columns}
               terms={terms}
+              bare
             />
           )}
         </div>

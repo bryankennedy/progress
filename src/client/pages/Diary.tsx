@@ -101,7 +101,9 @@ export default function Diary({ snapshot }: { snapshot: SnapshotPayload }) {
       <DiaryEntry day={day} bounds={bounds} quiet={quiet} />
 
       {quiet ? (
-        <p className="mt-6 text-sm text-ink-faint">
+        // PROG-151: the dashed empty-state box (Search/ActionListView idiom)
+        // instead of bare text floating on canvas.
+        <p className="mt-6 rounded-md border border-dashed border-line px-3 py-3 text-sm text-ink-faint">
           Nothing recorded on this day — no actions finished, started, or touched.
         </p>
       ) : (
