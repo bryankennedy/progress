@@ -179,3 +179,144 @@ shape and the ≥4.5:1 floor against all three theme cards.
 indicator `var(--token, #hex)` fallbacks (see above); the seven Mermaid-brand
 tag hues themselves (D27) — only their rendering surface moved, per PROG-145's
 precedent.
+
+### PROG-150b — Mono preset and priority-color tokens
+
+**Status:** shipped (2026-08-05). Adds a fourth preset, **Mono** — "totally
+monochrome": shades of black & white only, including the two things the
+original three presets deliberately left global (danger, the priority ramp)
+and the one thing no preset could reach at all (tag hues). Also promotes
+priority colors from hex literals to theme tokens so a preset can reach them.
+
+**Priority colors → theme tokens.** `PRIORITY_COLORS` (`src/client/labels.ts`)
+held `high`/`medium`/`low` as literal hex — the one colored thing porcelain/
+adobe/sanzo couldn't touch (danger and priority were explicitly "stay global"
+in the original PROG-150 entry above). Added `--color-priority-high/medium/low`
+to the `@theme` block (`src/client/styles.css`) at the existing global values
+(`#a85a20`/`#a37b16`/`#5a6796`), mirrored into `brand-assets/tokens.css` as
+`--priority-high/medium/low`. `labels.ts` now reads
+`var(--color-priority-high, #a85a20)` etc. — the same `var(token, #hex)`
+fallback idiom `StatusIndicator`/`EstimateIndicator` already used, so
+`PriorityIndicator` needed no change beyond the string source. `urgent` stays
+a literal (`#b23c28`, aliasing `--color-danger`, which is itself global outside
+mono) rather than adding a fourth token for a value already sourced elsewhere;
+`none` stays `null` (unfilled bars, no fill).
+
+**Consumer audit — no color math found.** Grepped every `PRIORITY_COLORS`
+reference: `PriorityIndicator.tsx` is the sole consumer, and it only ever
+does `fill={color}` on an SVG `<rect>`/`<circle>` — a straight pass-through,
+never arithmetic (no darkening, no contrast computation, no string parsing of
+the hex). No test asserted the old hex literals either, so nothing needed
+updating beyond the source values. This means the `var(...)` string is safe
+to ship with zero ripple beyond `labels.ts` and the two CSS files.
+
+**The gray ramp.** All zero-chroma (R=G=B), so hue can't leak back in through
+rounding:
+
+| Token | Value | Role |
+|---|---|---|
+| `card` | `#ffffff` | raised cards, rows, inputs |
+| `paper` | `#f7f7f7` | primary surface |
+| `canvas` | `#f0f0f0` | app background |
+| `line` / `hover` | `#e0e0e0` | hairlines / hover surfaces |
+| `ink` | `#1a1a1a` | primary text |
+| `ink-soft` | `#4d4d4d` | secondary text |
+| `ink-faint` | `#6b6b6b` | meta/mono labels |
+| `accent` | `#111111` | CTA fill / links (near-black + underline carries the link affordance, since hue can't) |
+| `accent-deep` | `#000000` | hover/active |
+| `accent-light` | `#8a8a8a` | |
+| `accent-wash` | `#ececec` | |
+| `moss` | `#767676` | Step icon / `LevelIcon` graphic |
+| `moss-deep` | `#4d4d4d` | text use |
+| `moss-light` | `#ababab` | |
+| `moss-wash` | `#e6e6e6` | |
+| `prompt-text` | `#3a3a3a` | |
+| `prompt-border` | `#c9c9c9` | |
+| `prompt-bg` | `#f2f2f2` | |
+| `danger` | `#1f1f1f` | overdue/error — heavy near-black, not red (see below) |
+| `danger-bg` | `#efefef` | |
+| `danger-border` | `#c4c4c4` | |
+| `priority-high` | `#333333` | |
+| `priority-medium` | `#6b6b6b` | |
+| `priority-low` | `#8a8a8a` | ≥3:1 on card, matching the non-text-graphic floor the porcelain/adobe/sanzo ramp already holds to |
+
+**Contrast validation.** Computed with the same throwaway WCAG script used for
+adobe/sanzo (formula cross-checked against `src/client/tags.ts`'s production
+copy). All PASS against the floors PROG-150's original table actually claims
+(ink/accent/moss/danger/priority/focus-outline — border-vs-background pairs
+like `prompt-border`/`prompt-bg` and `danger-border`/`danger-bg` are NOT held
+to a 3:1 floor here, because they never were: porcelain's own
+`prompt-border`/`prompt-bg` measures ~1.54:1 and `danger-border`/`danger-bg`
+~1.52:1 — these are decorative dividers around a tinted wash, not
+graphical-object boundaries WCAG 1.4.11 requires, and mono's ~1.5:1 for the
+same pairs is consistent with that existing precedent, not a regression):
+
+| Pair | Mono | Floor |
+|---|---|---|
+| ink vs card | 17.40:1 | 4.5 |
+| ink vs canvas | 15.27:1 | 4.5 |
+| ink-soft vs card | 8.45:1 | 4.5 |
+| ink-soft vs canvas | 7.42:1 | 4.5 |
+| ink-faint vs card | 5.33:1 | 4.5 |
+| ink-faint vs canvas | 4.68:1 | informational (PROG-146 precedent: pass-on-card suffices) |
+| white vs accent | 18.88:1 | 4.5 |
+| accent vs card (text/link) | 18.88:1 | 4.5 |
+| white vs accent-deep | 21.00:1 | 4.5 |
+| accent-deep vs card | 21.00:1 | 4.5 |
+| moss vs card (graphic) | 4.54:1 | 3.0 |
+| moss-deep vs card (text use) | 8.45:1 | 4.5 |
+| prompt-text vs prompt-bg | 10.16:1 | 4.5 |
+| focus outline (accent) vs card | 18.88:1 | 3.0 |
+| focus outline (accent) vs canvas | 16.57:1 | 3.0 |
+| danger vs card | 16.48:1 | 4.5 |
+| danger vs danger-bg (text legibility) | 14.33:1 | 4.5 |
+| priority high vs card | 12.63:1 | 3.0 |
+| priority medium vs card | 5.33:1 | 3.0 |
+| priority low vs card | 3.45:1 | 3.0 |
+
+**Danger-without-red — non-color-cue spot check.** "Totally monochrome" means
+overdue/error can't lean on redness at all, so PROG-149 (the priority/status
+"never color alone" pass) needed to have already given these a text or shape
+backup. Checked both surfaces that carry danger styling:
+
+- **Agenda overdue row** (`src/client/pages/Agenda.tsx` `AgendaRow`) — the due
+  text isn't just tinted red, it's a real sentence from `relativeDue()`
+  (`src/client/dates.ts`): "yesterday", "3 days ago", etc., plus a font-weight
+  bump (`font-medium`) and a `bg-danger-bg/50` row tint. Under mono the words
+  alone say "overdue" — color was never the only signal.
+- **Error toast** (`src/client/toast.tsx`) — the danger tone changes
+  border/background/text color, but the toast always renders a plain-language
+  failure message (`t.message`) and, for sticky toasts, a labeled Retry
+  button. No icon-only or color-only failure state exists to begin with.
+
+Both pass: PROG-149's text-carries-meaning discipline holds up under mono
+without any new work here.
+
+**Tag chips and other colored swatches.** `tagChipStyle()`'s wash/border
+already resolve via `color-mix(…, var(--color-card))`, so they track mono's
+card automatically, but the hue input itself and the precomputed text hex
+survive as real color. Rather than recompute in JS (impossible without a live
+DOM re-render on a pure attribute-flip theme switch — the explicit constraint
+this preset works under), gave every chip a stable `tag-chip` class at its two
+render sites (`src/client/pages/Home.tsx` action-card tag list,
+`src/client/pages/ActionPage.tsx` the Tags field — grepped for every
+`tagChipStyle(`/`tag.color` call site; these are the only two) and added
+`:root[data-theme="mono"] .tag-chip { filter: grayscale(1); }`
+(`src/client/styles.css`). `grayscale(1)` is luminance-preserving, so the
+wash/border/text contrast ratios already verified in the original PROG-150
+entry hold under the filter unchanged — spot-checked visually, no shift in
+perceived lightness. Grepped separately for other colored tag swatches
+(pickers, filter dropdowns, admin tag management): none exist beyond the two
+chip sites above and the already-token-based step-card moss rail
+(`var(--color-moss)`, Home.tsx) — nothing else needed the class.
+
+**Wiring.** `THEMES` (`src/client/theme.ts`) gained a fourth entry, `mono`
+(label "Mono", description "shades of black & white", swatch
+paper/accent/moss = `#f7f7f7`/`#111111`/`#767676`); `ThemeId` widened to
+include it. The Header picker and the three command-palette theme commands
+were already metadata-driven (`THEMES.map(...)`), so both picked up the fourth
+preset with no additional code. The no-flash boot script (`index.html`)
+duplicates `mono: "#f7f7f7"` into its inline paper-color map, and its sha256
+hash was regenerated and updated in `public/_headers` (the documented
+one-liner in the script's own comment). `theme.test.ts` updated to expect four
+ids, porcelain first.

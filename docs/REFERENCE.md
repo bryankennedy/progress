@@ -445,24 +445,40 @@ the retired `/repo/:id` (PROG-102) and `/structure` (PROG-143 — folded into
 the Outline's all-workspaces scope) both redirect to `/outline?all=1`, so old
 bookmarks keep working.
 
-### Theme presets (PROG-150)
+### Theme presets (PROG-150, PROG-150b)
 
 The palette evolved from a single fixed light theme (PROG-146/PROG-145's
 "Riso ink on porcelain" — still true as a **mode**: there is no dark mode) to
-**one light mode, three user-selectable presets**: **Porcelain** (default —
+**one light mode, four user-selectable presets**: **Porcelain** (default —
 ink & ultramarine), **Adobe** (the pre-PROG-145 warm-earth-tone palette,
-contrast-corrected to the same AA floor rather than restored verbatim), and
-**Sanzo** (new — derived from Wada Sanzo classic color combination #342:
-Corinthian Pink, Cream Yellow, Orange Citrine, Deep Slate Olive). Full
-derivation + WCAG contrast table: `docs/decisions/PROG-150.md`.
+contrast-corrected to the same AA floor rather than restored verbatim),
+**Sanzo** (derived from Wada Sanzo classic color combination #342: Corinthian
+Pink, Cream Yellow, Orange Citrine, Deep Slate Olive), and **Mono** (PROG-150b
+— totally monochrome: shades of black & white only, including danger and the
+priority ramp). Full derivation + WCAG contrast tables: `docs/decisions/PROG-150.md`.
 
 - **Mechanism** — Tailwind v4's `@theme` block (`src/client/styles.css`,
   mirrored from `brand-assets/tokens.css`) emits `:root` custom properties, so
   a theme is a pure CSS override block keyed off `:root[data-theme="adobe"]` /
-  `:root[data-theme="sanzo"]`; porcelain is the `@theme` default and needs no
-  block. Each block replaces only the neutral ramp, accent family, moss
-  family, `--color-hover`, and the prompt trio — danger, priority colors,
-  radius, and shadows stay global across every theme.
+  `"sanzo"` / `"mono"`; porcelain is the `@theme` default and needs no block.
+  Each block replaces only the neutral ramp, accent family, moss family,
+  `--color-hover`, and the prompt trio — danger, priority colors, radius, and
+  shadows stay global across porcelain/adobe/sanzo. **Mono is the one
+  exception**: it also overrides `--color-danger*` and the priority ramp,
+  since "totally monochrome" means no hue survives anywhere, not even
+  overdue-red or priority color. The Status/Priority/Estimate indicators still
+  encode rank/state in shape (pie fills, bar counts) and text, not color
+  alone, so grayscale stays usable under mono.
+- **Priority colors as theme tokens (PROG-150b)** — `PRIORITY_COLORS`
+  (`src/client/labels.ts`) used to be hex literals, the one colored thing no
+  theme (besides tag hues) could reach. `high`/`medium`/`low` are now
+  `--color-priority-high/medium/low` tokens (global porcelain/adobe/sanzo
+  value; `mono` overrides to grays), read via the same `var(--token, #hex)`
+  fallback idiom `StatusIndicator`/`EstimateIndicator` already used.
+  `PriorityIndicator` (the sole consumer) passes the string straight through
+  as an SVG `fill` — nothing does color math on it, so no other call site
+  needed changes. `urgent` stays a literal hex (it aliases `--color-danger`,
+  itself global outside mono).
 - **Persistence & application (`src/client/theme.ts`)** — `THEMES` (id, label,
   one-line description, a picker swatch of paper/accent/moss), `getTheme()`,
   `setTheme(id)`. One `localStorage` key, `progress:theme` (absent or
@@ -473,21 +489,27 @@ derivation + WCAG contrast table: `docs/decisions/PROG-150.md`.
   the stored theme before first paint (it can't import `theme.ts`, since
   nothing is bundled yet at that point, so it duplicates the theme
   ids/paper-colors — keep the two in sync). `public/_headers`' CSP allowlists
-  this one script by sha256 hash rather than a blanket `'unsafe-inline'`.
+  this one script by sha256 hash rather than a blanket `'unsafe-inline'`
+  (regenerated each time the script's text changes, including for mono).
 - **Picker UI** — the Header account/avatar dropdown (`src/client/Header.tsx`)
-  carries a **Theme** group: three rows, each a three-dot paper/accent/moss
-  swatch + label + description, `aria-pressed` marking the active one
-  (a formal `menuitemradio`/`radiogroup` pattern was skipped — the
-  surrounding dropdown rows aren't `role="menuitem"` either, so partial ARIA
-  menu semantics would mislead more than help). Selecting one calls
-  `setTheme` directly; reachable on mobile, since the avatar renders at every
-  width. The **command palette** offers the same switch as three root
-  commands, `Theme: Porcelain` / `Theme: Adobe` / `Theme: Sanzo`.
+  carries a **Theme** group: one row per `THEMES` entry (now four), each a
+  three-dot paper/accent/moss swatch + label + description, `aria-pressed`
+  marking the active one (a formal `menuitemradio`/`radiogroup` pattern was
+  skipped — the surrounding dropdown rows aren't `role="menuitem"` either, so
+  partial ARIA menu semantics would mislead more than help). Selecting one
+  calls `setTheme` directly; reachable on mobile, since the avatar renders at
+  every width. The **command palette** builds the same four commands off
+  `THEMES` (`Theme: Porcelain` / `Adobe` / `Sanzo` / `Mono`) — both surfaces
+  are metadata-driven, so a preset only needs adding to `THEMES` once.
 - **Tag chips** (`src/client/tags.ts`) render their wash/border as CSS
   `color-mix(in srgb, <hue> N%, var(--color-card))`, so they follow whichever
   card color is live with no JS re-render; the darkened text color stays one
-  precomputed hex per hue (verified against all three themes' near-white
-  cards, PROG-150).
+  precomputed hex per hue (verified against porcelain/adobe/sanzo's near-white
+  cards, PROG-150). Under **mono**, every tag-color render site carries a
+  stable `tag-chip` class, and `:root[data-theme="mono"] .tag-chip { filter:
+  grayscale(1); }` (styles.css) neutralizes the hue — luminance-preserving, so
+  the already-verified contrast ratios survive the filter untouched
+  (PROG-150b).
 - **Static, deliberately theme-blind:** the sign-in page's pre-auth HTML
   (`src/worker/pages.ts` inlines its own tiny copy of the porcelain palette —
   there's no bundle/localStorage at that point) and `public/manifest.webmanifest`
@@ -837,9 +859,9 @@ the canonical classes but not the component.
 - **Command palette** — one keyboard surface (D25): root mode searches
   actions by key (retired alias keys included) or title and containers by
   name, and lists commands (create action/workspace/focus/arc,
-  pickers for the current action, and **Theme: Porcelain/Adobe/Sanzo** —
-  PROG-150, a second entry point onto the same `setTheme()` as the Header
-  picker). Picker modes are filterable lists; tag
+  pickers for the current action, and **Theme: Porcelain/Adobe/Sanzo/Mono** —
+  PROG-150/PROG-150b, a second entry point onto the same `setTheme()` as the
+  Header picker). Picker modes are filterable lists; tag
   toggles keep the palette open for multi-edit. The **location picker**
   (PROG-123) owns the action's whole outline position in one surface: it
   renders the Workspace → Focus → Arc tree in outline rank order — workspaces
