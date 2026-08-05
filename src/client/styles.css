@@ -42,6 +42,15 @@
   --color-danger-bg: #f6e4dd;
   --color-danger-border: #e3b3a4;
 
+  /* Priority ramp (labels.ts PRIORITY_COLORS) — promoted to theme tokens
+     (PROG-150b) so `mono` can neutralize them; every other theme keeps this
+     global ramp untouched (no per-theme block needed for high/medium/low).
+     `urgent`/`none` aren't here: urgent reuses --color-danger, none renders
+     unfilled (no fill color of its own). */
+  --color-priority-high: #a85a20;
+  --color-priority-medium: #a37b16;
+  --color-priority-low: #5a6796;
+
   /* Type — Spectral for headings & body, IBM Plex Mono for labels/meta/code */
   --font-serif: "Spectral", Georgia, serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;

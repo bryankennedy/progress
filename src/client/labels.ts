@@ -29,10 +29,19 @@ export const PRIORITY_LABELS: Record<ActionPriority, string> = {
 // 5.06:1, medium 3.89:1, low 4.7:1). Defined once; used by the board, Agenda,
 // action page, and container lists. `null` = "none", which renders as
 // faded/empty bars (no fill of its own).
+//
+// PROG-150b promoted high/medium/low to theme tokens (`--color-priority-*`,
+// styles.css `@theme` + brand-assets/tokens.css) — the one colored thing
+// pre-mono themes couldn't reach. `var(..., #hex)` fallback matches the
+// idiom StatusIndicator/EstimateIndicator/PriorityIndicator already use for
+// their own tokens; the hex is the porcelain value, live only outside a
+// browser context that resolves custom properties. `urgent` stays a literal
+// (aliases --color-danger, itself global outside mono) rather than adding a
+// fourth token for one value that's already sourced elsewhere.
 export const PRIORITY_COLORS: Record<ActionPriority, string | null> = {
   urgent: "#b23c28",
-  high: "#a85a20",
-  medium: "#a37b16",
-  low: "#5a6796",
+  high: "var(--color-priority-high, #a85a20)",
+  medium: "var(--color-priority-medium, #a37b16)",
+  low: "var(--color-priority-low, #5a6796)",
   none: null,
 };

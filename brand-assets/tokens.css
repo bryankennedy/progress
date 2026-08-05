@@ -31,6 +31,12 @@
   --prompt-border: #b9c2ee;
   --prompt-bg: #eef0fb;
 
+  /* Priority ramp (PROG-150b) — mirrors src/client/labels.ts PRIORITY_COLORS.
+     Global across porcelain/adobe/sanzo; only `mono` overrides it. */
+  --priority-high: #a85a20;
+  --priority-medium: #a37b16;
+  --priority-low: #5a6796;
+
   /* Type */
   --font-serif: "Spectral", Georgia, serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
