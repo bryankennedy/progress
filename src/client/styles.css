@@ -74,6 +74,74 @@
   --shadow-2xl: 0 20px 50px -8px rgb(32 37 31 / 0.18);
 }
 
+/* ── Theme presets (PROG-150) ──────────────────────────────────────────────────
+   Three user-selectable color schemes, applied as `data-theme` on <html>
+   (src/client/theme.ts, picker in Header.tsx, palette commands). Porcelain is
+   the `@theme` default above and needs no block — `data-theme` absent or
+   "porcelain" both render it. Each override block replaces ONLY the neutral
+   ramp, accent family, moss family, hover, and prompt trio; danger, priority
+   colors, radius, and shadows stay global across every theme (see
+   docs/decisions/PROG-150.md for why — in short, the ink-tinted shadows and
+   the danger/priority hues were re-verified against all three cards and still
+   clear their WCAG floors, so there's nothing theme-specific to say there).
+   Mirrored into brand-assets/tokens.css, which stays the source of truth. */
+
+:root[data-theme="adobe"] {
+  /* Adobe — the pre-PROG-145 "Adobe & Moss" earth tones, contrast-corrected
+     to the PROG-146 AA floor (docs/decisions/PROG-150.md has the full table). */
+  --color-paper: #f5efe0;
+  --color-canvas: #f0e9d9;
+  --color-card: #fdfaf3;
+  --color-line: #e9dec6;
+  --color-hover: #e9dec6;
+  --color-ink: #2c241b;
+  --color-ink-soft: #6b5f4d;
+  --color-ink-faint: #776a52; /* NOT the old #9a8b73 (2.75–3.19:1, audit C1) */
+
+  --color-accent-deep: #74412f;
+  --color-accent: #8f5340; /* the old adobe-deep — re-seated as the resting fill (audit S1) */
+  --color-accent-light: #bb6f50; /* the old accent core */
+  --color-accent-wash: #efb892;
+
+  --color-moss-deep: #566039;
+  --color-moss: #707c46; /* nudged past 3:1 vs card (old #79864c) */
+  --color-moss-light: #9aa468;
+  --color-moss-wash: #bcc189;
+
+  --color-prompt-text: #9d5639; /* old #a85c3d darkened minimally to clear 4.5:1 */
+  --color-prompt-border: #e0b59f;
+  --color-prompt-bg: #f7e7dc;
+}
+
+:root[data-theme="sanzo"] {
+  /* Sanzo — derived from Wada Sanzo classic combination #342 (Corinthian Pink
+     #f8b6ba, Cream Yellow #fdbf68, Orange Citrine #986f2d, Deep Slate Olive
+     #253122); every value below is a shade of one of those four hues
+     (docs/decisions/PROG-150.md has the derivation + full contrast table). */
+  --color-paper: #f9f4e9; /* light cream, from Cream Yellow */
+  --color-canvas: #f2ebde; /* one step deeper */
+  --color-card: #fefbf3; /* near-white warm cream */
+  --color-line: #e4d7c3; /* deeper low-chroma cream, leaning toward Orange Citrine */
+  --color-hover: #e4d7c3;
+  --color-ink: #253122; /* Deep Slate Olive itself */
+  --color-ink-soft: #496043;
+  --color-ink-faint: #5d7557;
+
+  --color-accent-deep: #8c3136;
+  --color-accent: #b04249; /* deep rose, from Corinthian Pink's hue */
+  --color-accent-light: #e0858a;
+  --color-accent-wash: #f9c7ca; /* near the base Corinthian Pink */
+
+  --color-moss-deep: #345a2b;
+  --color-moss: #4e8042; /* mid olive-green, from Deep Slate Olive */
+  --color-moss-light: #81b474;
+  --color-moss-wash: #d2e4cd;
+
+  --color-prompt-text: #7a571f; /* from Orange Citrine */
+  --color-prompt-border: #dfc79f;
+  --color-prompt-bg: #f6eddf;
+}
+
 /* ── Self-hosted fonts (CR5/PROG-147) ─────────────────────────────────────────
    Spectral 400/500/600 + IBM Plex Mono 400/500, latin subsets only (~15–23KB
    each), served from public/fonts/ instead of Google's CDN — no third-party

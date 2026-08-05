@@ -54,3 +54,65 @@
   --shadow-xl: 0 12px 40px rgb(32 37 31 / 0.14), 0 4px 10px -4px rgb(32 37 31 / 0.08);
   --shadow-2xl: 0 20px 50px -8px rgb(32 37 31 / 0.18);
 }
+
+/* ── Theme presets (PROG-150) — user-selectable color schemes ───────────────
+   Porcelain (above) is the default and needs no block. Each override
+   replaces ONLY the neutral ramp, accent/moss families, hover, and prompt
+   trio; danger, priority colors, radius, and shadows stay global. This file
+   is the source of truth; src/client/styles.css mirrors it into Tailwind's
+   `@theme` (as `--color-*`) so it stays selectable via `:root[data-theme]`.
+   Full derivation + contrast table: docs/decisions/PROG-150.md. */
+
+:root[data-theme="adobe"] {
+  /* Adobe — the pre-PROG-145 "Adobe & Moss" earth tones, contrast-corrected. */
+  --paper: #f5efe0;
+  --canvas: #f0e9d9;
+  --card: #fdfaf3;
+  --line: #e9dec6;
+  --hover: #e9dec6;
+  --ink: #2c241b;
+  --ink-soft: #6b5f4d;
+  --ink-faint: #776a52;
+
+  --accent-deep: #74412f;
+  --accent: #8f5340;
+  --accent-light: #bb6f50;
+  --accent-wash: #efb892;
+
+  --moss-deep: #566039;
+  --moss: #707c46;
+  --moss-light: #9aa468;
+  --moss-wash: #bcc189;
+
+  --prompt-text: #9d5639;
+  --prompt-border: #e0b59f;
+  --prompt-bg: #f7e7dc;
+}
+
+:root[data-theme="sanzo"] {
+  /* Sanzo — derived from Wada Sanzo classic combination #342 (Corinthian
+     Pink #f8b6ba, Cream Yellow #fdbf68, Orange Citrine #986f2d, Deep Slate
+     Olive #253122); every value below is a shade of one of those four hues. */
+  --paper: #f9f4e9;
+  --canvas: #f2ebde;
+  --card: #fefbf3;
+  --line: #e4d7c3;
+  --hover: #e4d7c3;
+  --ink: #253122;
+  --ink-soft: #496043;
+  --ink-faint: #5d7557;
+
+  --accent-deep: #8c3136;
+  --accent: #b04249;
+  --accent-light: #e0858a;
+  --accent-wash: #f9c7ca;
+
+  --moss-deep: #345a2b;
+  --moss: #4e8042;
+  --moss-light: #81b474;
+  --moss-wash: #d2e4cd;
+
+  --prompt-text: #7a571f;
+  --prompt-border: #dfc79f;
+  --prompt-bg: #f6eddf;
+}
