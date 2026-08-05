@@ -515,6 +515,14 @@ priority ramp). Full derivation + WCAG contrast tables: `docs/decisions/PROG-150
   there's no bundle/localStorage at that point) and `public/manifest.webmanifest`
   (PWA splash/theme-color — read once at install time, before any preference
   exists).
+- **Material textures (PROG-150c)** — each preset gets a subtle canvas/paper/
+  board-column surface texture (cards stay clean): Mono is a pixel-crisp
+  `repeating-conic-gradient` checkerboard at three densities (8-bit-dither
+  homage); Adobe/Sanzo/Porcelain use small pre-baked `feTurbulence` SVG data:
+  URIs (washi fiber, sand/leather/stone, riso grain) plus a lacquer gloss
+  (Sanzo) or offset-print signature (Porcelain) on accent fills. All flatten
+  under `prefers-contrast: more`. Full technique + amplitudes:
+  `docs/decisions/PROG-150.md`.
 
 ## 5. UI surfaces
 
