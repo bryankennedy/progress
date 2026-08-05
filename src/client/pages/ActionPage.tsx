@@ -107,7 +107,7 @@ export default function ActionPage({
   );
 
   return (
-    <div className="mx-auto max-w-3xl overflow-hidden">
+    <div className="mx-auto max-w-3xl">
       {/* The action's place in the structure tree (PROG-103): Workspace /
           Focus / Arc / key, ancestors linked. The focus is the sole container
           (PROG-102) — its optional git repo lives in the sidebar's Focus field.
@@ -115,7 +115,10 @@ export default function ActionPage({
           the title is gone (it would repeat the same text one line apart).
           A Step continues the trail through its parent actions (PROG-106) —
           the containers stop at the arc, and the parent chain resumes the
-          descent from there: … / Arc / PROG-4 / PROG-11. */}
+          descent from there: … / Arc / PROG-4 / PROG-11. Chrome (PROG-151):
+          the breadcrumb is the one thing that still sits on raw canvas —
+          everything else below is entity content and moves into the content
+          well. */}
       <Breadcrumb
         crumbs={[
           ...(workspace ? [{ label: workspace.name, href: `/workspace/${workspace.id}` }] : []),
@@ -129,101 +132,115 @@ export default function ActionPage({
         ]}
       />
 
-      <header className="mt-4">
-        {/* The action title IS this page's h1 (PROG-148): breadcrumb + title
-            is the header grammar here, sharing the canonical h1 classes
-            (normal tracking — CR6) rather than the PageHeader component. */}
-        <h1 className="mt-1 text-2xl font-semibold">
-          <InlineEdit
-            value={action.title}
-            onSave={(title) => updateAction(action.id, { title })}
-            validate={(v) => v !== ""}
-            className="w-full"
-            inputClassName="text-2xl font-semibold"
-          />
-        </h1>
-      </header>
+      {/* The content well (PROG-151): title, description, field rail, and
+          timeline all sit on this one bg-card surface instead of floating on
+          the bare canvas. overflow-hidden is the pre-existing iOS backstop
+          (the native date input's wide intrinsic width, PROG-90) moved here
+          from the old bare page container — generous padding (p-4 sm:p-6)
+          keeps every focused control's ring clear of the rounded edge it
+          clips against, so nothing needed the -outline-offset-2 trim PROG-149
+          used inside flush dialog frames. */}
+      <div className="mt-4 overflow-hidden rounded-lg border border-line bg-card p-4 sm:p-6">
+        <header>
+          {/* The action title IS this page's h1 (PROG-148): breadcrumb + title
+              is the header grammar here, sharing the canonical h1 classes
+              (normal tracking — CR6) rather than the PageHeader component. */}
+          <h1 className="text-2xl font-semibold">
+            <InlineEdit
+              value={action.title}
+              onSave={(title) => updateAction(action.id, { title })}
+              validate={(v) => v !== ""}
+              className="w-full"
+              inputClassName="text-2xl font-semibold"
+            />
+          </h1>
+        </header>
 
-      {/* Mobile-first ordering (mobile audit): description → field strip →
-          timeline, so the primary actions (status/priority/due/…) aren't buried
-          under a potentially long activity history on a phone. A grid pins the
-          desktop layout (content in the left column across both rows, fields in
-          the right column) while the single-column mobile flow just follows
-          source order. */}
-      {/* md:grid-rows-[auto_1fr]: the rail spans both rows, and when it's
-          taller than the content column the grid would otherwise distribute
-          its extra height across BOTH auto rows — inflating the description
-          row and opening dead space above the timeline (PROG-90). Pinning
-          row 1 to auto keeps the description content-sized; the 1fr timeline
-          row absorbs the rail's surplus, leaving only the standard gap-8. */}
-      <div className="mt-6 grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,1fr)_14rem] md:grid-rows-[auto_1fr]">
-        <div className="min-w-0 md:col-start-1 md:row-start-1">
-          <EditableMarkdown
-            value={action.description}
-            placeholder="Add a description…"
-            draftScope={{ meId: snapshot.me?.id ?? "anon", targetId: action.id }}
-            gitUrl={focus?.gitUrl}
-            onSave={(description) =>
-              updateAction(action.id, { description }, { toastOnError: false })
-            }
-          />
-        </div>
+        {/* Mobile-first ordering (mobile audit): description → field strip →
+            timeline, so the primary actions (status/priority/due/…) aren't buried
+            under a potentially long activity history on a phone. A grid pins the
+            desktop layout (content in the left column across both rows, fields in
+            the right column) while the single-column mobile flow just follows
+            source order. */}
+        {/* md:grid-rows-[auto_1fr]: the rail spans both rows, and when it's
+            taller than the content column the grid would otherwise distribute
+            its extra height across BOTH auto rows — inflating the description
+            row and opening dead space above the timeline (PROG-90). Pinning
+            row 1 to auto keeps the description content-sized; the 1fr timeline
+            row absorbs the rail's surplus, leaving only the standard gap-8. */}
+        <div className="mt-6 grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,1fr)_14rem] md:grid-rows-[auto_1fr]">
+          <div className="min-w-0 md:col-start-1 md:row-start-1">
+            <EditableMarkdown
+              value={action.description}
+              placeholder="Add a description…"
+              draftScope={{ meId: snapshot.me?.id ?? "anon", targetId: action.id }}
+              gitUrl={focus?.gitUrl}
+              onSave={(description) =>
+                updateAction(action.id, { description }, { toastOnError: false })
+              }
+            />
+          </div>
 
-        {/* min-w-0: a grid item defaults to min-width:auto, so it won't shrink
-            below its content's intrinsic width. The native date input below has
-            a wide intrinsic width on iOS, which otherwise stretches this whole
-            column (and every w-full field in it) past the viewport — horizontal
-            overflow on a phone. min-w-0 lets the track constrain it. */}
-        <aside className="w-full min-w-0 overflow-hidden space-y-4 md:col-start-2 md:row-start-1 md:row-span-2">
-          {/* The status panel (PROG-108b): the action's state controls in one
+          {/* min-w-0: a grid item defaults to min-width:auto, so it won't shrink
+              below its content's intrinsic width. The native date input below has
+              a wide intrinsic width on iOS, which otherwise stretches this whole
+              column (and every w-full field in it) past the viewport — horizontal
+              overflow on a phone. min-w-0 lets the track constrain it.
+              rounded-lg bg-paper (PROG-151): the whole field rail recesses as
+              one panel — paper is the inset tint inside the well's white card
+              (the CreateActionDialog precedent), which is what keeps every
+              bg-card select/input below (FieldSelect, IconDateInput) visible
+              instead of vanishing against a same-color well. */}
+          <aside className="w-full min-w-0 space-y-4 overflow-hidden rounded-lg bg-paper p-3 md:col-start-2 md:row-start-1 md:row-span-2">
+            {/* The status panel (PROG-108b): the action's state controls in one
               wash-tinted box leading the sidebar — the status select, the
               one-click Complete action, and the agent-kickoff Copy as prompt
               (absorbing the PROG-104 Work-on-this panel; its Copy-CLI-command
               link is retired). The header names which kind of thing this page
               shows: a Step is an action with a parent (PROG-106 chain). */}
-          <div className="rounded-lg border border-accent-wash bg-accent-wash/30 p-3">
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide font-mono text-accent-deep">
-              {action.parentActionId ? "Step Status" : "Action Status"}
-            </p>
-            {/* The buttons live inside IconSelect's control column (PROG-110)
+            <div className="rounded-lg border border-accent-wash bg-accent-wash/30 p-3">
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide font-mono text-accent-deep">
+                {action.parentActionId ? "Step Status" : "Action Status"}
+              </p>
+              {/* The buttons live inside IconSelect's control column (PROG-110)
                 so their left edges align with the dropdown rather than
                 stretching under the glyph gutter, and the gutter glyph
                 centers vertically against the whole stack. */}
-            <IconSelect
-              icon={<StatusIndicator status={action.status} />}
-              openLabel="Change status"
-              value={action.status}
-              options={ACTION_STATUSES.map((s) => [s, STATUS_LABELS[s]])}
-              onChange={(v) => updateAction(action.id, { status: v as ActionStatus })}
-            >
-              {/* Closed actions (done/canceled) have no work left to hand to an
+              <IconSelect
+                icon={<StatusIndicator status={action.status} />}
+                openLabel="Change status"
+                value={action.status}
+                options={ACTION_STATUSES.map((s) => [s, STATUS_LABELS[s]])}
+                onChange={(v) => updateAction(action.id, { status: v as ActionStatus })}
+              >
+                {/* Closed actions (done/canceled) have no work left to hand to an
                   agent, so the kickoff hides with them (PROG-108b). */}
-              {isOpenStatus(action.status) && (
-                <button
-                  onClick={() => void copyBundleAsPrompt(actionKeyOf(snapshot, action))}
-                  className="group mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent-deep sm:min-h-0"
-                >
-                  Copy as prompt
-                  <ArrowGlyph className="transition-transform group-hover:translate-x-0.5" />
-                  <span className="text-white/90">(W)</span>
-                </button>
-              )}
-              {/* One-click move to done (PROG-108), in moss — the palette's
+                {isOpenStatus(action.status) && (
+                  <button
+                    onClick={() => void copyBundleAsPrompt(actionKeyOf(snapshot, action))}
+                    className="group mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent-deep sm:min-h-0"
+                  >
+                    Copy as prompt
+                    <ArrowGlyph className="transition-transform group-hover:translate-x-0.5" />
+                    <span className="text-white/90">(W)</span>
+                  </button>
+                )}
+                {/* One-click move to done (PROG-108), in moss — the palette's
                   completed/grounded green — so finishing reads distinctly from
                   the accent kickoff above. Hidden once the action is already
                   done — the select above still covers reopen. */}
-              {action.status !== "done" && (
-                <button
-                  onClick={() => updateAction(action.id, { status: "done" })}
-                  className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-moss px-3 py-2 text-sm font-medium text-white hover:bg-moss-deep sm:min-h-0"
-                >
-                  Complete action
-                  <CheckGlyph />
-                </button>
-              )}
-            </IconSelect>
-          </div>
-          {/* Field order + the icon gutter (PROG-101, reworked PROG-104):
+                {action.status !== "done" && (
+                  <button
+                    onClick={() => updateAction(action.id, { status: "done" })}
+                    className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-moss px-3 py-2 text-sm font-medium text-white hover:bg-moss-deep sm:min-h-0"
+                  >
+                    Complete action
+                    <CheckGlyph />
+                  </button>
+                )}
+              </IconSelect>
+            </div>
+            {/* Field order + the icon gutter (PROG-101, reworked PROG-104):
               every field carries a glyph on the left and its value in the same
               text column. After the status panel, Location — the action's
               whole outline position as a Workspace → Focus → Arc mini-tree,
@@ -234,140 +251,141 @@ export default function ActionPage({
               doubles as the field's gutter button (start-aligned so it sits
               on the workspace line), opening the location palette (S/P/E/L
               shortcuts still fire regardless). */}
-          <Field label="Location">
-            <IconRow
-              align="start"
-              icon={
-                <button
-                  type="button"
-                  aria-label="Change location (L)"
-                  onClick={() => openPalette({ kind: "location", actionId: action.id })}
-                  className={`${GLYPH_BUTTON_CLS} text-ink-faint hover:text-ink-soft`}
-                >
-                  <WorkspaceGlyph />
-                </button>
-              }
-            >
-              {/* pl-2 aligns the value text with the select/input fields below,
+            <Field label="Location">
+              <IconRow
+                align="start"
+                icon={
+                  <button
+                    type="button"
+                    aria-label="Change location (L)"
+                    onClick={() => openPalette({ kind: "location", actionId: action.id })}
+                    className={`${GLYPH_BUTTON_CLS} text-ink-faint hover:text-ink-soft`}
+                  >
+                    <WorkspaceGlyph />
+                  </button>
+                }
+              >
+                {/* pl-2 aligns the value text with the select/input fields below,
                   whose text sits inside a border + px-2 gutter (PROG-104). */}
-              <div className="min-w-0 pl-2">
-                {workspace && (
-                  <Link
-                    href={`/workspace/${workspace.id}`}
-                    className="block truncate text-sm hover:text-accent-deep"
-                  >
-                    {workspace.name}
-                  </Link>
-                )}
-                {focus ? (
-                  <Link
-                    href={`/focus/${focus.id}`}
-                    className="flex items-center gap-1.5 text-sm hover:text-accent-deep"
-                  >
-                    <span className="text-ink-faint">
-                      <FocusGlyph />
-                    </span>
-                    <span className="truncate">{focus.name}</span>
-                  </Link>
-                ) : (
-                  <span className="text-sm text-ink-faint">?</span>
-                )}
-                {focus?.gitUrl && (
-                  <a
-                    href={focus.gitUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block truncate pl-5 font-mono text-xs text-ink-faint hover:text-ink-soft hover:underline"
-                  >
-                    {focus.gitUrl.replace(/^https?:\/\//, "")}
-                  </a>
-                )}
-                {/* The arc nests under its focus like the location picker and
+                <div className="min-w-0 pl-2">
+                  {workspace && (
+                    <Link
+                      href={`/workspace/${workspace.id}`}
+                      className="block truncate text-sm hover:text-accent-deep"
+                    >
+                      {workspace.name}
+                    </Link>
+                  )}
+                  {focus ? (
+                    <Link
+                      href={`/focus/${focus.id}`}
+                      className="flex items-center gap-1.5 text-sm hover:text-accent-deep"
+                    >
+                      <span className="text-ink-faint">
+                        <FocusGlyph />
+                      </span>
+                      <span className="truncate">{focus.name}</span>
+                    </Link>
+                  ) : (
+                    <span className="text-sm text-ink-faint">?</span>
+                  )}
+                  {focus?.gitUrl && (
+                    <a
+                      href={focus.gitUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block truncate pl-5 font-mono text-xs text-ink-faint hover:text-ink-soft hover:underline"
+                    >
+                      {focus.gitUrl.replace(/^https?:\/\//, "")}
+                    </a>
+                  )}
+                  {/* The arc nests under its focus like the location picker and
                     outline render it — the field reads as the Workspace →
                     Focus → Arc path. No arc → the focus line ends the path. */}
-                {arc && (
-                  <Link
-                    href={`/arc/${arc.id}`}
-                    className="flex items-center gap-1.5 pl-3 text-sm hover:text-accent-deep"
-                  >
-                    <span className="text-ink-faint">
-                      <ArcGlyph />
-                    </span>
-                    <span className="truncate">{arc.name}</span>
-                  </Link>
-                )}
-                {/* Explicit "change" affordance (PROG-105): the gutter glyph
+                  {arc && (
+                    <Link
+                      href={`/arc/${arc.id}`}
+                      className="flex items-center gap-1.5 pl-3 text-sm hover:text-accent-deep"
+                    >
+                      <span className="text-ink-faint">
+                        <ArcGlyph />
+                      </span>
+                      <span className="truncate">{arc.name}</span>
+                    </Link>
+                  )}
+                  {/* Explicit "change" affordance (PROG-105): the gutter glyph
                     also opens this palette, but a modal-backed field needs a
                     visible trigger — the names themselves link to the focus
                     and arc pages. Mirrors the Tags field's "Edit… (T)". */}
-                <button
-                  onClick={() => openPalette({ kind: "location", actionId: action.id })}
-                  className={`mt-0.5 ${FIELD_ACTION_CLS}`}
-                >
-                  Change… <span className="ml-1 text-ink-faint">(L)</span>
-                </button>
-              </div>
-            </IconRow>
-          </Field>
-          <Field label="Due date">
-            <IconDateInput
-              value={action.dueDate ?? ""}
-              onChange={(v) => updateAction(action.id, { dueDate: v || null })}
-            />
-          </Field>
-          <Field label="Priority">
-            <IconSelect
-              icon={<PriorityIndicator priority={action.priority} />}
-              openLabel="Change priority"
-              value={action.priority}
-              options={ACTION_PRIORITIES.map((p) => [p, PRIORITY_LABELS[p]])}
-              onChange={(v) => updateAction(action.id, { priority: v as ActionPriority })}
-            />
-          </Field>
-          <Field label="Estimate">
-            <IconSelect
-              icon={<EstimateIndicator estimate={action.estimate} />}
-              openLabel="Change estimate"
-              value={action.estimate === null ? "" : String(action.estimate)}
-              options={[
-                ["", "—"],
-                ...ACTION_ESTIMATES.map((e): [string, string] => [String(e), String(e)]),
-              ]}
-              onChange={(v) => updateAction(action.id, { estimate: v === "" ? null : Number(v) })}
-            />
-          </Field>
-          <Field label="Tags">
-            {actionTags.length === 0 ? (
-              <span className="text-sm text-ink-faint">—</span>
-            ) : (
-              <span className="flex flex-wrap gap-1">
-                {actionTags.map((tag) => (
-                  <span
-                    key={tag.id}
-                    className="tag-chip rounded-full border px-2 py-0.5 text-xs"
-                    style={tagChipStyle(tag.color)}
+                  <button
+                    onClick={() => openPalette({ kind: "location", actionId: action.id })}
+                    className={`mt-0.5 ${FIELD_ACTION_CLS}`}
                   >
-                    {tag.name}
-                  </span>
-                ))}
-              </span>
-            )}
-            <button
-              onClick={() => openPalette({ kind: "tag", actionId: action.id })}
-              className={`mt-0.5 ${FIELD_ACTION_CLS}`}
-            >
-              Edit… <span className="ml-1 text-ink-faint">(T)</span>
-            </button>
-          </Field>
-          <div className="space-y-1 border-t border-line pt-3 text-xs text-ink-faint">
-            <p>Created {fmtTime(action.createdAt)}</p>
-            <p>Updated {fmtTime(action.updatedAt)}</p>
-            {action.completedAt && <p>Completed {fmtTime(action.completedAt)}</p>}
-          </div>
-        </aside>
+                    Change… <span className="ml-1 text-ink-faint">(L)</span>
+                  </button>
+                </div>
+              </IconRow>
+            </Field>
+            <Field label="Due date">
+              <IconDateInput
+                value={action.dueDate ?? ""}
+                onChange={(v) => updateAction(action.id, { dueDate: v || null })}
+              />
+            </Field>
+            <Field label="Priority">
+              <IconSelect
+                icon={<PriorityIndicator priority={action.priority} />}
+                openLabel="Change priority"
+                value={action.priority}
+                options={ACTION_PRIORITIES.map((p) => [p, PRIORITY_LABELS[p]])}
+                onChange={(v) => updateAction(action.id, { priority: v as ActionPriority })}
+              />
+            </Field>
+            <Field label="Estimate">
+              <IconSelect
+                icon={<EstimateIndicator estimate={action.estimate} />}
+                openLabel="Change estimate"
+                value={action.estimate === null ? "" : String(action.estimate)}
+                options={[
+                  ["", "—"],
+                  ...ACTION_ESTIMATES.map((e): [string, string] => [String(e), String(e)]),
+                ]}
+                onChange={(v) => updateAction(action.id, { estimate: v === "" ? null : Number(v) })}
+              />
+            </Field>
+            <Field label="Tags">
+              {actionTags.length === 0 ? (
+                <span className="text-sm text-ink-faint">—</span>
+              ) : (
+                <span className="flex flex-wrap gap-1">
+                  {actionTags.map((tag) => (
+                    <span
+                      key={tag.id}
+                      className="tag-chip rounded-full border px-2 py-0.5 text-xs"
+                      style={tagChipStyle(tag.color)}
+                    >
+                      {tag.name}
+                    </span>
+                  ))}
+                </span>
+              )}
+              <button
+                onClick={() => openPalette({ kind: "tag", actionId: action.id })}
+                className={`mt-0.5 ${FIELD_ACTION_CLS}`}
+              >
+                Edit… <span className="ml-1 text-ink-faint">(T)</span>
+              </button>
+            </Field>
+            <div className="space-y-1 border-t border-line pt-3 text-xs text-ink-faint">
+              <p>Created {fmtTime(action.createdAt)}</p>
+              <p>Updated {fmtTime(action.updatedAt)}</p>
+              {action.completedAt && <p>Completed {fmtTime(action.completedAt)}</p>}
+            </div>
+          </aside>
 
-        <div className="min-w-0 md:col-start-1 md:row-start-2">
-          <TimelineSection action={action} snapshot={snapshot} />
+          <div className="min-w-0 md:col-start-1 md:row-start-2">
+            <TimelineSection action={action} snapshot={snapshot} />
+          </div>
         </div>
       </div>
     </div>
@@ -545,7 +563,10 @@ function TimelineSection({ action, snapshot }: { action: WireAction; snapshot: S
       <ul className="mt-4 space-y-4">
         {entries.map((entry) =>
           entry.kind === "comment" ? (
-            <li key={entry.comment.id} className="rounded-lg border border-line bg-card p-3">
+            // bg-paper (PROG-151): recessed against the now-bg-card well —
+            // a same-color bg-card row here would merge into the well and
+            // the whole timeline would read as one undifferentiated block.
+            <li key={entry.comment.id} className="rounded-lg border border-line bg-paper p-3">
               <p className="text-xs text-ink-faint">
                 <span className="font-medium text-ink-soft">
                   {userName(entry.comment.authorId)}
@@ -570,7 +591,9 @@ function TimelineSection({ action, snapshot }: { action: WireAction; snapshot: S
           onChange={onDraftChange}
           rows={3}
           placeholder="Leave a comment… (Markdown)"
-          className="w-full rounded border border-line bg-card p-3 text-sm focus:border-ink-faint"
+          // bg-paper (PROG-151): recessed input inside the well, matching the
+          // comment cards it posts into.
+          className="w-full rounded border border-line bg-paper p-3 text-sm focus:border-ink-faint"
         />
         <div className="mt-2 flex items-center gap-2">
           <button
@@ -611,7 +634,9 @@ function PrRow({ pr }: { pr: WirePrLink }) {
       href={pr.url || undefined}
       target="_blank"
       rel="noreferrer"
-      className="flex items-center gap-2 rounded-lg border border-line bg-card px-3 py-2 text-sm hover:border-ink-faint"
+      // bg-paper (PROG-151): recessed inside the well, same reasoning as the
+      // comment cards above.
+      className="flex items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2 text-sm hover:border-ink-faint"
     >
       <span
         className={`shrink-0 rounded-full px-2 py-px text-3xs font-medium uppercase ${PR_STATE_STYLES[pr.state]}`}
@@ -632,7 +657,7 @@ function CommitRow({ commit }: { commit: WireCommitLink }) {
       href={commit.url || undefined}
       target="_blank"
       rel="noreferrer"
-      className="flex items-center gap-2 rounded-lg border border-line bg-card px-3 py-1.5 text-xs hover:border-ink-faint"
+      className="flex items-center gap-2 rounded-lg border border-line bg-paper px-3 py-1.5 text-xs hover:border-ink-faint"
     >
       <span className="shrink-0 font-mono text-ink-faint">{commit.sha.slice(0, 7)}</span>
       <span className="truncate text-ink-soft">{commit.message}</span>

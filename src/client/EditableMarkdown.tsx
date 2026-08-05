@@ -116,7 +116,10 @@ export default function EditableMarkdown({
           onChange={onType}
           rows={8}
           autoFocus
-          className="w-full rounded border border-line bg-card p-3 font-mono text-sm"
+          // bg-paper (PROG-151): both callers (action + container pages) now
+          // seat this editor inside a bg-card content well — paper is the
+          // recess tint, matching the CreateActionDialog inset-panel pattern.
+          className="w-full rounded border border-line bg-paper p-3 font-mono text-sm"
         />
         <div className="mt-2 flex gap-2">
           <button
@@ -137,7 +140,10 @@ export default function EditableMarkdown({
   }
 
   return (
-    <section onClick={beginEdit} className="group -m-1 cursor-text rounded p-1 hover:bg-card">
+    // hover:bg-paper (PROG-151): this now renders inside a bg-card well, so
+    // the old hover:bg-card lift (designed for a canvas-seated block) would
+    // be invisible — paper is the recess tint that still reads as a lift.
+    <section onClick={beginEdit} className="group -m-1 cursor-text rounded p-1 hover:bg-paper">
       {value === "" ? (
         <p className="text-ink-faint">{placeholder}</p>
       ) : (
