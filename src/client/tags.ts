@@ -25,6 +25,15 @@ import { sortByName } from "./boardFilters";
 // three current theme cards are all near-white (porcelain #ffffff, adobe
 // #fdfaf3, sanzo #fefbf3), so one hex passes all of them; update CARD_COLORS
 // if a future theme's card drifts further from white.
+//
+// mono (PROG-150b) needs the hue itself neutralized, which color-mix and this
+// module's JS math can't do without a live DOM (color-mix output isn't
+// readable back into JS). Its card is #ffffff — identical to porcelain's, so
+// no CARD_COLORS change — and every chip gets a `grayscale(1)` CSS filter
+// scoped to `:root[data-theme="mono"] .tag-chip` (styles.css) at render time
+// instead: grayscale is luminance-preserving, so the wash/border/text
+// contrast ratios computed here survive the filter unchanged. Every render
+// site adds the stable `tag-chip` class alongside this style object.
 
 type Rgb = [number, number, number];
 

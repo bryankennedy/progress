@@ -84,15 +84,18 @@
 }
 
 /* ── Theme presets (PROG-150) ──────────────────────────────────────────────────
-   Three user-selectable color schemes, applied as `data-theme` on <html>
+   Four user-selectable color schemes, applied as `data-theme` on <html>
    (src/client/theme.ts, picker in Header.tsx, palette commands). Porcelain is
    the `@theme` default above and needs no block — `data-theme` absent or
    "porcelain" both render it. Each override block replaces ONLY the neutral
    ramp, accent family, moss family, hover, and prompt trio; danger, priority
-   colors, radius, and shadows stay global across every theme (see
+   colors, radius, and shadows stay global across porcelain/adobe/sanzo (see
    docs/decisions/PROG-150.md for why — in short, the ink-tinted shadows and
    the danger/priority hues were re-verified against all three cards and still
    clear their WCAG floors, so there's nothing theme-specific to say there).
+   `mono` (PROG-150b, below) is the one preset that DOES override danger and
+   priority — "totally monochrome" means no hue survives, full stop; see
+   docs/decisions/PROG-150.md's mono appendix for the contrast table.
    Mirrored into brand-assets/tokens.css, which stays the source of truth. */
 
 :root[data-theme="adobe"] {
@@ -149,6 +152,63 @@
   --color-prompt-text: #7a571f; /* from Orange Citrine */
   --color-prompt-border: #dfc79f;
   --color-prompt-bg: #f6eddf;
+}
+
+:root[data-theme="mono"] {
+  /* Mono (PROG-150b) — totally monochrome: zero-chroma grays only. Unlike
+     adobe/sanzo, this preset ALSO overrides danger and the priority ramp —
+     "shades of black & white" means nothing colored survives, including
+     overdue-red and priority hues. Status/priority/estimate still encode
+     meaning in shape (pie fills, bar counts, text), not color alone, so
+     grayscale stays legible (docs/decisions/PROG-150.md has the full table). */
+  --color-paper: #f7f7f7;
+  --color-canvas: #f0f0f0;
+  --color-card: #ffffff;
+  --color-line: #e0e0e0;
+  --color-hover: #e0e0e0;
+  --color-ink: #1a1a1a;
+  --color-ink-soft: #4d4d4d;
+  --color-ink-faint: #6b6b6b;
+
+  --color-accent-deep: #000000;
+  --color-accent: #111111; /* CTA fill, ~18:1 white text */
+  --color-accent-light: #8a8a8a;
+  --color-accent-wash: #ececec;
+
+  --color-moss-deep: #4d4d4d;
+  --color-moss: #767676; /* ≥3:1 on card as a graphic (Step icon, LevelIcon) */
+  --color-moss-light: #ababab;
+  --color-moss-wash: #e6e6e6;
+
+  --color-prompt-text: #3a3a3a;
+  --color-prompt-border: #c9c9c9;
+  --color-prompt-bg: #f2f2f2;
+
+  /* Danger — overdue/error reads as heavy near-black instead of red. That's
+     the point: it's the one preset where "totally monochrome" wins over the
+     danger-is-always-warm convention the other themes keep (PROG-150). */
+  --color-danger: #1f1f1f;
+  --color-danger-bg: #efefef;
+  --color-danger-border: #c4c4c4;
+
+  /* Priority ramp — grays, still distinct enough by lightness for the bar
+     count + these shades to both carry rank (PriorityIndicator draws shape
+     AND color; mono keeps the shape, neutralizes the color). */
+  --color-priority-high: #333333;
+  --color-priority-medium: #6b6b6b;
+  --color-priority-low: #8a8a8a;
+}
+
+/* Tag chips (PROG-150 ripple check; PROG-150b): the wash/border already
+   resolve through `color-mix(…, var(--color-card))` (tags.ts), so they track
+   mono's neutral card automatically, but the HUE input and the precomputed
+   text color are still colored. `grayscale(1)` is luminance-preserving, so
+   the wash/text/border's already-verified contrast ratios survive the filter
+   unchanged — a pure attribute flip, no JS re-render needed on theme switch.
+   Applies to every colored tag swatch, not just chips (see call sites: `.tag-chip`
+   className added everywhere tagChipStyle()/tag.color renders). */
+:root[data-theme="mono"] .tag-chip {
+  filter: grayscale(1);
 }
 
 /* ── Self-hosted fonts (CR5/PROG-147) ─────────────────────────────────────────

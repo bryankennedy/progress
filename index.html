@@ -31,7 +31,7 @@
       (function () {
         try {
           var id = window.localStorage.getItem("progress:theme");
-          var paper = { adobe: "#f5efe0", sanzo: "#f9f4e9" }[id];
+          var paper = { adobe: "#f5efe0", sanzo: "#f9f4e9", mono: "#f7f7f7" }[id];
           if (paper) {
             document.documentElement.dataset.theme = id;
             var meta = document.querySelector('meta[name="theme-color"]');

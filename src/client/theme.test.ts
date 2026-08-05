@@ -60,8 +60,8 @@ afterEach(() => {
 });
 
 describe("THEMES metadata", () => {
-  it("lists exactly the three presets, porcelain first (the default)", () => {
-    expect(THEMES.map((t) => t.id)).toEqual(["porcelain", "adobe", "sanzo"]);
+  it("lists exactly the four presets, porcelain first (the default)", () => {
+    expect(THEMES.map((t) => t.id)).toEqual(["porcelain", "adobe", "sanzo", "mono"]);
   });
 
   it("gives every theme a label, description, and three swatch colors", () => {

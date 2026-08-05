@@ -15,7 +15,7 @@
 // script's comment). Keep the two in sync if a theme is added, removed, or
 // recolored.
 
-export type ThemeId = "porcelain" | "adobe" | "sanzo";
+export type ThemeId = "porcelain" | "adobe" | "sanzo" | "mono";
 
 export interface ThemeMeta {
   id: ThemeId;
@@ -45,6 +45,12 @@ export const THEMES: ThemeMeta[] = [
     label: "Sanzo",
     description: "Wada Sanzo classic 342 — rose, cream & slate olive",
     swatch: { paper: "#f9f4e9", accent: "#b04249", moss: "#4e8042" },
+  },
+  {
+    id: "mono",
+    label: "Mono",
+    description: "shades of black & white",
+    swatch: { paper: "#f7f7f7", accent: "#111111", moss: "#767676" },
   },
 ];
 

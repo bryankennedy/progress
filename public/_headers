@@ -13,7 +13,7 @@
 #   - script-src 'self'        — one external module bundle, plus exactly one
 #                                pinned inline script (below), no blanket
 #                                'unsafe-inline';
-#     + 'sha256-PC4NYtVSy/1FYcx3HxHkJj6hpqWfz9s4GNHJzYN1zr4=' — the PROG-150
+#     + 'sha256-yemgn44ZhCXv3NlHLmLLKNNwakGN+bLpBCd/mPlKShE=' — the PROG-150
 #                                no-flash theme-boot script in index.html's
 #                                <head> (sets data-theme from localStorage
 #                                before first paint, so switching presets never
@@ -42,7 +42,7 @@
 # 'unsafe-inline', which would gut the policy. Its console error is harmless;
 # disable Bot Fight Mode (or its JavaScript Detections) on the zone to silence it.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-PC4NYtVSy/1FYcx3HxHkJj6hpqWfz9s4GNHJzYN1zr4=' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' https://cloudflareinsights.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; manifest-src 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-yemgn44ZhCXv3NlHLmLLKNNwakGN+bLpBCd/mPlKShE=' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' https://cloudflareinsights.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; manifest-src 'self'
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY

@@ -344,7 +344,7 @@ export default function ActionPage({
                 {actionTags.map((tag) => (
                   <span
                     key={tag.id}
-                    className="rounded-full border px-2 py-0.5 text-xs"
+                    className="tag-chip rounded-full border px-2 py-0.5 text-xs"
                     style={tagChipStyle(tag.color)}
                   >
                     {tag.name}

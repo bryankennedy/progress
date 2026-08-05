@@ -62,12 +62,15 @@
 }
 
 /* ── Theme presets (PROG-150) — user-selectable color schemes ───────────────
-   Porcelain (above) is the default and needs no block. Each override
-   replaces ONLY the neutral ramp, accent/moss families, hover, and prompt
-   trio; danger, priority colors, radius, and shadows stay global. This file
-   is the source of truth; src/client/styles.css mirrors it into Tailwind's
-   `@theme` (as `--color-*`) so it stays selectable via `:root[data-theme]`.
-   Full derivation + contrast table: docs/decisions/PROG-150.md. */
+   Porcelain (above) is the default and needs no block. adobe/sanzo each
+   replace ONLY the neutral ramp, accent/moss families, hover, and prompt
+   trio; danger, priority colors, radius, and shadows stay global for those
+   two. `mono` (PROG-150b) is the exception — it overrides priority too (see
+   its block below) because "totally monochrome" leaves nothing colored. This
+   file is the source of truth; src/client/styles.css mirrors it into
+   Tailwind's `@theme` (as `--color-*`) so it stays selectable via
+   `:root[data-theme]`. Full derivation + contrast table:
+   docs/decisions/PROG-150.md. */
 
 :root[data-theme="adobe"] {
   /* Adobe — the pre-PROG-145 "Adobe & Moss" earth tones, contrast-corrected. */
@@ -121,4 +124,37 @@
   --prompt-text: #7a571f;
   --prompt-border: #dfc79f;
   --prompt-bg: #f6eddf;
+}
+
+:root[data-theme="mono"] {
+  /* Mono (PROG-150b) — totally monochrome: zero-chroma grays only, including
+     the priority ramp (the one colored thing the other presets leave global).
+     Danger has no token in this file to begin with (only styles.css's
+     Tailwind @theme carries it), so there's nothing to mirror for it here. */
+  --paper: #f7f7f7;
+  --canvas: #f0f0f0;
+  --card: #ffffff;
+  --line: #e0e0e0;
+  --hover: #e0e0e0;
+  --ink: #1a1a1a;
+  --ink-soft: #4d4d4d;
+  --ink-faint: #6b6b6b;
+
+  --accent-deep: #000000;
+  --accent: #111111;
+  --accent-light: #8a8a8a;
+  --accent-wash: #ececec;
+
+  --moss-deep: #4d4d4d;
+  --moss: #767676;
+  --moss-light: #ababab;
+  --moss-wash: #e6e6e6;
+
+  --prompt-text: #3a3a3a;
+  --prompt-border: #c9c9c9;
+  --prompt-bg: #f2f2f2;
+
+  --priority-high: #333333;
+  --priority-medium: #6b6b6b;
+  --priority-low: #8a8a8a;
 }
