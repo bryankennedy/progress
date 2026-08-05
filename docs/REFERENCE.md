@@ -524,6 +524,25 @@ priority ramp). Full derivation + WCAG contrast tables: `docs/decisions/PROG-150
   under `prefers-contrast: more`. Full technique + amplitudes:
   `docs/decisions/PROG-150.md`.
 
+### Content wells (PROG-151)
+
+The raw canvas carries only page chrome — a `PageHeader`/breadcrumb, `FilterBar`
+controls, board columns; every entity **content** block sits on a `bg-card`
+surface. Two shapes: a **content well** — one `rounded-lg border border-line
+bg-card p-4 sm:p-6` container wrapping a detail page's whole body below the
+breadcrumb (action page, container pages) — and **carded rows/tables** — the
+Search per-row card idiom, or a table wrapped in `rounded-lg border border-line
+bg-card` (`ActionTable`'s own wrapper, or `ActionListView`'s table-mode surface,
+which nests `ActionTable` with its `bare` prop to avoid a double border).
+Nested inset elements inside a well (the action page's field rail, comment/PR/
+commit rows, the composer, `InlineEdit`/`EditableMarkdown`'s editing surfaces)
+recess to `bg-paper` — the same tint `CreateActionDialog`'s inset panels use —
+so a `bg-card` select or input doesn't vanish against a same-color well. Board,
+Search, and Outline predate this pass and were already carded; Agenda, Diary,
+Archive, and Admin were already mostly carded (only bare empty-state
+paragraphs got the dashed-box treatment). Full per-route rationale and the
+comment-recess/list-chrome judgment calls: `docs/decisions/PROG-151.md`.
+
 ## 5. UI surfaces
 
 Every route opens with the same header grammar (PROG-148): the shared
@@ -732,7 +751,10 @@ the canonical classes but not the component.
   plus **Due**, one header-sort shared across buckets (unsorted keeps the
   agenda's due-then-key order), a quick-search box narrowing within the
   buckets, and the bump-due input + **✓ Done** button riding in a trailing
-  cell. The groupings and quick-adds persist in both modes.
+  cell. The groupings and quick-adds persist in both modes. Bucket rows (list
+  mode) and the table (either mode, via the shared `ActionTable`) were already
+  carded before PROG-151; only the page-wide no-dated-actions message needed
+  the dashed empty-state box.
 - **Diary (`/diary`)** — the per-day recap (PROG-113): what actually happened
   on a local calendar day, addressed as `?date=YYYY-MM-DD` (default today, ‹ ›
   and a date input navigate; days are bookmarkable). Three layers: (1) an
@@ -750,7 +772,9 @@ the canonical classes but not the component.
   section quietly disappears; an eventless day shows a plain empty state. The
   background sync's timeline invalidation also refreshes an open Diary
   (`["diary"]` query prefix). Desktop nav inline; on phones it lives in the
-  More sheet.
+  More sheet. The progress strip, AI entry, and recap/day-events lists were
+  already carded before PROG-151; only the quiet-day empty message needed the
+  dashed empty-state box.
 - **Archive (`/archive`)** — a top-nav destination listing every archived arc,
   grouped by Workspace → Focus. The dedicated Structure overview (D40) was
   retired in favor of the Outline's all-workspaces scope (`/outline?all=1`,
@@ -813,8 +837,10 @@ the canonical classes but not the component.
   "↳ PARENT-KEY" breadcrumb (PROG-124). Columns still sort everything by `rank`.
 - **Container pages** — description-on-top open page (inline-editable name,
   Markdown description, key prefix / git URL where applicable, archive
-  toggle), child-container chips with "+ New" buttons, and the **shared
-  action list** (`ActionListView`, PROG-126) switchable between two modes via
+  toggle) and child-container chips with "+ New" buttons, all seated in one
+  content well below the breadcrumb (PROG-151); the **shared action list**
+  (`ActionListView`, PROG-126) renders below the well, as list chrome on
+  canvas, switchable between two modes via
   a segmented Outline/Table toggle (sticky per surface,
   `src/client/viewPrefs.ts`): **outline** embeds the real outline view
   (`OutlineView`, exported from `pages/Outline.tsx`) scoped to the container —
@@ -829,7 +855,9 @@ the canonical classes but not the component.
   PROG-100).
 - **Action page** — a structural breadcrumb (Workspace / Focus / Arc / KEY,
   ancestors linked, unset arc omitted — the shared `Breadcrumb` component,
-  PROG-103; container pages use it too, ending in their kind). A **Step**
+  PROG-103; container pages use it too, ending in their kind), the one thing
+  left on raw canvas (PROG-151) — everything below sits in one content well.
+  A **Step**
   continues the trail through its parent actions, outermost first
   (… / Arc / PROG-4 / PROG-11), each a linked mono key; the walk
   (`actionAncestors`, `store.ts`) handles unbounded nesting and truncates on a
@@ -843,7 +871,11 @@ the canonical classes but not the component.
   with picker buttons; a **Work on this**
   field — D35), a Git section
   (linked PRs with state badges, commits with short shas, linking out to
-  GitHub), and comments + activity interleaved into one timeline. Each
+  GitHub), and comments + activity interleaved into one timeline. The sidebar
+  is a `bg-paper`-recessed panel inside the well (PROG-151) — the same recess
+  tint `CreateActionDialog` uses — so its `bg-card` selects/inputs stay
+  visible; timeline comment/PR/commit cards recess the same way so the thread
+  reads as distinct entries rather than one block. Each
   editable sidebar field carries a **left-gutter glyph** (PROG-101): the
   shared `StatusIndicator` (circle progression — dashed backlog → outlined
   todo → accent half/three-quarter pies for in progress/in review → moss
