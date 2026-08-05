@@ -89,6 +89,7 @@ export default function ActionTable({
   columns = DEFAULT_COLUMNS,
   terms = [],
   trailing,
+  bare = false,
 }: {
   snapshot: SnapshotPayload;
   rows: ActionTableRow[];
@@ -100,6 +101,11 @@ export default function ActionTable({
   // controls). Interactive content must stopPropagation itself if it isn't a
   // button/input — clicks on the cell fall through to row navigation.
   trailing?: (action: WireAction) => React.ReactNode;
+  // PROG-151: skip this table's own card wrapper (border/bg/rounded) when a
+  // caller already seats it inside its own card surface (ActionListView's
+  // table mode) — avoids a double-bordered card-in-a-card. Search and the
+  // Agenda don't pass this, so their own standalone card wrap is unchanged.
+  bare?: boolean;
 }) {
   const [, navigate] = useLocation();
   const focusById = new Map(snapshot.focuses.map((p) => [p.id, p]));
@@ -107,7 +113,9 @@ export default function ActionTable({
   const today = todayISO();
 
   return (
-    <div className="overflow-x-auto rounded-md border border-line bg-card">
+    <div
+      className={bare ? "overflow-x-auto" : "overflow-x-auto rounded-md border border-line bg-card"}
+    >
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-line">
