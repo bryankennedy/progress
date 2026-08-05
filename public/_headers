@@ -10,7 +10,18 @@
 # complementary, not redundant.
 #
 # CSP is tuned to exactly what the built `index.html` loads (verified PROG-65):
-#   - script-src 'self'        — one external module bundle, no inline scripts;
+#   - script-src 'self'        — one external module bundle, plus exactly one
+#                                pinned inline script (below), no blanket
+#                                'unsafe-inline';
+#     + 'sha256-PC4NYtVSy/1FYcx3HxHkJj6hpqWfz9s4GNHJzYN1zr4=' — the PROG-150
+#                                no-flash theme-boot script in index.html's
+#                                <head> (sets data-theme from localStorage
+#                                before first paint, so switching presets never
+#                                flashes porcelain first). Hashed rather than
+#                                'unsafe-inline'd to keep the policy pinned to
+#                                this exact script; regenerate the hash (see
+#                                that script's comment) if its text changes —
+#                                the CSP will otherwise silently block it.
 #     + static.cloudflareinsights.com — Cloudflare Web Analytics beacon, edge-
 #                                injected into the HTML on the bck.dev zone.
 #   - style-src 'unsafe-inline'— React/dnd-kit set inline `style` attributes
@@ -31,7 +42,7 @@
 # 'unsafe-inline', which would gut the policy. Its console error is harmless;
 # disable Bot Fight Mode (or its JavaScript Detections) on the zone to silence it.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' https://cloudflareinsights.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; manifest-src 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-PC4NYtVSy/1FYcx3HxHkJj6hpqWfz9s4GNHJzYN1zr4=' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' https://cloudflareinsights.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; manifest-src 'self'
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY

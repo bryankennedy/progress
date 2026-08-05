@@ -17,6 +17,32 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#f7f7f2" />
 
+    <!-- No-flash theme boot (PROG-150): applies the stored theme preset
+         before first paint. Must run before any stylesheet/paint, so it's an
+         inline script rather than deferred to main.tsx — the CSP (public/_headers)
+         allowlists this exact script by sha256 hash rather than 'unsafe-inline'
+         (keeps "no inline scripts except this one, pinned" as the policy).
+         Mirrors src/client/theme.ts's THEME_KEY/THEMES.swatch.paper — it can't
+         import that module (nothing is bundled yet), so keep the two in sync
+         if a theme is added, removed, or recolored. Reads localStorage only;
+         everything is try/caught so a storage failure just means "porcelain
+         this load", never a broken boot. -->
+    <script>
+      (function () {
+        try {
+          var id = window.localStorage.getItem("progress:theme");
+          var paper = { adobe: "#f5efe0", sanzo: "#f9f4e9" }[id];
+          if (paper) {
+            document.documentElement.dataset.theme = id;
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute("content", paper);
+          }
+        } catch (e) {
+          /* default this time */
+        }
+      })();
+    </script>
+
     <!-- iOS standalone PWA: the manifest alone isn't honoured by Safari, so these
          legacy/Apple-specific tags are required for an installed home-screen app.
          - mobile-web-app-capable (+ apple- legacy alias): run without browser chrome.
