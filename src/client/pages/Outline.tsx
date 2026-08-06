@@ -1525,7 +1525,15 @@ export function OutlineView({
           {renderFocusSections(scopedFocuses)}
         </div>
       ) : (
-        <div className={activeDrag ? "pointer-events-none select-none" : undefined}>
+        // Focus/arc scope hides the section header, which used to also drop the
+        // section's card — leaving the whole forest naked on the canvas
+        // (PROG-152). The card belongs to the forest, not the header: supply it
+        // here so every scope honors the PROG-151 surface standard. This is the
+        // single card for these scopes — ActionListView's outline mode renders
+        // OutlineView bare on container pages for the same reason.
+        <div
+          className={`rounded-lg border border-line bg-card p-3 ${activeDrag ? "pointer-events-none select-none" : ""}`}
+        >
           {scopedFocuses.map((p) => (
             <FocusOutline
               key={p.id}
