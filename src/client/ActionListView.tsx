@@ -139,11 +139,10 @@ export default function ActionListView({
       </div>
 
       {mode === "outline" ? (
-        // Same card surface as table mode (PROG-151): on a container page the
-        // embedded outline rows would otherwise sit naked on the canvas right
-        // under the header well. The standalone /outline route is unaffected —
-        // it renders OutlineView directly, not through this list.
-        <div className="mt-3 rounded-lg border border-line bg-card p-3 sm:p-4">
+        // No card wrapper here: OutlineView owns its surfaces (PROG-152) —
+        // carded focus sections in workspace scope, one forest card in
+        // focus/arc scope. Wrapping it again would nest card-in-card.
+        <div className="mt-3">
           <OutlineView snapshot={snapshot} scope={scope} hideDone={hideDone} />
         </div>
       ) : (

@@ -543,6 +543,12 @@ Archive, and Admin were already mostly carded (only bare empty-state
 paragraphs got the dashed-box treatment). Full per-route rationale and the
 comment-recess/list-chrome judgment calls: `docs/decisions/PROG-151.md`.
 
+`OutlineView` owns its surfaces in every scope (PROG-152): all/workspace scope
+cards each focus section (the `showHeader` card), and focus/arc scope — which
+hides the section header — cards the whole forest instead of dropping the
+surface with the header. Callers therefore never wrap it (`ActionListView`'s
+outline mode renders it bare); wrapping again would nest card-in-card.
+
 ## 5. UI surfaces
 
 Every route opens with the same header grammar (PROG-148): the shared
