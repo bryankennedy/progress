@@ -168,7 +168,10 @@ export default function ActionPage({
             row and opening dead space above the timeline (PROG-90). Pinning
             row 1 to auto keeps the description content-sized; the 1fr timeline
             row absorbs the rail's surplus, leaving only the standard gap-8. */}
-        <div className="mt-6 grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,1fr)_14rem] md:grid-rows-[auto_1fr]">
+        {/* 15rem rail (PROG-155): 14rem left the status-panel buttons ~7px
+            short of one comfortable line — the extra rem is breathing room for
+            label + shortcut hint, not new content. */}
+        <div className="mt-6 grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,1fr)_15rem] md:grid-rows-[auto_1fr]">
           <div className="min-w-0 md:col-start-1 md:row-start-1">
             <EditableMarkdown
               value={action.description}
@@ -218,12 +221,12 @@ export default function ActionPage({
                 {isOpenStatus(action.status) && (
                   <button
                     onClick={() => void copyBundleAsPrompt(actionKeyOf(snapshot, action))}
-                    className="group mt-2 flex min-h-11 w-full items-center gap-1 rounded-md bg-accent px-2.5 py-2 text-sm font-medium text-white hover:bg-accent-deep sm:min-h-0"
+                    className="group mt-2 flex min-h-11 w-full items-center gap-1.5 rounded-md bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent-deep sm:min-h-0"
                   >
                     {/* Label left, shortcut right (PROG-155): centered content
                       wrapped raggedly at the rail's width — label + arrow +
-                      hint don't reliably fit one centered line. px-2.5 and the
-                      xs hint buy the ~7px the full-size row overflowed by. */}
+                      hint don't reliably fit one centered line. The 15rem rail
+                      gives the row its comfortable padding back. */}
                     <span className="whitespace-nowrap">Copy as prompt</span>
                     <ArrowGlyph className="transition-transform group-hover:translate-x-0.5" />
                     <span className="ml-auto text-xs text-white/90">(W)</span>
@@ -236,7 +239,7 @@ export default function ActionPage({
                 {action.status !== "done" && (
                   <button
                     onClick={() => updateAction(action.id, { status: "done" })}
-                    className="mt-2 flex min-h-11 w-full items-center gap-1.5 rounded-md bg-moss px-2.5 py-2 text-sm font-medium text-white hover:bg-moss-deep sm:min-h-0"
+                    className="mt-2 flex min-h-11 w-full items-center gap-1.5 rounded-md bg-moss px-3 py-2 text-sm font-medium text-white hover:bg-moss-deep sm:min-h-0"
                   >
                     {/* Same label-left grammar as the kickoff above (PROG-155)
                       so the stacked panel buttons align as one column. */}
