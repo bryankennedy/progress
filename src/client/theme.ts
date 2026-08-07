@@ -68,18 +68,10 @@ export function getTheme(): ThemeId {
   return "porcelain";
 }
 
-// Sets the stored preference, flips the live `data-theme` attribute, and
-// retints the PWA `theme-color` meta — instant, no reload. Storage failures
-// are swallowed (the switch still applies for this session); DOM failures
-// (no `document`, e.g. under a non-DOM test runner) are swallowed too, since
-// the persisted preference is still the useful side effect there.
-export function setTheme(id: ThemeId): void {
-  try {
-    if (id === "porcelain") window.localStorage.removeItem(THEME_KEY);
-    else window.localStorage.setItem(THEME_KEY, id);
-  } catch {
-    /* sticky preference is a nicety — ignore storage failures */
-  }
+// Flips the live `data-theme` attribute and retints the PWA `theme-color`
+// meta. DOM failures (no `document`, e.g. under a non-DOM test runner) are
+// swallowed — the persisted preference is still the useful side effect.
+function applyTheme(id: ThemeId): void {
   try {
     if (id === "porcelain") delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = id;
@@ -89,4 +81,24 @@ export function setTheme(id: ThemeId): void {
   } catch {
     /* no document (e.g. a non-DOM test runner) — the stored preference still applies next boot */
   }
+}
+
+// Sets the stored preference and applies it live — instant, no reload.
+// Storage failures are swallowed (the switch still applies for this session).
+export function setTheme(id: ThemeId): void {
+  try {
+    if (id === "porcelain") window.localStorage.removeItem(THEME_KEY);
+    else window.localStorage.setItem(THEME_KEY, id);
+  } catch {
+    /* sticky preference is a nicety — ignore storage failures */
+  }
+  applyTheme(id);
+}
+
+// Re-applies the stored theme at app mount (PROG-163). The pre-paint
+// /theme-boot.js is the primary application; this is the second line of
+// defense so a blocked or failed boot script self-corrects once the app
+// hydrates (worst case: one porcelain flash, never a stuck-wrong theme).
+export function applyStoredTheme(): void {
+  applyTheme(getTheme());
 }
