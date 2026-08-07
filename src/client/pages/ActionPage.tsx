@@ -218,11 +218,15 @@ export default function ActionPage({
                 {isOpenStatus(action.status) && (
                   <button
                     onClick={() => void copyBundleAsPrompt(actionKeyOf(snapshot, action))}
-                    className="group mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent-deep sm:min-h-0"
+                    className="group mt-2 flex min-h-11 w-full items-center gap-1 rounded-md bg-accent px-2.5 py-2 text-sm font-medium text-white hover:bg-accent-deep sm:min-h-0"
                   >
-                    Copy as prompt
+                    {/* Label left, shortcut right (PROG-155): centered content
+                      wrapped raggedly at the rail's width — label + arrow +
+                      hint don't reliably fit one centered line. px-2.5 and the
+                      xs hint buy the ~7px the full-size row overflowed by. */}
+                    <span className="whitespace-nowrap">Copy as prompt</span>
                     <ArrowGlyph className="transition-transform group-hover:translate-x-0.5" />
-                    <span className="text-white/90">(W)</span>
+                    <span className="ml-auto text-xs text-white/90">(W)</span>
                   </button>
                 )}
                 {/* One-click move to done (PROG-108), in moss — the palette's
@@ -232,10 +236,14 @@ export default function ActionPage({
                 {action.status !== "done" && (
                   <button
                     onClick={() => updateAction(action.id, { status: "done" })}
-                    className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md bg-moss px-3 py-2 text-sm font-medium text-white hover:bg-moss-deep sm:min-h-0"
+                    className="mt-2 flex min-h-11 w-full items-center gap-1.5 rounded-md bg-moss px-2.5 py-2 text-sm font-medium text-white hover:bg-moss-deep sm:min-h-0"
                   >
-                    Complete action
-                    <CheckGlyph />
+                    {/* Same label-left grammar as the kickoff above (PROG-155)
+                      so the stacked panel buttons align as one column. */}
+                    <span className="whitespace-nowrap">Complete action</span>
+                    <span className="ml-auto flex items-center">
+                      <CheckGlyph />
+                    </span>
                   </button>
                 )}
               </IconSelect>
