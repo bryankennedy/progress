@@ -1566,8 +1566,7 @@ export function OutlineView({
                           href={`/workspace/${w.id}`}
                           title={w.name}
                           tabIndex={-1}
-                          className="block max-h-[70vh] overflow-hidden text-ellipsis whitespace-nowrap pr-1 text-2xs font-medium uppercase tracking-[0.18em] text-ink-faint hover:text-accent-deep"
-                          style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
+                          className="spine-sideways block max-h-[70vh] overflow-hidden text-ellipsis whitespace-nowrap pr-1 text-2xs font-medium uppercase tracking-[0.18em] text-ink-faint hover:text-accent-deep"
                         >
                           {w.name}
                         </Link>
