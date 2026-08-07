@@ -485,12 +485,15 @@ priority ramp). Full derivation + WCAG contrast tables: `docs/decisions/PROG-150
   `"porcelain"` both mean the default); `setTheme` flips
   `document.documentElement.dataset.theme` and the `<meta name="theme-color">`
   content synchronously — no reload.
-- **No-flash boot** — an inline `<script>` in `index.html`'s `<head>` applies
-  the stored theme before first paint (it can't import `theme.ts`, since
-  nothing is bundled yet at that point, so it duplicates the theme
-  ids/paper-colors — keep the two in sync). `public/_headers`' CSP allowlists
-  this one script by sha256 hash rather than a blanket `'unsafe-inline'`
-  (regenerated each time the script's text changes, including for mono).
+- **No-flash boot** — `/theme-boot.js` (in `public/`), a blocking classic
+  `<script src>` in `index.html`'s `<head>`, applies the stored theme before
+  first paint. It can't import `theme.ts` (nothing is bundled yet at that
+  point) so it duplicates the theme ids/paper-colors — a drift guard in
+  `theme.test.ts` parses the file and fails if the two diverge. External
+  rather than inline (PROG-163): the former inline form's CSP sha256 pin went
+  stale after an edit and silently blocked the script in production; an
+  external file is covered by `script-src 'self'` with no pin to maintain.
+  `main.tsx` re-applies the stored theme at mount as a second line of defense.
 - **Picker UI** — the Header account/avatar dropdown (`src/client/Header.tsx`)
   carries a **Theme** group: one row per `THEMES` entry (now four), each a
   three-dot paper/accent/moss swatch + label + description, `aria-pressed`

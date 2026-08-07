@@ -17,31 +17,13 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#f7f7f2" />
 
-    <!-- No-flash theme boot (PROG-150): applies the stored theme preset
-         before first paint. Must run before any stylesheet/paint, so it's an
-         inline script rather than deferred to main.tsx — the CSP (public/_headers)
-         allowlists this exact script by sha256 hash rather than 'unsafe-inline'
-         (keeps "no inline scripts except this one, pinned" as the policy).
-         Mirrors src/client/theme.ts's THEME_KEY/THEMES.swatch.paper — it can't
-         import that module (nothing is bundled yet), so keep the two in sync
-         if a theme is added, removed, or recolored. Reads localStorage only;
-         everything is try/caught so a storage failure just means "porcelain
-         this load", never a broken boot. -->
-    <script>
-      (function () {
-        try {
-          var id = window.localStorage.getItem("progress:theme");
-          var paper = { adobe: "#f5efe0", sanzo: "#f9f4e9", mono: "#f7f7f7" }[id];
-          if (paper) {
-            document.documentElement.dataset.theme = id;
-            var meta = document.querySelector('meta[name="theme-color"]');
-            if (meta) meta.setAttribute("content", paper);
-          }
-        } catch (e) {
-          /* default this time */
-        }
-      })();
-    </script>
+    <!-- No-flash theme boot (PROG-150): applies the stored theme preset before
+         first paint. A blocking classic script, deliberately EXTERNAL
+         (PROG-163): the inline version needed a CSP sha256 pin that went stale
+         after an edit and silently blocked the script in production — the
+         stored theme stopped applying on reload. /theme-boot.js is covered by
+         script-src 'self', so there is no pin to drift. -->
+    <script src="/theme-boot.js"></script>
 
     <!-- iOS standalone PWA: the manifest alone isn't honoured by Safari, so these
          legacy/Apple-specific tags are required for an installed home-screen app.
