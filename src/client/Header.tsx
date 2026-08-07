@@ -4,7 +4,7 @@
 // reuses the existing optimistic create flows (the command-layer event bus);
 // no new write paths.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
   openCreateContainer,
@@ -37,6 +37,23 @@ export default function Header() {
   const me = useSnapshotSlice((ws) => ws.me);
   const isSuperAdmin = useSnapshotSlice((ws) => ws.isSuperAdmin);
 
+  // Publish the header's rendered height as --app-header-h (PROG-162), so
+  // anything sticky that must pin BELOW this bar (the outline's workspace
+  // context, and whatever comes next) reads the real offset instead of
+  // hardcoding one — the height differs by breakpoint (the nav row wraps
+  // away on phones) and grows by the safe-area inset in the installed PWA.
+  const barRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const bar = barRef.current;
+    if (!bar) return;
+    const publish = () =>
+      document.documentElement.style.setProperty("--app-header-h", `${bar.offsetHeight}px`);
+    publish();
+    const ro = new ResizeObserver(publish);
+    ro.observe(bar);
+    return () => ro.disconnect();
+  }, []);
+
   const pickTheme = (id: (typeof THEMES)[number]["id"]) => {
     setTheme(id);
     setThemeState(id);
@@ -59,7 +76,10 @@ export default function Header() {
     // rules in styles.css — `bg-paper/90`'s opacity-modifier suffix compiles
     // to its own literal utility (`.bg-paper\/90`), so a bare `.bg-paper`
     // selector can't reach it.
-    <header className="pwa-safe-top pwa-safe-x paper-chrome sticky top-0 z-40 border-b border-line bg-paper/90 backdrop-blur">
+    <header
+      ref={barRef}
+      className="pwa-safe-top pwa-safe-x paper-chrome sticky top-0 z-40 border-b border-line bg-paper/90 backdrop-blur"
+    >
       <div className="mx-auto flex max-w-screen-2xl items-center gap-1 px-3 py-2 sm:px-6">
         <Link href="/" className="mr-2 font-semibold text-ink">
           Progress

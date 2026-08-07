@@ -35,6 +35,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragCancelEvent,
   type DragEndEvent,
   type DragOverEvent,
@@ -1240,6 +1241,31 @@ export function OutlineView({
     setPreview(targetKey === homeKey ? null : resolved);
   };
 
+  // closestCenter, minus the dead ends (PROG-162). A workspace section is
+  // never a valid target for a held ACTION row — resolveActionDrop has no
+  // branch for it, so an "over" there resolves to nothing and the preview
+  // stalls. That used to be mostly harmless because a row target usually won
+  // the center contest first, but the margin was thin: the collision rect is
+  // the full row (its center rides ~half a row-width right of the pointer)
+  // while a workspace rect's center sits mid-column, so the two centers run
+  // close together. The spine rail's 28px shifted the geometry just enough
+  // for the section to win the whole glide and mask every real target under
+  // it. Dropping the invalid candidates from the contest fixes the class of
+  // failure, not the pixel: rows, arcs, and focuses — all real targets —
+  // compete on their own. Container drags keep the full field (a focus
+  // dropped on a workspace section is how cross-workspace re-parent works).
+  const collisionDetection: CollisionDetection = (args) =>
+    closestCenter(
+      actionById.has(String(args.active.id))
+        ? {
+            ...args,
+            droppableContainers: args.droppableContainers.filter(
+              (c) => !workspaceById.has(String(c.id)),
+            ),
+          }
+        : args,
+    );
+
   // Any POINTER drag that activated may be tailed by a synthesized click at
   // the release point (PROG-130) — swallow it before it native-navigates. A
   // keyboard drag (Space pickup) is excluded: no click follows an Enter/Space
@@ -1470,7 +1496,7 @@ export function OutlineView({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={collisionDetection}
       // The cross-group preview moves REAL layout mid-drag (rows re-home,
       // groups open a slot) — but the default WhileDragging measuring
       // already covers it: a hop remounts the moved subtree (the droppable
@@ -1512,19 +1538,55 @@ export function OutlineView({
                 label={`Open ${w.name} — drag to reorder`}
               >
                 {(wsGrip) => (
-                  <section>
-                    <div className="group mb-2 flex items-center gap-2">
-                      {wsGrip}
-                      <Link
-                        href={`/workspace/${w.id}`}
-                        className="text-lg font-semibold text-ink hover:underline"
-                      >
-                        {w.name}
-                      </Link>
+                  // Workspace context that survives scrolling (PROG-162): deep
+                  // inside a tall focus the section header is long gone, and
+                  // nothing on screen said which workspace you were in. Two
+                  // sticky treatments, split by breakpoint because they spend
+                  // different budgets: desktop hangs a "spine" in the left
+                  // gutter — the workspace name in vertical text riding a
+                  // full-height hairline, zero vertical cost, margin space
+                  // that was dead anyway; phones have no gutter to spare, so
+                  // there the header row itself pins below the app bar (paper
+                  // + blur, the app header's own idiom), costing a strip of
+                  // height instead of row width. Both are links to the
+                  // workspace page, and both pin off --app-header-h (set by
+                  // Header) so they sit flush under the real bar in every
+                  // breakpoint and PWA inset.
+                  <section className="flex gap-2">
+                    {/* aria-hidden + tabIndex -1: the spine duplicates the
+                        header link's target, so for keyboard and AT it's pure
+                        noise (and a second identically-named link); it stays a
+                        pointer-only bonus affordance. */}
+                    <div
+                      className="hidden w-5 shrink-0 border-r border-line sm:block"
+                      aria-hidden="true"
+                    >
+                      <div className="sticky top-[calc(var(--app-header-h,60px)+12px)]">
+                        <Link
+                          href={`/workspace/${w.id}`}
+                          title={w.name}
+                          tabIndex={-1}
+                          className="block max-h-[70vh] overflow-hidden text-ellipsis whitespace-nowrap pr-1 text-2xs font-medium uppercase tracking-[0.18em] text-ink-faint hover:text-accent-deep"
+                          style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
+                        >
+                          {w.name}
+                        </Link>
+                      </div>
                     </div>
-                    <div className="space-y-3 pl-1">
-                      {renderFocusSections(focusesOfWorkspace(w.id))}
-                      <NewFocusCapture workspaceId={w.id} existingPrefixes={existingPrefixes} />
+                    <div className="min-w-0 flex-1">
+                      <div className="group mb-2 flex items-center gap-2 max-sm:sticky max-sm:top-[var(--app-header-h,60px)] max-sm:z-30 max-sm:-mx-1 max-sm:rounded-b max-sm:bg-paper/95 max-sm:px-1 max-sm:py-1.5 max-sm:backdrop-blur">
+                        {wsGrip}
+                        <Link
+                          href={`/workspace/${w.id}`}
+                          className="text-lg font-semibold text-ink hover:underline"
+                        >
+                          {w.name}
+                        </Link>
+                      </div>
+                      <div className="space-y-3 pl-1">
+                        {renderFocusSections(focusesOfWorkspace(w.id))}
+                        <NewFocusCapture workspaceId={w.id} existingPrefixes={existingPrefixes} />
+                      </div>
                     </div>
                   </section>
                 )}
