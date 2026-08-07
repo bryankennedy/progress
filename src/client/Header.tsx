@@ -72,12 +72,16 @@ export default function Header() {
             <Link
               key={item.href}
               href={item.href}
-              className={`rounded px-2 py-1 ${
+              className={`flex items-center gap-1.5 rounded px-2 py-1 ${
                 item.match(path)
                   ? "bg-accent-wash/40 text-accent-deep"
                   : "text-ink-soft hover:bg-hover hover:text-ink"
               }`}
             >
+              {/* Icon carried over from the mobile tab bar (PROG-156), sized
+                  down to sit inline with the label; it tints with the link's
+                  text color (currentColor), so the active accent reaches it. */}
+              <item.Icon className="h-4 w-4 shrink-0" />
               {item.label}
             </Link>
           ))}

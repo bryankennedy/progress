@@ -728,7 +728,11 @@ the canonical classes but not the component.
   Archive, the active tab lit in the ultramarine accent (More included when its sheet's
   page is current), clear of the iOS home indicator. This stops the header from
   overflowing and scrolling sideways on a phone (PROG-79). Both surfaces read
-  their destinations from one shared `nav.tsx` list so they can't drift.
+  their destinations — and their icons — from one shared `nav.tsx` list so they
+  can't drift: each item's `Icon` is a size-parametric component, drawn small
+  beside the label in the desktop nav and at tab size in the bottom bar
+  (PROG-156). The icon tints with the link's text color, so the active accent
+  reaches it.
 - **Agenda (`/agenda`)** — the time-driven cut: every action with a due date
   that isn't done/canceled, sorted by due date ascending and grouped **Overdue ·
   Today · Tomorrow · This week · Later** (computed from the owner's local day;
