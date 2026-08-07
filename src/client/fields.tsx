@@ -5,6 +5,8 @@
 
 import { useRef } from "react";
 
+import { CalendarGlyph } from "./glyphs";
+
 // The field-edit triggers below a field's value (Move… / Change… / Edit…).
 // They carry keyboard shortcuts on desktop, but on a phone tapping the link is
 // the ONLY way to fire them — so give each a 44px-tall touch row on mobile
@@ -206,34 +208,5 @@ export function IconDateInput({
         className="w-full min-w-0 max-w-full box-border rounded border border-line bg-card px-2 py-1 text-sm hover:border-ink-faint [&::-webkit-date-and-time-value]:text-left [&::-webkit-calendar-picker-indicator]:hidden"
       />
     </IconRow>
-  );
-}
-
-// The due-date field's calendar glyph — same 16×16 box and size as the
-// indicator glyphs so the gutter column lines up.
-function CalendarGlyph() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden className="inline-block h-3.5 w-3.5 shrink-0">
-      <rect
-        x="2"
-        y="3"
-        width="12"
-        height="11"
-        rx="2"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-      <path d="M2.75 6.5 H13.25" stroke="currentColor" strokeWidth="1.5" />
-      <path
-        d="M5.25 1.75 V4 M10.75 1.75 V4"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-      <circle cx="5.5" cy="9.5" r="1" fill="currentColor" />
-      <circle cx="8" cy="9.5" r="1" fill="currentColor" />
-      <circle cx="10.5" cy="9.5" r="1" fill="currentColor" />
-    </svg>
   );
 }

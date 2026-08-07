@@ -651,9 +651,14 @@ the canonical classes but not the component.
   the right edge stays flush) with the editable **`PriorityPicker`** just
   inside it (PROG-136 — the same in-place control as the table cell and
   Agenda rows, so priority is settable from any outline, including the
-  focus/arc container pages). Priority `none` still reads as nothing at a
-  glance, the board card's convention: its glyph fades in on row hover/focus,
-  and the picker stays hit-testable while transparent so a tap still works on
+  focus/arc container pages), and the editable **`DuePicker`** (calendar glyph)
+  just inside _that_ (PROG-158). Clicking the calendar opens the native date
+  picker; a set date shows its short label beside the glyph, turning
+  overdue-red once past — the same `updateAction({ dueDate })` write the action
+  page and Agenda use, so the due date is settable from any outline too.
+  Priority `none` and an unset due date both still read as nothing at a
+  glance, the board card's convention: their glyphs fade in on row hover/focus,
+  and the pickers stay hit-testable while transparent so a tap still works on
   touch.
   Completed actions (done/canceled) read as finished — dimmed + struck through
   via the shared closed-action treatment (`closedTitleClass`,

@@ -68,6 +68,37 @@ export function ArcGlyph() {
   );
 }
 
+// Calendar glyph (PROG-101, shared out PROG-158): the due-date field's icon —
+// same 16×16 box and 3.5 size as the level/indicator glyphs so gutters and
+// dense rows line up. Rendered by the sidebar date field and the outline row's
+// inline due picker, so the due-date iconography is one shape everywhere.
+export function CalendarGlyph({ className = "h-3.5 w-3.5 shrink-0" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden className={`inline-block ${className}`}>
+      <rect
+        x="2"
+        y="3"
+        width="12"
+        height="11"
+        rx="2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path d="M2.75 6.5 H13.25" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M5.25 1.75 V4 M10.75 1.75 V4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <circle cx="5.5" cy="9.5" r="1" fill="currentColor" />
+      <circle cx="8" cy="9.5" r="1" fill="currentColor" />
+      <circle cx="10.5" cy="9.5" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
 // Check glyph (PROG-150): the "selected" marker in the Header theme picker.
 // Same currentColor line idiom as ChevronDownGlyph (audit N1) rather than a
 // text "✓" glyph.
