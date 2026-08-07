@@ -608,6 +608,21 @@ the canonical classes but not the component.
   the same way** (PROG-87): arc sections within a focus, and focus sections
   at workspace scope, each drag as a whole block from the handle in their
   header — sections never change parents by drag; only actions move.
+  At **all scope**, each workspace section keeps its identity on screen while
+  you're scrolled deep inside it (PROG-162): on `sm+` a **spine** — the
+  workspace name in sticky vertical text riding a full-height hairline in the
+  left gutter (a pointer-only affordance: `aria-hidden`, the header link is
+  the accessible route); below `sm` the section's **header row pins** below
+  the app bar instead (paper + blur, the header's own idiom), since phones
+  have no gutter to spare. Both pin off `--app-header-h`, published by
+  `Header` from a `ResizeObserver`, so the offset tracks the real bar height
+  across breakpoints and PWA insets. Because workspace sections are **dead-end
+  drop targets for action rows** (`resolveActionDrop` has no workspace
+  branch), the outline's collision detection filters them out of the
+  `closestCenter` contest while an action is held — their big rects otherwise
+  run neck-and-neck with the row under the pointer and can mask every real
+  target for a whole glide (container drags keep the full field; dropping a
+  focus on a workspace section is how cross-workspace re-parent works).
   Anything held — a section **or an action row** — is carried by a floating
   `DragOverlay` preview (capped rows, shadow; rows add the board card's slight
   rotation) while the in-list source dims to a ghost and the rest of the
