@@ -43,7 +43,9 @@ export default function MobileTabBar() {
                     active ? "bg-accent-wash/40 text-accent-deep" : "text-ink-soft hover:bg-hover"
                   }`}
                 >
-                  <span className="text-ink-faint">{item.icon}</span>
+                  <span className="text-ink-faint">
+                    <item.Icon />
+                  </span>
                   {item.label}
                 </Link>
               );
@@ -66,7 +68,7 @@ export default function MobileTabBar() {
             moreActive || moreOpen ? "text-accent-deep" : "text-ink-faint"
           }`}
         >
-          {MoreIcon}
+          <MoreIcon />
           More
         </button>
       </div>
@@ -83,7 +85,7 @@ function Tab({ item, active }: { item: NavItem; active: boolean }) {
         active ? "text-accent-deep" : "text-ink-faint"
       }`}
     >
-      {item.icon}
+      <item.Icon />
       {item.label}
     </Link>
   );
