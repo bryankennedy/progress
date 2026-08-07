@@ -54,3 +54,17 @@ held** — every remaining candidate (row, arc, focus) is a target
 `resolveActionDrop` can do something with. Container drags keep the full
 field; a focus dropped on a workspace section is exactly how cross-workspace
 re-parent works (PROG-140).
+
+### PROG-162c — True `sideways-lr` for the spine; the rotate fallback inverts emoji
+
+The spine originally faked `sideways-lr` with `writing-mode: vertical-rl` +
+`rotate(180deg)`, chosen for older-browser reach. The fake has a visible seam:
+in `vertical-rl` Latin letters lie on their side but **emoji stay upright**, so
+the 180° flip that rights the letters turns every emoji upside down — and
+workspace names use emoji. Real `writing-mode: sideways-lr` rotates every
+glyph with the line, emoji included, so their rotation matches the text.
+Now a `.spine-sideways` class (styles.css): `sideways-lr` under
+`@supports (writing-mode: sideways-lr)` (Chrome 130+, Firefox 43+, Safari
+18.2+), the old vertical-rl + rotate pair as the declaration-order fallback —
+engines without sideways modes degrade to exactly the previous rendering.
+No emoji detection needed; the right writing mode makes the problem not exist.

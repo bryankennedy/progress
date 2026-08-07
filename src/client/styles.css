@@ -613,3 +613,20 @@
   border: 1px solid var(--color-line);
   border-radius: 0.375rem;
 }
+
+/* The outline's workspace spine (PROG-162): the name set sideways, reading
+   bottom-up like a book spine. True `sideways-lr` rotates EVERY glyph with
+   the line — emoji included. The fallback fakes it with vertical-rl + a 180°
+   flip, which reads identically for letters but leaves emoji upside down
+   (vertical-rl keeps emoji upright, so the flip inverts them) — acceptable
+   degradation for the few engines still missing sideways writing modes. */
+.spine-sideways {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+@supports (writing-mode: sideways-lr) {
+  .spine-sideways {
+    writing-mode: sideways-lr;
+    transform: none;
+  }
+}
