@@ -63,6 +63,7 @@ import { clearDraft, readDraft, writeDraft } from "../drafts";
 import { ChevronDownGlyph } from "../glyphs";
 import PageHeader from "../PageHeader";
 import PriorityPicker from "../PriorityPicker";
+import DuePicker from "../DuePicker";
 import StatusPicker from "../StatusPicker";
 import { DROP_ANIMATION } from "../dropAnimation";
 import { rankForInsert, rankForReorder, type ReorderPlacement } from "../outlineReorder";
@@ -464,16 +465,27 @@ const ActionRow = memo(function ActionRow({
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
         {depth === 0 && <ArcMenu action={action} arcs={arcs} />}
       </div>
-      {/* At-a-glance state, right-aligned (PROG-124): the shared priority +
-          status glyphs every other view uses. Status is on every row, so it
-          holds the outermost column and the right edge stays flush; priority
-          sits just inside it. Both glyphs are the shared editable pickers
-          (PROG-136 priority, PROG-140 status) — same in-place control as the
-          table cell and Agenda rows. "None" priority still reads as nothing
-          at a glance (PROG-124): its hollow ring only fades in on row hover /
-          focus, but the picker stays hit-testable even while transparent, so
-          a tap where the glyph sits works on touch too. */}
+      {/* At-a-glance state, right-aligned (PROG-124): the shared due-date,
+          priority + status glyphs every other view uses. Status is on every
+          row, so it holds the outermost column and the right edge stays flush;
+          priority sits just inside it, and the due-date calendar just inside
+          that (PROG-158). All three are the shared editable pickers (PROG-136
+          priority, PROG-140 status, PROG-158 due) — same in-place control as
+          the table cell and Agenda rows. Like "none" priority, an undated row
+          keeps its calendar hidden until row hover / focus so it reads as
+          nothing at a glance (PROG-124); the picker stays hit-testable even
+          while transparent, so a tap where the glyph sits works on touch too.
+          A dated row shows its date always. */}
       <span className="flex shrink-0 items-center gap-1.5">
+        <span
+          className={
+            action.dueDate === null
+              ? "opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+              : ""
+          }
+        >
+          <DuePicker actionId={action.id} dueDate={action.dueDate} muted={done} />
+        </span>
         <span
           className={
             action.priority === "none"
